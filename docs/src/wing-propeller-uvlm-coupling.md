@@ -30,6 +30,13 @@ The reference implementation inspected for this design is commit
 [`12f58e73`](https://github.com/jptpsantos/Wing_Propeller_UVLM/commit/12f58e73fedc09c32c6fc4a2305fdc62f5a48872)
 of `Wing_Propeller_UVLM` and AeroBeams version 0.8.1.
 
+The UVLM source has now been imported into this repository as the internal
+package `lib/WingPropellerUVLM`. Its `src/backend` directory contains the
+modified VortexLattice implementation, `src/wing_propeller` contains the
+reusable research-model helpers, and `src/UVLMState.jl` provides the
+transactional snapshot/restore interface described below. The remaining
+AeroBeams coupling hooks in this document are still proposed work.
+
 ## 1. Design decision
 
 The UVLM must remain a global aerodynamic subsystem. It should not be inserted

@@ -41,5 +41,21 @@ using WingPropellerUVLM
 
         @test system.Γ == snapshot.Γ
         @test system.surfaces == snapshot.surfaces
+
+        activeWakeRows = [0]
+        repeatedPoints = repeated_trailing_edge_points(system.surfaces)
+        advance_uvlm_trial!(system,snapshot,system.freestream[],0.01;
+            repeatedPoints=repeatedPoints,
+            activeWakeRows=activeWakeRows,
+        )
+        ΓFirst = copy(system.Γ)
+        wakesFirst = deepcopy(system.wakes)
+
+        advance_uvlm_trial!(system,snapshot,system.freestream[],0.01;
+            repeatedPoints=repeatedPoints,
+            activeWakeRows=activeWakeRows,
+        )
+        @test system.Γ ≈ ΓFirst
+        @test system.wakes == wakesFirst
     end
 end
