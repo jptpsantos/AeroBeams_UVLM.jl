@@ -67,7 +67,9 @@ export generate_panel_grid_and_interpolate
 export generate_aero_panel_grid_and_interpolate
 export generate_propeller_blades_grid
 export get_chord_over_R, get_twist_deg, get_twist_deg_chang
+export get_twist_deg_interp
 export get_nodal_properties, get_nodal_properties_chang
+export RotationMatrix
 export copy_surfaces_to_previous!
 export wing_kinematics_from_free_state
 export initialize_propeller_grids!, update_propeller_grids!
