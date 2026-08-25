@@ -1,11 +1,16 @@
+# Legacy VortexLattice force decomposition retained for reference while the
+# stability-derivative port is completed. Production near-field loads are
+# implemented in `imperial_forces.jl` and dispatched through
+# `near_field_forces!`.
+
 """
-    near_field_forces!(properties, surfaces, wakes, reference, freestream, Γ;
+    legacy_near_field_forces!(properties, surfaces, wakes, reference, freestream, Γ;
         dΓdt, additional_velocity, Vh, Vv, symmetric, nwake, surface_id,
         wake_finite_core, wake_shedding_locations, trailing_vortices, xhat)
 
 Calculate local panel forces in the body frame.
 """
-function near_field_forces!(props, surfaces, wakes, ref, fs, Γ;
+function legacy_near_field_forces!(props, surfaces, wakes, ref, fs, Γ;
     dΓdt, additional_velocity, Vh, Vv, symmetric, nwake, surface_id,
     wake_finite_core, wake_shedding_locations, trailing_vortices, xhat,
     interaction_id = surface_id,
@@ -1136,16 +1141,16 @@ end
 #end
 
 """
-    near_field_forces_derivatives!(properties, dproperties, surfaces, reference,
+    legacy_near_field_forces_derivatives!(properties, dproperties, surfaces, reference,
         freestream, Γ, dΓ; dΓdt, additional_velocity, Vh, Vv, symmetric, nwake,
         surface_id, wake_finite_core, wake_shedding_locations, trailing_vortices, xhat)
 
 Version of [`near_field_forces!`](@ref) that also calculates the derivatives of
 the local panel forces with respect to the freestream variables.
 """
-near_field_forces_derivatives!
+legacy_near_field_forces_derivatives!
 
-function near_field_forces_derivatives!(props, dprops, surfaces, wakes,
+function legacy_near_field_forces_derivatives!(props, dprops, surfaces, wakes,
     ref, fs, Γ, dΓ; dΓdt, additional_velocity, Vh, Vv, symmetric, nwake,
     surface_id, wake_finite_core, wake_shedding_locations, trailing_vortices, xhat,
     interaction_id = surface_id,
@@ -1993,5 +1998,3 @@ function body_to_frame(CF, CM, ref, fs, ::Wind)
 
     return CF, CM
 end
-
-

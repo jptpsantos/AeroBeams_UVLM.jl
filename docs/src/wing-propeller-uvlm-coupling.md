@@ -792,6 +792,27 @@ loads.
 
 The existing UVLM propagation call should be wrapped directly:
 
+The `run_chang*` drivers in `Wing_Propeller_UVLM` establish the intended
+unsteady architecture more accurately than the backend's generic
+`unsteady_analysis` convenience wrapper. Their physical-step transaction is:
+
+1. copy the last accepted geometry to `previous_surfaces`;
+2. snapshot the accepted wake and circulation history;
+3. update the aerodynamic geometry from the current structural trial state;
+4. restore the snapshot and call `propagate_system!`;
+5. map the resulting segmented aerodynamic loads to structural resultants;
+6. repeat steps 3--5 until the interface residuals converge; and
+7. repeat the aerodynamic call once at the accepted structural state, retain
+   that result, and increment the active wake rows exactly once.
+
+The embedded package implements this transaction with `snapshot_uvlm`,
+`advance_uvlm_trial!`, and `commit_wake_rows!`. Its snapshot is deliberately
+broader than the local `snapshot_aero_step` helpers in the legacy drivers: it
+also restores current and previous surfaces, wake-shedding locations, active
+wake counts, and freestream state, while preserving the identities of the
+preallocated arrays. This prevents rejected coupling trials from leaking
+geometry or wake state into the accepted history.
+
 ```julia
 function advance_trial!(aero::UVLMAssembly,freestream,Δt::Real)
     @assert Δt > 0
@@ -1066,11 +1087,41 @@ end
 If a stencil collapses to one aligned node, set the other weight to zero or
 store a single-node stencil without adding the same node twice.
 
-The current UVLM implementation exposes span-segment, chord-segment, and
-unsteady forces. Audit their definitions once during packaging and establish
-one function that returns the total physical panel or vertex load. Do not sum
-two arrays unless the UVLM force derivation confirms that they are additive and
-non-overlapping.
+The embedded backend now calculates these loads with the Imperial College C++
+UVLM formulation. It evaluates Joukovski forces on spanwise and chordwise
+vortex segments, adds the panel pressure-rate force
+`-rho*A*normal*gamma_dot`, and transfers them to vertices with the same
+half-segment and quarter-panel rules. On the final chordwise panel row, Imperial
+deliberately omits the downstream pair of unsteady-force contributions.
+
+Use the packaged transfer function instead of reconstructing this convention in
+the coupler:
+
+```julia
+reference = Reference(Sref,cref,bref,rref_U,Vref,rho)
+system.reference[] = reference
+
+# Advance or solve the UVLM first. Each entry is a dimensional force in U.
+surfaceNodalForces_U = imperial_nodal_forces(system)
+```
+
+`surfaceNodalForces_U[isurf]` has size `(nc+1,ns+1)` and stores `SVector{3}`
+values in newtons when SI geometry, velocity, and density are supplied. The
+three raw arrays remain available for diagnostics, but should not be summed
+directly: `span_seg_forces` and `chord_seg_forces` are segment resultants,
+whereas `unsteady_forces` contains panel resultants that require Imperial's
+corner-transfer rule.
+
+Density is explicit in the six-argument `Reference` constructor. Its default is
+`1.0` only for compatibility with older calls. Set the physical density once in
+`Reference`; do not multiply the nodal loads by density again. Normalized
+`PanelProperties` coefficients use `q_∞ = ½ρV²` and remain suitable for
+coefficient plots and verification.
+
+The VortexLattice ring traversal is opposite to Imperial's `zeta` ordering, so
+the backend performs the documented interface conversion
+`gamma_imperial = -gamma_julia` before applying Imperial's circulation jumps.
+This is a convention conversion, not an additional physical sign change.
 
 ### 12.2 Propeller hub wrench
 

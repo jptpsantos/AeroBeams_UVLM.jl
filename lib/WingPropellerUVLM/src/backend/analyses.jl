@@ -46,8 +46,10 @@ Perform a steady vortex lattice method analysis.  Return an object of type
     version of this function.
  - `near_field_analysis`: Flag indicating whether a near field analysis should be
     performed to obtain panel velocities, circulation, and forces. Defaults to `true`.
- - `derivatives`: Flag indicating whether the derivatives with respect
-    to the freestream variables should be calculated. Defaults to `true`.
+ - `derivatives`: Flag indicating whether circulation derivatives with respect
+    to the freestream variables should be calculated. Defaults to `false`.
+    Imperial near-field force derivatives are not implemented yet, so this
+    option cannot be combined with `near_field_analysis=true`.
 """
 function steady_analysis(grids, reference, freestream; kwargs...)
 
@@ -75,7 +77,11 @@ function steady_analysis!(system, ref, fs;
     fcore = (c, Δs) -> 1e-3,
     calculate_influence_matrix = true,
     near_field_analysis = true,
-    derivatives = true)
+    derivatives = false)
+
+    if near_field_analysis && derivatives
+        throw(ArgumentError("Imperial near-field force derivatives are not implemented; use derivatives=false"))
+    end
 
     # number of surfaces
     nsurf = length(system.surfaces)
@@ -155,35 +161,23 @@ function steady_analysis!(system, ref, fs;
     end
 
     if near_field_analysis
-        # perform a near field analysis to obtain panel properties
-        if derivatives
-            near_field_forces_derivatives!(properties, dproperties, surfaces, wakes,
-                ref, fs, Γ, dΓ;
-                dΓdt = nothing, # no unsteady forces
-                additional_velocity = additional_velocity,
-                Vh = nothing, # no velocity due to surface motion
-                Vv = nothing, # no velocity due to surface motion
-                symmetric = symmetric,
-                nwake = nwake,
-                surface_id = surface_id,
-                wake_finite_core = wake_finite_core,
-                wake_shedding_locations = nothing, # shedding location at trailing edge
-                trailing_vortices = trailing_vortices,
-                xhat = xhat)
-        else
-            near_field_forces!(properties, surfaces, wakes, ref, fs, Γ;
-                dΓdt = nothing, # no unsteady forces
-                additional_velocity = additional_velocity,
-                Vh = nothing, # no velocity due to surface motion
-                Vv = nothing, # no velocity due to surface motion
-                symmetric = symmetric,
-                nwake = nwake,
-                surface_id = surface_id,
-                wake_finite_core = wake_finite_core,
-                wake_shedding_locations = nothing, # shedding location at trailing edge
-                trailing_vortices = trailing_vortices,
-                xhat = xhat)
-        end
+        # Perform the Imperial near-field analysis and retain dimensional loads.
+        properties, chord_seg, span_seg, unsteady = near_field_forces!(
+            properties, surfaces, wakes, ref, fs, Γ;
+            dΓdt = nothing, # no unsteady forces
+            additional_velocity = additional_velocity,
+            Vh = nothing, # no velocity due to surface motion
+            Vv = nothing, # no velocity due to surface motion
+            symmetric = symmetric,
+            nwake = nwake,
+            surface_id = surface_id,
+            wake_finite_core = wake_finite_core,
+            wake_shedding_locations = nothing, # shedding location at trailing edge
+            trailing_vortices = trailing_vortices,
+            xhat = xhat)
+        system.chord_seg_forces .= chord_seg
+        system.span_seg_forces .= span_seg
+        system.unsteady_forces .= unsteady
     end
 
     # save flags indicating whether certain analyses have been performed
@@ -289,7 +283,11 @@ function unsteady_analysis!(system, surfaces, ref, fs, dt;
     save = 1:length(dt),
     calculate_influence_matrix = true,
     near_field_analysis = true,
-    derivatives = true)
+    derivatives = false)
+
+    if near_field_analysis && derivatives
+        throw(ArgumentError("Imperial near-field force derivatives are not implemented; use derivatives=false"))
+    end
 
     # float number type
     TF = eltype(system)
@@ -649,6 +647,10 @@ function propagate_system!(system, fs, dt;
     interaction_id = system.surface_id,
     interaction::Bool = true) # <--- [NEW] Argument
 
+    if near_field_analysis && derivatives
+        throw(ArgumentError("Imperial near-field force derivatives are not implemented; use derivatives=false"))
+    end
+
     nsurf = length(system.surfaces)
 
     # unpack constant system parameters
@@ -761,27 +763,15 @@ function propagate_system!(system, fs, dt;
 
     # compute transient forces on each panel (if necessary)
     if near_field_analysis
-        if derivatives
-             # ... (Skipped derivation block for brevity, assumed unchanged)
-             near_field_forces_derivatives!(system.properties, system.dproperties,
-                current_surfaces, wakes, ref, fs, Γ, dΓ; dΓdt,
-                additional_velocity, Vh, Vv, symmetric, nwake,
-                surface_id, wake_finite_core, wake_shedding_locations,
-                trailing_vortices, xhat,
-                interaction_id = interaction_id,
-                interaction = interaction)
-        else
-            properties, chord_seg, span_seg, unsteady = near_field_forces!(system.properties, current_surfaces, wakes,
-                ref, fs, Γ; dΓdt, additional_velocity, Vh, Vv,
-                symmetric, nwake, surface_id, wake_finite_core,
-                wake_shedding_locations, trailing_vortices, xhat,
-                interaction_id = interaction_id,
-                interaction = interaction)
+        properties, chord_seg, span_seg, unsteady = near_field_forces!(
+            system.properties, current_surfaces, wakes, ref, fs, Γ;
+            dΓdt, additional_velocity, Vh, Vv, symmetric, nwake,
+            surface_id, wake_finite_core, wake_shedding_locations,
+            trailing_vortices, xhat, interaction_id, interaction)
 
-            system.chord_seg_forces .= chord_seg
-            system.span_seg_forces .= span_seg
-            system.unsteady_forces .= unsteady
-        end
+        system.chord_seg_forces .= chord_seg
+        system.span_seg_forces .= span_seg
+        system.unsteady_forces .= unsteady
 
         # save flag indicating that a near-field analysis has been performed
         system.near_field_analysis[] = near_field_analysis
@@ -804,4 +794,3 @@ function propagate_system!(system, fs, dt;
 
     return system
 end
-

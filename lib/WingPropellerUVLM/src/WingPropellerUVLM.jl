@@ -26,6 +26,7 @@ include("backend/circulation.jl")
 include("backend/system.jl")
 include("backend/analyses.jl")
 include("backend/nearfield.jl")
+include("backend/imperial_forces.jl")
 include("backend/farfield.jl")
 include("backend/stability.jl")
 include("backend/visualization.jl")
@@ -56,6 +57,7 @@ export unsteady_analysis, unsteady_analysis!, propagate_system!
 export spanwise_force_coefficients
 export body_forces, body_forces_history
 export lifting_line_coefficients, lifting_line_coefficients!
+export imperial_nodal_forces
 export far_field_drag
 export body_derivatives, stability_derivatives
 export write_vtk

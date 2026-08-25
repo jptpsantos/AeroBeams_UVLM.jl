@@ -1,7 +1,7 @@
 # --- reference quantities --- #
 
 """
-    Reference(S, c, b, r)
+    Reference(S, c, b, r, V[, rho])
 
 Reference quantities.
 
@@ -11,6 +11,7 @@ Reference quantities.
  - `b`: reference span
  - `r`: reference location for all rotations/moments
  - `V`: reference velocity (magnitude)
+ - `rho`: fluid density; defaults to `1.0` for backward compatibility
 """
 struct Reference{TF}
     S::TF
@@ -18,17 +19,18 @@ struct Reference{TF}
     b::TF
     r::SVector{3, TF}
     V::TF
+    rho::TF
 end
 
-function Reference(S, c, b, r, V)
-    TF = promote_type(typeof(S), typeof(c), typeof(b), eltype(r), typeof(V))
-    return Reference{TF}(S, c, b, r, V)
+function Reference(S, c, b, r, V, rho=1.0)
+    TF = promote_type(typeof(S), typeof(c), typeof(b), eltype(r), typeof(V), typeof(rho))
+    return Reference{TF}(S, c, b, r, V, rho)
 end
 
 Base.eltype(::Type{Reference{TF}}) where TF = TF
 Base.eltype(::Reference{TF}) where TF = TF
 
-Reference{TF}(r::Reference) where TF = Reference{TF}(r.S, r.c, r.b, r.r, r.V)
+Reference{TF}(r::Reference) where TF = Reference{TF}(r.S, r.c, r.b, r.r, r.V, r.rho)
 Base.convert(::Type{Reference{TF}}, r::Reference) where {TF} = Reference{TF}(r)
 
 # --- reference frames --- #
@@ -61,5 +63,4 @@ struct Stability <: AbstractFrame end
 Reference frame rotated to be aligned with the freestream `alpha` and `beta`
 """
 struct Wind <: AbstractFrame end
-
 
