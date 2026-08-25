@@ -13,6 +13,10 @@ To install AeroBeams, simply go to the package manager mode in the Julia REPL by
 pkg> add AeroBeams
 ```
 
+## Working with Git
+
+The [Git workflow in VS Code](git-workflow.md) manual explains how to create branches, make and test changes, review diffs, commit work, open pull requests, and resolve common mistakes.
+
 ## Features
 The software is a general-purpose aeroelastic solver for flexible aircraft structures that can be modeled as an assembly of anisotropic, initially curved and twisted beams undergoing arbitrarily large displacements and rotations. Multibody dynamics capabilities include only simple hinges.
 

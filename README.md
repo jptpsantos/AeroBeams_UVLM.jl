@@ -8,6 +8,10 @@
 ## Overview
 AeroBeams is a finite-element implementation of the geometrically exact beam theory of [Hodges](#1), augmented with aerodynamic formulations in order to solve aeroelastic problems. The structural part of the code was developed based on the works of [[2]](#2), [[3]](#3) and [[4]](#4), whereas the aerodynamic part follows [[5]](#5), [[6]](#6), [[7]](#7) and [[8]](#8). This package is written in [Julia](https://julialang.org/).
 
+The detailed design for coupling AeroBeams to the wing--propeller UVLM is available in the [wing--propeller UVLM coupling guide](docs/src/wing-propeller-uvlm-coupling.md).
+
+The UVLM implementation is included as the internal [`WingPropellerUVLM`](lib/WingPropellerUVLM) Julia package. It contains the modified VortexLattice backend, reusable wing--propeller geometry and kinematics, and transactional wake/circulation state operations. Activate or develop that package locally before running coupling examples.
+
 ## Installation
 
 To install AeroBeams, simply go to the package manager mode in the Julia REPL by typing ], and then

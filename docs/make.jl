@@ -45,6 +45,7 @@ makedocs(;
         "Flutter of a Blended-Wing-Body" => "literate/BWBflutter.md",
         "Pitch maneuver of a HALE aircraft" => "literate/conventionalHALECheckedPitchManeuver.md"
         ],
+        "Git workflow in VS Code" => "git-workflow.md",
         "Public API" => "publicAPI.md"
     ],
 )
