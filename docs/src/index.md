@@ -17,6 +17,17 @@ pkg> add AeroBeams
 
 The [Git workflow in VS Code](git-workflow.md) manual explains how to create branches, make and test changes, review diffs, commit work, open pull requests, and resolve common mistakes.
 
+## Wing--propeller UVLM
+
+The [WingPropellerUVLM library guide](wing-propeller-uvlm-library-guide.md)
+explains the in-repository package, every source-file group and public API, the
+Imperial load calculation, and the complete snapshot/trial/commit time-marching
+sequence used by the linear Chang validation case.
+
+The [AeroBeams coupling blueprint](wing-propeller-uvlm-coupling.md) describes
+the next step: conservative two-way coupling of the global UVLM to AeroBeams'
+geometrically exact nonlinear structural solver.
+
 ## Features
 The software is a general-purpose aeroelastic solver for flexible aircraft structures that can be modeled as an assembly of anisotropic, initially curved and twisted beams undergoing arbitrarily large displacements and rotations. Multibody dynamics capabilities include only simple hinges.
 

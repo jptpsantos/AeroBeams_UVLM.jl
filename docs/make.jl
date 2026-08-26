@@ -45,6 +45,10 @@ makedocs(;
         "Flutter of a Blended-Wing-Body" => "literate/BWBflutter.md",
         "Pitch maneuver of a HALE aircraft" => "literate/conventionalHALECheckedPitchManeuver.md"
         ],
+        "Wing--propeller UVLM" => [
+        "Library and time-marching guide" => "wing-propeller-uvlm-library-guide.md",
+        "AeroBeams coupling blueprint" => "wing-propeller-uvlm-coupling.md"
+        ],
         "Git workflow in VS Code" => "git-workflow.md",
         "Public API" => "publicAPI.md"
     ],
