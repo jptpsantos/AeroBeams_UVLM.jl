@@ -25,8 +25,8 @@ include("backend/induced.jl")
 include("backend/circulation.jl")
 include("backend/system.jl")
 include("backend/analyses.jl")
+include("backend/legacy_nearfield.jl")
 include("backend/nearfield.jl")
-include("backend/imperial_forces.jl")
 include("backend/farfield.jl")
 include("backend/stability.jl")
 include("backend/visualization.jl")
@@ -37,6 +37,8 @@ include("wing_propeller/GridUtilities.jl")
 include("wing_propeller/Kinematics.jl")
 include("wing_propeller/Initialization.jl")
 include("UVLMState.jl")
+include("aeroelastic/GeneralizedAlpha.jl")
+include("aeroelastic/Excitations.jl")
 
 export SectionProperties, grid_to_sections, nonlinear_analysis!
 export generate_rotor
@@ -57,7 +59,7 @@ export unsteady_analysis, unsteady_analysis!, propagate_system!
 export spanwise_force_coefficients
 export body_forces, body_forces_history
 export lifting_line_coefficients, lifting_line_coefficients!
-export imperial_nodal_forces
+export imperial_nodal_forces, imperial_nodal_positions
 export far_field_drag
 export body_derivatives, stability_derivatives
 export write_vtk
@@ -65,6 +67,7 @@ export write_vtk
 export span_position_to_node_index
 export span_positions_to_node_indices
 export propeller_attachment_nodes_from_eta
+export linear_interpolate_1d
 export generate_panel_grid_and_interpolate
 export generate_aero_panel_grid_and_interpolate
 export generate_propeller_blades_grid
@@ -81,5 +84,9 @@ export initialize_bohnisch_uvlm_system
 export UVLMSnapshot
 export snapshot_uvlm, restore_uvlm!
 export advance_uvlm_trial!, commit_wake_rows!
+
+export generalized_alpha_parameters, generalized_alpha_corrector
+export PartitionedCouplingOptions, partitioned_generalized_alpha_step
+export smooth_hann_pulse, smooth_hann_pulse_load
 
 end # module

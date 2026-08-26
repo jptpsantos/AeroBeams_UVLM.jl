@@ -13,7 +13,17 @@ function initialize_bohnisch_uvlm_system(;
     prop_pivot_offset_from_ea_A,
     hub_center_prop_A,
     fcore,
+    elastic_axis_fraction::Real = 0.35,
+    maximum_wake_rows_wing::Integer = 36,
+    maximum_wake_rows_propeller::Integer = 36,
     verbose::Bool = false)
+
+    0.0 <= elastic_axis_fraction <= 1.0 ||
+        throw(ArgumentError("elastic_axis_fraction must be between 0 and 1"))
+    maximum_wake_rows_wing >= 0 ||
+        throw(ArgumentError("maximum_wake_rows_wing must be nonnegative"))
+    maximum_wake_rows_propeller >= 0 ||
+        throw(ArgumentError("maximum_wake_rows_propeller must be nonnegative"))
 
     verbose && println("Initializing global UVLM system...")
 
@@ -32,7 +42,7 @@ function initialize_bohnisch_uvlm_system(;
     attach_node_y = [span_nodes[prop_attach_nodes[ip]] for ip in 1:Npropellers]
     attach_node_chord = [chord[prop_attach_nodes[ip]] for ip in 1:Npropellers]
     attach_node_xle = [xle_distribution[prop_attach_nodes[ip]] for ip in 1:Npropellers]
-    ea_x_aero = attach_node_xle .+ attach_node_chord .* 0.35
+    ea_x_aero = attach_node_xle .+ attach_node_chord .* elastic_axis_fraction
 
     hub_offset_from_ea_A = prop_pivot_offset_from_ea_A + hub_center_prop_A
     T_pivot_global_init = [SVector(ea_x_aero[ip], attach_node_y[ip], 0.0) + prop_pivot_offset_from_ea_A for ip in 1:Npropellers]
@@ -60,8 +70,8 @@ function initialize_bohnisch_uvlm_system(;
         end
     end
 
-    nwake_wing = 36#10 * nc_wing
-    nwake_prop = fill(36, Npropellers*Nb_prop)
+    nwake_wing = Int(maximum_wake_rows_wing)
+    nwake_prop = fill(Int(maximum_wake_rows_propeller), Npropellers * Nb_prop)
     nwake = vcat(nwake_wing, nwake_prop)
     system = System(surfaces; nw=nwake)
     verbose && println("UVLM system created.")
@@ -111,6 +121,7 @@ function initialize_bohnisch_uvlm_system(;
         attach_node_chord = attach_node_chord,
         attach_node_xle = attach_node_xle,
         ea_x_aero = ea_x_aero,
+        elastic_axis_fraction = elastic_axis_fraction,
         prop_pivot_offset_from_ea_A = prop_pivot_offset_from_ea_A,
         hub_center_prop_A = hub_center_prop_A,
         hub_offset_from_ea_A = hub_offset_from_ea_A,
@@ -142,4 +153,3 @@ function initialize_bohnisch_uvlm_system(;
         T_pivot_A_current = T_pivot_A_current,
     )
 end
-

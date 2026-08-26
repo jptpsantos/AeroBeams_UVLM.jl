@@ -9,7 +9,7 @@ in `LICENSE`.
 The imported backend contains later wing--propeller research modifications from
 [`Wing_Propeller_UVLM`](https://github.com/jptpsantos/Wing_Propeller_UVLM).
 
-The near-field force implementation in `src/backend/imperial_forces.jl` is a
+The near-field force implementation in `src/backend/nearfield.jl` is a
 Julia adaptation of the force equations and force-to-node mapping in
 [`ImperialCollegeLondon/UVLM`](https://github.com/ImperialCollegeLondon/UVLM),
 revision `d8af34a22baf1cddd38f1e362274c407637aab1c`. That project is distributed

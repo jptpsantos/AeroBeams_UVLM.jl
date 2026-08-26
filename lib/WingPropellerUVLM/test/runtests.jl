@@ -11,6 +11,93 @@ using StaticArrays
         @test grids[1][:,1,1] ≈ zeros(3)
     end
 
+    @testset "Reusable interpolation and deformed wing grid" begin
+        @test linear_interpolate_1d([0.0, 1.0], [2.0, 4.0], [-1.0, 0.5, 2.0]) ==
+            [2.0, 3.0, 4.0]
+        @test_throws ArgumentError linear_interpolate_1d([0.0, 0.0], [1.0, 2.0], [0.0])
+
+        grid = generate_panel_grid_and_interpolate(
+            1.0,
+            [1.0, 1.0],
+            [0.0, 0.0],
+            1,
+            1,
+            zeros(2),
+            zeros(2),
+            zeros(2),
+            zeros(2),
+            zeros(2),
+            zeros(2);
+            elastic_axis_fraction = 0.30,
+        )
+        @test grid[:, 1, 1] ≈ @SVector [0.0, 0.0, 0.0]
+        @test grid[:, 2, 2] ≈ @SVector [1.0, 1.0, 0.0]
+    end
+
+    @testset "Generalized-alpha integration" begin
+        parameters = generalized_alpha_parameters(0.7)
+        @test parameters.rho_inf == 0.7
+        @test parameters.beta > 0
+        @test_throws ArgumentError generalized_alpha_parameters(1.1)
+
+        correction = generalized_alpha_corrector(
+            ones(1, 1),
+            zeros(1, 1),
+            ones(1, 1),
+            zeros(1),
+            zeros(1),
+            zeros(1),
+            ones(1),
+            zeros(1),
+            zeros(1),
+            zeros(1),
+            0.01,
+            parameters,
+        )
+        @test all(isfinite, correction.displacement)
+        @test correction.equilibrium_residual <= eps(Float64)
+
+        options = PartitionedCouplingOptions(
+            maximum_iterations = 4,
+            state_tolerance = 1.0e-8,
+            load_tolerance = 1.0e-8,
+            equilibrium_tolerance = 1.0e-12,
+            relaxation = 1.0,
+        )
+        step = partitioned_generalized_alpha_step(
+            ones(1, 1),
+            zeros(1, 1),
+            ones(1, 1),
+            zeros(1),
+            zeros(1),
+            zeros(1),
+            zeros(1),
+            zeros(1),
+            zeros(1),
+            0.01,
+            parameters,
+            _ -> zeros(1);
+            options,
+            require_load_convergence = false,
+        )
+        @test step.converged
+        @test step.iterations == 1
+    end
+
+    @testset "Smooth pulse excitation" begin
+        @test smooth_hann_pulse(0.0; start_time = 1.0, duration = 2.0) == 0.0
+        @test smooth_hann_pulse(2.0; start_time = 1.0, duration = 2.0) ≈ 1.0
+        pulse_load = smooth_hann_pulse_load(
+            2.0,
+            4,
+            [2, 4];
+            magnitude = 3.0,
+            start_time = 1.0,
+            duration = 2.0,
+        )
+        @test pulse_load == [0.0, 3.0, 0.0, 3.0]
+    end
+
     @testset "Wake-row commit" begin
         active = [0,1,2]
         maximum = [2,1,3]
@@ -57,6 +144,20 @@ using StaticArrays
         @test nodal[2,1] ≈ chord[1,1]/2
         @test nodal[2,2] ≈ chord[1,2]/2
         @test sum(nodal) ≈ sum(span) + sum(chord) + unsteady[1,1]/2
+    end
+
+    @testset "Imperial vortex-node positions" begin
+        grid,_ = wing_to_grid(
+            [0.0,0.0],[0.0,2.0],[0.0,0.0],ones(2),zeros(2),zeros(2),2,2,
+        )
+        _,_,surface = grid_to_surface_panels(grid)
+        positions = imperial_nodal_positions(surface)
+
+        @test size(positions) == (size(surface) .+ 1)
+        @test positions[1,1] == WingPropellerUVLM.top_left(surface[1,1])
+        @test positions[1,end] == WingPropellerUVLM.top_right(surface[1,end])
+        @test positions[end,1] == WingPropellerUVLM.bottom_left(surface[end,1])
+        @test positions[end,end] == WingPropellerUVLM.bottom_right(surface[end,end])
     end
 
     @testset "Imperial system-load consistency" begin

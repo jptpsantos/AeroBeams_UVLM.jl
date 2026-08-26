@@ -14,7 +14,7 @@ Files in `src/wing_propeller` originate from the wing--propeller research
 repository and are now loaded through the `WingPropellerUVLM` module rather than
 through top-level `include` calls.
 
-`src/backend/imperial_forces.jl` adapts the near-field force equations from
+`src/backend/nearfield.jl` adapts the near-field force equations from
 Imperial College London's C++ UVLM at revision
 `d8af34a22baf1cddd38f1e362274c407637aab1c`. In particular, it follows
 `calculate_static_forces_unsteady`, `calculate_dynamic_forces`, and

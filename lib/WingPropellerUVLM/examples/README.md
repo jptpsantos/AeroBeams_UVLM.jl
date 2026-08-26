@@ -1,5 +1,9 @@
 # Examples
 
+The [`chang_linear_aeroelastic`](chang_linear_aeroelastic/README.md) directory
+contains the copied Chang linear structural model coupled to the current
+Imperial-load, free-wake `WingPropellerUVLM` implementation.
+
 ## Rigid rectangular wing with a free wake
 
 `rectangular_wing_free_wake.jl` follows the explicit accepted-state stepping
@@ -19,8 +23,13 @@ step 4 must occur only after the coupled solution is accepted.
 From the repository root, run:
 
 ```powershell
-julia --project=lib/WingPropellerUVLM lib/WingPropellerUVLM/examples/rectangular_wing_free_wake.jl
+julia lib/WingPropellerUVLM/examples/rectangular_wing_free_wake.jl
 ```
+
+The example activates the local `lib/WingPropellerUVLM/Project.toml`
+automatically, so the same file can also be launched with VS Code's **Run Julia
+File** command. On a fresh clone, instantiate its dependencies once with
+`julia --project=lib/WingPropellerUVLM -e "using Pkg; Pkg.instantiate()"`.
 
 The defaults define a 7.5 m by 1 m rectangular wing at 5 degrees angle of
 attack and 100 m/s. The full-span lattice has 30 spanwise by 4 chordwise panels.
@@ -75,5 +84,5 @@ $env:UVLM_RECT_NS = "8"
 $env:UVLM_RECT_NC = "2"
 $env:UVLM_RECT_CONVECTIVE_TIMES = "2"
 $env:UVLM_RECT_AVERAGING_TIMES = "1"
-julia --project=lib/WingPropellerUVLM lib/WingPropellerUVLM/examples/rectangular_wing_free_wake.jl
+julia lib/WingPropellerUVLM/examples/rectangular_wing_free_wake.jl
 ```

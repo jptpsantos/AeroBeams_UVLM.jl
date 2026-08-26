@@ -1,3 +1,11 @@
+import Pkg
+
+# Allow this example to be launched directly from an IDE or with
+# `julia path/to/rectangular_wing_free_wake.jl`. The package is local to this
+# repository and is therefore activated by path rather than installed from a
+# registry.
+Pkg.activate(normpath(joinpath(@__DIR__, "..")))
+
 using DelimitedFiles
 using WingPropellerUVLM
 
