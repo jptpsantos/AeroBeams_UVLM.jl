@@ -1,5 +1,9 @@
 # Examples
 
+For package architecture, the public API, and a line-by-line explanation of
+the UVLM transaction used by both examples, see the
+[WingPropellerUVLM library guide](../../../docs/src/wing-propeller-uvlm-library-guide.md).
+
 The [`chang_linear_aeroelastic`](chang_linear_aeroelastic/README.md) directory
 contains the copied Chang linear structural model coupled to the current
 Imperial-load, free-wake `WingPropellerUVLM` implementation.

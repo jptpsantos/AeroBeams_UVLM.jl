@@ -13,6 +13,11 @@ The aerodynamic side uses the current package APIs:
 - `propagate_system!` for the unsteady free-wake step;
 - `imperial_nodal_forces` and `imperial_nodal_positions` for structural load transfer.
 
+The [complete library and time-marching guide](../../../../docs/src/wing-propeller-uvlm-library-guide.md)
+walks through every phase of the driver, the callback, source files, and public
+functions. The run file and `chang_uvlm_coupling.jl` are also commented at the
+transaction and coordinate/load-transfer boundaries.
+
 Run the full Chang input from the repository root with:
 
 ```powershell
@@ -29,14 +34,15 @@ $env:CHANG_IMPULSE_DURATION_S = "0.003"
 julia lib/WingPropellerUVLM/examples/chang_linear_aeroelastic/run_chang_linear_aeroelastic.jl
 ```
 
-Available runtime overrides are `CHANG_END_TIME_S`,
-`CHANG_IMPULSE_MAGNITUDE`, `CHANG_IMPULSE_START_S`,
-`CHANG_IMPULSE_DURATION_S`, `CHANG_GA_RHO_INF`,
+Available runtime overrides are `CHANG_END_TIME_S`, `CHANG_OUTPUT_DIR`,
+`CHANG_OUTPUT_LABEL`, `CHANG_TRIM_REVOLUTIONS`,
+`CHANG_TRIM_AVERAGE_REVOLUTIONS`, `CHANG_IMPULSE_MAGNITUDE`,
+`CHANG_IMPULSE_START_S`, `CHANG_IMPULSE_DURATION_S`, `CHANG_GA_RHO_INF`,
 `CHANG_COUPLING_MAX_ITER`, `CHANG_COUPLING_TOL_U`,
-`CHANG_COUPLING_TOL_F`, `CHANG_COUPLING_TOL_EQ`, and
-`CHANG_COUPLING_RELAXATION`. Plotting is enabled by default; use
-`CHANG_PLOT_RESULTS=false` to disable it or `CHANG_PLOT_END_TIME_S` to change
-the default five-second horizontal axis.
+`CHANG_COUPLING_TOL_F`, `CHANG_COUPLING_TOL_EQ`,
+`CHANG_COUPLING_TOL_COUPLED_EQ`, and `CHANG_COUPLING_RELAXATION`. Plotting is
+enabled by default; use `CHANG_PLOT_RESULTS=false` to disable it or
+`CHANG_PLOT_END_TIME_S` to change the default five-second horizontal axis.
 
 Results are written to `output/` as a CSV history and a text validation
 summary. The main input also saves `chang_linear_imperial_uvlm_history.png`.

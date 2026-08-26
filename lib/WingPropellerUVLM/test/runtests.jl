@@ -1,6 +1,15 @@
 using Test
 using WingPropellerUVLM
 using StaticArrays
+using LinearAlgebra
+
+include(joinpath(
+    @__DIR__,
+    "..",
+    "examples",
+    "chang_linear_aeroelastic",
+    "chang_structural_matrices.jl",
+))
 
 @testset "WingPropellerUVLM" begin
     @testset "Propeller grid" begin
@@ -82,6 +91,105 @@ using StaticArrays
         )
         @test step.converged
         @test step.iterations == 1
+
+        last_aerodynamic_state = Ref(NaN)
+        coupled_options = PartitionedCouplingOptions(
+            maximum_iterations = 20,
+            state_tolerance = 1.0e-10,
+            load_tolerance = 1.0e-10,
+            equilibrium_tolerance = 1.0e-12,
+            coupled_equilibrium_tolerance = 1.0e-10,
+            relaxation = 1.0,
+        )
+        coupled_step = partitioned_generalized_alpha_step(
+            ones(1, 1),
+            zeros(1, 1),
+            2.0 .* ones(1, 1),
+            zeros(1),
+            zeros(1),
+            zeros(1),
+            zeros(1),
+            ones(1),
+            zeros(1),
+            0.05,
+            parameters,
+            state -> begin
+                last_aerodynamic_state[] = only(state)
+                return 0.2 .* state
+            end;
+            options = coupled_options,
+            state_scale = [0.1],
+            load_scale = [1.0],
+        )
+        @test coupled_step.converged
+        @test only(coupled_step.displacement) == last_aerodynamic_state[]
+        @test coupled_step.trial_load ≈ 0.2 .* coupled_step.displacement
+        @test coupled_step.coupled_equilibrium_residual <=
+            coupled_options.coupled_equilibrium_tolerance
+
+        failed_step = partitioned_generalized_alpha_step(
+            ones(1, 1),
+            zeros(1, 1),
+            ones(1, 1),
+            zeros(1),
+            zeros(1),
+            zeros(1),
+            zeros(1),
+            ones(1),
+            zeros(1),
+            0.05,
+            parameters,
+            _ -> zeros(1);
+            options = PartitionedCouplingOptions(
+                maximum_iterations = 1,
+                state_tolerance = 1.0e-14,
+                load_tolerance = 1.0e-14,
+                equilibrium_tolerance = 1.0e-12,
+                coupled_equilibrium_tolerance = 1.0e-14,
+                relaxation = 1.0,
+            ),
+            require_load_convergence = false,
+        )
+        @test !failed_step.converged
+        @test_throws DimensionMismatch partitioned_generalized_alpha_step(
+            ones(1, 1), zeros(1, 1), ones(1, 1), zeros(1), zeros(1), zeros(1),
+            zeros(1), zeros(1), zeros(1), 0.05, parameters, _ -> zeros(1);
+            state_scale = ones(2),
+        )
+    end
+
+    @testset "Chang point-mass parallel-axis correction" begin
+        mass = 2.0
+        center_of_mass_inertia = Matrix(Diagonal([100.0, 110.0, 120.0]))
+        offset = [0.4, -0.2, 0.1]
+        skew_offset = chang_tilde(offset)
+        corrected = chang_point_mass_matrix(mass, center_of_mass_inertia, offset)
+        legacy = chang_point_mass_matrix(
+            mass,
+            center_of_mass_inertia,
+            offset;
+            inertia_reference = :beam_axis,
+        )
+
+        @test corrected[4:6, 4:6] ≈
+            center_of_mass_inertia - mass .* (skew_offset * skew_offset)
+        @test legacy[4:6, 4:6] == center_of_mass_inertia
+        @test corrected ≈ corrected'
+
+        translational_velocity = [1.2, -0.5, 0.7]
+        angular_velocity = [0.1, -0.2, 0.3]
+        generalized_velocity = [translational_velocity; angular_velocity]
+        center_of_mass_velocity = translational_velocity - skew_offset * angular_velocity
+        expected_kinetic_energy = 0.5 * mass * dot(center_of_mass_velocity, center_of_mass_velocity) +
+            0.5 * dot(angular_velocity, center_of_mass_inertia * angular_velocity)
+        @test 0.5 * dot(generalized_velocity, corrected * generalized_velocity) ≈
+            expected_kinetic_energy
+        @test_throws ArgumentError chang_point_mass_matrix(
+            mass,
+            center_of_mass_inertia,
+            offset;
+            inertia_reference = :unknown,
+        )
     end
 
     @testset "Smooth pulse excitation" begin

@@ -5,10 +5,28 @@
 # conversion. Generic grid deformation, UVLM stepping, Imperial nodal loads,
 # and generalized-alpha integration live in WingPropellerUVLM itself.
 
+"""
+    update_aero_geometry_for_state!(system, q_free, time_np1)
+
+Map one structural displacement guess to the UVLM geometry at `time_np1`.
+
+The Chang structural basis is `[span, chord, down]`; the UVLM aerodynamic
+basis is `[chord, span, up]`. The function reconstructs the clamped root,
+applies all six wing DOFs, adds each propeller's pitch/yaw modal motion and
+prescribed spin, rebuilds the panel surfaces, and returns the aerodynamic-frame
+wing kinematics needed to form moment arms during load transfer.
+
+This function changes geometry only. It does not solve circulation or advance
+the wake.
+"""
+
 function update_aero_geometry_for_state!(system, q_free::AbstractVector, time_np1::Real)
+    # Split the global free-state vector according to the assembly convention:
+    # all wing free DOFs first, then [pitch, yaw] for each propeller.
     q_wing_free = q_free[1:ndof_wing_free]
     q_propeller_free = q_free[(ndof_wing_free + 1):end]
 
+    # Reinsert the clamped root DOFs and extract each component along the beam.
     displacement_span_structural = vcat(0.0, q_wing_free[1:ndof:end])
     displacement_chord_structural = vcat(0.0, q_wing_free[2:ndof:end])
     displacement_vertical_structural = vcat(0.0, q_wing_free[3:ndof:end])
@@ -16,6 +34,8 @@ function update_aero_geometry_for_state!(system, q_free::AbstractVector, time_np
     rotation_chord_structural = vcat(0.0, q_wing_free[5:ndof:end])
     rotation_vertical_structural = vcat(0.0, q_wing_free[6:ndof:end])
 
+    # Proper structural-to-aerodynamic basis mapping:
+    # (span, chord, down) -> (y, x, -z), with the same mapping for rotations.
     u_x_aero = displacement_chord_structural
     u_y_aero = displacement_span_structural
     u_z_aero = -displacement_vertical_structural
@@ -23,6 +43,8 @@ function update_aero_geometry_for_state!(system, q_free::AbstractVector, time_np
     theta_y_aero = rotation_span_structural
     theta_z_aero = -rotation_vertical_structural
 
+    # Interpolate nodal translations/rotations spanwise and move every wing
+    # lattice point about the elastic axis.
     grid_wing = generate_panel_grid_and_interpolate(
         span_length,
         chord,
@@ -38,6 +60,8 @@ function update_aero_geometry_for_state!(system, q_free::AbstractVector, time_np
         elastic_axis_fraction = elastic_axis_fraction,
     )
 
+    # Propeller motion is composed in this order: prescribed rotor spin,
+    # pylon pitch/yaw, then the complete local wing-node rotation/translation.
     for propeller_index in 1:Npropellers
         attachment_node = prop_attach_nodes[propeller_index]
         pitch_aero = q_propeller_free[2 * (propeller_index - 1) + 1]
@@ -76,6 +100,9 @@ function update_aero_geometry_for_state!(system, q_free::AbstractVector, time_np
         end
     end
 
+    # Replace the panel geometry in the existing System. Keeping the System
+    # object itself preserves all preallocated circulation, force, and wake
+    # storage used by `propagate_system!`.
     _, _, wing_surface = grid_to_surface_panels(
         grid_wing;
         ratios = ratio_wing,
@@ -107,6 +134,17 @@ function update_aero_geometry_for_state!(system, q_free::AbstractVector, time_np
     )
 end
 
+"""
+    assemble_structural_aero_load!(system, kinematics; step=0, print_loads=false)
+
+Transfer the dimensional Imperial UVLM vertex forces to the Chang free-DOF
+ordering. Wing forces are summed chordwise and moments are formed about the
+deformed elastic axis. Blade forces are reduced to propeller hub/pivot wrenches,
+added to the attachment node, and projected onto the pitch/yaw modal DOFs.
+
+Returns one generalized-load vector ordered exactly like the reduced
+structural state used by `M`, `C`, and `K`.
+"""
 function assemble_structural_aero_load!(system, kinematics;
     step::Int = 0, print_loads::Bool = false)
 
@@ -114,10 +152,13 @@ function assemble_structural_aero_load!(system, kinematics;
     fill!(nodal_forces_wing, zero_vector)
     fill!(nodal_moments_wing, zero_vector)
 
+    # These arrays are dimensional forces and their matching vortex-lattice
+    # vertex positions. Using the paired positions preserves moment arms.
     surface_forces_aero = imperial_nodal_forces(system)
     surface_positions_aero = imperial_nodal_positions(system)
     nodal_forces_wing .= surface_forces_aero[1]
 
+    # Build the deformed elastic-axis line used as the wing moment reference.
     for node_index in 1:nnodes
         elastic_axis_x = xle_distribution[node_index] +
             chord[node_index] * elastic_axis_fraction + kinematics.u_x_A[node_index]
@@ -153,6 +194,9 @@ function assemble_structural_aero_load!(system, kinematics;
     end
 
     propeller_loads = zeros(ndof_P)
+    # Reduce all blade vertex forces of each propeller to one resultant force
+    # and moment, then apply them to both the pylon modal and wing attachment
+    # coordinates without discarding the appropriate lever arms.
     for propeller_index in 1:Npropellers
         total_force = zero_vector
         total_moment_about_hub = zero_vector
@@ -201,11 +245,30 @@ function assemble_structural_aero_load!(system, kinematics;
     return vcat(free_wing_loads, propeller_loads)
 end
 
+"""
+    aero_load_for_state!(system, snapshot, state, step; print_loads=false)
+
+Evaluate the complete aerodynamic generalized-load operator for one structural
+fixed-point guess at `t[step+1]`.
+
+Every call restores the beginning-of-step snapshot, updates geometry, advances
+one UVLM trial, and transfers its loads. Therefore repeated calls during the
+same coupled step are deterministic trials from `t[step]`, not successive wake
+steps. On return, `system` contains the trial corresponding to `state`; the run
+driver retains it only when the coupled correction converges.
+"""
 function aero_load_for_state!(system, snapshot, state::AbstractVector, step::Int;
     print_loads::Bool = false)
 
+    # Transaction rollback: discard the previous coupling iterate's wake,
+    # circulation, geometry, and surface-history changes.
     restore_uvlm!(system, snapshot)
+    # Geometry is evaluated at the end of the physical step, including the
+    # prescribed rotor azimuth at that time.
     kinematics = update_aero_geometry_for_state!(system, state, t[step + 1])
+    # Solve one complete unsteady aerodynamic trial. This updates panel motion
+    # velocities, AIC/RHS, circulation and gamma-dot, Imperial near-field loads,
+    # wake velocities, and the shed/convected wake—all starting from `snapshot`.
     propagate_system!(
         system,
         fs_vec[step],
@@ -220,6 +283,8 @@ function aero_load_for_state!(system, snapshot, state::AbstractVector, step::Int
         interaction_id = surface_interaction_id,
         interaction = INTERACTION_ON,
     )
+    # Convert the aerodynamic trial into a load vector for the structural
+    # corrector. The caller decides whether to subtract the trim baseline.
     return assemble_structural_aero_load!(
         system,
         kinematics;

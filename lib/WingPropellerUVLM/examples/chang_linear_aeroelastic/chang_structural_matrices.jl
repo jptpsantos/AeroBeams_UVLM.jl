@@ -16,6 +16,36 @@ function chang_tilde(v)
             -v[2]   v[1]   0.0]
 end
 
+"""
+    chang_point_mass_matrix(mass, inertia, offset; inertia_reference=:center_of_mass)
+
+Return the consistent 6-by-6 rigid point-mass matrix at a beam node. `offset`
+points from the beam reference axis to the mass center. By default, `inertia`
+is interpreted about the mass center and is shifted to the beam node with the
+parallel-axis theorem. Set `inertia_reference=:beam_axis` only to reproduce
+the former implementation, where the supplied inertia was used directly.
+"""
+function chang_point_mass_matrix(
+    mass::Real,
+    inertia::AbstractMatrix,
+    offset::AbstractVector;
+    inertia_reference::Symbol = :center_of_mass,
+)
+    size(inertia) == (3, 3) || throw(DimensionMismatch("inertia must be 3-by-3"))
+    length(offset) == 3 || throw(DimensionMismatch("offset must have three components"))
+    mass >= 0 || throw(ArgumentError("mass must be nonnegative"))
+    inertia_reference in (:center_of_mass, :beam_axis) || throw(ArgumentError(
+        "inertia_reference must be :center_of_mass or :beam_axis",
+    ))
+
+    skew_offset = chang_tilde(offset)
+    rotational_inertia = inertia_reference == :center_of_mass ?
+        Matrix(inertia) .- mass .* (skew_offset * skew_offset) : Matrix(inertia)
+    identity3 = Matrix{promote_type(Float64, eltype(inertia))}(I, 3, 3)
+    return [mass .* identity3       -mass .* skew_offset;
+            mass .* skew_offset     rotational_inertia]
+end
+
 function chang_beam_element_stiffness_matrix(L::Float64, C::Matrix{Float64})
     # B'CB is quadratic in the parent coordinate, so the two-point
     # Gauss-Legendre rule integrates this element matrix exactly.
@@ -57,7 +87,8 @@ function assemble_chang_structural_matrices(;
     ndof_P, Npropellers, prop_attach_nodes,
     Inθ_prop, Inψ_prop, Kθ_prop, Kψ_prop, ξ_prop, Ix_prop, Ω,
     mP_prop, SθP_prop, SψP_prop, SαP_prop, SγP_prop,
-    IθαP_prop, IψγP_prop, IαP_prop, IγP_prop)
+    IθαP_prop, IψγP_prop, IαP_prop, IγP_prop,
+    inertia_reference::Symbol = :center_of_mass)
 
     Ks_W = zeros(NDOF, NDOF)
     Ms_W = zeros(NDOF, NDOF)
@@ -75,15 +106,18 @@ function assemble_chang_structural_matrices(;
         Ks_W[idx_start:idx_end, idx_start:idx_end] += ks_W
     end
 
-    I3 = Matrix(I, 3, 3)
     for n = 1:nnodes
         m_val = m_node_vec[n]
         eta = [cg_x_node_vec[n]; cg_y_node_vec[n]; cg_z_node_vec[n]]
         inertia_matrix = [Ixx_node_vec[n] Ixy_node_vec[n] Ixz_node_vec[n];
                           Ixy_node_vec[n] Iyy_node_vec[n] Iyz_node_vec[n];
                           Ixz_node_vec[n] Iyz_node_vec[n] Izz_node_vec[n]]
-        ms_W = [m_val * I3              -m_val * chang_tilde(eta);
-                m_val * chang_tilde(eta)  inertia_matrix]
+        ms_W = chang_point_mass_matrix(
+            m_val,
+            inertia_matrix,
+            eta;
+            inertia_reference,
+        )
         Ms_W[6n-5:6n, 6n-5:6n] += ms_W
     end
 
@@ -185,6 +219,6 @@ function assemble_chang_structural_matrices(;
         ndof_free = length(free_dofs),
         ndof_wing_free = NDOF - ndof,
         ndof_prop_free = ndof_P,
+        inertia_reference,
     )
 end
-

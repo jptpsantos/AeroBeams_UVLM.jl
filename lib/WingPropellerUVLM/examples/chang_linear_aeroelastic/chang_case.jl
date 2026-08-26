@@ -24,15 +24,15 @@ Base.@kwdef struct PropellerConfig
     chordwise_panels::Int = 5
     rotation_rpm::Float64 = 1207.96
     trim_speed_mps::Float64 = 65.0
-    attachment_eta::Vector{Float64} = [0.18, 0.83]
+    attachment_eta::Vector{Float64} = [0.83]
 end
 
 Base.@kwdef struct SimulationConfig
     freestream_speed_mps::Float64 = 84.0
-    angle_of_attack_deg::Float64 = 0.0
+    angle_of_attack_deg::Float64 = 3.0
     sideslip_deg::Float64 = 0.0
     azimuth_step_deg::Float64 = 5.0
-    end_time_s::Float64 = 3.0
+    end_time_s::Float64 = 5
     interaction_on::Bool = false
 end
 

@@ -85,7 +85,8 @@ export UVLMSnapshot
 export snapshot_uvlm, restore_uvlm!
 export advance_uvlm_trial!, commit_wake_rows!
 
-export generalized_alpha_parameters, generalized_alpha_corrector
+export generalized_alpha_parameters, generalized_alpha_kinematics
+export generalized_alpha_corrector, generalized_alpha_equilibrium_residual
 export PartitionedCouplingOptions, partitioned_generalized_alpha_step
 export smooth_hann_pulse, smooth_hann_pulse_load
 

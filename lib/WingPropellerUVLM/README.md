@@ -49,6 +49,14 @@ The coupled AeroBeams controller should restore the same snapshot before every
 outer iteration and call `commit_wake_rows!` only after the structural and
 aerodynamic interface residuals converge.
 
+## Documentation
+
+The [complete library and time-marching guide](../../docs/src/wing-propeller-uvlm-library-guide.md)
+explains the package architecture, source files, public functions, Imperial
+load transfer, and the Chang partitioned generalized-alpha loop. The separate
+[AeroBeams coupling blueprint](../../docs/src/wing-propeller-uvlm-coupling.md)
+covers the planned geometrically exact nonlinear integration.
+
 ## Near-field force convention
 
 Near-field loads follow Imperial College London's C++ UVLM implementation:
