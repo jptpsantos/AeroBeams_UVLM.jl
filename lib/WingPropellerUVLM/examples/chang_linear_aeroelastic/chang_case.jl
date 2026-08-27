@@ -28,7 +28,7 @@ Base.@kwdef struct PropellerConfig
 end
 
 Base.@kwdef struct SimulationConfig
-    freestream_speed_mps::Float64 = 84.0
+    freestream_speed_mps::Float64 = 80.0
     angle_of_attack_deg::Float64 = 3.0
     sideslip_deg::Float64 = 0.0
     azimuth_step_deg::Float64 = 5.0

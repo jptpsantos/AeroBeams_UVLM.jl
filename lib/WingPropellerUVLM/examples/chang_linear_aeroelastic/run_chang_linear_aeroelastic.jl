@@ -56,9 +56,12 @@ include(joinpath(@__DIR__, "chang_case.jl"))
 
 # `chang_case.jl` owns general run controls such as `t`, `dt`, `Vinf`, angle of
 # attack, number of propellers, and the interaction switch. Plotting remains
-# optional so a headless solver/test run does not need to load Plots.jl.
-const PLOT_RESULTS = environment_flag("CHANG_PLOT_RESULTS", true)
-PLOT_RESULTS && (@eval using Plots)
+# optional so a headless solver/test run does not need to load Plots.jl. Edit
+# `ANIMATE_WAKE` here directly to enable or disable GIF generation.
+const PLOT_RESULTS = true
+const ANIMATE_WAKE = true
+const PLOTS_REQUIRED = PLOT_RESULTS || ANIMATE_WAKE
+PLOTS_REQUIRED && (@eval using Plots)
 
 using WingPropellerUVLM:
     Uniform,
@@ -88,15 +91,20 @@ using WingPropellerUVLM:
 # Plotting and file-output functions are separated from the solver so that this
 # file remains the orchestration layer rather than accumulating reusable code.
 PLOT_RESULTS && include(joinpath(@__DIR__, "chang_plotting.jl"))
+ANIMATE_WAKE && include(joinpath(@__DIR__, "chang_animation.jl"))
 include(joinpath(@__DIR__, "chang_postprocessing.jl"))
 
-RHO = 1.225 # Air density (kg/m^3)
+const AIR_DENSITY = 1.225 # Air density (kg/m^3); stored in `ref.rho` below.
 const VERIFY_OUTPUT_DIR = normpath(get(
     ENV,
     "CHANG_OUTPUT_DIR",
     joinpath(@__DIR__, "output"),
 ))
 const VERIFY_LABEL = get(ENV, "CHANG_OUTPUT_LABEL", "chang_linear_imperial_uvlm")
+const WAKE_ANIMATION_STRIDE = parse(Int, get(ENV, "CHANG_ANIMATION_STRIDE", "5"))
+const WAKE_ANIMATION_FPS = parse(Int, get(ENV, "CHANG_ANIMATION_FPS", "15"))
+WAKE_ANIMATION_STRIDE > 0 || error("CHANG_ANIMATION_STRIDE must be positive")
+WAKE_ANIMATION_FPS > 0 || error("CHANG_ANIMATION_FPS must be positive")
 mkpath(VERIFY_OUTPUT_DIR)
 
 # ==============================================================================
@@ -239,6 +247,26 @@ T_load_A_current  = Vector{SVector{3,Float64}}(undef, Npropellers)
 # frame and translates the resulting aerodynamic nodal loads back.
 include(joinpath(@__DIR__, "chang_uvlm_coupling.jl"))
 
+# Animation histories are separate from the solver's full surface history.
+# They are populated only when requested and only at the selected stride. Wake
+# matrices are cropped to active rows when recorded, avoiding both uninitialized
+# allocated panels and unnecessary memory use.
+animation_surface_history = Vector{typeof(system.surfaces)}()
+animation_wake_history = Vector{typeof(system.wakes)}()
+animation_active_wake_rows_history = Vector{Vector{Int}}()
+animation_time_history = Float64[]
+if ANIMATE_WAKE
+    record_chang_animation_frame!(
+        animation_surface_history,
+        animation_wake_history,
+        animation_active_wake_rows_history,
+        animation_time_history,
+        system,
+        iwake,
+        t[1],
+    )
+end
+
 # ==============================================================================
 # 5. SIMULATION
 # ==============================================================================
@@ -310,7 +338,7 @@ const COUPLING_OPTIONS = PartitionedCouplingOptions(
 # compared directly in one unscaled Euclidean norm.
 const COUPLING_STATE_SCALE = ones(ndof_free)
 const COUPLING_LOAD_SCALE = ones(ndof_free)
-const REFERENCE_FORCE_SCALE = max(0.5 * RHO * Vinf^2 * Sref, 1.0)
+const REFERENCE_FORCE_SCALE = max(0.5 * ref.rho * Vinf^2 * Sref, 1.0)
 const REFERENCE_MOMENT_SCALE = max(REFERENCE_FORCE_SCALE * cref, 1.0)
 for inode in 1:(nnodes - 1)
     node_start = ndof * (inode - 1)
@@ -320,7 +348,7 @@ for inode in 1:(nnodes - 1)
     COUPLING_LOAD_SCALE[node_start .+ (4:6)] .= REFERENCE_MOMENT_SCALE
 end
 propeller_moment_scale = max(
-    0.5 * RHO * Vinf^2 * π * R_prop^2 * R_prop,
+    0.5 * ref.rho * Vinf^2 * π * R_prop^2 * R_prop,
     1.0,
 )
 COUPLING_LOAD_SCALE[(ndof_wing_free + 1):end] .= propeller_moment_scale
@@ -507,6 +535,21 @@ for it = 1:length(dt)
         end
     end
 
+    # Record accepted states only. Coupling trials are deliberately excluded so
+    # the GIF advances once per physical time step rather than once per iterate.
+    if ANIMATE_WAKE &&
+        (it == 1 || it % WAKE_ANIMATION_STRIDE == 0 || it == length(dt))
+        record_chang_animation_frame!(
+            animation_surface_history,
+            animation_wake_history,
+            animation_active_wake_rows_history,
+            animation_time_history,
+            system,
+            iwake,
+            t[it + 1],
+        )
+    end
+
     println("Step $it/$N_LAST (t=$(round(t[it+1], digits=4)) s) partitioned correction: converged in $iter_count iterations, state_res=$(round(state_res, sigdigits=4)), load_res=$(round(force_res, sigdigits=4)), coupled_equilibrium_res=$(round(equilibrium_res, sigdigits=4)), linear_equilibrium_res=$(round(linear_equilibrium_res, sigdigits=4))")
 
     # Stop a divergent numerical solution before it fills the histories with
@@ -535,6 +578,20 @@ for it = 1:length(dt)
     end
 end
 println("Simulation finished.")
+
+# If a run aborts or its last step does not coincide with the requested stride,
+# retain the final accepted state as the last animation frame.
+if ANIMATE_WAKE && animation_time_history[end] != t[N_LAST + 1]
+    record_chang_animation_frame!(
+        animation_surface_history,
+        animation_wake_history,
+        animation_active_wake_rows_history,
+        animation_time_history,
+        system,
+        iwake,
+        t[N_LAST + 1],
+    )
+end
 # ==============================================================================
 # 6. VALIDATION OUTPUT
 # ==============================================================================
@@ -553,7 +610,7 @@ results = write_chang_results(
     number_of_blades = Nb_prop,
     propeller_eta = propeller_eta,
     span_length = b,
-    density = RHO,
+    density = ref.rho,
     freestream_speed = Vinf,
     interaction_on = INTERACTION_ON,
     requested_end_time = t_end,
@@ -567,3 +624,21 @@ results = write_chang_results(
     plot_results = PLOT_RESULTS,
     plot_time_limit = plot_time_limit_s,
 )
+
+if ANIMATE_WAKE
+    wake_animation_path = joinpath(
+        VERIFY_OUTPUT_DIR,
+        VERIFY_LABEL * "_wing_wake.gif",
+    )
+    animate_chang_wing_wake(
+        animation_surface_history,
+        animation_wake_history,
+        animation_active_wake_rows_history,
+        animation_time_history;
+        output_path = wake_animation_path,
+        fps = WAKE_ANIMATION_FPS,
+        axis_limits = ((-3.0, 5.0), (0.0, 8.0), (-4.0, 4.0)),
+        tick_spacing = 1.0,
+    )
+    results = merge(results, (; wake_animation_path))
+end

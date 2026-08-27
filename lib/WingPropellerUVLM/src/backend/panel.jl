@@ -570,16 +570,18 @@ function trefftz_panels!(panels, surfaces::AbstractVector{<:AbstractMatrix}, fs,
 end
 
 """
-    trefftz_panel_induced_drag(receiving::TrefftzPanel, sending::TrefftzPanel; kwargs...)
+    trefftz_panel_induced_drag(receiving::TrefftzPanel, sending::TrefftzPanel;
+        symmetric, rho)
 
 Induced drag on `receiving` panel induced by `sending` panel.
 
 # Keyword Arguments
  - `symmetric`: Flag indicating whether a mirror image of `sending` should be
     used when calculating the induced drag
+ - `rho`: Fluid density from the analysis [`Reference`](@ref)
 """
 function trefftz_panel_induced_drag(receiving::TrefftzPanel,
-    sending::TrefftzPanel; symmetric)
+    sending::TrefftzPanel; symmetric, rho)
 
     rl = sending.rl
     rr = sending.rr
@@ -589,30 +591,29 @@ function trefftz_panel_induced_drag(receiving::TrefftzPanel,
     nc = normal(receiving)
     Γr = receiving.Γ
 
-    Di = vortex_induced_drag(rl, -Γs, rc, Γr, nc)
-    Di += vortex_induced_drag(rr, Γs, rc, Γr, nc)
+    Di = vortex_induced_drag(rl, -Γs, rc, Γr, nc, rho)
+    Di += vortex_induced_drag(rr, Γs, rc, Γr, nc, rho)
     if symmetric
-        Di += vortex_induced_drag(flipy(rr), -Γs, rc, Γr, nc)
-        Di += vortex_induced_drag(flipy(rl), Γs, rc, Γr, nc)
+        Di += vortex_induced_drag(flipy(rr), -Γs, rc, Γr, nc, rho)
+        Di += vortex_induced_drag(flipy(rl), Γs, rc, Γr, nc, rho)
     end
 
     return Di
 end
 
 """
-    vortex_induced_drag(rj, Γj, ri, Γi, ni)
+    vortex_induced_drag(rj, Γj, ri, Γi, ni, rho)
 
 Return induced drag from vortex `j` induced on panel `i`
 """
-function vortex_induced_drag(rj, Γj, ri, Γi, ni)
+function vortex_induced_drag(rj, Γj, ri, Γi, ni, rho)
 
     rij = ri - rj
     Vthetai = SVector(0, -Γj*rij[3], Γj*rij[2]) / (2*pi*(rij[2]^2 + rij[3]^2))
     Vn = -dot(Vthetai, ni)
 
-    Di = RHO/2.0*Γi*Vn
+    Di = rho/2.0*Γi*Vn
 
     return Di
 end
-
 

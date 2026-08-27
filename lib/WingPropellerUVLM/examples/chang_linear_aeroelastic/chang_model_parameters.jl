@@ -231,4 +231,4 @@ cref_wing = (2/3) * Cr * (1 + taper_ratio + taper_ratio^2) / (1 + taper_ratio)
 cref = cref_wing
 bref = b
 rref = [0.3 * Cr, 0.0, 0.0]
-ref = Reference(Sref, cref, bref, rref, Vinf, RHO)
+ref = Reference(Sref, cref, bref, rref, Vinf, AIR_DENSITY)

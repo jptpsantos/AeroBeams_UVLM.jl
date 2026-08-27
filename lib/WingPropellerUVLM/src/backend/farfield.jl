@@ -58,7 +58,12 @@ function far_field_drag(receiving, sending, ref, symmetric)
     # add up drag
     Di = zero(TF)
     for j = 1:Ns, i = 1:Nr
-        Di += trefftz_panel_induced_drag(receiving[i], sending[j]; symmetric)
+        Di += trefftz_panel_induced_drag(
+            receiving[i],
+            sending[j];
+            symmetric,
+            rho = ref.rho,
+        )
     end
 
     # apply symmetry
@@ -67,12 +72,11 @@ function far_field_drag(receiving, sending, ref, symmetric)
     end
 
     # reference dynamic pressure
-    q = 1/2*RHO*ref.V^2
+    q = 1/2*ref.rho*ref.V^2
 
     # normalize
     CDi = Di / (q*ref.S)
 
     return CDi
 end
-
 

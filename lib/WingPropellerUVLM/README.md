@@ -65,6 +65,12 @@ the same force-to-vertex transfer including its trailing-edge rule. Fluid
 density is stored in `Reference`; the legacy five-argument constructor remains
 valid and selects `rho=1.0`.
 
+`Reference.rho` is the single density source for the production Imperial
+near-field loads, the retained legacy force routines, and the Trefftz-plane
+far-field calculation. There is no separate package-level density constant.
+Changing `rho` leaves circulation and aerodynamic coefficients unchanged and
+scales dimensional forces linearly.
+
 `imperial_nodal_forces(system)` is the coupling-facing API. It returns one
 matrix of dimensional `SVector{3}` body-frame forces per aerodynamic surface.
 Freestream force derivatives have not yet been ported to this formulation and

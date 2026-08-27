@@ -44,8 +44,34 @@ Available runtime overrides are `CHANG_END_TIME_S`, `CHANG_OUTPUT_DIR`,
 enabled by default; use `CHANG_PLOT_RESULTS=false` to disable it or
 `CHANG_PLOT_END_TIME_S` to change the default five-second horizontal axis.
 
+Wake animation is controlled directly near the top of
+`run_chang_linear_aeroelastic.jl`:
+
+```julia
+const ANIMATE_WAKE = true
+```
+
+Set it to `false` when the additional memory and rendering time are not
+desired. Frame stride and playback rate can still be overridden at runtime:
+
+```powershell
+$env:CHANG_ANIMATION_STRIDE = "5"
+$env:CHANG_ANIMATION_FPS = "15"
+julia lib/WingPropellerUVLM/examples/chang_linear_aeroelastic/run_chang_linear_aeroelastic.jl
+```
+
+The driver then calls `animate_chang_wing_wake` from `chang_animation.jl` and
+writes `<output-label>_wing_wake.gif`. Frames contain accepted structural/UVLM
+states only; rejected partitioned trials are never shown. A smaller stride
+gives smoother motion but requires more storage and rendering time. The three
+plot axes use one common physical scale, so one metre has the same displayed
+length in `x_A`, `y_A`, and `z_A`. For the current input, the modeled wing span
+is 7.50 m while the propeller diameter is 2.30 m.
+
 Results are written to `output/` as a CSV history and a text validation
 summary. The main input also saves `chang_linear_imperial_uvlm_history.png`.
+When wake animation is enabled it additionally saves
+`chang_linear_imperial_uvlm_wing_wake.gif`.
 For one propeller, it contains the wing-tip displacement and twist followed by
 the propeller pitch and yaw. For two propellers, it contains the inboard pitch
 and yaw followed by the outboard pitch and yaw. A successful run prints

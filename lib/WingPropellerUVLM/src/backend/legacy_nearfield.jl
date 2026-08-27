@@ -155,7 +155,7 @@ function legacy_near_field_forces!(props, surfaces, wakes, ref, fs, Γ;
             Δs = top_vector(receiving[I]) # bound vortex vector
             #Δs = top_center(receiving[I]) - controlpoint(receiving[I]) # bound vortex vector
             tmp = cross(Vi, Δs)
-            Fbi = RHO*Γi*tmp
+            Fbi = ref.rho*Γi*tmp
 
             if !isnothing(dΓdt)
                 # unsteady part of Kutta-Joukowski theorem
@@ -166,10 +166,10 @@ function legacy_near_field_forces!(props, surfaces, wakes, ref, fs, Γ;
                 dΓdti = I[1] == 1 ? dΓdt[iΓ+i] : (dΓdt[iΓ+i] + dΓdt[iΓ+i-1])/2
                 #dΓdti = dΓdt[iΓ+i]
                 c = receiving[I].chord
-                Fbi += RHO*dΓdti*c*tmp
+                Fbi += ref.rho*dΓdti*c*tmp
                 #ncp = normal(receiving[I])
                 #ΔS = (c/nc)*(ref.b/ns)
-                #Fbi += RHO*dΓdti*(ΔS)*ncp
+                #Fbi += ref.rho*dΓdti*(ΔS)*ncp
 
             end
 
@@ -205,7 +205,7 @@ function legacy_near_field_forces!(props, surfaces, wakes, ref, fs, Γ;
             #Γi = I[1] == 1 ? Γ[iΓ+i] : Γ[iΓ+i] - Γ[iΓ+i-1] # net circulation
             Δs = left_vector(receiving[I])
             #Δs = controlpoint(receiving[I]) - left_center(receiving[I])
-            Fbli = RHO*Γli*cross(Veff, Δs)
+            Fbli = ref.rho*Γli*cross(Veff, Δs)
 
             # --- Calculate forces on the right bound vortex --- #
 
@@ -238,10 +238,10 @@ function legacy_near_field_forces!(props, surfaces, wakes, ref, fs, Γ;
             #Γi = I[1] == 1 ? Γ[iΓ+i] : Γ[iΓ+i] - Γ[iΓ+i-1] # net circulation
             Δs = right_vector(receiving[I])
             #Δs = right_center(receiving[I]) - controlpoint(receiving[I])
-            Fbri = RHO*Γri*cross(Veff, Δs)
+            Fbri = ref.rho*Γri*cross(Veff, Δs)
 
             # store panel circulation, velocity, and forces
-            q = 1/2*RHO*ref.V^2
+            q = 1/2*ref.rho*ref.V^2
 
             #props[isurf][i] = PanelProperties(Γ[iΓ+i]/ref.V, Vi/ref.V,
             #    Fbi, Fbli, Fbri, V_streamwise)
@@ -363,7 +363,7 @@ function legacy_near_field_forces!(props, surfaces, wakes, ref, fs, Γ;
                 delta_gamma = -Γ[iΓ + i - 1] + Γ[iΓ + i];#Γ[iΓ + i - 1] - Γ[iΓ + i];
             end
 
-            f = RHO*delta_gamma*cross(Vi,dl)
+            f = ref.rho*delta_gamma*cross(Vi,dl)
 
             current_span[I[1], I[2]] = f
                 
@@ -472,7 +472,7 @@ function legacy_near_field_forces!(props, surfaces, wakes, ref, fs, Γ;
 
                 dl = bottom_vector(receiving[I])
                 delta_gamma = -Γ[iΓ + i]#-Γ[iΓ + i]
-                f = RHO*delta_gamma*cross(Vi,dl)
+                f = ref.rho*delta_gamma*cross(Vi,dl)
                 current_span[I[1] + 1, I[2]] = [0.0,0.0,0.0]
             end
 
@@ -588,7 +588,7 @@ function legacy_near_field_forces!(props, surfaces, wakes, ref, fs, Γ;
             end
             
 
-            f = RHO*delta_gamma*cross(Vi, dl);
+            f = ref.rho*delta_gamma*cross(Vi, dl);
             current_chord[I[1], I[2]] = f
             
             # Consider last collum of chordwise panels
@@ -698,7 +698,7 @@ function legacy_near_field_forces!(props, surfaces, wakes, ref, fs, Γ;
             dl = right_vector(receiving[I])
 
             delta_gamma = Γ[iΓ + i]#-Γ[iΓ + i]
-            f = RHO * delta_gamma * cross(Vi, dl)
+            f = ref.rho * delta_gamma * cross(Vi, dl)
             #for comp in 1:3
                 current_chord[I[1], I[2] + 1] = f
             #end
@@ -711,7 +711,7 @@ function legacy_near_field_forces!(props, surfaces, wakes, ref, fs, Γ;
             Δs_span = norm(top_vector(receiving[I]))
             Δs_chord = norm(left_vector(receiving[I]))
             area = Δs_span * Δs_chord
-            current_unsteady[I[1],I[2]] =  RHO*area*normi*dΓdt[iΓ+i]#-RHO*area*norm*dΓdt[iΓ+i]
+            current_unsteady[I[1],I[2]] = ref.rho*area*normi*dΓdt[iΓ+i]
         end
     end
 
@@ -826,19 +826,19 @@ end
 #            Γ_local = Γ[iΓ+i]
 #            delta_Gamma_span = (I[1] == 1) ? Γ_local : (Γ_local - Γ[iΓ + i - 1])
 #            
-#            f_span = RHO * delta_Gamma_span * cross(V_rel, dl_span)
+#            f_span = ref.rho * delta_Gamma_span * cross(V_rel, dl_span)
 #            current_span[I[1], I[2]] = f_span
 #
 #            # B. Chordwise Forces
 #            dl_left = left_vector(receiving[I])
 #            delta_Gamma_left = (I[2] == 1) ? Γ_local : (Γ_local - Γ[iΓ + i - nr1])
-#            f_chord_left = RHO * delta_Gamma_left * cross(V_rel, dl_left)
+#            f_chord_left = ref.rho * delta_Gamma_left * cross(V_rel, dl_left)
 #            current_chord[I[1], I[2]] = f_chord_left
 #            
 #            if I[2] == nr2
 #                dl_right = right_vector(receiving[I])
 #                delta_Gamma_right = -Γ_local 
-#                f_chord_right = RHO * delta_Gamma_right * cross(V_rel, dl_right)
+#                f_chord_right = ref.rho * delta_Gamma_right * cross(V_rel, dl_right)
 #                current_chord[I[1], I[2] + 1] = f_chord_right
 #            end
 #            
@@ -848,7 +848,7 @@ end
 #            if !isnothing(dΓdt)
 #                n_vec = normal(receiving[I])
 #                area = receiving[I].chord * norm(dl_span)
-#                f_unsteady = RHO * area * dΓdt[iΓ+i] * n_vec
+#                f_unsteady = ref.rho * area * dΓdt[iΓ+i] * n_vec
 #                current_unsteady[I[1], I[2]] = f_unsteady
 #            else
 #                f_unsteady = zero(SVector{3, TF})
@@ -857,7 +857,7 @@ end
 #            # -------------------------------------------------------
 #            # 5. STORE PROPERTIES
 #            # -------------------------------------------------------
-#            q_dyn = 0.5 * RHO * ref.V^2
+#            q_dyn = 0.5 * ref.rho * ref.V^2
 #            
 #            props[isurf][i] = PanelProperties(
 #                Γ_local / ref.V,
@@ -960,25 +960,25 @@ end
 #
 #            # --- Calculate Forces using CORRECTED Relative Velocities ---
 #            Γi = Γ[iΓ+i]
-#            q = 0.5 * RHO * ref.V^2
+#            q = 0.5 * ref.rho * ref.V^2
 #
 #            # Force on horizontal (spanwise) segment
 #            delta_gamma_h = (I[1] == 1) ? Γi : (Γi - Γ[iΓ+i-1])
 #            dl_h = top_vector(receiving[I])
-#            f_span = RHO * delta_gamma_h * cross(V_relative_h, dl_h)
+#            f_span = ref.rho * delta_gamma_h * cross(V_relative_h, dl_h)
 #            current_span[I[1], I[2]] = f_span
 #
 #            # Force on left vertical (chordwise) segment
 #            delta_gamma_v_left = (I[2] == 1) ? Γi : (Γi - Γ[iΓ+i-nr1])
 #            dl_v_left = left_vector(receiving[I])
-#            f_chord_left = RHO * delta_gamma_v_left * cross(V_relative_v_left, dl_v_left)
+#            f_chord_left = ref.rho * delta_gamma_v_left * cross(V_relative_v_left, dl_v_left)
 #            current_chord[I[1], I[2]] = f_chord_left
 #
 #            # Force on right vertical (chordwise) segment (for the last column)
 #            if I[2] == nr2
 #                delta_gamma_v_right = -Γi # Shed vortex
 #                dl_v_right = right_vector(receiving[I])
-#                f_chord_right = RHO * delta_gamma_v_right * cross(V_relative_v_right, dl_v_right)
+#                f_chord_right = ref.rho * delta_gamma_v_right * cross(V_relative_v_right, dl_v_right)
 #                current_chord[I[1], I[2]+1] = f_chord_right
 #            end
 #
@@ -988,7 +988,7 @@ end
 #                delta_gamma_te = -Γi
 #                # Using an average velocity for the TE segment
 #                V_relative_te = (V_relative_v_left + V_relative_v_right) / 2 # Approximation
-#                f_span_te = RHO * delta_gamma_te * cross(V_relative_te, dl_h_te)
+#                f_span_te = ref.rho * delta_gamma_te * cross(V_relative_te, dl_h_te)
 #                current_span[I[1]+1, I[2]] = f_span_te
 #            end
 #
@@ -996,7 +996,7 @@ end
 #            if !isnothing(dΓdt)
 #                area_approx = norm(top_vector(receiving[I])) * norm(left_vector(receiving[I]))
 #                normal_vec = normal(receiving[I])
-#                current_unsteady[I[1], I[2]] = RHO * area_approx * dΓdt[iΓ+i] * normal_vec
+#                current_unsteady[I[1], I[2]] = ref.rho * area_approx * dΓdt[iΓ+i] * normal_vec
 #            end
 #
 #            # Store simplified panel properties for consistency with the rest of the code
@@ -1091,20 +1091,20 @@ end
 #            # Force on horizontal (spanwise) segment
 #            delta_gamma_h = (I[1] == 1) ? Γi : (Γi - Γ[iΓ+i-1])
 #            dl_h = top_vector(receiving[I])
-#            f_span = RHO * delta_gamma_h * cross(V_relative_h, dl_h)
+#            f_span = ref.rho * delta_gamma_h * cross(V_relative_h, dl_h)
 #            current_span[I[1], I[2]] = f_span
 #
 #            # Force on left vertical (chordwise) segment
 #            delta_gamma_v_left = (I[2] == 1) ? Γi : (Γi - Γ[iΓ+i-nr1])
 #            dl_v_left = left_vector(receiving[I])
-#            f_chord_left = RHO * delta_gamma_v_left * cross(V_relative_v_left, dl_v_left)
+#            f_chord_left = ref.rho * delta_gamma_v_left * cross(V_relative_v_left, dl_v_left)
 #            current_chord[I[1], I[2]] = f_chord_left
 #
 #            # Force on right vertical (chordwise) segment (last column)
 #            if I[2] == nr2
 #                delta_gamma_v_right = -Γi
 #                dl_v_right = right_vector(receiving[I])
-#                f_chord_right = RHO * delta_gamma_v_right * cross(V_relative_v_right, dl_v_right)
+#                f_chord_right = ref.rho * delta_gamma_v_right * cross(V_relative_v_right, dl_v_right)
 #                current_chord[I[1], I[2]+1] = f_chord_right
 #            end
 #            
@@ -1113,7 +1113,7 @@ end
 #                dl_h_te = bottom_vector(receiving[I])
 #                delta_gamma_te = -Γi
 #                V_relative_te = (V_relative_v_left + V_relative_v_right) / 2 # Approximation
-#                f_span_te = RHO * delta_gamma_te * cross(V_relative_te, dl_h_te)
+#                f_span_te = ref.rho * delta_gamma_te * cross(V_relative_te, dl_h_te)
 #                current_span[I[1]+1, I[2]] = f_span_te
 #            end
 #
@@ -1121,11 +1121,11 @@ end
 #            if !isnothing(dΓdt)
 #                area_approx = norm(top_vector(receiving[I])) * norm(left_vector(receiving[I]))
 #                normal_vec = normal(receiving[I])
-#                current_unsteady[I[1],I[2]] = RHO * area_approx * dΓdt[iΓ+i] * normal_vec
+#                current_unsteady[I[1],I[2]] = ref.rho * area_approx * dΓdt[iΓ+i] * normal_vec
 #            end
 #
 #            # Store panel properties
-#            q = 0.5 * RHO * ref.V^2
+#            q = 0.5 * ref.rho * ref.V^2
 #            props[isurf][i] = PanelProperties(Γi/ref.V, V_relative_h/ref.V, f_span/(q*ref.S), 
 #                                              f_chord_left/(q*ref.S), zero(SVector{3, TF}), V_fluid_h)
 #
@@ -1324,13 +1324,13 @@ function legacy_near_field_forces_derivatives!(props, dprops, surfaces, wakes,
 
             tmp = cross(Vi, Δs)
 
-            Fbi = RHO*Γi*tmp
+            Fbi = ref.rho*Γi*tmp
 
-            Fbi_a = RHO*(Γi_a*tmp + Γi*cross(Vi_a, Δs))
-            Fbi_b = RHO*(Γi_b*tmp + Γi*cross(Vi_b, Δs))
-            Fbi_p = RHO*(Γi_p*tmp + Γi*cross(Vi_p, Δs))
-            Fbi_q = RHO*(Γi_q*tmp + Γi*cross(Vi_q, Δs))
-            Fbi_r = RHO*(Γi_r*tmp + Γi*cross(Vi_r, Δs))
+            Fbi_a = ref.rho*(Γi_a*tmp + Γi*cross(Vi_a, Δs))
+            Fbi_b = ref.rho*(Γi_b*tmp + Γi*cross(Vi_b, Δs))
+            Fbi_p = ref.rho*(Γi_p*tmp + Γi*cross(Vi_p, Δs))
+            Fbi_q = ref.rho*(Γi_q*tmp + Γi*cross(Vi_q, Δs))
+            Fbi_r = ref.rho*(Γi_r*tmp + Γi*cross(Vi_r, Δs))
 
             if !isnothing(dΓdt)
                 # unsteady part of Kutta-Joukowski theorem
@@ -1340,7 +1340,7 @@ function legacy_near_field_forces_derivatives!(props, dprops, surfaces, wakes,
 
                 dΓdti = I[1] == 1 ? dΓdt[iΓ+i] : (dΓdt[iΓ+i] + dΓdt[iΓ+i-1])/2
                 c = receiving[I].chord
-                Fbi += RHO*dΓdti*c*tmp
+                Fbi += ref.rho*dΓdti*c*tmp
 
             end
 
@@ -1386,13 +1386,13 @@ function legacy_near_field_forces_derivatives!(props, dprops, surfaces, wakes,
 
             tmp = cross(Veff, Δs)
 
-            Fbli = RHO*Γli*tmp
+            Fbli = ref.rho*Γli*tmp
 
-            Fbli_a = RHO*(Γli_a*tmp + Γli*cross(Veff_a, Δs))
-            Fbli_b = RHO*(Γli_b*tmp + Γli*cross(Veff_b, Δs))
-            Fbli_p = RHO*(Γli_p*tmp + Γli*cross(Veff_p, Δs))
-            Fbli_q = RHO*(Γli_q*tmp + Γli*cross(Veff_q, Δs))
-            Fbli_r = RHO*(Γli_r*tmp + Γli*cross(Veff_r, Δs))
+            Fbli_a = ref.rho*(Γli_a*tmp + Γli*cross(Veff_a, Δs))
+            Fbli_b = ref.rho*(Γli_b*tmp + Γli*cross(Veff_b, Δs))
+            Fbli_p = ref.rho*(Γli_p*tmp + Γli*cross(Veff_p, Δs))
+            Fbli_q = ref.rho*(Γli_q*tmp + Γli*cross(Veff_q, Δs))
+            Fbli_r = ref.rho*(Γli_r*tmp + Γli*cross(Veff_r, Δs))
 
             # --- Calculate forces on the right bound vortex --- #
 
@@ -1436,16 +1436,16 @@ function legacy_near_field_forces_derivatives!(props, dprops, surfaces, wakes,
 
             tmp = cross(Veff, Δs)
 
-            Fbri = RHO*Γri*tmp
+            Fbri = ref.rho*Γri*tmp
 
-            Fbri_a = RHO*(Γri_a*tmp + Γri*cross(Veff_a, Δs))
-            Fbri_b = RHO*(Γri_b*tmp + Γri*cross(Veff_b, Δs))
-            Fbri_p = RHO*(Γri_p*tmp + Γri*cross(Veff_p, Δs))
-            Fbri_q = RHO*(Γri_q*tmp + Γri*cross(Veff_q, Δs))
-            Fbri_r = RHO*(Γri_r*tmp + Γri*cross(Veff_r, Δs))
+            Fbri_a = ref.rho*(Γri_a*tmp + Γri*cross(Veff_a, Δs))
+            Fbri_b = ref.rho*(Γri_b*tmp + Γri*cross(Veff_b, Δs))
+            Fbri_p = ref.rho*(Γri_p*tmp + Γri*cross(Veff_p, Δs))
+            Fbri_q = ref.rho*(Γri_q*tmp + Γri*cross(Veff_q, Δs))
+            Fbri_r = ref.rho*(Γri_r*tmp + Γri*cross(Veff_r, Δs))
 
             # store panel circulation, velocity, and forces
-            q = 1/2*RHO*ref.V^2
+            q = 1/2*ref.rho*ref.V^2
 
             props[isurf][I] = PanelProperties(Γ[iΓ+i]/ref.V, Vi/ref.V, Fbi,
                 Fbli, Fbri, V_streamwise)

@@ -11,7 +11,7 @@ using WingPropellerUVLM:
     get_nodal_properties_chang,
     linear_interpolate_1d
 
-const RHO = 1.225
+const AIR_DENSITY = 1.225
 
 include(joinpath(@__DIR__, "chang_case.jl"))
 include(joinpath(@__DIR__, "chang_model_parameters.jl"))

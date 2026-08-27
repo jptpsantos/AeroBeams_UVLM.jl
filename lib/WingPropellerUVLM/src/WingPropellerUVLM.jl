@@ -9,10 +9,7 @@ using StaticArrays
 using VSPGeom
 using WriteVTK
 
-# Value used by the nondimensional backend algorithms.
-const RHO = 1.0
-
-# Modified VortexLattice backend imported from Wing_Propeller_UVLM.
+# VortexLattice main functions
 include("backend/nonlinear.jl")
 include("backend/rotors.jl")
 include("backend/panel.jl")
@@ -31,7 +28,7 @@ include("backend/farfield.jl")
 include("backend/stability.jl")
 include("backend/visualization.jl")
 
-# Wing--propeller geometry and motion helpers.
+# Geometry and Kinematics helpers.
 include("wing_propeller/BladeGeometry.jl")
 include("wing_propeller/GridUtilities.jl")
 include("wing_propeller/Kinematics.jl")

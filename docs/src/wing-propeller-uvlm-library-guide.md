@@ -474,6 +474,7 @@ reassembling these arrays in an input file.
 | `run_chang_linear_aeroelastic.jl` | Thin orchestration driver for initialization, coupled time marching, trim capture, commit, and output. |
 | `chang_postprocessing.jl` | CSV/summary output, validation flags, and history extraction. |
 | `chang_plotting.jl` | One- and two-propeller time-history layouts. |
+| `chang_animation.jl` | Accepted-state recorder and `animate_chang_wing_wake` 3-D GIF renderer for the deformed lifting surfaces and active wakes. |
 | `plot_chang_time_histories.jl` | Standalone plot regeneration from a saved CSV. |
 
 `Project.toml` defines package dependencies and compatibility. `test/runtests.jl`
@@ -513,6 +514,13 @@ public interface and tests are deliberately added.
 | `System(grids_or_surfaces; nw=...)` | Allocate the global UVLM state for all surfaces and maximum wake sizes. |
 | `PanelProperties` | Per-panel circulation, velocity, and nondimensional force data. |
 | `get_surface_properties` | Return `system.properties`. |
+
+`Reference.rho` is the package's only aerodynamic density source. The
+production Imperial near-field loads, legacy load routines, dynamic-pressure
+normalization, and Trefftz-plane calculation all read it from the same
+analysis reference. For the Chang case, `AIR_DENSITY = 1.225` is used only to
+construct `ref`; subsequent solver, coupling-scale, and output calculations
+read `ref.rho`.
 
 ### 10.3 Aerodynamic analyses and results
 
@@ -612,6 +620,11 @@ The coupled input recognizes these environment variables:
 | `CHANG_COUPLING_TOL_COUPLED_EQ` | `1e-4` | Complete coupled equilibrium tolerance |
 | `CHANG_COUPLING_RELAXATION` | `0.5` | Fixed displacement relaxation factor |
 | `CHANG_PLOT_END_TIME_S` | `5` | Plot x-axis endpoint |
+| `CHANG_ANIMATION_STRIDE` | `5` | Accepted physical steps between animation frames |
+| `CHANG_ANIMATION_FPS` | `15` | GIF playback frame rate |
+
+GIF generation is selected directly in `run_chang_linear_aeroelastic.jl` with
+`const ANIMATE_WAKE = true` or `false`; it is not an environment variable.
 
 A short, plot-free smoke run is:
 

@@ -1,6 +1,6 @@
 # Production near-field aerodynamic loads. The equations, circulation jumps,
 # segment orientations, unsteady pressure term, and vertex transfer follow the
-# Imperial College London C++ UVLM implementation in `include/postproc.h`.
+# Imperial College London C++ UVLM implementation
 
 """
     imperial_panel_area(panel)

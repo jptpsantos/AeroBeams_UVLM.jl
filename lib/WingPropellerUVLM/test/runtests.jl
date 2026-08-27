@@ -286,6 +286,23 @@ include(joinpath(
         dynamic_pressure_area = density*speed^2*reference.S/2
         @test dimensional ≈ dynamic_pressure_area*coefficient
         @test coefficient[3] > 0
+
+        # Density is owned by Reference. Circulation and nondimensional
+        # coefficients are unchanged when rho changes, while every dimensional
+        # Imperial load scales linearly with it. The Trefftz path must use the
+        # same reference density so that its coefficient also remains invariant.
+        denser_reference = Reference(
+            span*chord, chord, span, zeros(3), speed, 2*density,
+        )
+        denser_system = steady_analysis(
+            [grid], denser_reference, freestream; derivatives=false,
+        )
+        denser_coefficient,_ = body_forces(denser_system)
+        denser_dimensional = sum(imperial_nodal_forces(denser_system)[1])
+        @test denser_coefficient ≈ coefficient
+        @test denser_dimensional ≈ 2*dimensional
+        @test far_field_drag(denser_system) ≈ far_field_drag(system)
+
         @test_throws ArgumentError steady_analysis(
             [grid],reference,freestream;derivatives=true,
         )
