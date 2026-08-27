@@ -12,7 +12,7 @@ Base.@kwdef struct WingConfig
     root_chord_m::Float64 = 1.8
     tip_chord_m::Float64 = 1.8
     span_m::Float64 = 7.5
-    spanwise_panels::Int = 20
+    spanwise_panels::Int = 30
     chordwise_panels::Int = 5
 end
 
@@ -29,16 +29,19 @@ end
 
 Base.@kwdef struct SimulationConfig
     freestream_speed_mps::Float64 = 80.0
-    angle_of_attack_deg::Float64 = 3.0
+    angle_of_attack_deg::Float64 = 0.0
     sideslip_deg::Float64 = 0.0
     azimuth_step_deg::Float64 = 5.0
     end_time_s::Float64 = 5
     interaction_on::Bool = false
+    impulse_propeller_indices::Vector{Int} = [1]
 end
 
 const WING_CONFIG = WingConfig()
 const PROPELLER_CONFIG = PropellerConfig()
-const SIMULATION_CONFIG = SimulationConfig()
+const SIMULATION_CONFIG = SimulationConfig(
+    impulse_propeller_indices = [1], # Use [1, 2] to excite both propellers.
+)
 
 function validate_configuration(wing::WingConfig, prop::PropellerConfig, sim::SimulationConfig)
     wing.root_chord_m > 0 || error("Wing root chord must be positive")
@@ -60,6 +63,16 @@ function validate_configuration(wing::WingConfig, prop::PropellerConfig, sim::Si
     sim.freestream_speed_mps >= 0 || error("Freestream speed cannot be negative")
     sim.azimuth_step_deg > 0 || error("Azimuth step must be positive")
     sim.end_time_s > 0 || error("Simulation end time must be positive")
+    isempty(sim.impulse_propeller_indices) &&
+        error("At least one impulse propeller index is required")
+    all(
+        (1 .<= sim.impulse_propeller_indices) .&
+        (sim.impulse_propeller_indices .<= length(prop.attachment_eta)),
+    ) ||
+        error("Impulse propeller indices must be between 1 and $(length(prop.attachment_eta))")
+    length(unique(sim.impulse_propeller_indices)) ==
+        length(sim.impulse_propeller_indices) ||
+        error("Impulse propeller indices must be unique")
     return nothing
 end
 

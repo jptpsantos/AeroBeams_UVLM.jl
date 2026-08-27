@@ -636,16 +636,69 @@ propagate_system!
 #
 
 """
-    propagate_system!(system, fs, dt; ...)
+    advance_wake!(system, fs, dt; ...)
 
-Propagate the state variables in `system` forward one time step.
+Convect the currently active wake panels and shed one new row using the
+circulation, trailing-edge velocities, and shedding locations already stored
+in `system`.
+
+This is the wake-commit portion of [`propagate_system!`](@ref). It may be
+called separately after a propagation with `advance_wake=false`, which is
+useful when several partitioned aeroelastic trials share one physical time
+step. The aerodynamic trial determines circulation and loads; this function is
+then called exactly once for the accepted trial.
+"""
+function advance_wake!(system, fs, dt;
+    additional_velocity = nothing,
+    repeated_points = repeated_trailing_edge_points(system.surfaces),
+    nwake = system.nwake,
+    interaction_id = system.surface_id,
+    interaction::Bool = true)
+
+    dt > 0 || throw(ArgumentError("dt must be positive"))
+    length(nwake) == length(system.surfaces) || throw(DimensionMismatch(
+        "nwake must contain one active-row count per surface",
+    ))
+    all((0 .<= nwake) .& (nwake .<= size.(system.wakes, 1))) || throw(ArgumentError(
+        "each active wake-row count must lie within the allocated wake size",
+    ))
+
+    # Keep the public System state consistent when this commit operation is
+    # called separately from propagate_system!.
+    system.freestream[] = fs
+    system.nwake .= nwake
+
+    get_wake_velocities!(system.V, system.surfaces,
+        system.wakes, system.reference[], fs, system.Γ, additional_velocity,
+        system.Vte, system.symmetric, repeated_points, nwake,
+        system.surface_id, system.wake_finite_core,
+        system.wake_shedding_locations, system.trailing_vortices,
+        system.xhat[];
+        interaction_id = interaction_id,
+        interaction = interaction)
+
+    shed_wake!(system.wakes, system.wake_shedding_locations, system.V,
+        dt, system.surfaces, system.Γ, nwake)
+
+    return system
+end
+
+"""
+    propagate_system!(system, fs, dt; ..., advance_wake=true)
+
+Solve circulation and aerodynamic loads for one time step. By default the
+wake is also convected and a new row is shed, preserving the original API.
+Set `advance_wake=false` for repeated partitioned-coupling trials and call
+[`advance_wake!`](@ref) once after the trial is accepted.
+
 [MODIFIED] Accepts and passes `interaction` flag.
 """
 function propagate_system!(system, fs, dt; 
     additional_velocity, repeated_points, nwake, eta, 
     calculate_influence_matrix, near_field_analysis, derivatives,
     interaction_id = system.surface_id,
-    interaction::Bool = true) # <--- [NEW] Argument
+    interaction::Bool = true,
+    advance_wake::Bool = true) # <--- [NEW] Arguments
 
     if near_field_analysis && derivatives
         throw(ArgumentError("Imperial near-field force derivatives are not implemented; use derivatives=false"))
@@ -665,7 +718,6 @@ function propagate_system!(system, fs, dt;
     previous_surfaces = system.previous_surfaces
     current_surfaces = system.surfaces
     wakes = system.wakes
-    wake_velocities = system.V
     wake_shedding_locations = system.wake_shedding_locations
     AIC = system.AIC
     w = system.w
@@ -780,17 +832,20 @@ function propagate_system!(system, fs, dt;
     # save flag indicating that derivatives wrt freestream variables have been obtained
     system.derivatives[] = derivatives
 
-    # update wake velocities
-    get_wake_velocities!(wake_velocities, current_surfaces,
-        wakes, ref, fs, Γ, additional_velocity, Vte, symmetric,
-        repeated_points, nwake, surface_id, wake_finite_core,
-        wake_shedding_locations, trailing_vortices, xhat;
-        interaction_id = interaction_id,
-        interaction = interaction)
-
-    # shed additional wake panel (and translate existing wake panels)
-    shed_wake!(wakes, wake_shedding_locations, wake_velocities,
-        dt, current_surfaces, Γ, nwake)
+    # Wake convection is optional so repeated fixed-point trials can solve
+    # circulation and loads without repeating this expensive physical update.
+    if advance_wake
+        advance_wake!(
+            system,
+            fs,
+            dt;
+            additional_velocity = additional_velocity,
+            repeated_points = repeated_points,
+            nwake = nwake,
+            interaction_id = interaction_id,
+            interaction = interaction,
+        )
+    end
 
     return system
 end

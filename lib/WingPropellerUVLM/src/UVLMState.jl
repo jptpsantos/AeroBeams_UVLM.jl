@@ -77,9 +77,10 @@ end
 """
     advance_uvlm_trial!(system,snapshot,freestream,Δt; kwargs...)
 
-Restore `snapshot` and propagate one trial from the accepted state. The caller
-owns the active wake-row vector and commits it only after the coupled step is
-accepted.
+Restore `snapshot` and propagate one trial from the accepted state. Set
+`advanceWake=false` to leave the wake unchanged during a partitioned-coupling
+trial; after convergence, call `advance_wake!` once using the accepted state.
+The caller separately owns and commits the active wake-row counter.
 """
 function advance_uvlm_trial!(system::System,snapshot::UVLMSnapshot,
     freestream::Freestream,Δt::Real;
@@ -91,7 +92,8 @@ function advance_uvlm_trial!(system::System,snapshot::UVLMSnapshot,
     nearFieldAnalysis::Bool=true,
     derivatives::Bool=false,
     interactionID=system.surface_id,
-    interaction::Bool=true)
+    interaction::Bool=true,
+    advanceWake::Bool=true)
 
     @assert Δt > 0
     @assert length(activeWakeRows) == length(system.surfaces)
@@ -110,6 +112,7 @@ function advance_uvlm_trial!(system::System,snapshot::UVLMSnapshot,
         derivatives=derivatives,
         interaction_id=interactionID,
         interaction=interaction,
+        advance_wake=advanceWake,
     )
 
     return system

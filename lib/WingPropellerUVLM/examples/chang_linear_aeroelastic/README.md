@@ -10,7 +10,8 @@ The aerodynamic side uses the current package APIs:
 
 - `initialize_bohnisch_uvlm_system` for the wing, blades, wakes, and interaction groups;
 - `snapshot_uvlm` / `restore_uvlm!` for repeatable partitioned trials;
-- `propagate_system!` for the unsteady free-wake step;
+- `propagate_system!(...; advance_wake=false)` for repeated circulation/load trials;
+- `advance_wake!` for the single accepted free-wake update;
 - `imperial_nodal_forces` and `imperial_nodal_positions` for structural load transfer.
 
 The [complete library and time-marching guide](../../../../docs/src/wing-propeller-uvlm-library-guide.md)
@@ -67,6 +68,16 @@ gives smoother motion but requires more storage and rendering time. The three
 plot axes use one common physical scale, so one metre has the same displayed
 length in `x_A`, `y_A`, and `z_A`. For the current input, the modeled wing span
 is 7.50 m while the propeller diameter is 2.30 m.
+
+Choose which propellers receive the pitch impulse in `chang_case.jl`:
+
+```julia
+const SIMULATION_CONFIG = SimulationConfig(
+    impulse_propeller_indices = [1, 2],
+)
+```
+
+The listed indices must exist in `PropellerConfig.attachment_eta`.
 
 Results are written to `output/` as a CSV history and a text validation
 summary. The main input also saves `chang_linear_imperial_uvlm_history.png`.

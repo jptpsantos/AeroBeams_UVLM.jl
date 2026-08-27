@@ -1,50 +1,11 @@
-# ==============================================================================
-# v9 UVLM time-domain model with frequency-domain structural definitions
-#   (PARTITIONED GENERALIZED-ALPHA build — five corrections tagged "# >>> FIX")
-#
-#   FIX 1: Generalized-alpha partitioned predictor-corrector with iterative aerodynamic load correction (α_nb = 0.05).
-#   FIX 2: propeller modal motion/load arm = -0.5*L_pylon
-#          (reference eθ), while the physical hub remains at -L_pylon.
-#   FIX 3: nodal inertia/CG axis assignment matched to the validated reference
-#          (Iyy<->Izz, Ixy<->Ixz, cg_y<->cg_z).
-#   FIX 4: INTERACTION_ON = false (isolated prop aero, as in the reference).
-#   FIX 5: full structural deformation in the wing grid and full wing-node
-#          rotation onto the propeller (Rz*Rx*Ry), not torsion-only.
-#
-# Structural nodal DOF order:
-#   [u_span, v_chord, w_vertical_down, θ_span/torsion, θ_chord, θ_vertical]
-# ==============================================================================
-
-# TIME-MARCHING MAP
-# -----------------
-# This driver advances two stateful solvers: the linear structural model and
-# the free-wake UVLM. The important distinction is between a *coupling trial*
-# and an *accepted physical time step*:
-#
-#   accepted state at t[n]
-#       -> copy current UVLM surfaces into `previous_surfaces`
-#       -> snapshot all mutable UVLM history
-#       -> predict the structural state at t[n+1]
-#       -> fixed-point iteration:
-#            restore the same UVLM snapshot
-#            deform the wing/propellers to the structural guess
-#            propagate one UVLM trial from t[n] to t[n+1]
-#            transfer Imperial nodal loads to structural generalized loads
-#            solve one generalized-alpha structural correction
-#            relax the corrected displacement to obtain the next guess
-#       -> accept the converged structural state and the matching UVLM trial
-#       -> increase the active wake length exactly once
-#       -> save histories and continue to t[n+2]
-#
-# `aero_load_for_state!`, defined in `chang_uvlm_coupling.jl`, performs the
-# restore/deform/propagate/transfer sequence. It may be called many times in
-# one physical step, but every call starts from the same snapshot. Therefore
-# rejected coupling guesses do not age the wake or circulation history.
+# Chang linear wing-propeller aeroelastic simulation.
+# Structural DOFs per node: [span, chord, down, torsion, chord rotation, yaw].
+# Each physical step solves the partitioned structural/UVLM iteration first,
+# then advances the accepted wake exactly once.
 
 import Pkg
 
-# Make the copied input directly runnable from VS Code or a terminal without
-# installing WingPropellerUVLM in the user's global environment.
+# Use the local WingPropellerUVLM package.
 Pkg.activate(normpath(joinpath(@__DIR__, "..", "..")))
 
 using LinearAlgebra
@@ -54,10 +15,7 @@ using Statistics
 
 include(joinpath(@__DIR__, "chang_case.jl"))
 
-# `chang_case.jl` owns general run controls such as `t`, `dt`, `Vinf`, angle of
-# attack, number of propellers, and the interaction switch. Plotting remains
-# optional so a headless solver/test run does not need to load Plots.jl. Edit
-# `ANIMATE_WAKE` here directly to enable or disable GIF generation.
+# User controls.
 const PLOT_RESULTS = true
 const ANIMATE_WAKE = true
 const PLOTS_REQUIRED = PLOT_RESULTS || ANIMATE_WAKE
@@ -74,6 +32,7 @@ using WingPropellerUVLM:
     grid_to_surface_panels,
     copy_surfaces_to_previous!,
     propagate_system!,
+    advance_wake!,
     snapshot_uvlm,
     restore_uvlm!,
     imperial_nodal_forces,
@@ -86,15 +45,13 @@ using WingPropellerUVLM:
     smooth_hann_pulse_load
 
 # ==============================================================================
-# 1. INCLUDES
+# 1. SUPPORT FILES AND OUTPUT CONTROLS
 # ==============================================================================
-# Plotting and file-output functions are separated from the solver so that this
-# file remains the orchestration layer rather than accumulating reusable code.
 PLOT_RESULTS && include(joinpath(@__DIR__, "chang_plotting.jl"))
 ANIMATE_WAKE && include(joinpath(@__DIR__, "chang_animation.jl"))
 include(joinpath(@__DIR__, "chang_postprocessing.jl"))
 
-const AIR_DENSITY = 1.225 # Air density (kg/m^3); stored in `ref.rho` below.
+const AIR_DENSITY = 1.225 # kg/m^3; `ref.rho` is used by the UVLM.
 const VERIFY_OUTPUT_DIR = normpath(get(
     ENV,
     "CHANG_OUTPUT_DIR",
@@ -108,85 +65,59 @@ WAKE_ANIMATION_FPS > 0 || error("CHANG_ANIMATION_FPS must be positive")
 mkpath(VERIFY_OUTPUT_DIR)
 
 # ==============================================================================
-# 2. CHANG MODEL PARAMETERS
+# 2. PHYSICAL AND STRUCTURAL MODEL
 # ==============================================================================
-# `chang_model_parameters.jl` contains the physical input data. The structural
-# assembly and diagnostics are isolated in `chang_structural_model.jl`.
 include(joinpath(@__DIR__, "chang_model_parameters.jl"))
 include(joinpath(@__DIR__, "chang_structural_model.jl"))
 
-
-# ==============================================================================
-# 3. STRUCTURAL MATRICES
-# ==============================================================================
 println("Assembling Chang structural matrices (Z-DOWN)...")
 
 structural = assemble_chang_structural_model()
 structural_diagnostics = chang_structural_diagnostics(structural)
 println("Wing-only modal frequencies (Hz): $(round.(structural_diagnostics.wing_modal_frequencies_hz, digits=4))")
-println("Structural checks: min eig(M)=$(structural_diagnostics.minimum_mass_eigenvalue), min eig(K)=$(structural_diagnostics.minimum_stiffness_eigenvalue), symmetry(M/K)=($(structural_diagnostics.mass_symmetry_error), $(structural_diagnostics.stiffness_symmetry_error))")
+println(
+    "Structural checks: min eig(M)=$(structural_diagnostics.minimum_mass_eigenvalue), " *
+    "min eig(K)=$(structural_diagnostics.minimum_stiffness_eigenvalue), " *
+    "symmetry(M/K)=($(structural_diagnostics.mass_symmetry_error), " *
+    "$(structural_diagnostics.stiffness_symmetry_error))",
+)
 
-# Keep named views of the returned matrices for comparison with the original
-# Chang formulation and for the coupling adapter. The actual time integrator
-# below uses the root-constrained matrices `M`, `C`, and `K`.
-Ks_W = structural.Ks_W
-Ms_W = structural.Ms_W
-Cs_W = structural.Cs_W
-Ms_P = structural.Ms_P
-Cs_P = structural.Cs_P
-Ks_P = structural.Ks_P
-Bs_P = structural.Bs_P
-Ds_P = structural.Ds_P
-Fs_W = structural.Fs_W
-Gs_W = structural.Gs_W
-Hs_W = structural.Hs_W
-attach_dofs_all = structural.attach_dofs_all
-M_global = structural.M_global
-C_global = structural.C_global
-K_global = structural.K_global
-free_dofs = structural.free_dofs
-M = structural.M
-C = structural.C
-K = structural.K
-ndof_free = structural.ndof_free
-ndof_wing_free = structural.ndof_wing_free
-ndof_prop_free = structural.ndof_prop_free
+# Expose the matrices needed by the driver and coupling adapter.
+(;
+    Ks_W, Ms_W, Cs_W, Ms_P, Cs_P, Ks_P, Bs_P, Ds_P,
+    Fs_W, Gs_W, Hs_W, attach_dofs_all,
+    M_global, C_global, K_global, free_dofs,
+    M, C, K, ndof_free, ndof_wing_free, ndof_prop_free,
+) = structural
 println("Matrices after BCs. Total DOFs (free): $ndof_free")
 
-# Structural histories use index 1 for t[1] and index `it+1` for the state
-# accepted after time step `it`. Each entry is a vector of free DOFs.
+# Structural displacement, velocity, and acceleration histories.
 U = Vector{Vector{Float64}}(undef, length(t))
 Ud = similar(U)
 Udd = similar(U)
 U0 = zeros(ndof_free)
 U0d = zeros(ndof_free)
-# Enforce equilibrium at the initial instant. With the present zero initial
-# displacement, velocity, and applied perturbation load, this is zero; writing
-# the general expression keeps the initialization correct if those change.
+# Initial acceleration from structural equilibrium.
 U0dd = isempty(M) ? zeros(ndof_free) : M \ (zeros(ndof_free) - C*U0d - K*U0)
 U[1] = U0
 Ud[1] = U0d
 Udd[1] = U0dd
+
 # ==============================================================================
-# 4. UVLM INITIALIZATION
+# 3. UVLM MODEL
 # ==============================================================================
 println("Initializing global UVLM system...")
-# Vortex-core radius used for every surface segment. It regularizes induced
-# velocity close to a vortex line and scales here with the local segment width.
+# Vortex-core radius proportional to local segment width.
 FCORE = (c, Δs) -> 0.5 * Δs
 
-# Chang reference locations: the wing elastic axis is at 30% chord, the
-# physical propeller hub is one pylon length ahead of the attachment, and the
-# two pylon modal coordinates act at half that length.
+# Wing elastic axis, hub position, and modal load point.
 elastic_axis_fraction = 0.30
 prop_pivot_offset_from_ea_A = SVector(0.0, 0.0, 0.0)
 hub_center_prop_A = SVector(-L_pylon, 0.0, 0.0)
+# Test it equal to L_Pylon
 hub_center_load_A = SVector(-0.5 * L_pylon, 0.0, 0.0)
 
-# This constructor creates one global aerodynamic system containing surface 1
-# (the wing), then every blade of every propeller, followed by their allocated
-# wakes and load-transfer buffers. Mutual interaction is controlled later by
-# `surface_interaction_id` and `INTERACTION_ON`.
+# Build one UVLM system containing the wing, all blades, and their wakes.
 uvlm = initialize_bohnisch_uvlm_system(
     xle=xle, yle=yle, zle=zle,
     chord_geo=chord_geo, theta_geo=theta_geo, phi_geo=phi_geo,
@@ -208,49 +139,22 @@ uvlm = initialize_bohnisch_uvlm_system(
     verbose=true,
 )
 
-# The constructor returns a named tuple. These aliases make the mathematical
-# driver and the case-specific adapter readable. In particular:
-#
-# * `system` owns bound circulation, panel properties, surfaces, and wakes;
-# * `iwake` is the number of wake rows active in the current physical step;
-# * `nwake` is the allocated maximum row count for each surface;
-# * `repeated_points` prevents duplicate trailing-edge velocity evaluations;
-# * `surface_interaction_id` groups the wing and each complete propeller;
-# * the remaining arrays are preallocated geometry/load-transfer workspaces.
-ratio_wing = uvlm.ratio_wing
-grids_prop_ref = uvlm.grids_prop_ref
-grids_prop_initial_global = uvlm.grids_prop_initial_global
-attach_node_y = uvlm.attach_node_y
-ea_x_aero = uvlm.ea_x_aero
-prop_surface_indices = uvlm.prop_surface_indices
-surfaces = uvlm.surfaces
-nsurf = uvlm.nsurf
-surface_interaction_id = uvlm.surface_interaction_id
-nwake = uvlm.nwake
-system = uvlm.system
-repeated_points = uvlm.repeated_points
-iwake = uvlm.iwake
-fs_vec = uvlm.fs_vec
-save = uvlm.save
-TF = uvlm.TF
-surface_history = uvlm.surface_history
-nodal_forces_wing = uvlm.nodal_forces_wing
-nodal_moments_wing = uvlm.nodal_moments_wing
-EA_nodes_wing = uvlm.EA_nodes_wing
-nodal_forces_prop = uvlm.nodal_forces_prop
-grids_prop_current = uvlm.grids_prop_current
-T_pivot_A_current = uvlm.T_pivot_A_current
+# Expose aerodynamic state and reusable coupling workspaces.
+(;
+    ratio_wing, grids_prop_ref, grids_prop_initial_global,
+    attach_node_y, ea_x_aero, prop_surface_indices, surfaces, nsurf,
+    surface_interaction_id, nwake, system, repeated_points, iwake,
+    fs_vec, save, TF, surface_history, nodal_forces_wing,
+    nodal_moments_wing, EA_nodes_wing, nodal_forces_prop,
+    grids_prop_current, T_pivot_A_current,
+) = uvlm
 T_hub_A_current   = Vector{SVector{3,Float64}}(undef, Npropellers)
 T_load_A_current  = Vector{SVector{3,Float64}}(undef, Npropellers)
-# The adapter is intentionally included only after all case data and buffers
-# exist. It translates this example's structural DOF convention to the UVLM
-# frame and translates the resulting aerodynamic nodal loads back.
+
+# Chang-specific geometry update and aerodynamic load transfer.
 include(joinpath(@__DIR__, "chang_uvlm_coupling.jl"))
 
-# Animation histories are separate from the solver's full surface history.
-# They are populated only when requested and only at the selected stride. Wake
-# matrices are cropped to active rows when recorded, avoiding both uninitialized
-# allocated panels and unnecessary memory use.
+# Accepted states retained for optional wake animation.
 animation_surface_history = Vector{typeof(system.surfaces)}()
 animation_wake_history = Vector{typeof(system.wakes)}()
 animation_active_wake_rows_history = Vector{Vector{Int}}()
@@ -268,13 +172,14 @@ if ANIMATE_WAKE
 end
 
 # ==============================================================================
-# 5. SIMULATION
+# 4. TIME-INTEGRATION AND COUPLING CONTROLS
 # ==============================================================================
-println("Starting coupled aeroelastic simulation...")
-
-# The smooth external perturbation is applied to every propeller pitch DOF.
-# Each propeller contributes `[pitch, yaw]` after the wing DOFs.
-pitch_dof_indices = [ndof_wing_free + 2*(ip - 1) + 1 for ip in 1:Npropellers]
+# Select the propellers that receive the pitch impulse; for example `[1, 2]`.
+impulse_propeller_indices = SIMULATION_CONFIG.impulse_propeller_indices
+pitch_dof_indices = [
+    ndof_wing_free + 2*(ip - 1) + 1
+    for ip in impulse_propeller_indices
+]
 impulse_magnitude = parse(Float64, get(ENV, "CHANG_IMPULSE_MAGNITUDE", "1000.0"))
 propeller_revolution_period = 2π / abs(Ω)
 trim_revolutions = parse(Float64, get(ENV, "CHANG_TRIM_REVOLUTIONS", "10.0"))
@@ -292,11 +197,7 @@ trim_revolutions > 0 || error("CHANG_TRIM_REVOLUTIONS must be positive")
 trim_average_revolutions > 0 || error("CHANG_TRIM_AVERAGE_REVOLUTIONS must be positive")
 impulse_triggered_msg = false
 
-# The rotor wake has a periodic load even when the structure is at q = 0. The
-# mean over the final trim revolutions is saved as `F0_struct`. The dynamic
-# equation subsequently uses only `F_aero(q,t) - F0_struct`, so the simulation
-# measures perturbations about that reference instead of applying the complete
-# startup load as a structural impulse.
+# Mean periodic load used as the perturbation baseline after wake startup.
 F0_struct = zeros(ndof_free)
 F0_accumulator = zeros(ndof_free)
 F0_sample_count = 0
@@ -310,9 +211,7 @@ trim_average_start_time = max(
 )
 
 const GA_RHO_INF = parse(Float64, get(ENV, "CHANG_GA_RHO_INF", "0.7"))
-# `rho_inf` controls numerical damping of unresolved high-frequency structural
-# modes. The returned alpha_m, alpha_f, beta, and gamma define the second-order
-# generalized-alpha update used at every coupling correction.
+# Generalized-alpha parameters and fixed-point tolerances.
 const GA_PARAMS = generalized_alpha_parameters(GA_RHO_INF)
 const COUPLING_MAX_ITER = parse(Int, get(ENV, "CHANG_COUPLING_MAX_ITER", "10"))
 const COUPLING_TOL_U = parse(Float64, get(ENV, "CHANG_COUPLING_TOL_U", "1.0e-5"))
@@ -333,9 +232,7 @@ const COUPLING_OPTIONS = PartitionedCouplingOptions(
     relaxation = COUPLING_RELAXATION,
 )
 
-# Dimensionless fixed-point residuals use characteristic physical scales.
-# This prevents translations, rotations, forces, and moments from being
-# compared directly in one unscaled Euclidean norm.
+# Scales for dimensionless displacement and load residuals.
 const COUPLING_STATE_SCALE = ones(ndof_free)
 const COUPLING_LOAD_SCALE = ones(ndof_free)
 const REFERENCE_FORCE_SCALE = max(0.5 * ref.rho * Vinf^2 * Sref, 1.0)
@@ -352,35 +249,42 @@ propeller_moment_scale = max(
     1.0,
 )
 COUPLING_LOAD_SCALE[(ndof_wing_free + 1):end] .= propeller_moment_scale
-println("Partitioned generalized-alpha: rho_inf=$(GA_PARAMS.rho_inf), alpha_m=$(GA_PARAMS.alpha_m), alpha_f=$(GA_PARAMS.alpha_f), gamma=$(GA_PARAMS.gamma), beta=$(GA_PARAMS.beta)")
-println("Coupling correction: max_iter=$COUPLING_MAX_ITER, tol_u=$COUPLING_TOL_U, tol_f=$COUPLING_TOL_F, tol_linear=$COUPLING_TOL_EQ, tol_coupled=$COUPLING_TOL_COUPLED_EQ, relaxation=$COUPLING_RELAXATION")
-println("Trim baseline: average $(trim_average_revolutions) revolution(s), from t=$(round(trim_average_start_time, digits=4)) s to t=$(round(impulse_start_time, digits=4)) s")
+println(
+    "Partitioned generalized-alpha: rho_inf=$(GA_PARAMS.rho_inf), " *
+    "alpha_m=$(GA_PARAMS.alpha_m), alpha_f=$(GA_PARAMS.alpha_f), " *
+    "gamma=$(GA_PARAMS.gamma), beta=$(GA_PARAMS.beta)",
+)
+println(
+    "Coupling correction: max_iter=$COUPLING_MAX_ITER, tol_u=$COUPLING_TOL_U, " *
+    "tol_f=$COUPLING_TOL_F, tol_linear=$COUPLING_TOL_EQ, " *
+    "tol_coupled=$COUPLING_TOL_COUPLED_EQ, relaxation=$COUPLING_RELAXATION",
+)
+println(
+    "Trim baseline: average $trim_average_revolutions revolution(s), " *
+    "from t=$(round(trim_average_start_time, digits=4)) s " *
+    "to t=$(round(impulse_start_time, digits=4)) s",
+)
 
 coupling_iterations = fill(0, length(dt))
 coupling_disp_residual = fill(NaN, length(dt))
 coupling_load_residual = fill(NaN, length(dt))
 coupling_equilibrium_residual = fill(NaN, length(dt))
 coupling_converged = fill(false, length(dt))
-# Aerodynamic perturbation load associated with the accepted state at t[n].
-# It supplies the generalized-alpha force value on the old side of the step.
+# Accepted aerodynamic perturbation load at t[n].
 F_pert_n = zeros(ndof_free)
 
-for it = 1:length(dt)
-    # --------------------------------------------------------------------------
-    # A. BEGIN ONE PHYSICAL STEP: t[it] -> t[it+1]
-    # --------------------------------------------------------------------------
-    # Surface velocities require the accepted geometry at both ends of the
-    # step. Freeze the t[n] geometry before any trial overwrites `surfaces`.
-    copy_surfaces_to_previous!(system, nsurf)
+# ==============================================================================
+# 5. COUPLED TIME MARCHING
+# ==============================================================================
+println("Starting coupled aeroelastic simulation...")
 
-    # Capture circulation, circulation rates, surfaces, previous surfaces,
-    # wakes, shedding locations, active wake counts, and freestream. Each
-    # aerodynamic fixed-point evaluation below restores this exact state.
+for it = 1:length(dt)
+    # A. Freeze and snapshot the accepted aerodynamic state at t[n].
+    copy_surfaces_to_previous!(system, nsurf)
     snap = snapshot_uvlm(system)
     dt_i = dt[it]
 
-    # Generalized-alpha interpolates the right-hand side between t[n] and
-    # t[n+1], so the prescribed Hann pulse is evaluated at both endpoints.
+    # B. Evaluate the external load at both integration endpoints.
     f_ext_n = smooth_hann_pulse_load(
         t[it],
         ndof_free,
@@ -402,21 +306,9 @@ for it = 1:length(dt)
         global impulse_triggered_msg = true
     end
 
-    # --------------------------------------------------------------------------
-    # B. STRONGLY PARTITIONED GENERALIZED-ALPHA CORRECTION
-    # --------------------------------------------------------------------------
-    # The integrator owns the structural predictor/corrector iteration. Its
-    # callback is the aerodynamic operator F_aero(q_guess). For every guess,
-    # `aero_load_for_state!` does all of the following:
-    #
-    #   1. restore `snap` (roll back rejected aerodynamic trials);
-    #   2. build deformed wing and spinning/whirling blade grids at t[n+1];
-    #   3. call `propagate_system!` once for circulation, forces, and wake;
-    #   4. transfer dimensional Imperial nodal loads to structural free DOFs.
-    #
-    # Before the trim baseline exists, zero perturbation load is returned to the
-    # structure while the UVLM wake develops. After trim, the callback returns
-    # the instantaneous load minus the mean trim load.
+    # C. Iterate structure and UVLM loads with the wake held at t[n].
+    # The callback restores `snap`, updates geometry, solves circulation/loads,
+    # and transfers the Imperial loads to structural DOFs.
     last_full_aerodynamic_load = zeros(ndof_free)
     correction = partitioned_generalized_alpha_step(
         M,
@@ -446,9 +338,7 @@ for it = 1:length(dt)
         load_scale = COUPLING_LOAD_SCALE,
     )
 
-    # The returned state is exactly the last state passed to the aerodynamic
-    # callback, not one extra structural solve. Thus `correction.displacement`
-    # and the UVLM state left in `system` are a matching fixed-point pair.
+    # Read the final structural/aerodynamic fixed-point pair.
     U_corr = correction.displacement
     Ud_corr = correction.velocity
     Udd_corr = correction.acceleration
@@ -461,7 +351,7 @@ for it = 1:length(dt)
     iter_count = correction.iterations
 
     if !converged
-        # Failed trials are never allowed to become aerodynamic history.
+        # Reject the physical step and restore its initial aerodynamic state.
         restore_uvlm!(system, snap)
         error(
             "Partitioned coupling failed at step $it (t=$(t[it + 1]) s) after " *
@@ -471,25 +361,15 @@ for it = 1:length(dt)
         )
     end
 
-    # --------------------------------------------------------------------------
-    # C. COMMIT THE CONVERGED STRUCTURE AND AERODYNAMIC TRIAL
-    # --------------------------------------------------------------------------
-    # The final callback inside `partitioned_generalized_alpha_step` evaluated
-    # this exact state and left its circulation and wake as the committed UVLM
-    # state. Do not propagate once more here.
-    U_final = copy(U_corr)
-    Ud_final = copy(Ud_corr)
-    Udd_final = copy(Udd_corr)
+    # D. Store the converged structural state and aerodynamic load.
     F_struct_final = copy(last_full_aerodynamic_load)
     F_pert_final = copy(F_pert_guess)
 
-    U[it+1] = U_final
-    Ud[it+1] = Ud_final
-    Udd[it+1] = Udd_final
+    U[it+1] = copy(U_corr)
+    Ud[it+1] = copy(Ud_corr)
+    Udd[it+1] = copy(Udd_corr)
 
-    # --------------------------------------------------------------------------
-    # D. FORM/CAPTURE THE PERIODIC TRIM-LOAD BASELINE
-    # --------------------------------------------------------------------------
+    # E. Accumulate and activate the mean periodic trim load.
     time_np1 = t[it + 1]
     trim_sample = !have_F0 &&
         time_np1 >= trim_average_start_time - eps(time_np1) &&
@@ -504,18 +384,27 @@ for it = 1:length(dt)
         global have_F0 = true
         F_pert_final .= 0.0
         if !printed_steady
-            println("\n=== Mean trim generalized load captured at t=$(round(time_np1, digits=4)) s from $F0_sample_count samples ===")
+            println(
+                "\n=== Mean trim generalized load captured at " *
+                "t=$(round(time_np1, digits=4)) s from $F0_sample_count samples ===",
+            )
             for ip in 1:Npropellers
-                println("  P$(ip): pitch F0 = $(round(F0_struct[ndof_wing_free+2*(ip-1)+1], digits=3)) N*m,  yaw F0 = $(round(F0_struct[ndof_wing_free+2*(ip-1)+2], digits=3)) N*m")
+                pitch_index = ndof_wing_free + 2*(ip - 1) + 1
+                yaw_index = pitch_index + 1
+                println(
+                    "  P$ip: pitch F0 = $(round(F0_struct[pitch_index], digits=3)) N*m, " *
+                    "yaw F0 = $(round(F0_struct[yaw_index], digits=3)) N*m",
+                )
             end
-            println("  |F0_wing| = $(round(norm(F0_struct[1:ndof_wing_free]), digits=2)),  |F0_prop| = $(round(norm(F0_struct[ndof_wing_free+1:end]), digits=2))")
+            println(
+                "  |F0_wing| = $(round(norm(F0_struct[1:ndof_wing_free]), digits=2)), " *
+                "|F0_prop| = $(round(norm(F0_struct[ndof_wing_free+1:end]), digits=2))",
+            )
             global printed_steady = true
         end
     end
 
-    # The load paired with the accepted t[n+1] state becomes `load_n` in the
-    # next generalized-alpha step. Residual histories are saved for validation
-    # and for detecting insufficient coupling iterations or relaxation.
+    # Save the accepted load and convergence diagnostics.
     F_pert_n .= F_pert_final
     coupling_iterations[it] = iter_count
     coupling_disp_residual[it] = state_res
@@ -523,20 +412,27 @@ for it = 1:length(dt)
     coupling_equilibrium_residual[it] = equilibrium_res
     coupling_converged[it] = converged
 
-    # --------------------------------------------------------------------------
-    # E. COMMIT WAKE AGE EXACTLY ONCE
-    # --------------------------------------------------------------------------
-    # `propagate_system!` has already shed/convected the converged trial wake.
-    # Only its usable row count is incremented here. This loop must remain
-    # outside the fixed-point callback or the wake would grow once per iterate.
+    # F. Convect and shed the accepted wake once. Do not also advance it inside
+    # `aero_load_for_state!`.
+    advance_wake!(
+        system,
+        fs_vec[it],
+        dt_i;
+        additional_velocity = nothing,
+        repeated_points = repeated_points,
+        nwake = iwake,
+        interaction_id = surface_interaction_id,
+        interaction = INTERACTION_ON,
+    )
+
+    # Activate the new wake row for the next physical step.
     for isurf in 1:nsurf
         if iwake[isurf] < nwake[isurf]
             iwake[isurf] += 1
         end
     end
 
-    # Record accepted states only. Coupling trials are deliberately excluded so
-    # the GIF advances once per physical time step rather than once per iterate.
+    # G. Save optional animation data and report convergence.
     if ANIMATE_WAKE &&
         (it == 1 || it % WAKE_ANIMATION_STRIDE == 0 || it == length(dt))
         record_chang_animation_frame!(
@@ -550,11 +446,15 @@ for it = 1:length(dt)
         )
     end
 
-    println("Step $it/$N_LAST (t=$(round(t[it+1], digits=4)) s) partitioned correction: converged in $iter_count iterations, state_res=$(round(state_res, sigdigits=4)), load_res=$(round(force_res, sigdigits=4)), coupled_equilibrium_res=$(round(equilibrium_res, sigdigits=4)), linear_equilibrium_res=$(round(linear_equilibrium_res, sigdigits=4))")
+    println(
+        "Step $it/$N_LAST (t=$(round(t[it+1], digits=4)) s): " *
+        "$iter_count iterations, state_res=$(round(state_res, sigdigits=4)), " *
+        "load_res=$(round(force_res, sigdigits=4)), " *
+        "coupled_eq_res=$(round(equilibrium_res, sigdigits=4)), " *
+        "linear_eq_res=$(round(linear_equilibrium_res, sigdigits=4))",
+    )
 
-    # Stop a divergent numerical solution before it fills the histories with
-    # invalid values. The logarithmic estimate is diagnostic only; it is not a
-    # rigorous flutter identification method.
+    # Abort before a divergent solution contaminates later history.
     nrm = maximum(abs, U[it+1])
     if any(isnan, U[it+1]) || nrm > U_ABORT
         rng = max(1, it-400):it
@@ -563,7 +463,11 @@ for it = 1:length(dt)
         gi = findall(>(1e-12), env)
         if length(gi) > 5
             growth_sigma = (log(env[gi[end]]) - log(env[gi[1]])) / (tt[gi[end]] - tt[gi[1]])
-            println("\n>>> ABORT at t=$(round(t[it+1], digits=4)) s, |U|=$(round(nrm, sigdigits=4)); growth sigma(P1 pitch) approx $(round(growth_sigma, digits=4)) /s")
+            println(
+                "\n>>> ABORT at t=$(round(t[it+1], digits=4)) s, " *
+                "|U|=$(round(nrm, sigdigits=4)); growth sigma(P1 pitch) " *
+                "approx $(round(growth_sigma, digits=4)) /s",
+            )
         else
             println("\n>>> ABORT at t=$(round(t[it+1], digits=4)) s, |U|=$(round(nrm, sigdigits=4))")
         end
@@ -571,16 +475,14 @@ for it = 1:length(dt)
         break
     end
 
-    # Store accepted surfaces only. Trial geometries from intermediate coupling
-    # iterations are not retained in the visualization history.
+    # Store accepted surfaces only.
     if it in save
         surface_history[it] = [copy(s) for s in system.surfaces]
     end
 end
 println("Simulation finished.")
 
-# If a run aborts or its last step does not coincide with the requested stride,
-# retain the final accepted state as the last animation frame.
+# Ensure the animation ends at the final accepted state.
 if ANIMATE_WAKE && animation_time_history[end] != t[N_LAST + 1]
     record_chang_animation_frame!(
         animation_surface_history,
@@ -592,12 +494,11 @@ if ANIMATE_WAKE && animation_time_history[end] != t[N_LAST + 1]
         t[N_LAST + 1],
     )
 end
+
 # ==============================================================================
 # 6. VALIDATION OUTPUT
 # ==============================================================================
-# Postprocessing uses only steps that were actually accepted (`N_LAST`). It
-# writes structural time histories, coupling residuals, a validation summary,
-# and, when enabled, the one- or two-propeller plot layout.
+# Write accepted histories, diagnostics, plots, and optional animation.
 plot_time_limit_s = parse(Float64, get(ENV, "CHANG_PLOT_END_TIME_S", "5.0"))
 results = write_chang_results(
     displacement_history = U,

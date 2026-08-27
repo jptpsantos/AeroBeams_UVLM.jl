@@ -349,5 +349,55 @@ include(joinpath(
         )
         @test system.Γ ≈ ΓFirst
         @test system.wakes == wakesFirst
+
+        # A mature physical step must be identical whether it is propagated in
+        # one call (legacy/default API) or split into a circulation/load trial
+        # followed by one accepted wake commit. Start with one initialized wake
+        # row so the comparison covers both convection and new-row shedding.
+        activeWakeRows .= 1
+        acceptedSnapshot = snapshot_uvlm(system)
+        advance_uvlm_trial!(
+            system,
+            acceptedSnapshot,
+            system.freestream[],
+            0.01;
+            repeatedPoints=repeatedPoints,
+            activeWakeRows=activeWakeRows,
+        )
+        ΓFull = copy(system.Γ)
+        dΓdtFull = copy(system.dΓdt)
+        propertiesFull = deepcopy(system.properties)
+        chordForcesFull = deepcopy(system.chord_seg_forces)
+        spanForcesFull = deepcopy(system.span_seg_forces)
+        unsteadyForcesFull = deepcopy(system.unsteady_forces)
+        wakeVelocitiesFull = deepcopy(system.V)
+        wakesFull = deepcopy(system.wakes)
+
+        advance_uvlm_trial!(
+            system,
+            acceptedSnapshot,
+            system.freestream[],
+            0.01;
+            repeatedPoints=repeatedPoints,
+            activeWakeRows=activeWakeRows,
+            advanceWake=false,
+        )
+        @test system.Γ == ΓFull
+        @test system.dΓdt == dΓdtFull
+        @test system.properties == propertiesFull
+        @test system.chord_seg_forces == chordForcesFull
+        @test system.span_seg_forces == spanForcesFull
+        @test system.unsteady_forces == unsteadyForcesFull
+        @test system.wakes == acceptedSnapshot.wakes
+
+        advance_wake!(
+            system,
+            system.freestream[],
+            0.01;
+            repeated_points=repeatedPoints,
+            nwake=activeWakeRows,
+        )
+        @test system.V == wakeVelocitiesFull
+        @test system.wakes == wakesFull
     end
 end

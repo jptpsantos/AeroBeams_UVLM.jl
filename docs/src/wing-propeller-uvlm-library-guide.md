@@ -138,45 +138,56 @@ Wing free DOFs exclude the clamped root. The global reduced state is
 
 ## 5. One accepted UVLM time step
 
-For a prescribed moving geometry, the safe stepping pattern is:
+For a partitioned moving-geometry problem, separate repeatable aerodynamic
+trials from the one accepted wake update:
 
 ```julia
 copy_surfaces_to_previous!(system, length(system.surfaces))
 snapshot = snapshot_uvlm(system)
 
-# Update system.surfaces here to the geometry at t[n+1].
-
-advance_uvlm_trial!(
-    system,
-    snapshot,
-    freestream,
-    dt;
-    repeatedPoints = repeated_trailing_edge_points(system.surfaces),
-    activeWakeRows = active_wake_rows,
-    η = 0.1,
-    calculateInfluenceMatrix = true,
-    nearFieldAnalysis = true,
+# Repeat this block for each structural coupling guess.
+restore_uvlm!(system, snapshot)
+update_geometry_for_trial!(system, structural_guess)
+propagate_system!(system, freestream, dt;
+    additional_velocity = nothing,
+    repeated_points = repeated_trailing_edge_points(system.surfaces),
+    nwake = active_wake_rows,
+    eta = 0.1,
+    calculate_influence_matrix = true,
+    near_field_analysis = true,
     derivatives = false,
-    interactionID = system.surface_id,
+    interaction_id = system.surface_id,
+    interaction = true,
+    advance_wake = false,
+)
+
+# Call only after the final trial passes every coupled convergence test.
+advance_wake!(system, freestream, dt;
+    additional_velocity = nothing,
+    repeated_points = repeated_trailing_edge_points(system.surfaces),
+    nwake = active_wake_rows,
+    interaction_id = system.surface_id,
     interaction = true,
 )
 
-# Accept only after every coupled convergence test passes.
 commit_wake_rows!(active_wake_rows, maximum_wake_rows)
 system.nwake .= active_wake_rows
 ```
 
-`advance_uvlm_trial!` begins by restoring `snapshot`; it is therefore safe to
-call repeatedly with different trial geometries. The caller commits the wake
-counter only once, after accepting a physical time step.
+`propagate_system!` still advances the wake by default, so rigid and prescribed
+one-pass analyses retain their original behavior. The `advance_wake=false`
+option is specifically for repeated trials representing the same physical time
+interval. `advance_wake!` uses the accepted circulation, trailing-edge motion,
+and shedding locations already stored in `system`; it does not re-solve the
+AIC system or recalculate loads.
 
-Do not call `propagate_system!` again after accepting the final coupling
-callback. The final callback has already left `system` at the accepted
-circulation, geometry, and wake.
+Do not call `propagate_system!` again after accepting the final coupling trial.
+That would solve circulation and loads twice. Call only `advance_wake!`, then
+increment the active-row counter.
 
 ## 6. What `propagate_system!` updates
 
-`propagate_system!` performs one complete aerodynamic update in this order:
+`propagate_system!` performs the following update in order:
 
 1. Compute panel control-point, bound-segment, and trailing-edge velocities
    from `current_surfaces - previous_surfaces` divided by `dt`.
@@ -191,8 +202,11 @@ circulation, geometry, and wake.
 8. Form `dGamma/dt = (Gamma[n+1] - Gamma[n])/dt`.
 9. Compute Imperial near-field segment and unsteady forces when
    `near_field_analysis=true`.
-10. Compute wake convection velocities.
-11. Convect existing wake panels and shed the new row.
+10. If `advance_wake=true` (the default), call `advance_wake!` to compute wake
+    convection velocities, convect existing panels, and shed the new row.
+
+With `advance_wake=false`, steps 1--9 are still fully evaluated and provide the
+same circulation and Imperial loads; only step 10 is deferred.
 
 The keyword `interaction` controls cross-group influence. With
 `interaction=true`, all surfaces interact. With `interaction=false`, a
@@ -261,15 +275,15 @@ restore_uvlm!(system, snap)
 update_aero_geometry_for_state!(system, state_guess, t[it+1])
         |
         v
-propagate_system!(system, freestream[it], dt[it], ...)
+propagate_system!(system, freestream[it], dt[it], ...; advance_wake=false)
         |
         v
 assemble_structural_aero_load!(system, kinematics)
 ```
 
-Restoring first is essential. Without it, coupling iteration 2 would advance
-the wake left by iteration 1, even though both iterations represent the same
-physical time interval.
+Restoring first makes circulation history and geometry identical for every
+trial. Wake convection is disabled in the callback because all iterations
+represent the same physical time interval.
 
 ### 7.4 Geometry update
 
@@ -382,11 +396,12 @@ not a static structural trim to a deformed equilibrium.
 
 ### 7.8 Accepting the step
 
-On convergence, the driver stores the structural state and load, then increases
-`iwake` by one row per surface up to the allocated maximum. It does not call
-`propagate_system!` again. At the beginning of the next loop, the accepted
-`system.surfaces` become `previous_surfaces`, so panel-motion velocity is based
-on accepted geometries only.
+On convergence, the driver stores the structural state and load, calls
+`advance_wake!` exactly once with the accepted aerodynamic state, and then
+increases `iwake` by one row per surface up to the allocated maximum. It does
+not call `propagate_system!` again. At the beginning of the next loop, the
+accepted `system.surfaces` become `previous_surfaces`, so panel-motion velocity
+is based on accepted geometries only.
 
 ## 8. Imperial near-field force model
 
@@ -528,7 +543,8 @@ read `ref.rho`.
 |:--|:--|
 | `steady_analysis`, `steady_analysis!` | Create/run a steady VLM solution. The bang form mutates a supplied `System`. |
 | `unsteady_analysis`, `unsteady_analysis!` | High-level prescribed surface-history analysis. |
-| `propagate_system!` | Advance one explicitly controlled UVLM time step; preferred low-level primitive for coupling. |
+| `propagate_system!` | Solve one explicitly controlled UVLM step; use `advance_wake=false` for repeated coupling trials. |
+| `advance_wake!` | Convect active wakes and shed one row from the accepted circulation/geometry without re-solving loads. |
 | `imperial_nodal_forces` | Return dimensional vertex forces for structural transfer. |
 | `imperial_nodal_positions` | Return the matching vortex-vertex positions. |
 | `body_forces`, `body_forces_history` | Integrated coefficients/loads for one state or a stored history. |
@@ -570,7 +586,7 @@ example and keep case-specific aliases outside the package.
 | `UVLMSnapshot` | Deep copy of mutable history needed to repeat a time-step trial. |
 | `snapshot_uvlm` | Capture accepted wakes, circulation, rates, surfaces, shedding points, wake counts, and freestream. |
 | `restore_uvlm!` | Restore a snapshot in place while preserving array identities. |
-| `advance_uvlm_trial!` | Restore a snapshot and run one UVLM trial. |
+| `advance_uvlm_trial!` | Restore a snapshot and run one UVLM trial; its `advanceWake` keyword defaults to `true` for compatibility. |
 | `commit_wake_rows!` | Increment active wake lengths once after acceptance, capped at allocated maxima. |
 
 ### 10.6 Structural coupling and excitation
@@ -653,9 +669,14 @@ contract:
 function uvlm_load_at_aerobeams_state!(coupler, aero_snapshot, beam_state, time)
     restore_uvlm!(coupler.uvlm, aero_snapshot)
     update_geometry_from_aerobeams!(coupler, beam_state, time)
-    propagate_system!(coupler.uvlm, coupler.freestream, coupler.dt; ...)
+    propagate_system!(coupler.uvlm, coupler.freestream, coupler.dt;
+        advance_wake=false, ...)
     return transfer_uvlm_loads_to_aerobeams(coupler, beam_state)
 end
+
+# After the outer aeroelastic iteration converges:
+advance_wake!(coupler.uvlm, coupler.freestream, coupler.dt; ...)
+commit_wake_rows!(coupler.active_wake_rows, coupler.maximum_wake_rows)
 ```
 
 The changes are structural, not aerodynamic:
@@ -671,8 +692,9 @@ The changes are structural, not aerodynamic:
   residuals converge.
 
 Never call the UVLM from each structural element residual or Newton evaluation.
-That would advance circulation and the wake according to solver iteration count
-instead of physical time.
+Evaluate it at the outer coupling level, and never call `advance_wake!` inside
+that iteration; the wake must advance according to physical time rather than
+solver iteration count.
 
 ## 13. Common mistakes and diagnostics
 

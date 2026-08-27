@@ -46,8 +46,9 @@ surfaceNodalForces = imperial_nodal_forces(system)
 ```
 
 The coupled AeroBeams controller should restore the same snapshot before every
-outer iteration and call `commit_wake_rows!` only after the structural and
-aerodynamic interface residuals converge.
+outer iteration and use `advanceWake=false` for those repeated trials. After
+the structural and aerodynamic interface residuals converge, call
+`advance_wake!` once and then `commit_wake_rows!`.
 
 ## Documentation
 

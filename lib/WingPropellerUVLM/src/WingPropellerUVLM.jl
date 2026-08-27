@@ -52,7 +52,7 @@ export AbstractFrame, Body, Stability, Wind
 export Freestream, trajectory_to_freestream
 export System, PanelProperties, get_surface_properties
 export steady_analysis, steady_analysis!
-export unsteady_analysis, unsteady_analysis!, propagate_system!
+export unsteady_analysis, unsteady_analysis!, propagate_system!, advance_wake!
 export spanwise_force_coefficients
 export body_forces, body_forces_history
 export lifting_line_coefficients, lifting_line_coefficients!

@@ -251,11 +251,12 @@ end
 Evaluate the complete aerodynamic generalized-load operator for one structural
 fixed-point guess at `t[step+1]`.
 
-Every call restores the beginning-of-step snapshot, updates geometry, advances
-one UVLM trial, and transfers its loads. Therefore repeated calls during the
+Every call restores the beginning-of-step snapshot, updates geometry, solves
+one UVLM circulation/load trial, and transfers its loads. Wake convection and
+shedding are deliberately disabled here. Therefore repeated calls during the
 same coupled step are deterministic trials from `t[step]`, not successive wake
-steps. On return, `system` contains the trial corresponding to `state`; the run
-driver retains it only when the coupled correction converges.
+steps. On return, `system` contains the circulation/load trial corresponding to
+`state`; the run driver advances its wake only after convergence.
 """
 function aero_load_for_state!(system, snapshot, state::AbstractVector, step::Int;
     print_loads::Bool = false)
@@ -266,9 +267,10 @@ function aero_load_for_state!(system, snapshot, state::AbstractVector, step::Int
     # Geometry is evaluated at the end of the physical step, including the
     # prescribed rotor azimuth at that time.
     kinematics = update_aero_geometry_for_state!(system, state, t[step + 1])
-    # Solve one complete unsteady aerodynamic trial. This updates panel motion
-    # velocities, AIC/RHS, circulation and gamma-dot, Imperial near-field loads,
-    # wake velocities, and the shed/convected wake—all starting from `snapshot`.
+    # Solve the unsteady aerodynamic trial through circulation, gamma-dot, and
+    # Imperial near-field loads. The expensive free-wake convection is a
+    # physical-time update, so it is deferred until this structural state has
+    # converged and is accepted by the run driver.
     propagate_system!(
         system,
         fs_vec[step],
@@ -282,6 +284,7 @@ function aero_load_for_state!(system, snapshot, state::AbstractVector, step::Int
         derivatives = false,
         interaction_id = surface_interaction_id,
         interaction = INTERACTION_ON,
+        advance_wake = false,
     )
     # Convert the aerodynamic trial into a load vector for the structural
     # corrector. The caller decides whether to subtract the trim baseline.
