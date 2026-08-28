@@ -10,6 +10,8 @@ function diagnostic_bool(name, default)
     error("$name must be true/false, yes/no, on/off, or 1/0")
 end
 
+diagnostic_symbol(name, default) = Symbol(lowercase(strip(get(ENV, name, string(default)))))
+
 Base.@kwdef struct WingConfig
     root_chord_m::Float64 = 1.8
     tip_chord_m::Float64 = 1.8
@@ -36,6 +38,10 @@ Base.@kwdef struct SimulationConfig
     azimuth_step_deg::Float64 = diagnostic_float("CHANG_TEST_AZIMUTH_STEP_DEG", 5.0)
     end_time_s::Float64 = diagnostic_float("CHANG_TEST_END_TIME_S", 2.0)
     interaction_on::Bool = diagnostic_bool("CHANG_TEST_INTERACTION", false)
+    near_field_force_model::Symbol = diagnostic_symbol(
+        "CHANG_TEST_BASE_FORCE_MODEL",
+        :imperial,
+    )
     impulse_propeller_indices::Vector{Int} = [1]
 end
 
@@ -65,6 +71,8 @@ function validate_case_configuration(
     sim.freestream_speed_mps >= 0 || error("Freestream speed cannot be negative")
     sim.azimuth_step_deg > 0 || error("Azimuth step must be positive")
     sim.end_time_s > 0 || error("Simulation end time must be positive")
+    sim.near_field_force_model in (:imperial, :legacy_imperial_segments) ||
+        error("Near-field force model must be :imperial or :legacy_imperial_segments")
     return nothing
 end
 
@@ -72,5 +80,11 @@ validate_case_configuration(WING_CONFIG, PROPELLER_CONFIG, SIMULATION_CONFIG)
 
 const TEST_WAKE_ROWS_WING = diagnostic_int("CHANG_TEST_WAKE_ROWS_WING", 50)
 const TEST_WAKE_ROWS_PROPELLER = diagnostic_int("CHANG_TEST_WAKE_ROWS_PROP", 72)
+const TEST_HUB_LOAD_ARM_FACTOR = diagnostic_float("CHANG_TEST_HUB_LOAD_ARM_FACTOR", 0.5)
+const TEST_FCORE_SEGMENT_FACTOR = diagnostic_float("CHANG_TEST_FCORE_SEGMENT_FACTOR", 0.5)
+const TEST_FCORE_CHORD_FACTOR = diagnostic_float("CHANG_TEST_FCORE_CHORD_FACTOR", 0.0)
 TEST_WAKE_ROWS_WING >= 0 || error("CHANG_TEST_WAKE_ROWS_WING must be nonnegative")
 TEST_WAKE_ROWS_PROPELLER >= 0 || error("CHANG_TEST_WAKE_ROWS_PROP must be nonnegative")
+TEST_HUB_LOAD_ARM_FACTOR >= 0 || error("CHANG_TEST_HUB_LOAD_ARM_FACTOR must be nonnegative")
+TEST_FCORE_SEGMENT_FACTOR >= 0 || error("CHANG_TEST_FCORE_SEGMENT_FACTOR must be nonnegative")
+TEST_FCORE_CHORD_FACTOR >= 0 || error("CHANG_TEST_FCORE_CHORD_FACTOR must be nonnegative")

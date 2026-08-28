@@ -24,6 +24,7 @@ include("backend/system.jl")
 include("backend/analyses.jl")
 include("backend/legacy_nearfield.jl")
 include("backend/nearfield.jl")
+include("backend/nearfield_postprocessing.jl")
 include("backend/farfield.jl")
 include("backend/stability.jl")
 include("backend/visualization.jl")
@@ -56,6 +57,7 @@ export unsteady_analysis, unsteady_analysis!, propagate_system!, advance_wake!
 export spanwise_force_coefficients
 export body_forces, body_forces_history
 export lifting_line_coefficients, lifting_line_coefficients!
+export near_field_forces!, legacy_near_field_forces!, legacy_imperial_segment_forces!
 export imperial_nodal_forces, imperial_nodal_positions
 export far_field_drag
 export body_derivatives, stability_derivatives

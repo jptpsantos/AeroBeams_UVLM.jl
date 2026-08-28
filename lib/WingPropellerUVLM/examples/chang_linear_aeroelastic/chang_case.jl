@@ -20,7 +20,7 @@ Base.@kwdef struct PropellerConfig
     radius_m::Float64 = 1.15
     chord_m::Float64 = 0.197
     blades::Int = 4
-    radial_panels::Int = 5
+    radial_panels::Int = 10
     chordwise_panels::Int = 5
     rotation_rpm::Float64 = 1207.96
     trim_speed_mps::Float64 = 65.0
@@ -28,12 +28,13 @@ Base.@kwdef struct PropellerConfig
 end
 
 Base.@kwdef struct SimulationConfig
-    freestream_speed_mps::Float64 = 80.0
+    freestream_speed_mps::Float64 = 85.0
     angle_of_attack_deg::Float64 = 0.0
     sideslip_deg::Float64 = 0.0
     azimuth_step_deg::Float64 = 5.0
-    end_time_s::Float64 = 5
+    end_time_s::Float64 = 2
     interaction_on::Bool = false
+    near_field_force_model::Symbol = :legacy_imperial_segments
     impulse_propeller_indices::Vector{Int} = [1]
 end
 
@@ -63,6 +64,8 @@ function validate_configuration(wing::WingConfig, prop::PropellerConfig, sim::Si
     sim.freestream_speed_mps >= 0 || error("Freestream speed cannot be negative")
     sim.azimuth_step_deg > 0 || error("Azimuth step must be positive")
     sim.end_time_s > 0 || error("Simulation end time must be positive")
+    sim.near_field_force_model in (:imperial, :legacy_imperial_segments) ||
+        error("Near-field force model must be :imperial or :legacy_imperial_segments")
     isempty(sim.impulse_propeller_indices) &&
         error("At least one impulse propeller index is required")
     all(

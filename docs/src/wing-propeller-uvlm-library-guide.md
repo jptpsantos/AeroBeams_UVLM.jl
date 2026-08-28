@@ -456,7 +456,8 @@ reassembling these arrays in an input file.
 | `src/backend/wake.jl` | Shedding locations, wake-induced velocities, wake convection, row shifting, and shedding. |
 | `src/backend/analyses.jl` | High-level steady/unsteady interfaces and the one-step `propagate_system!` algorithm. |
 | `src/backend/nearfield.jl` | Production Imperial segmented, unsteady, and vertex-force calculation. |
-| `src/backend/legacy_nearfield.jl` | Retained legacy force/coefficient and history postprocessing routines; production propagation dispatches to the later Imperial `near_field_forces!` definition. |
+| `src/backend/legacy_nearfield.jl` | Retained Imperial College-inspired legacy segment loads used by the Chang aeroelastic compatibility model. |
+| `src/backend/nearfield_postprocessing.jl` | Generic body-force, force-history, lifting-line, derivative-reduction, and reference-frame postprocessing. |
 | `src/backend/farfield.jl` | Trefftz-plane far-field induced drag. |
 | `src/backend/stability.jl` | Body- and stability-axis derivatives from stored UVLM derivatives. |
 | `src/backend/visualization.jl` | VTK/VTM/PVD output for surfaces, properties, wakes, and time histories. |

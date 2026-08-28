@@ -32,6 +32,8 @@ using WingPropellerUVLM:
     grid_to_surface_panels,
     copy_surfaces_to_previous!,
     propagate_system!,
+    near_field_forces!,
+    legacy_imperial_segment_forces!,
     advance_wake!,
     snapshot_uvlm,
     restore_uvlm!,
@@ -52,12 +54,21 @@ ANIMATE_WAKE && include(joinpath(@__DIR__, "chang_animation.jl"))
 include(joinpath(@__DIR__, "chang_postprocessing.jl"))
 
 const AIR_DENSITY = 1.225 # kg/m^3; `ref.rho` is used by the UVLM.
+const AEROELASTIC_NEAR_FIELD_FORCE_MODEL = SIMULATION_CONFIG.near_field_force_model
+const AEROELASTIC_NEAR_FIELD_FORCE_FUNCTION =
+    AEROELASTIC_NEAR_FIELD_FORCE_MODEL == :legacy_imperial_segments ?
+        legacy_imperial_segment_forces! : near_field_forces!
+println("Aeroelastic near-field force model: $AEROELASTIC_NEAR_FIELD_FORCE_MODEL")
 const VERIFY_OUTPUT_DIR = normpath(get(
     ENV,
     "CHANG_OUTPUT_DIR",
     joinpath(@__DIR__, "output"),
 ))
-const VERIFY_LABEL = get(ENV, "CHANG_OUTPUT_LABEL", "chang_linear_imperial_uvlm")
+const VERIFY_LABEL = get(
+    ENV,
+    "CHANG_OUTPUT_LABEL",
+    "chang_linear_$(AEROELASTIC_NEAR_FIELD_FORCE_MODEL)_uvlm",
+)
 const WAKE_ANIMATION_STRIDE = parse(Int, get(ENV, "CHANG_ANIMATION_STRIDE", "5"))
 const WAKE_ANIMATION_FPS = parse(Int, get(ENV, "CHANG_ANIMATION_FPS", "15"))
 WAKE_ANIMATION_STRIDE > 0 || error("CHANG_ANIMATION_STRIDE must be positive")
@@ -114,7 +125,7 @@ FCORE = (c, Δs) -> 0.5 * Δs
 elastic_axis_fraction = 0.30
 prop_pivot_offset_from_ea_A = SVector(0.0, 0.0, 0.0)
 hub_center_prop_A = SVector(-L_pylon, 0.0, 0.0)
-# Test it equal to L_Pylon
+# Test it equal to L_Pylon Standard is -0.5 L_Pylon
 hub_center_load_A = SVector(-0.5 * L_pylon, 0.0, 0.0)
 
 # Build one UVLM system containing the wing, all blades, and their wakes.
@@ -222,7 +233,8 @@ const COUPLING_TOL_COUPLED_EQ = parse(Float64, get(
     "CHANG_COUPLING_TOL_COUPLED_EQ",
     "1.0e-4",
 ))
-const COUPLING_RELAXATION = parse(Float64, get(ENV, "CHANG_COUPLING_RELAXATION", "0.5"))
+# Change coupling relaxation
+const COUPLING_RELAXATION = parse(Float64, get(ENV, "CHANG_COUPLING_RELAXATION", "1.0"))
 const COUPLING_OPTIONS = PartitionedCouplingOptions(
     maximum_iterations = COUPLING_MAX_ITER,
     state_tolerance = COUPLING_TOL_U,
@@ -308,7 +320,7 @@ for it = 1:length(dt)
 
     # C. Iterate structure and UVLM loads with the wake held at t[n].
     # The callback restores `snap`, updates geometry, solves circulation/loads,
-    # and transfers the Imperial loads to structural DOFs.
+    # and transfers the selected segment loads to structural DOFs.
     last_full_aerodynamic_load = zeros(ndof_free)
     correction = partitioned_generalized_alpha_step(
         M,
@@ -514,6 +526,7 @@ results = write_chang_results(
     density = ref.rho,
     freestream_speed = Vinf,
     interaction_on = INTERACTION_ON,
+    near_field_force_model = AEROELASTIC_NEAR_FIELD_FORCE_MODEL,
     requested_end_time = t_end,
     coupling_iterations = coupling_iterations,
     coupling_state_residual = coupling_disp_residual,

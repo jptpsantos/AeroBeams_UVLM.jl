@@ -5,12 +5,12 @@ using Plots
 const INPUT_PATH = joinpath(
     EXAMPLE_DIR,
     "output",
-    "chang_linear_imperial_uvlm_history.csv",
+    "chang_linear_legacy_imperial_segments_uvlm_history.csv",
 )
 const OUTPUT_PATH = joinpath(
     EXAMPLE_DIR,
     "output",
-    "chang_linear_imperial_uvlm_time_histories.png",
+    "chang_linear_legacy_imperial_segments_uvlm_time_histories.png",
 )
 
 isfile(INPUT_PATH) || error("Run run_chang_linear_aeroelastic.jl before plotting")
@@ -137,7 +137,7 @@ figure = plot(
     layout = (3, 2),
     size = (1600, 1200),
     margin = 6Plots.mm,
-    plot_title = "Chang linear aeroelastic response with Imperial UVLM loads",
+    plot_title = "Chang response with legacy Imperial-segment UVLM loads",
     plot_titlefontsize = 16,
 )
 

@@ -221,8 +221,9 @@ function System(TF::Type, nc, ns; nw = zero(nc), grids = nothing, ratios = nothi
     end
     if isnothing(ratios)
         ratios = [Array{TF}(undef, 2, nc[i], ns[i]) for i = 1:nsurf]
-        for i = 1:nsurf
-            ratios[i] = ratios[i] .+ [0.5;0.75]
+        for ratio in ratios
+            ratio[1, :, :] .= TF(0.5)
+            ratio[2, :, :] .= TF(0.75)
         end
     end
 
@@ -284,4 +285,3 @@ of panel properties (see [`PanelProperties`](@ref)) of shape (nc, ns) where `nc`
 is the number of chordwise panels and `ns` is the number of spanwise panels
 """
 get_surface_properties(system) = system.properties
-

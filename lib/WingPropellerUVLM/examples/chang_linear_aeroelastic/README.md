@@ -12,7 +12,19 @@ The aerodynamic side uses the current package APIs:
 - `snapshot_uvlm` / `restore_uvlm!` for repeatable partitioned trials;
 - `propagate_system!(...; advance_wake=false)` for repeated circulation/load trials;
 - `advance_wake!` for the single accepted free-wake update;
+- `legacy_imperial_segment_forces!` for the aeroelastic chord/span/unsteady loads;
 - `imperial_nodal_forces` and `imperial_nodal_positions` for structural load transfer.
+
+The default aeroelastic force model is `:legacy_imperial_segments`.
+`legacy_nearfield.jl` now contains only the segment-load formulation identified
+in the original source as following the Imperial College C++ UVLM
+implementation; the older `PanelProperties` reconstruction and inactive trial
+implementations were removed. Circulation, interaction masking, free-wake
+propagation, and the partitioned structural time integrator are unchanged. The
+force loop reuses the system force arrays and can distribute independent panels
+over Julia threads without changing the segment equations. To compare against
+the newer direct Imperial port, set
+`near_field_force_model = :imperial` in `SimulationConfig`.
 
 The [complete library and time-marching guide](../../../../docs/src/wing-propeller-uvlm-library-guide.md)
 walks through every phase of the driver, the callback, source files, and public
@@ -22,8 +34,38 @@ transaction and coordinate/load-transfer boundaries.
 Run the full Chang input from the repository root with:
 
 ```powershell
-julia lib/WingPropellerUVLM/examples/chang_linear_aeroelastic/run_chang_linear_aeroelastic.jl
+julia --threads=auto lib/WingPropellerUVLM/examples/chang_linear_aeroelastic/run_chang_linear_aeroelastic.jl
 ```
+
+## One-propeller windmilling trim
+
+The standalone trim remains on the newer direct Imperial force port. Recompute
+its windmilling speed with
+the isolated rigid-propeller driver:
+
+```powershell
+julia --project=lib/WingPropellerUVLM lib/WingPropellerUVLM/examples/chang_linear_aeroelastic/run_chang_windmilling_trim.jl
+```
+
+The driver holds the flow at 65 m/s, marches one four-bladed propeller and its
+free wake, averages the Imperial shaft torque over complete final revolutions,
+and varies RPM until the mean torque is zero. It writes the tested RPM points,
+the final periodic history, and a trim summary under
+`output/chang_windmilling_trim/`. The resulting RPM replaces
+`PropellerConfig.rotation_rpm`; `chang_model_parameters.jl` then preserves its
+advance ratio when the aeroelastic flow speed changes.
+
+The principal convergence controls are `CHANG_TRIM_RADIAL_PANELS`,
+`CHANG_TRIM_CHORDWISE_PANELS`, `CHANG_TRIM_AZIMUTH_STEP_DEG`,
+`CHANG_TRIM_SIMULATED_REVOLUTIONS`, and
+`CHANG_TRIM_RETAINED_WAKE_REVOLUTIONS`. Trim and aeroelastic calculations must
+use matching blade grid, azimuth-step, vortex-core, and wake-length settings.
+
+For reference, a preliminary 5×5-mesh check at 65 m/s, 1.225 kg/m³, zero
+incidence, a 5° azimuth step, and three retained wake revolutions placed the
+Imperial zero-torque point near 1217.69 rpm. This value is not the final trim
+for the configured 20-radial × 10-chordwise mesh; rerun the trim after any
+mesh, azimuth-step, vortex-core, or wake-length change.
 
 The default input retains the original three-second simulation. For a short
 coupling smoke test, override only the run duration and impulse timing:
@@ -80,9 +122,10 @@ const SIMULATION_CONFIG = SimulationConfig(
 The listed indices must exist in `PropellerConfig.attachment_eta`.
 
 Results are written to `output/` as a CSV history and a text validation
-summary. The main input also saves `chang_linear_imperial_uvlm_history.png`.
+summary. With the default force model, the main input also saves
+`chang_linear_legacy_imperial_segments_uvlm_history.png`.
 When wake animation is enabled it additionally saves
-`chang_linear_imperial_uvlm_wing_wake.gif`.
+`chang_linear_legacy_imperial_segments_uvlm_wing_wake.gif`.
 For one propeller, it contains the wing-tip displacement and twist followed by
 the propeller pitch and yaw. For two propellers, it contains the inboard pitch
 and yaw followed by the outboard pitch and yaw. A successful run prints

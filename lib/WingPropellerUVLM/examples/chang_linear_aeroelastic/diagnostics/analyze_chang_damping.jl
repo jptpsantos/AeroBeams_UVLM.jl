@@ -1,9 +1,13 @@
 using DelimitedFiles
 using Statistics
 
-length(ARGS) >= 1 || error("Usage: julia analyze_chang_damping.jl HISTORY.csv [fit_start_s]")
+length(ARGS) >= 1 || error(
+    "Usage: julia analyze_chang_damping.jl HISTORY.csv [fit_start_s] [fit_end_s]",
+)
 history_path = abspath(ARGS[1])
 fit_start = length(ARGS) >= 2 ? parse(Float64, ARGS[2]) : 0.7
+fit_end = length(ARGS) >= 3 ? parse(Float64, ARGS[3]) : Inf
+fit_end >= fit_start || error("fit_end_s must not precede fit_start_s")
 
 raw, header = readdlm(history_path, ',', header = true)
 names = vec(String.(header))
@@ -16,7 +20,8 @@ time = Float64.(raw[:, time_index])
 pitch = Float64.(raw[:, pitch_index])
 peak_indices = Int[]
 for i in 2:(length(pitch) - 1)
-    if time[i] >= fit_start && pitch[i] > pitch[i - 1] && pitch[i] >= pitch[i + 1]
+    if fit_start <= time[i] <= fit_end &&
+            pitch[i] > pitch[i - 1] && pitch[i] >= pitch[i + 1]
         push!(peak_indices, i)
     end
 end
@@ -39,6 +44,7 @@ r_squared = ss_total > 0 ? 1 - ss_residual / ss_total : 1.0
 
 println("history = $history_path")
 println("fit_start_s = $fit_start")
+println("fit_end_s = $fit_end")
 println("number_of_positive_peaks = $(length(peak_times))")
 println("first_peak_deg = $(first(peak_values))")
 println("last_peak_deg = $(last(peak_values))")

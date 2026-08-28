@@ -308,6 +308,96 @@ include(joinpath(
         )
     end
 
+    @testset "Default control-point ratios" begin
+        grid,_ = wing_to_grid(
+            [0.0,0.0],[0.0,1.0],[0.0,0.0],ones(2),zeros(2),zeros(2),3,2,
+        )
+        system = System([grid])
+
+        @test all(isfinite, system.ratios[1])
+        @test all(==(0.5), @view system.ratios[1][1,:,:])
+        @test all(==(0.75), @view system.ratios[1][2,:,:])
+    end
+
+    @testset "Legacy Imperial segment-force selection" begin
+        grid,_ = wing_to_grid(
+            [0.0,0.0],[0.0,1.0],[0.0,0.0],ones(2),zeros(2),zeros(2),2,2,
+        )
+        _,ratios,surface = grid_to_surface_panels(grid)
+        system = System([grid]; nw=[0])
+        system.ratios[1] = ratios
+        system.surfaces[1] .= surface
+        system.previous_surfaces[1] .= surface
+        system.reference[] = Reference(1.0,1.0,1.0,zeros(3),20.0,1.225)
+        freestream = Freestream(20.0,deg2rad(5.0),0.0,zeros(3))
+
+        propagate_system!(
+            system,
+            freestream,
+            0.01;
+            additional_velocity=nothing,
+            repeated_points=repeated_trailing_edge_points(system.surfaces),
+            nwake=[0],
+            eta=0.1,
+            calculate_influence_matrix=true,
+            near_field_analysis=true,
+            near_field_force_function=legacy_imperial_segment_forces!,
+            derivatives=false,
+            advance_wake=false,
+        )
+
+        @test all(all(isfinite, force) for force in system.chord_seg_forces[1])
+        @test all(all(isfinite, force) for force in system.span_seg_forces[1])
+        @test all(all(isfinite, force) for force in system.unsteady_forces[1])
+        @test sum(norm, system.chord_seg_forces[1]) +
+            sum(norm, system.span_seg_forces[1]) > 0
+        @test all(isfinite, sum(imperial_nodal_forces(system)[1]))
+
+        force_keywords = (
+            dΓdt=system.dΓdt,
+            additional_velocity=nothing,
+            Vh=system.Vh,
+            Vv=system.Vv,
+            symmetric=system.symmetric,
+            nwake=system.nwake,
+            surface_id=system.surface_id,
+            wake_finite_core=system.wake_finite_core,
+            wake_shedding_locations=system.wake_shedding_locations,
+            trailing_vortices=system.trailing_vortices,
+            xhat=system.xhat[],
+            interaction_id=system.surface_id,
+            interaction=true,
+        )
+        _, chord_serial, span_serial, unsteady_serial =
+            legacy_imperial_segment_forces!(
+                system.properties,
+                system.surfaces,
+                system.wakes,
+                system.reference[],
+                system.freestream[],
+                system.Γ;
+                force_keywords...,
+                threaded=false,
+            )
+        _, chord_threaded, span_threaded, unsteady_threaded =
+            legacy_imperial_segment_forces!(
+                system.properties,
+                system.surfaces,
+                system.wakes,
+                system.reference[],
+                system.freestream[],
+                system.Γ;
+                force_keywords...,
+                threaded=true,
+            )
+        @test chord_serial == system.chord_seg_forces
+        @test span_serial == system.span_seg_forces
+        @test unsteady_serial == system.unsteady_forces
+        @test chord_threaded == chord_serial
+        @test span_threaded == span_serial
+        @test unsteady_threaded == unsteady_serial
+    end
+
     @testset "UVLM snapshot" begin
         xle = [0.0,0.0]
         yle = [0.0,1.0]

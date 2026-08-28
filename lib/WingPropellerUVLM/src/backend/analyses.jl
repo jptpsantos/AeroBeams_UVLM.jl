@@ -80,7 +80,7 @@ function steady_analysis!(system, ref, fs;
     derivatives = false)
 
     if near_field_analysis && derivatives
-        throw(ArgumentError("Imperial near-field force derivatives are not implemented; use derivatives=false"))
+        throw(ArgumentError("Selected near-field force derivatives are not implemented; use derivatives=false"))
     end
 
     # number of surfaces
@@ -696,6 +696,7 @@ Set `advance_wake=false` for repeated partitioned-coupling trials and call
 function propagate_system!(system, fs, dt; 
     additional_velocity, repeated_points, nwake, eta, 
     calculate_influence_matrix, near_field_analysis, derivatives,
+    near_field_force_function = near_field_forces!,
     interaction_id = system.surface_id,
     interaction::Bool = true,
     advance_wake::Bool = true) # <--- [NEW] Arguments
@@ -815,11 +816,20 @@ function propagate_system!(system, fs, dt;
 
     # compute transient forces on each panel (if necessary)
     if near_field_analysis
-        properties, chord_seg, span_seg, unsteady = near_field_forces!(
+        force_buffer_keywords =
+            near_field_force_function === legacy_imperial_segment_forces! ||
+            near_field_force_function === legacy_near_field_forces! ?
+            (
+                chord_force_buffers=system.chord_seg_forces,
+                span_force_buffers=system.span_seg_forces,
+                unsteady_force_buffers=system.unsteady_forces,
+            ) : NamedTuple()
+        properties, chord_seg, span_seg, unsteady = near_field_force_function(
             system.properties, current_surfaces, wakes, ref, fs, Γ;
             dΓdt, additional_velocity, Vh, Vv, symmetric, nwake,
             surface_id, wake_finite_core, wake_shedding_locations,
-            trailing_vortices, xhat, interaction_id, interaction)
+            trailing_vortices, xhat, interaction_id, interaction,
+            force_buffer_keywords...)
 
         system.chord_seg_forces .= chord_seg
         system.span_seg_forces .= span_seg

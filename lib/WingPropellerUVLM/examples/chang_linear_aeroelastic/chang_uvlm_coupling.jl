@@ -2,7 +2,7 @@
 #
 # These functions intentionally remain with the example because they encode
 # its structural DOF order and the Z-down structural/Z-up aerodynamic sign
-# conversion. Generic grid deformation, UVLM stepping, Imperial nodal loads,
+# conversion. Generic grid deformation, UVLM stepping, segment-to-nodal loads,
 # and generalized-alpha integration live in WingPropellerUVLM itself.
 
 """
@@ -137,7 +137,7 @@ end
 """
     assemble_structural_aero_load!(system, kinematics; step=0, print_loads=false)
 
-Transfer the dimensional Imperial UVLM vertex forces to the Chang free-DOF
+Transfer the dimensional UVLM vertex forces to the Chang free-DOF
 ordering. Wing forces are summed chordwise and moments are formed about the
 deformed elastic axis. Blade forces are reduced to propeller hub/pivot wrenches,
 added to the attachment node, and projected onto the pitch/yaw modal DOFs.
@@ -268,7 +268,7 @@ function aero_load_for_state!(system, snapshot, state::AbstractVector, step::Int
     # prescribed rotor azimuth at that time.
     kinematics = update_aero_geometry_for_state!(system, state, t[step + 1])
     # Solve the unsteady aerodynamic trial through circulation, gamma-dot, and
-    # Imperial near-field loads. The expensive free-wake convection is a
+    # selected near-field segment loads. The expensive free-wake convection is a
     # physical-time update, so it is deferred until this structural state has
     # converged and is accepted by the run driver.
     propagate_system!(
@@ -282,6 +282,7 @@ function aero_load_for_state!(system, snapshot, state::AbstractVector, step::Int
         calculate_influence_matrix = true,
         near_field_analysis = true,
         derivatives = false,
+        near_field_force_function = AEROELASTIC_NEAR_FIELD_FORCE_FUNCTION,
         interaction_id = surface_interaction_id,
         interaction = INTERACTION_ON,
         advance_wake = false,

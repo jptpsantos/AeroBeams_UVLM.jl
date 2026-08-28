@@ -18,6 +18,7 @@ function write_chang_results(;
     density::Real,
     freestream_speed::Real,
     interaction_on::Bool,
+    near_field_force_model::Symbol,
     requested_end_time::Real,
     coupling_iterations,
     coupling_state_residual,
@@ -113,13 +114,14 @@ function write_chang_results(;
 
     summary_path = joinpath(output_directory, output_label * "_summary.txt")
     open(summary_path, "w") do stream
-        println(stream, "Chang linear aeroelastic / Imperial UVLM validation")
+        println(stream, "Chang linear aeroelastic / UVLM validation")
         println(stream, "source_case = run_chang_partitioned_ga_equilibrium_residual.jl")
         println(stream, "air_density_kg_m3 = $density")
         println(stream, "freestream_speed_m_s = $freestream_speed")
         println(stream, "number_of_propellers = $number_of_propellers")
         println(stream, "number_of_blades_per_propeller = $number_of_blades")
         println(stream, "interaction_on = $interaction_on")
+        println(stream, "near_field_force_model = $near_field_force_model")
         println(stream, "requested_end_time_s = $requested_end_time")
         println(stream, "integrated_end_time_s = $(time_history[end])")
         println(stream, "integrated_steps = $active_step_count")
