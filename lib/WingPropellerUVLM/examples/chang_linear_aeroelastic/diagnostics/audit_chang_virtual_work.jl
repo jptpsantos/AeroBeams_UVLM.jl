@@ -4,6 +4,18 @@ include(joinpath(@__DIR__, "run_chang_diagnostic_case.jl"))
 
 base_state = copy(U[N_LAST + 1])
 base_time = t[N_LAST + 1]
+if haskey(ENV, "CHANG_AUDIT_PROP_PITCH_DEG")
+    base_state[ndof_wing_free + 1] = deg2rad(parse(
+        Float64,
+        ENV["CHANG_AUDIT_PROP_PITCH_DEG"],
+    ))
+end
+if haskey(ENV, "CHANG_AUDIT_PROP_YAW_DEG")
+    base_state[ndof_wing_free + 2] = deg2rad(parse(
+        Float64,
+        ENV["CHANG_AUDIT_PROP_YAW_DEG"],
+    ))
+end
 base_kinematics = update_aero_geometry_for_state!(system, base_state, base_time)
 generalized_load = assemble_structural_aero_load!(system, base_kinematics)
 nodal_forces = imperial_nodal_forces(system)
@@ -47,15 +59,27 @@ indices = [
 ]
 
 println("\nChang aerodynamic load-transfer virtual-work audit")
+println("propeller_moment_projection = $AEROELASTIC_PROPELLER_MOMENT_PROJECTION")
+println(
+    "audit_propeller_angles_deg = " *
+    "($(rad2deg(base_state[ndof_wing_free + 1])), " *
+    "$(rad2deg(base_state[ndof_wing_free + 2])))",
+)
 println("quantity,generalized_load,virtual_work_load,scaled_error")
 maximum_error = 0.0
+errors = Dict{String,Float64}()
 for (name, index) in indices
     work_load = virtual_work_load(index)
     assembled_load = generalized_load[index]
     scale = max(abs(assembled_load), abs(work_load), 1.0)
     error = abs(assembled_load - work_load) / scale
+    errors[name] = error
     global maximum_error = max(maximum_error, error)
     println("$name,$assembled_load,$work_load,$error")
 end
 update_aero_geometry_for_state!(system, base_state, base_time)
 println("maximum_scaled_virtual_work_error = $maximum_error")
+if AEROELASTIC_PROPELLER_MOMENT_PROJECTION == :exact_virtual_work
+    @assert errors["propeller_pitch"] <= 1.0e-6
+    @assert errors["propeller_yaw"] <= 1.0e-6
+end

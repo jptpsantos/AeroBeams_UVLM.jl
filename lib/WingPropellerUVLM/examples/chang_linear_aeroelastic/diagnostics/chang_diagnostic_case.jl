@@ -42,6 +42,10 @@ Base.@kwdef struct SimulationConfig
         "CHANG_TEST_BASE_FORCE_MODEL",
         :imperial,
     )
+    propeller_moment_projection::Symbol = diagnostic_symbol(
+        "CHANG_TEST_PROP_MOMENT_PROJECTION",
+        :exact_virtual_work,
+    )
     impulse_propeller_indices::Vector{Int} = [1]
 end
 
@@ -73,6 +77,10 @@ function validate_case_configuration(
     sim.end_time_s > 0 || error("Simulation end time must be positive")
     sim.near_field_force_model in (:imperial, :legacy_imperial_segments) ||
         error("Near-field force model must be :imperial or :legacy_imperial_segments")
+    sim.propeller_moment_projection in (:fixed_aero_axes, :exact_virtual_work) ||
+        error(
+            "Propeller moment projection must be fixed_aero_axes or exact_virtual_work",
+        )
     return nothing
 end
 

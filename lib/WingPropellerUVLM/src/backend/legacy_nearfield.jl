@@ -1,6 +1,6 @@
-# Legacy segment-force formulation retained for reproducing the original
-# wing-propeller aeroelastic model. Only the block derived from Imperial
-# College London's C++ UVLM implementation is kept in this file.
+# Corrected legacy segment-force formulation for the wing-propeller
+# aeroelastic model. Only the block derived from Imperial College London's C++
+# UVLM implementation is kept in this file.
 
 function _legacy_imperial_base_velocity(
     location,
@@ -24,10 +24,10 @@ end
     _legacy_imperial_induced_velocity(location, panel_index, segment_kind,
         surfaces, wakes, circulation, receiving_surface; ...)
 
-Return the velocity induced at a legacy force segment. The original Imperial-
-inspired implementation removes the receiving ring for a spanwise segment and
-omits receiving-surface bound induction for a chordwise segment. Wake induction
-is retained for both segment types.
+Return the velocity induced at a legacy force segment. Induction from the
+receiving bound surface is retained, while only the coincident filament(s) are
+excluded to avoid evaluating a vortex segment on itself. Wake induction is
+retained for both segment types.
 """
 function _legacy_imperial_induced_velocity(
     location,
@@ -61,15 +61,40 @@ function _legacy_imperial_induced_velocity(
         ids_are_different =
             different_surface_id[receiving_surface, sending_surface]
 
-        if segment_kind === :spanwise && receiving_surface == sending_surface
-            velocity += induced_velocity(panel_index, sending, sending_circulation;
-                finite_core = ids_are_different,
-                wake_shedding_locations = shedding_locations[sending_surface],
-                symmetric = symmetric[sending_surface],
-                trailing_vortices = trailing_vortices[sending_surface] &&
-                    !wake_is_active[sending_surface],
-                xhat = xhat)
-        elseif receiving_surface != sending_surface
+        if receiving_surface == sending_surface
+            if segment_kind === :spanwise
+                velocity += induced_velocity(
+                    panel_index,
+                    sending,
+                    sending_circulation;
+                    finite_core = ids_are_different,
+                    wake_shedding_locations = shedding_locations[sending_surface],
+                    symmetric = symmetric[sending_surface],
+                    trailing_vortices = trailing_vortices[sending_surface] &&
+                        !wake_is_active[sending_surface],
+                    xhat = xhat,
+                )
+            else
+                chordwise_index, spanwise_segment_index = Tuple(panel_index)
+                skip_left = spanwise_segment_index <= size(sending, 2) ?
+                    (CartesianIndex(chordwise_index, spanwise_segment_index),) : ()
+                skip_right = spanwise_segment_index > 1 ?
+                    (CartesianIndex(chordwise_index, spanwise_segment_index - 1),) : ()
+                velocity += induced_velocity(
+                    location,
+                    sending,
+                    sending_circulation;
+                    finite_core = ids_are_different,
+                    wake_shedding_locations = shedding_locations[sending_surface],
+                    symmetric = symmetric[sending_surface],
+                    trailing_vortices = trailing_vortices[sending_surface] &&
+                        !wake_is_active[sending_surface],
+                    xhat = xhat,
+                    skip_left,
+                    skip_right,
+                )
+            end
+        else
             velocity += induced_velocity(location, sending, sending_circulation;
                 finite_core = ids_are_different,
                 wake_shedding_locations = shedding_locations[sending_surface],
@@ -104,7 +129,7 @@ wing-propeller UVLM implementation.
 This compatibility formulation intentionally retains its original choices:
 
 - the trailing-edge spanwise segment force is zero;
-- receiving-surface bound induction is omitted on chordwise segments;
+- only coincident bound filaments are excluded from segment velocities;
 - unsteady force uses the product of the spanwise and chordwise segment lengths.
 
 `properties` is returned unchanged. Aeroelastic callers must consume the three
@@ -292,7 +317,7 @@ function legacy_imperial_segment_forces!(
                 )
                 right_velocity += _legacy_imperial_induced_velocity(
                     right_location,
-                    panel_index,
+                    CartesianIndex(chordwise_index, spanwise_index + 1),
                     :chordwise,
                     surfaces,
                     wakes,

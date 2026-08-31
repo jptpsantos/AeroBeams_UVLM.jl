@@ -1,7 +1,15 @@
 # Chang linear wing-propeller aeroelastic simulation.
 # Structural DOFs per node: [span, chord, down, torsion, chord rotation, yaw].
-# Each physical step solves the partitioned structural/UVLM iteration first,
-# then advances the accepted wake exactly once.
+#
+# Where to set parameters:
+# - chang_case.jl: geometry, mesh, flow, duration, and model selections.
+# - chang_model_parameters.jl: mass, inertia, stiffness, damping, and RPM.
+# - this file: plotting, inertia reference, vortex core, load arms, and wake size.
+# - CHANG_* environment variables: output, impulse, and solver tolerances.
+#   PowerShell example: `$env:CHANG_IMPULSE_MAGNITUDE = "500.0"`.
+#
+# Each time step converges the structure and UVLM loads before advancing the
+# accepted wake once.
 
 import Pkg
 
@@ -13,9 +21,10 @@ using StaticArrays
 using DelimitedFiles
 using Statistics
 
+# chang_case.jl creates WING_CONFIG, PROPELLER_CONFIG, and SIMULATION_CONFIG.
 include(joinpath(@__DIR__, "chang_case.jl"))
 
-# User controls.
+# Set these to false when plots or wake animation are not needed.
 const PLOT_RESULTS = true
 const ANIMATE_WAKE = true
 const PLOTS_REQUIRED = PLOT_RESULTS || ANIMATE_WAKE
@@ -49,16 +58,28 @@ using WingPropellerUVLM:
 # ==============================================================================
 # 1. SUPPORT FILES AND OUTPUT CONTROLS
 # ==============================================================================
+# These files provide response plots, wake animation, and result export.
 PLOT_RESULTS && include(joinpath(@__DIR__, "chang_plotting.jl"))
 ANIMATE_WAKE && include(joinpath(@__DIR__, "chang_animation.jl"))
 include(joinpath(@__DIR__, "chang_postprocessing.jl"))
 
 const AIR_DENSITY = 1.225 # kg/m^3; `ref.rho` is used by the UVLM.
+
+# Select the near-field function requested in chang_case.jl.
+# :imperial uses near_field_forces!; :legacy_imperial_segments uses the
+# original-compatible segment formulation.
 const AEROELASTIC_NEAR_FIELD_FORCE_MODEL = SIMULATION_CONFIG.near_field_force_model
 const AEROELASTIC_NEAR_FIELD_FORCE_FUNCTION =
     AEROELASTIC_NEAR_FIELD_FORCE_MODEL == :legacy_imperial_segments ?
         legacy_imperial_segment_forces! : near_field_forces!
 println("Aeroelastic near-field force model: $AEROELASTIC_NEAR_FIELD_FORCE_MODEL")
+const AEROELASTIC_PROPELLER_MOMENT_PROJECTION =
+    SIMULATION_CONFIG.propeller_moment_projection
+println(
+    "Propeller moment projection: $AEROELASTIC_PROPELLER_MOMENT_PROJECTION",
+)
+
+# Override these names with CHANG_OUTPUT_DIR and CHANG_OUTPUT_LABEL.
 const VERIFY_OUTPUT_DIR = normpath(get(
     ENV,
     "CHANG_OUTPUT_DIR",
@@ -69,6 +90,8 @@ const VERIFY_LABEL = get(
     "CHANG_OUTPUT_LABEL",
     "chang_linear_$(AEROELASTIC_NEAR_FIELD_FORCE_MODEL)_uvlm",
 )
+
+# Animation stride controls saved-frame spacing; FPS controls GIF playback.
 const WAKE_ANIMATION_STRIDE = parse(Int, get(ENV, "CHANG_ANIMATION_STRIDE", "5"))
 const WAKE_ANIMATION_FPS = parse(Int, get(ENV, "CHANG_ANIMATION_FPS", "15"))
 WAKE_ANIMATION_STRIDE > 0 || error("CHANG_ANIMATION_STRIDE must be positive")
@@ -78,12 +101,18 @@ mkpath(VERIFY_OUTPUT_DIR)
 # ==============================================================================
 # 2. PHYSICAL AND STRUCTURAL MODEL
 # ==============================================================================
+# Load the physical values, time grid, and structural assembly functions.
 include(joinpath(@__DIR__, "chang_model_parameters.jl"))
 include(joinpath(@__DIR__, "chang_structural_model.jl"))
 
 println("Assembling Chang structural matrices (Z-DOWN)...")
 
-structural = assemble_chang_structural_model()
+# assemble_chang_structural_model creates M, C, and K and applies the root BC.
+# :center_of_mass includes parallel-axis offsets; :beam_axis reproduces the
+# former direct-inertia interpretation.
+structural = assemble_chang_structural_model(inertia_reference = :center_of_mass,)
+
+# chang_structural_diagnostics reports modal and matrix checks.
 structural_diagnostics = chang_structural_diagnostics(structural)
 println("Wing-only modal frequencies (Hz): $(round.(structural_diagnostics.wing_modal_frequencies_hz, digits=4))")
 println(
@@ -118,17 +147,20 @@ Udd[1] = U0dd
 # 3. UVLM MODEL
 # ==============================================================================
 println("Initializing global UVLM system...")
-# Vortex-core radius proportional to local segment width.
+# Change 0.5 to adjust the vortex-core/segment-width ratio.
 FCORE = (c, Δs) -> 0.5 * Δs
 
-# Wing elastic axis, hub position, and modal load point.
+# Aerodynamic reference locations in frame A.
+# The elastic-axis fraction is measured from the wing leading edge.
+# hub_center_prop_A locates the physical hub; hub_center_load_A is the point
+# where the aerodynamic wrench is reduced before modal projection.
 elastic_axis_fraction = 0.30
 prop_pivot_offset_from_ea_A = SVector(0.0, 0.0, 0.0)
 hub_center_prop_A = SVector(-L_pylon, 0.0, 0.0)
-# Test it equal to L_Pylon Standard is -0.5 L_Pylon
 hub_center_load_A = SVector(-0.5 * L_pylon, 0.0, 0.0)
 
-# Build one UVLM system containing the wing, all blades, and their wakes.
+# Create the wing, blades, wakes, force buffers, and UVLM state.
+# maximum_wake_rows_* sets how much wake history is retained.
 uvlm = initialize_bohnisch_uvlm_system(
     xle=xle, yle=yle, zle=zle,
     chord_geo=chord_geo, theta_geo=theta_geo, phi_geo=phi_geo,
@@ -161,8 +193,13 @@ uvlm = initialize_bohnisch_uvlm_system(
 ) = uvlm
 T_hub_A_current   = Vector{SVector{3,Float64}}(undef, Npropellers)
 T_load_A_current  = Vector{SVector{3,Float64}}(undef, Npropellers)
+pitch_axis_A_current = Vector{SVector{3,Float64}}(undef, Npropellers)
+yaw_axis_A_current = Vector{SVector{3,Float64}}(undef, Npropellers)
 
-# Chang-specific geometry update and aerodynamic load transfer.
+# Coupling functions provided by this file:
+# - update_aero_geometry_for_state!: deform the wing and propellers.
+# - assemble_structural_aero_load!: transfer aerodynamic forces to DOFs.
+# - aero_load_for_state!: restore a snapshot, solve UVLM, and return loads.
 include(joinpath(@__DIR__, "chang_uvlm_coupling.jl"))
 
 # Accepted states retained for optional wake animation.
@@ -185,7 +222,8 @@ end
 # ==============================================================================
 # 4. TIME-INTEGRATION AND COUPLING CONTROLS
 # ==============================================================================
-# Select the propellers that receive the pitch impulse; for example `[1, 2]`.
+# Impulse targets come from chang_case.jl. Magnitude and timing use
+# CHANG_IMPULSE_MAGNITUDE, CHANG_IMPULSE_START_S, and CHANG_IMPULSE_DURATION_S.
 impulse_propeller_indices = SIMULATION_CONFIG.impulse_propeller_indices
 pitch_dof_indices = [
     ndof_wing_free + 2*(ip - 1) + 1
@@ -193,6 +231,8 @@ pitch_dof_indices = [
 ]
 impulse_magnitude = parse(Float64, get(ENV, "CHANG_IMPULSE_MAGNITUDE", "1000.0"))
 propeller_revolution_period = 2π / abs(Ω)
+
+# These values determine wake-startup time and the trim averaging window.
 trim_revolutions = parse(Float64, get(ENV, "CHANG_TRIM_REVOLUTIONS", "10.0"))
 trim_average_revolutions = parse(Float64, get(ENV, "CHANG_TRIM_AVERAGE_REVOLUTIONS", "1.0"))
 default_impulse_start_time = trim_revolutions * propeller_revolution_period
@@ -208,21 +248,28 @@ trim_revolutions > 0 || error("CHANG_TRIM_REVOLUTIONS must be positive")
 trim_average_revolutions > 0 || error("CHANG_TRIM_AVERAGE_REVOLUTIONS must be positive")
 impulse_triggered_msg = false
 
-# Mean periodic load used as the perturbation baseline after wake startup.
+# Average the periodic aerodynamic load before the impulse, then subtract it
+# so the structural response contains perturbation loads only.
 F0_struct = zeros(ndof_free)
 F0_accumulator = zeros(ndof_free)
 F0_sample_count = 0
 have_F0 = false
 printed_steady = false
-U_ABORT = 1.0e3
+
+# Hard safety limits. Set CHANG_PROP_ANGLE_ABORT_DEG=Inf to disable its limit.
+U_ABORT = parse(Float64, get(ENV, "CHANG_STATE_ABORT_NORM", "1.0e3"))
+PROP_ANGLE_ABORT_DEG = parse(Float64, get(ENV, "CHANG_PROP_ANGLE_ABORT_DEG", "Inf"))
+U_ABORT > 0 || error("CHANG_STATE_ABORT_NORM must be positive")
+PROP_ANGLE_ABORT_DEG > 0 || error("CHANG_PROP_ANGLE_ABORT_DEG must be positive")
 N_LAST = length(dt)
 trim_average_start_time = max(
     0.0,
     impulse_start_time - trim_average_revolutions * propeller_revolution_period,
 )
 
+# Generalized-alpha controls time integration. The remaining values control
+# the fixed-point iterations between structural and aerodynamic solutions.
 const GA_RHO_INF = parse(Float64, get(ENV, "CHANG_GA_RHO_INF", "0.7"))
-# Generalized-alpha parameters and fixed-point tolerances.
 const GA_PARAMS = generalized_alpha_parameters(GA_RHO_INF)
 const COUPLING_MAX_ITER = parse(Int, get(ENV, "CHANG_COUPLING_MAX_ITER", "10"))
 const COUPLING_TOL_U = parse(Float64, get(ENV, "CHANG_COUPLING_TOL_U", "1.0e-5"))
@@ -233,7 +280,7 @@ const COUPLING_TOL_COUPLED_EQ = parse(Float64, get(
     "CHANG_COUPLING_TOL_COUPLED_EQ",
     "1.0e-4",
 ))
-# Change coupling relaxation
+# Relaxation below 1.0 can help a difficult coupling iteration converge.
 const COUPLING_RELAXATION = parse(Float64, get(ENV, "CHANG_COUPLING_RELAXATION", "1.0"))
 const COUPLING_OPTIONS = PartitionedCouplingOptions(
     maximum_iterations = COUPLING_MAX_ITER,
@@ -244,7 +291,7 @@ const COUPLING_OPTIONS = PartitionedCouplingOptions(
     relaxation = COUPLING_RELAXATION,
 )
 
-# Scales for dimensionless displacement and load residuals.
+# Reference scales make displacement and load convergence tests dimensionless.
 const COUPLING_STATE_SCALE = ones(ndof_free)
 const COUPLING_LOAD_SCALE = ones(ndof_free)
 const REFERENCE_FORCE_SCALE = max(0.5 * ref.rho * Vinf^2 * Sref, 1.0)
@@ -291,12 +338,12 @@ F_pert_n = zeros(ndof_free)
 println("Starting coupled aeroelastic simulation...")
 
 for it = 1:length(dt)
-    # A. Freeze and snapshot the accepted aerodynamic state at t[n].
+    # A. Save the accepted aerodynamic state at t[n].
     copy_surfaces_to_previous!(system, nsurf)
     snap = snapshot_uvlm(system)
     dt_i = dt[it]
 
-    # B. Evaluate the external load at both integration endpoints.
+    # B. Build the smooth pitch impulse at both integration endpoints.
     f_ext_n = smooth_hann_pulse_load(
         t[it],
         ndof_free,
@@ -318,9 +365,8 @@ for it = 1:length(dt)
         global impulse_triggered_msg = true
     end
 
-    # C. Iterate structure and UVLM loads with the wake held at t[n].
-    # The callback restores `snap`, updates geometry, solves circulation/loads,
-    # and transfers the selected segment loads to structural DOFs.
+    # C. Converge structure and aerodynamics while holding the wake fixed.
+    # The callback evaluates aerodynamic loads for each structural guess.
     last_full_aerodynamic_load = zeros(ndof_free)
     correction = partitioned_generalized_alpha_step(
         M,
@@ -350,7 +396,7 @@ for it = 1:length(dt)
         load_scale = COUPLING_LOAD_SCALE,
     )
 
-    # Read the final structural/aerodynamic fixed-point pair.
+    # Read the converged state, load, and residuals returned by the integrator.
     U_corr = correction.displacement
     Ud_corr = correction.velocity
     Udd_corr = correction.acceleration
@@ -373,7 +419,7 @@ for it = 1:length(dt)
         )
     end
 
-    # D. Store the converged structural state and aerodynamic load.
+    # D. Accept the converged structural state and aerodynamic load.
     F_struct_final = copy(last_full_aerodynamic_load)
     F_pert_final = copy(F_pert_guess)
 
@@ -381,7 +427,7 @@ for it = 1:length(dt)
     Ud[it+1] = copy(Ud_corr)
     Udd[it+1] = copy(Udd_corr)
 
-    # E. Accumulate and activate the mean periodic trim load.
+    # E. Accumulate the mean trim load and activate perturbation loading.
     time_np1 = t[it + 1]
     trim_sample = !have_F0 &&
         time_np1 >= trim_average_start_time - eps(time_np1) &&
@@ -424,8 +470,7 @@ for it = 1:length(dt)
     coupling_equilibrium_residual[it] = equilibrium_res
     coupling_converged[it] = converged
 
-    # F. Convect and shed the accepted wake once. Do not also advance it inside
-    # `aero_load_for_state!`.
+    # F. Convect and shed the accepted wake once.
     advance_wake!(
         system,
         fs_vec[it],
@@ -444,7 +489,7 @@ for it = 1:length(dt)
         end
     end
 
-    # G. Save optional animation data and report convergence.
+    # G. Save optional animation data and print convergence information.
     if ANIMATE_WAKE &&
         (it == 1 || it % WAKE_ANIMATION_STRIDE == 0 || it == length(dt))
         record_chang_animation_frame!(
@@ -465,23 +510,39 @@ for it = 1:length(dt)
         "coupled_eq_res=$(round(equilibrium_res, sigdigits=4)), " *
         "linear_eq_res=$(round(linear_equilibrium_res, sigdigits=4))",
     )
+    # Keep redirected sweep logs current instead of waiting for file buffering.
+    flush(stdout)
 
     # Abort before a divergent solution contaminates later history.
     nrm = maximum(abs, U[it+1])
-    if any(isnan, U[it+1]) || nrm > U_ABORT
+    propeller_angles_deg = rad2deg.(U[it+1][(ndof_wing_free + 1):end])
+    maximum_propeller_angle_deg = maximum(abs, propeller_angles_deg)
+    nonfinite_state = any(value -> !isfinite(value), U[it+1])
+    state_limit_exceeded = nrm > U_ABORT
+    angle_limit_exceeded = maximum_propeller_angle_deg > PROP_ANGLE_ABORT_DEG
+    if nonfinite_state || state_limit_exceeded || angle_limit_exceeded
         rng = max(1, it-400):it
         env = [abs(U[k][pitch_dof_indices[1]]) for k in rng]
         tt = [t[k] for k in rng]
         gi = findall(>(1e-12), env)
+        abort_reason = nonfinite_state ? "non-finite structural state" :
+            state_limit_exceeded ? "state limit $U_ABORT" :
+            "propeller-angle limit $PROP_ANGLE_ABORT_DEG deg"
         if length(gi) > 5
             growth_sigma = (log(env[gi[end]]) - log(env[gi[1]])) / (tt[gi[end]] - tt[gi[1]])
             println(
                 "\n>>> ABORT at t=$(round(t[it+1], digits=4)) s, " *
-                "|U|=$(round(nrm, sigdigits=4)); growth sigma(P1 pitch) " *
+                "reason=$abort_reason, |U|=$(round(nrm, sigdigits=4)), " *
+                "max propeller angle=$(round(maximum_propeller_angle_deg, sigdigits=4)) deg; " *
+                "growth sigma(P1 pitch) " *
                 "approx $(round(growth_sigma, digits=4)) /s",
             )
         else
-            println("\n>>> ABORT at t=$(round(t[it+1], digits=4)) s, |U|=$(round(nrm, sigdigits=4))")
+            println(
+                "\n>>> ABORT at t=$(round(t[it+1], digits=4)) s, " *
+                "reason=$abort_reason, |U|=$(round(nrm, sigdigits=4)), " *
+                "max propeller angle=$(round(maximum_propeller_angle_deg, sigdigits=4)) deg",
+            )
         end
         global N_LAST = it
         break
@@ -510,7 +571,7 @@ end
 # ==============================================================================
 # 6. VALIDATION OUTPUT
 # ==============================================================================
-# Write accepted histories, diagnostics, plots, and optional animation.
+# write_chang_results extracts responses and writes the CSV, summary, and plot.
 plot_time_limit_s = parse(Float64, get(ENV, "CHANG_PLOT_END_TIME_S", "5.0"))
 results = write_chang_results(
     displacement_history = U,
@@ -527,6 +588,7 @@ results = write_chang_results(
     freestream_speed = Vinf,
     interaction_on = INTERACTION_ON,
     near_field_force_model = AEROELASTIC_NEAR_FIELD_FORCE_MODEL,
+    propeller_moment_projection = AEROELASTIC_PROPELLER_MOMENT_PROJECTION,
     requested_end_time = t_end,
     coupling_iterations = coupling_iterations,
     coupling_state_residual = coupling_disp_residual,
@@ -540,6 +602,7 @@ results = write_chang_results(
 )
 
 if ANIMATE_WAKE
+    # Convert the saved accepted wake states into a GIF.
     wake_animation_path = joinpath(
         VERIFY_OUTPUT_DIR,
         VERIFY_LABEL * "_wing_wake.gif",

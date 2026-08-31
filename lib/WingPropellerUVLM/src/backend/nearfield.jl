@@ -148,14 +148,11 @@ function _imperial_panel_properties!(props, isurf, panels, Γjulia,
         left_force = left_weight * chord_forces[i, j]
         right_force = right_weight * chord_forces[i, j + 1]
 
-        # Imperial transfers the unsteady force to all four corners except at
-        # the trailing edge, where the downstream pair is deliberately skipped.
-        if i == nc
-            span_force += unsteady_forces[i, j] / 2
-        else
-            left_force += unsteady_forces[i, j] / 2
-            right_force += unsteady_forces[i, j] / 2
-        end
+        # Split the complete unsteady panel force between its spanwise-edge
+        # representatives. Their resultant acts at the same location as the
+        # four-corner nodal redistribution used by `imperial_nodal_forces`.
+        left_force += unsteady_forces[i, j] / 2
+        right_force += unsteady_forces[i, j] / 2
 
         props[isurf][i, j] = PanelProperties(
             Γjulia[i, j] / ref.V,
@@ -270,8 +267,8 @@ end
 
 Transfer dimensional segment forces to vortex vertices using Imperial's
 half-to-each-endpoint rule. Unsteady panel forces contribute one quarter to
-each corner, except that the downstream pair of trailing-edge vertices is
-skipped exactly as in the C++ implementation.
+each corner, including the downstream pair of trailing-edge vertices, so the
+nodal resultant conserves the complete panel force.
 """
 function imperial_nodal_forces(span_forces::AbstractMatrix,
     chord_forces::AbstractMatrix, unsteady_forces::AbstractMatrix)
@@ -299,10 +296,8 @@ function imperial_nodal_forces(span_forces::AbstractMatrix,
     for j in 1:ns, i in 1:nc
         nodal[i, j] += unsteady_forces[i, j] / 4
         nodal[i, j + 1] += unsteady_forces[i, j] / 4
-        if i < nc
-            nodal[i + 1, j] += unsteady_forces[i, j] / 4
-            nodal[i + 1, j + 1] += unsteady_forces[i, j] / 4
-        end
+        nodal[i + 1, j] += unsteady_forces[i, j] / 4
+        nodal[i + 1, j + 1] += unsteady_forces[i, j] / 4
     end
     return nodal
 end

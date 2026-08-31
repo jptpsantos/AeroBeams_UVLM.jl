@@ -85,7 +85,9 @@ function assemble_chang_structural_matrices(;
     Ixy_node_vec, Ixz_node_vec, Iyz_node_vec,
     cg_x_node_vec, cg_y_node_vec, cg_z_node_vec,
     ndof_P, Npropellers, prop_attach_nodes,
-    Inθ_prop, Inψ_prop, Kθ_prop, Kψ_prop, ξ_prop, Ix_prop, Ω,
+    Inθ_prop, Inψ_prop, Kθ_prop, Kψ_prop, ξ_prop,
+    stiffness_damping_ratio, stiffness_damping_reference_omega,
+    Ix_prop, Ω,
     mP_prop, SθP_prop, SψP_prop, SαP_prop, SγP_prop,
     IθαP_prop, IψγP_prop, IαP_prop, IγP_prop,
     inertia_reference::Symbol = :center_of_mass)
@@ -193,7 +195,15 @@ function assemble_chang_structural_matrices(;
     free_dofs = (ndof + 1):ndof_total_full
     M = M_global[free_dofs, free_dofs]
     K = K_global[free_dofs, free_dofs]
-    C_rayleigh = 0.0 * M + 0.0 * K
+    0.0 <= stiffness_damping_ratio < 1.0 || throw(ArgumentError(
+        "stiffness_damping_ratio must lie in [0, 1)",
+    ))
+    stiffness_damping_reference_omega > 0.0 || throw(ArgumentError(
+        "stiffness_damping_reference_omega must be positive",
+    ))
+    stiffness_damping_coefficient =
+        2.0 * stiffness_damping_ratio / stiffness_damping_reference_omega
+    C_rayleigh = stiffness_damping_coefficient .* K
     C = C_global[free_dofs, free_dofs] + C_rayleigh
 
     return (
@@ -216,6 +226,9 @@ function assemble_chang_structural_matrices(;
         M = M,
         C = C,
         K = K,
+        stiffness_damping_ratio,
+        stiffness_damping_reference_omega,
+        stiffness_damping_coefficient,
         ndof_free = length(free_dofs),
         ndof_wing_free = NDOF - ndof,
         ndof_prop_free = ndof_P,

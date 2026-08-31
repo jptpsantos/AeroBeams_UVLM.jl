@@ -11,13 +11,16 @@ using WingPropellerUVLM:
     copy_surfaces_to_previous!,
     generate_propeller_blades_grid,
     get_nodal_properties_chang,
+    get_twist_deg_interp,
     grid_to_surface_panels,
     imperial_nodal_forces,
     imperial_nodal_positions,
+    legacy_imperial_segment_forces!,
+    near_field_forces!,
     propagate_system!,
     repeated_trailing_edge_points
 
-"""Numerical and physical controls for the isolated Chang windmilling trim."""
+"""Numerical and physical controls for isolated Chang propeller trims."""
 Base.@kwdef struct ChangWindmillingTrimOptions
     flow_speed_mps::Float64 = 65.0
     air_density_kgpm3::Float64 = 1.225
@@ -28,7 +31,9 @@ Base.@kwdef struct ChangWindmillingTrimOptions
     blade_count::Int = 4
     radial_panels::Int = 20
     chordwise_panels::Int = 10
-    blade_pitch_75_deg::Float64 = 0.0
+    # Added uniformly to the complete Chang twist distribution. Leave at zero
+    # to use the blade geometry defined in BladeGeometry.jl unchanged.
+    collective_pitch_offset_deg::Float64 = 0.0
     azimuth_step_deg::Float64 = 5.0
     simulated_revolutions::Int = 4
     averaged_revolutions::Int = 1
@@ -36,9 +41,11 @@ Base.@kwdef struct ChangWindmillingTrimOptions
     wake_relaxation::Float64 = 0.1
     vortex_core_span_fraction::Float64 = 0.5
     vortex_core_chord_fraction::Float64 = 0.0
+    near_field_force_model::Symbol = :imperial
     initial_rpm::Float64 = 1207.96
     rpm_bracket::NTuple{2,Float64} = (1200, 1400)
     torque_tolerance_nm::Float64 = 0.25
+    thrust_tolerance_n::Float64 = 1.0
     rpm_tolerance::Float64 = 0.25
     maximum_root_iterations::Int = 8
 end
@@ -51,6 +58,8 @@ function validate_chang_windmilling_options(options::ChangWindmillingTrimOptions
     options.blade_count > 0 || error("blade_count must be positive")
     options.radial_panels > 0 || error("radial_panels must be positive")
     options.chordwise_panels > 0 || error("chordwise_panels must be positive")
+    isfinite(options.collective_pitch_offset_deg) ||
+        error("collective_pitch_offset_deg must be finite")
     options.azimuth_step_deg > 0 || error("azimuth_step_deg must be positive")
     options.simulated_revolutions >= 2 || error("simulate at least two revolutions")
     1 <= options.averaged_revolutions < options.simulated_revolutions ||
@@ -61,10 +70,16 @@ function validate_chang_windmilling_options(options::ChangWindmillingTrimOptions
         error("vortex_core_span_fraction must be nonnegative")
     options.vortex_core_chord_fraction >= 0 ||
         error("vortex_core_chord_fraction must be nonnegative")
+    options.near_field_force_model in (:imperial, :legacy_imperial_segments) ||
+        error(
+            "near_field_force_model must be :imperial or " *
+            ":legacy_imperial_segments",
+        )
     options.initial_rpm > 0 || error("initial_rpm must be positive")
     0 < options.rpm_bracket[1] < options.rpm_bracket[2] ||
         error("rpm_bracket must contain two increasing positive values")
     options.torque_tolerance_nm > 0 || error("torque_tolerance_nm must be positive")
+    options.thrust_tolerance_n > 0 || error("thrust_tolerance_n must be positive")
     options.rpm_tolerance > 0 || error("rpm_tolerance must be positive")
     options.maximum_root_iterations > 0 || error("maximum_root_iterations must be positive")
 
@@ -76,6 +91,17 @@ function validate_chang_windmilling_options(options::ChangWindmillingTrimOptions
         rtol = 0.0,
     ) || error("azimuth_step_deg must divide 360 degrees exactly")
     return steps_per_revolution
+end
+
+"""Return the Chang blade angle at 75% radius, including any collective offset."""
+chang_blade_angle_75_deg(options::ChangWindmillingTrimOptions) =
+    get_twist_deg_interp(0.75) + options.collective_pitch_offset_deg
+
+"""Return the near-field implementation selected by the trim options."""
+function chang_trim_near_field_function(model::Symbol)
+    model === :imperial && return near_field_forces!
+    model === :legacy_imperial_segments && return legacy_imperial_segment_forces!
+    error("Unsupported near-field force model: $model")
 end
 
 function rotate_chang_propeller_grids!(current_grids, reference_grids, omega, time)
@@ -91,7 +117,7 @@ function rotate_chang_propeller_grids!(current_grids, reference_grids, omega, ti
     return current_grids
 end
 
-"""Return total rotor thrust and aerodynamic shaft torque from Imperial nodal loads."""
+"""Return total rotor thrust and aerodynamic shaft torque from nodal loads."""
 function chang_propeller_shaft_loads(system; hub_position = SVector(0.0, 0.0, 0.0))
     nodal_forces = imperial_nodal_forces(system)
     nodal_positions = imperial_nodal_positions(system)
@@ -112,12 +138,12 @@ function chang_propeller_shaft_loads(system; hub_position = SVector(0.0, 0.0, 0.
 end
 
 """
-    simulate_chang_windmilling_rpm(rpm, options; verbose=true)
+    simulate_chang_propeller_rpm(rpm, options; verbose=true)
 
 March the isolated rigid Chang propeller with a free wake and average the
-Imperial shaft loads over complete final revolutions.
+selected near-field shaft loads over complete final revolutions.
 """
-function simulate_chang_windmilling_rpm(
+function simulate_chang_propeller_rpm(
     rpm::Real,
     options::ChangWindmillingTrimOptions;
     verbose::Bool = true,
@@ -129,10 +155,13 @@ function simulate_chang_windmilling_rpm(
     dt = deg2rad(options.azimuth_step_deg) / omega
     total_steps = options.simulated_revolutions * steps_per_revolution
     maximum_wake_rows = options.retained_wake_revolutions * steps_per_revolution
+    near_field_force_function = chang_trim_near_field_function(
+        options.near_field_force_model,
+    )
 
     _, _, twists_at_nodes = get_nodal_properties_chang(options.radial_panels)
     blade_twists = deg2rad.(
-        twists_at_nodes .- 90.0 .+ options.blade_pitch_75_deg,
+        twists_at_nodes .- 90.0 .+ options.collective_pitch_offset_deg,
     )
     reference_grids = generate_propeller_blades_grid(
         options.propeller_radius_m,
@@ -180,10 +209,11 @@ function simulate_chang_windmilling_rpm(
     torque_history = Vector{Float64}(undef, total_steps)
 
     verbose && @printf(
-        "  RPM=%8.3f: %d steps, %d retained wake rows per blade\n",
+        "  RPM=%8.3f: %d steps, %d retained wake rows, model=%s\n",
         rpm,
         total_steps,
         maximum_wake_rows,
+        string(options.near_field_force_model),
     )
 
     for step in 1:total_steps
@@ -207,6 +237,7 @@ function simulate_chang_windmilling_rpm(
             eta = options.wake_relaxation,
             calculate_influence_matrix = true,
             near_field_analysis = true,
+            near_field_force_function = near_field_force_function,
             derivatives = false,
             interaction_id = interaction_id,
             interaction = true,
@@ -242,6 +273,7 @@ function simulate_chang_windmilling_rpm(
     mean_torque = mean(torque_history[average_range])
     mean_thrust = mean(thrust_history[average_range])
     torque_standard_deviation = std(torque_history[average_range])
+    thrust_standard_deviation = std(thrust_history[average_range])
     n_revolutions_per_second = omega / (2pi)
     diameter = 2 * options.propeller_radius_m
     advance_ratio = options.flow_speed_mps / (n_revolutions_per_second * diameter)
@@ -252,8 +284,10 @@ function simulate_chang_windmilling_rpm(
         options.air_density_kgpm3 * n_revolutions_per_second^2 * diameter^4
     )
     periodic_torque_change = revolution_mean_torque[end] - revolution_mean_torque[end - 1]
+    periodic_thrust_change = revolution_mean_thrust[end] - revolution_mean_thrust[end - 1]
 
     return (
+        near_field_force_model = options.near_field_force_model,
         rpm = Float64(rpm),
         omega_radps = omega,
         advance_ratio = advance_ratio,
@@ -263,7 +297,9 @@ function simulate_chang_windmilling_rpm(
         thrust_coefficient = thrust_coefficient,
         torque_coefficient = torque_coefficient,
         torque_standard_deviation_nm = torque_standard_deviation,
+        thrust_standard_deviation_n = thrust_standard_deviation,
         periodic_torque_change_nm = periodic_torque_change,
+        periodic_thrust_change_n = periodic_thrust_change,
         revolution_mean_torque_nm = revolution_mean_torque,
         revolution_mean_thrust_n = revolution_mean_thrust,
         thrust_history_n = thrust_history,
@@ -273,11 +309,15 @@ function simulate_chang_windmilling_rpm(
     )
 end
 
+# Backward-compatible name used by earlier windmilling scripts.
+simulate_chang_windmilling_rpm(args...; kwargs...) =
+    simulate_chang_propeller_rpm(args...; kwargs...)
+
 function _opposite_sign_or_zero(a, b)
     return iszero(a) || iszero(b) || signbit(a) != signbit(b)
 end
 
-"""Solve mean Imperial shaft torque = 0 with a safeguarded secant iteration."""
+"""Solve mean aerodynamic shaft torque = 0 with a safeguarded secant iteration."""
 function trim_chang_windmilling_rpm(
     options::ChangWindmillingTrimOptions;
     verbose::Bool = true,
@@ -288,7 +328,7 @@ function trim_chang_windmilling_rpm(
     function evaluate(rpm)
         key = round(Float64(rpm); digits = 8)
         result = get!(evaluations, key) do
-            simulate_chang_windmilling_rpm(key, options; verbose = verbose)
+            simulate_chang_propeller_rpm(key, options; verbose = verbose)
         end
         verbose && @printf(
             "    mean Q=%+10.4f N m, CQ=%+.6e, J=%.6f, rev drift=%+.4f N m\n",
@@ -365,4 +405,140 @@ function trim_chang_windmilling_rpm(
     )
     ordered_evaluations = sort!(collect(values(evaluations)); by = result -> result.rpm)
     return (trim = best_result, initial = initial_result, evaluations = ordered_evaluations)
+end
+
+"""
+    trim_chang_thrusting_rpm(options; target_thrust_n, verbose=true)
+
+Solve `mean_thrust_n = target_thrust_n` by varying RPM. Unlike windmilling
+trim, the resulting aerodynamic shaft torque is generally nonzero and must be
+balanced by the motor.
+"""
+function trim_chang_thrusting_rpm(
+    options::ChangWindmillingTrimOptions;
+    target_thrust_n::Real,
+    verbose::Bool = true,
+)
+    validate_chang_windmilling_options(options)
+    isfinite(target_thrust_n) && target_thrust_n > 0 ||
+        error("target_thrust_n must be finite and positive")
+    target_thrust = Float64(target_thrust_n)
+    evaluations = Dict{Float64,NamedTuple}()
+
+    function evaluate(rpm)
+        key = round(Float64(rpm); digits = 8)
+        result = get!(evaluations, key) do
+            simulate_chang_propeller_rpm(key, options; verbose = verbose)
+        end
+        residual = result.mean_thrust_n - target_thrust
+        verbose && @printf(
+            "    mean T=%+10.4f N, residual=%+10.4f N, CT=%+.6e, J=%.6f, rev drift=%+.4f N\n",
+            result.mean_thrust_n,
+            residual,
+            result.thrust_coefficient,
+            result.advance_ratio,
+            result.periodic_thrust_change_n,
+        )
+        return result
+    end
+
+    thrust_residual(result) = result.mean_thrust_n - target_thrust
+    initial_result = evaluate(options.initial_rpm)
+    if abs(thrust_residual(initial_result)) <= options.thrust_tolerance_n
+        return (
+            trim = initial_result,
+            initial = initial_result,
+            target_thrust_n = target_thrust,
+            residual_thrust_n = thrust_residual(initial_result),
+            evaluations = collect(values(evaluations)),
+        )
+    end
+
+    lower_rpm, upper_rpm = options.rpm_bracket
+    lower_result = evaluate(lower_rpm)
+    upper_result = evaluate(upper_rpm)
+    lower_residual = thrust_residual(lower_result)
+    upper_residual = thrust_residual(upper_result)
+    expansion_count = 0
+    while !_opposite_sign_or_zero(lower_residual, upper_residual)
+        expansion_count += 1
+        expansion_count <= 5 || error(
+            "Unable to bracket the target thrust after five RPM-bracket expansions",
+        )
+        lower_rpm = max(50.0, 0.75 * lower_rpm)
+        upper_rpm = 1.25 * upper_rpm
+        lower_result = evaluate(lower_rpm)
+        upper_result = evaluate(upper_rpm)
+        lower_residual = thrust_residual(lower_result)
+        upper_residual = thrust_residual(upper_result)
+    end
+
+    if abs(lower_residual) <= options.thrust_tolerance_n
+        ordered_evaluations = sort!(collect(values(evaluations)); by = result -> result.rpm)
+        return (
+            trim = lower_result,
+            initial = initial_result,
+            target_thrust_n = target_thrust,
+            residual_thrust_n = lower_residual,
+            evaluations = ordered_evaluations,
+        )
+    elseif abs(upper_residual) <= options.thrust_tolerance_n
+        ordered_evaluations = sort!(collect(values(evaluations)); by = result -> result.rpm)
+        return (
+            trim = upper_result,
+            initial = initial_result,
+            target_thrust_n = target_thrust,
+            residual_thrust_n = upper_residual,
+            evaluations = ordered_evaluations,
+        )
+    end
+
+    best_result = abs(lower_residual) <= abs(upper_residual) ?
+        lower_result : upper_result
+    for _ in 1:options.maximum_root_iterations
+        residual_span = upper_residual - lower_residual
+        trial_rpm = upper_rpm - upper_residual *
+            (upper_rpm - lower_rpm) / residual_span
+        bracket_width = upper_rpm - lower_rpm
+        edge_margin = 0.1 * bracket_width
+        if !isfinite(trial_rpm) ||
+                trial_rpm <= lower_rpm + edge_margin ||
+                trial_rpm >= upper_rpm - edge_margin
+            trial_rpm = (lower_rpm + upper_rpm) / 2
+        end
+
+        trial_result = evaluate(trial_rpm)
+        trial_residual = thrust_residual(trial_result)
+        if abs(trial_residual) < abs(thrust_residual(best_result))
+            best_result = trial_result
+        end
+        if abs(trial_residual) <= options.thrust_tolerance_n ||
+                bracket_width <= options.rpm_tolerance
+            best_result = trial_result
+            break
+        end
+
+        if _opposite_sign_or_zero(lower_residual, trial_residual)
+            upper_rpm, upper_result, upper_residual =
+                trial_rpm, trial_result, trial_residual
+        else
+            lower_rpm, lower_result, lower_residual =
+                trial_rpm, trial_result, trial_residual
+        end
+    end
+
+    final_residual = thrust_residual(best_result)
+    abs(final_residual) <= options.thrust_tolerance_n || @warn(
+        "Thrusting trim stopped above the requested thrust tolerance",
+        residual_thrust_n = final_residual,
+        thrust_tolerance_n = options.thrust_tolerance_n,
+    )
+    ordered_evaluations = sort!(collect(values(evaluations)); by = result -> result.rpm)
+    return (
+        trim = best_result,
+        initial = initial_result,
+        target_thrust_n = target_thrust,
+        residual_thrust_n = final_residual,
+        evaluations = ordered_evaluations,
+    )
 end

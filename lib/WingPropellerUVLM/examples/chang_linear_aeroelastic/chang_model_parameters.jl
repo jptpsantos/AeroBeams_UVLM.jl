@@ -149,14 +149,23 @@ f_twist = 12.73 * 2 * pi
 K_twist = 16835.0
 
 ξ_prop = 0.0
+# Global stiffness-proportional Rayleigh damping. For C = βK, the modal
+# damping is ξ(ω) = βω/2. Calibrate β to 1% at the nominal 7.97 Hz pylon
+# pitch frequency; lower-frequency modes receive proportionally less damping.
+stiffness_damping_ratio = 0.01
+stiffness_damping_reference_omega = fθ_prop
 η0_prop = 0.0 / R_prop
 
 ns_prop = PROPELLER_CONFIG.radial_panels
 nc_prop = PROPELLER_CONFIG.chordwise_panels
 
-β75 = 0.0
+# The Chang data already define the full blade-angle distribution. Keep this
+# offset at zero unless a deliberate collective-pitch variation is required.
+collective_pitch_offset_deg = 0.0
 nodal_radii, _, twists_at_nodes = get_nodal_properties_chang(ns_prop)
-blade_twists_prop = 1.0 .* ((twists_at_nodes .- 90 .+ β75) .|> deg2rad)
+blade_twists_prop = 1.0 .* (
+    (twists_at_nodes .- 90 .+ collective_pitch_offset_deg) .|> deg2rad
+)
 
 slug_to_kg = 14.5939
 ft_to_m = 0.3048

@@ -77,8 +77,19 @@ function update_aero_geometry_for_state!(system, q_free::AbstractVector, time_np
         wing_rotation = RotationMatrix(theta_z_aero[attachment_node], 3) *
             RotationMatrix(theta_x_aero[attachment_node], 1) *
             RotationMatrix(theta_y_aero[attachment_node], 2)
-        whirl_rotation = RotationMatrix(pitch_aero, 2) * RotationMatrix(yaw_aero, 3)
+        pitch_rotation = RotationMatrix(pitch_aero, 2)
+        yaw_rotation = RotationMatrix(yaw_aero, 3)
+        whirl_rotation = pitch_rotation * yaw_rotation
         spin_rotation = RotationMatrix(-Ω * time_np1, 1)
+
+        # Work-conjugate axes for R_whirl = R_y(pitch) R_z(-yaw). The pitch
+        # axis is the wing-rotated y axis. The structural yaw coordinate is
+        # opposite aerodynamic z and its instantaneous axis is also carried
+        # by the preceding pitch rotation.
+        pitch_axis_A_current[propeller_index] = wing_rotation *
+            SVector(0.0, 1.0, 0.0)
+        yaw_axis_A_current[propeller_index] = -wing_rotation * pitch_rotation *
+            SVector(0.0, 0.0, 1.0)
 
         T_hub_A_current[propeller_index] = pivot + wing_rotation *
             (hub_center_prop_A + (whirl_rotation * hub_center_load_A - hub_center_load_A))
@@ -131,6 +142,8 @@ function update_aero_geometry_for_state!(system, q_free::AbstractVector, time_np
         theta_x_A = theta_x_aero,
         theta_y_A = theta_y_aero,
         theta_z_A = theta_z_aero,
+        propeller_pitch_axes_A = pitch_axis_A_current,
+        propeller_yaw_axes_A = yaw_axis_A_current,
     )
 end
 
@@ -221,8 +234,18 @@ function assemble_structural_aero_load!(system, kinematics;
         modal_moment = total_moment_about_hub + cross(modal_load_point - pivot, total_force)
         wing_moment = total_moment_about_hub + cross(hub - pivot, total_force)
 
-        propeller_loads[2 * (propeller_index - 1) + 1] = modal_moment[2]
-        propeller_loads[2 * (propeller_index - 1) + 2] = -modal_moment[3]
+        if AEROELASTIC_PROPELLER_MOMENT_PROJECTION == :exact_virtual_work
+            pitch_axis = kinematics.propeller_pitch_axes_A[propeller_index]
+            yaw_axis = kinematics.propeller_yaw_axes_A[propeller_index]
+            propeller_loads[2 * (propeller_index - 1) + 1] =
+                dot(modal_moment, pitch_axis)
+            propeller_loads[2 * (propeller_index - 1) + 2] =
+                dot(modal_moment, yaw_axis)
+        else
+            # Original small-angle projection onto fixed aerodynamic axes.
+            propeller_loads[2 * (propeller_index - 1) + 1] = modal_moment[2]
+            propeller_loads[2 * (propeller_index - 1) + 2] = -modal_moment[3]
+        end
 
         attachment_dofs = attach_dofs_all[propeller_index]
         wing_loads[attachment_dofs[1]] += total_force[2]
@@ -238,6 +261,10 @@ function assemble_structural_aero_load!(system, kinematics;
             println("  total_moment_about_hub_A = $total_moment_about_hub")
             println("  total_moment_modal_A     = $modal_moment")
             println("  total_moment_wing_A      = $wing_moment")
+            println(
+                "  propeller moment projection = " *
+                "$AEROELASTIC_PROPELLER_MOMENT_PROJECTION",
+            )
         end
     end
 

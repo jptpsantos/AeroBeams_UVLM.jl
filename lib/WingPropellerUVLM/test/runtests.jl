@@ -249,9 +249,37 @@ include(joinpath(
         nodal = imperial_nodal_forces(span,chord,unsteady)
         @test nodal[1,1] ≈ span[1,1]/2 + chord[1,1]/2 + unsteady[1,1]/4
         @test nodal[1,2] ≈ span[1,1]/2 + chord[1,2]/2 + unsteady[1,1]/4
-        @test nodal[2,1] ≈ chord[1,1]/2
-        @test nodal[2,2] ≈ chord[1,2]/2
-        @test sum(nodal) ≈ sum(span) + sum(chord) + unsteady[1,1]/2
+        @test nodal[2,1] ≈ chord[1,1]/2 + unsteady[1,1]/4
+        @test nodal[2,2] ≈ chord[1,2]/2 + unsteady[1,1]/4
+        @test sum(nodal) ≈ sum(span) + sum(chord) + sum(unsteady)
+
+        # The normalized PanelProperties representation must conserve the
+        # same complete unsteady force for a trailing-edge panel.
+        grid,_ = wing_to_grid(
+            [0.0,0.0],[0.0,1.0],[0.0,0.0],ones(2),zeros(2),zeros(2),1,1,
+        )
+        _,_,surface = grid_to_surface_panels(grid)
+        system = System([grid]; nw=[0])
+        system.surfaces[1] .= surface
+        reference = Reference(1.0,1.0,1.0,zeros(3),10.0,1.225)
+        zero_force = @SVector [0.0,0.0,0.0]
+        panel_unsteady = reshape([@SVector [8.0,10.0,12.0]],1,1)
+        WingPropellerUVLM._imperial_panel_properties!(
+            system.properties,
+            1,
+            system.surfaces[1],
+            zeros(1,1),
+            fill(zero_force,2,1),
+            fill(zero_force,1,2),
+            panel_unsteady,
+            fill(zero_force,1,1),
+            reference,
+        )
+        panel_properties = system.properties[1][1,1]
+        dynamic_pressure_area = reference.rho*reference.V^2*reference.S/2
+        @test dynamic_pressure_area * (
+            panel_properties.cfb + panel_properties.cfl + panel_properties.cfr
+        ) ≈ panel_unsteady[1,1]
     end
 
     @testset "Imperial vortex-node positions" begin
@@ -390,12 +418,24 @@ include(joinpath(
                 force_keywords...,
                 threaded=true,
             )
+        _, chord_direct, span_direct, unsteady_direct = near_field_forces!(
+            deepcopy(system.properties),
+            system.surfaces,
+            system.wakes,
+            system.reference[],
+            system.freestream[],
+            system.Γ;
+            force_keywords...,
+        )
         @test chord_serial == system.chord_seg_forces
         @test span_serial == system.span_seg_forces
         @test unsteady_serial == system.unsteady_forces
         @test chord_threaded == chord_serial
         @test span_threaded == span_serial
         @test unsteady_threaded == unsteady_serial
+        @test chord_serial ≈ chord_direct
+        @test span_serial ≈ span_direct
+        @test unsteady_serial ≈ unsteady_direct
     end
 
     @testset "UVLM snapshot" begin

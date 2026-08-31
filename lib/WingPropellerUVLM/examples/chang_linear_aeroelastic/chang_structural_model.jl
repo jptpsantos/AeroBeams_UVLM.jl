@@ -36,6 +36,8 @@ function assemble_chang_structural_model(;
         Kθ_prop = Kθ_prop,
         Kψ_prop = Kψ_prop,
         ξ_prop = ξ_prop,
+        stiffness_damping_ratio = stiffness_damping_ratio,
+        stiffness_damping_reference_omega = stiffness_damping_reference_omega,
         Ix_prop = Ix_prop,
         Ω = Ω,
         mP_prop = mP_prop,

@@ -1,6 +1,7 @@
 # User-controlled configuration for the Chang UVLM case.
 # Physical quantities use SI units unless the variable name says otherwise.
 
+# Read a true/false option from an environment variable.
 function environment_flag(name::AbstractString, default::Bool)
     raw_value = lowercase(strip(get(ENV, name, string(default))))
     raw_value in ("1", "true", "yes", "on") && return true
@@ -8,6 +9,10 @@ function environment_flag(name::AbstractString, default::Bool)
     error("$name must be true/false, yes/no, on/off, or 1/0")
 end
 
+# Wing geometry and aerodynamic mesh:
+# - root_chord_m and tip_chord_m define the chord distribution.
+# - span_m is the full modeled span.
+# - spanwise_panels and chordwise_panels define the wing UVLM grid.
 Base.@kwdef struct WingConfig
     root_chord_m::Float64 = 1.8
     tip_chord_m::Float64 = 1.8
@@ -16,6 +21,11 @@ Base.@kwdef struct WingConfig
     chordwise_panels::Int = 5
 end
 
+# Propeller geometry, mesh, rotation, and wing attachment:
+# - radius_m, chord_m, and blades define the rotor geometry.
+# - radial_panels and chordwise_panels define each blade UVLM grid.
+# - rotation_rpm is specified at trim_speed_mps and preserves its advance ratio.
+# - attachment_eta gives each propeller span location from root (0) to tip (1).
 Base.@kwdef struct PropellerConfig
     radius_m::Float64 = 1.15
     chord_m::Float64 = 0.197
@@ -27,23 +37,42 @@ Base.@kwdef struct PropellerConfig
     attachment_eta::Vector{Float64} = [0.83]
 end
 
+# Simulation controls:
+# - Flow speed and angles define the incoming air.
+# - azimuth_step_deg sets the aerodynamic time step.
+# - end_time_s sets the simulation duration.
+# - interaction_on enables interaction between aerodynamic surface groups.
+# - near_field_force_model selects :imperial (corrected direct model) or
+#   :legacy_imperial_segments (original-compatible model).
+# - propeller_moment_projection selects :exact_virtual_work (instantaneous
+#   axes) or :fixed_aero_axes (original small-angle axes).
+# - impulse_propeller_indices selects which propellers are excited.
 Base.@kwdef struct SimulationConfig
-    freestream_speed_mps::Float64 = 85.0
+    freestream_speed_mps::Float64 = 82.0
     angle_of_attack_deg::Float64 = 0.0
     sideslip_deg::Float64 = 0.0
     azimuth_step_deg::Float64 = 5.0
-    end_time_s::Float64 = 2
+    end_time_s::Float64 = 5
     interaction_on::Bool = false
-    near_field_force_model::Symbol = :legacy_imperial_segments
+    near_field_force_model::Symbol = :imperial
+    propeller_moment_projection::Symbol = :exact_virtual_work
     impulse_propeller_indices::Vector{Int} = [1]
 end
 
 const WING_CONFIG = WingConfig()
 const PROPELLER_CONFIG = PropellerConfig()
+
+# Active case used by run_chang_linear_aeroelastic.jl.
+# Values here override the SimulationConfig defaults.
+# The speed sweep uses CHANG_SWEEP_BASE_FORCE_MODEL and
+# CHANG_SWEEP_PROP_MOMENT_PROJECTION instead.
 const SIMULATION_CONFIG = SimulationConfig(
-    impulse_propeller_indices = [1], # Use [1, 2] to excite both propellers.
+    near_field_force_model = :legacy_imperial_segments,
+    propeller_moment_projection = :exact_virtual_work,
+    impulse_propeller_indices = [1],
 )
 
+# Check geometry, mesh, model selections, and excitation indices before running.
 function validate_configuration(wing::WingConfig, prop::PropellerConfig, sim::SimulationConfig)
     wing.root_chord_m > 0 || error("Wing root chord must be positive")
     wing.tip_chord_m > 0 || error("Wing tip chord must be positive")
@@ -66,6 +95,11 @@ function validate_configuration(wing::WingConfig, prop::PropellerConfig, sim::Si
     sim.end_time_s > 0 || error("Simulation end time must be positive")
     sim.near_field_force_model in (:imperial, :legacy_imperial_segments) ||
         error("Near-field force model must be :imperial or :legacy_imperial_segments")
+    sim.propeller_moment_projection in (:fixed_aero_axes, :exact_virtual_work) ||
+        error(
+            "Propeller moment projection must be :fixed_aero_axes or " *
+            ":exact_virtual_work",
+        )
     isempty(sim.impulse_propeller_indices) &&
         error("At least one impulse propeller index is required")
     all(
@@ -79,4 +113,5 @@ function validate_configuration(wing::WingConfig, prop::PropellerConfig, sim::Si
     return nothing
 end
 
+# Stop immediately if any case input is invalid.
 validate_configuration(WING_CONFIG, PROPELLER_CONFIG, SIMULATION_CONFIG)
