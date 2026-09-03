@@ -18,7 +18,7 @@ Base.@kwdef struct WingConfig
     tip_chord_m::Float64 = 1.8
     span_m::Float64 = 7.5
     spanwise_panels::Int = 30
-    chordwise_panels::Int = 5
+    chordwise_panels::Int = 10
 end
 
 # Propeller geometry, mesh, rotation, and wing attachment:
@@ -30,9 +30,9 @@ Base.@kwdef struct PropellerConfig
     radius_m::Float64 = 1.15
     chord_m::Float64 = 0.197
     blades::Int = 4
-    radial_panels::Int = 10
-    chordwise_panels::Int = 5
-    rotation_rpm::Float64 = 1207.96
+    radial_panels::Int = 12
+    chordwise_panels::Int = 12
+    rotation_rpm::Float64 = 1217.6962#1207.96
     trim_speed_mps::Float64 = 65.0
     attachment_eta::Vector{Float64} = [0.83]
 end
@@ -48,10 +48,10 @@ end
 #   axes) or :fixed_aero_axes (original small-angle axes).
 # - impulse_propeller_indices selects which propellers are excited.
 Base.@kwdef struct SimulationConfig
-    freestream_speed_mps::Float64 = 82.0
+    freestream_speed_mps::Float64 = 80.0
     angle_of_attack_deg::Float64 = 0.0
     sideslip_deg::Float64 = 0.0
-    azimuth_step_deg::Float64 = 5.0
+    azimuth_step_deg::Float64 = 5
     end_time_s::Float64 = 5
     interaction_on::Bool = false
     near_field_force_model::Symbol = :imperial
@@ -67,7 +67,7 @@ const PROPELLER_CONFIG = PropellerConfig()
 # The speed sweep uses CHANG_SWEEP_BASE_FORCE_MODEL and
 # CHANG_SWEEP_PROP_MOMENT_PROJECTION instead.
 const SIMULATION_CONFIG = SimulationConfig(
-    near_field_force_model = :legacy_imperial_segments,
+    near_field_force_model = :imperial,
     propeller_moment_projection = :exact_virtual_work,
     impulse_propeller_indices = [1],
 )

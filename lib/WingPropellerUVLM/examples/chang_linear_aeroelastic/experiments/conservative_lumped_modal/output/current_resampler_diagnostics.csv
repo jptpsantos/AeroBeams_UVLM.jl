@@ -1,0 +1,3 @@
+method,elements,mass_kg,relative_spatial_inertia_error,min_Jcg_eigenvalue,max_cg_offset_m,min_mass_eigenvalue,modal_status,first_frequency_hz
+legacy_linear,20,172.5061322299118,0.0271946359498737,0.0,0.2690214783122098,0.0644459789655246,success,6.649279342549118
+signed_scaled,20,177.32851668468282,1.6027715091612784e-16,-55.46859710442294,4.146195338786665,-18.748932236690877,PosDefException,NaN

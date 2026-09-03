@@ -9,6 +9,7 @@ function initialize_bohnisch_uvlm_system(;
     ns_wing, nc_wing, mirror_wing, spacing_s_wing, spacing_c_wing,
     R_prop, c_prop, ns_prop, nc_prop, blade_twists_prop, Nb_prop,
     Npropellers, span_nodes, prop_attach_nodes, chord, xle_distribution,
+    propeller_span_positions = nothing,
     ref, symmetric_wing, fs, dt, nnodes,
     prop_pivot_offset_from_ea_A,
     hub_center_prop_A,
@@ -39,9 +40,28 @@ function initialize_bohnisch_uvlm_system(;
     grids_prop_ref = [deepcopy(grids_prop_ref_single) for _ in 1:Npropellers]
     grids_prop_initial_global = [deepcopy(grids_prop_ref[ip]) for ip in 1:Npropellers]
 
-    attach_node_y = [span_nodes[prop_attach_nodes[ip]] for ip in 1:Npropellers]
-    attach_node_chord = [chord[prop_attach_nodes[ip]] for ip in 1:Npropellers]
-    attach_node_xle = [xle_distribution[prop_attach_nodes[ip]] for ip in 1:Npropellers]
+    if isnothing(propeller_span_positions)
+        attach_node_y = [span_nodes[prop_attach_nodes[ip]] for ip in 1:Npropellers]
+        attach_node_chord = [chord[prop_attach_nodes[ip]] for ip in 1:Npropellers]
+        attach_node_xle = [xle_distribution[prop_attach_nodes[ip]] for ip in 1:Npropellers]
+    else
+        length(propeller_span_positions) == Npropellers || throw(DimensionMismatch(
+            "propeller_span_positions must contain Npropellers entries",
+        ))
+        attach_node_y = collect(Float64, propeller_span_positions)
+        all(first(span_nodes) .<= attach_node_y .<= last(span_nodes)) ||
+            throw(ArgumentError("Every propeller span position must lie on the wing"))
+        attach_node_chord = linear_interpolate_1d(
+            span_nodes,
+            chord,
+            attach_node_y,
+        )
+        attach_node_xle = linear_interpolate_1d(
+            span_nodes,
+            xle_distribution,
+            attach_node_y,
+        )
+    end
     ea_x_aero = attach_node_xle .+ attach_node_chord .* elastic_axis_fraction
 
     hub_offset_from_ea_A = prop_pivot_offset_from_ea_A + hub_center_prop_A

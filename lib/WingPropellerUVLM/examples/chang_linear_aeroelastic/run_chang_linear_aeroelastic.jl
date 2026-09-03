@@ -116,10 +116,26 @@ structural = assemble_chang_structural_model(inertia_reference = :center_of_mass
 structural_diagnostics = chang_structural_diagnostics(structural)
 println("Wing-only modal frequencies (Hz): $(round.(structural_diagnostics.wing_modal_frequencies_hz, digits=4))")
 println(
+    "Structural discretization: mass=$(structural.mass_model), " *
+    "stiffness=$(structural.stiffness_model)",
+)
+println(
     "Structural checks: min eig(M)=$(structural_diagnostics.minimum_mass_eigenvalue), " *
     "min eig(K)=$(structural_diagnostics.minimum_stiffness_eigenvalue), " *
     "symmetry(M/K)=($(structural_diagnostics.mass_symmetry_error), " *
     "$(structural_diagnostics.stiffness_symmetry_error))",
+)
+structural_diagnostics.minimum_mass_eigenvalue > 0.0 || error(
+    "The free structural mass matrix is not positive definite",
+)
+structural_diagnostics.minimum_stiffness_eigenvalue > 0.0 || error(
+    "The free structural stiffness matrix is not positive definite",
+)
+structural_diagnostics.mass_symmetry_error <= 1.0e-12 || error(
+    "The free structural mass matrix is not symmetric",
+)
+structural_diagnostics.stiffness_symmetry_error <= 1.0e-12 || error(
+    "The free structural stiffness matrix is not symmetric",
 )
 
 # Expose the matrices needed by the driver and coupling adapter.
@@ -171,6 +187,7 @@ uvlm = initialize_bohnisch_uvlm_system(
     blade_twists_prop=blade_twists_prop, Nb_prop=Nb_prop,
     Npropellers=Npropellers,
     span_nodes=span_nodes, prop_attach_nodes=prop_attach_nodes,
+    propeller_span_positions=propeller_span_positions,
     chord=chord, xle_distribution=xle_distribution,
     ref=ref, symmetric_wing=symmetric_wing, fs=fs, dt=dt, nnodes=nnodes,
     prop_pivot_offset_from_ea_A=prop_pivot_offset_from_ea_A,
@@ -269,7 +286,7 @@ trim_average_start_time = max(
 
 # Generalized-alpha controls time integration. The remaining values control
 # the fixed-point iterations between structural and aerodynamic solutions.
-const GA_RHO_INF = parse(Float64, get(ENV, "CHANG_GA_RHO_INF", "0.7"))
+const GA_RHO_INF = parse(Float64, get(ENV, "CHANG_GA_RHO_INF", "1.0"))
 const GA_PARAMS = generalized_alpha_parameters(GA_RHO_INF)
 const COUPLING_MAX_ITER = parse(Int, get(ENV, "CHANG_COUPLING_MAX_ITER", "10"))
 const COUPLING_TOL_U = parse(Float64, get(ENV, "CHANG_COUPLING_TOL_U", "1.0e-5"))

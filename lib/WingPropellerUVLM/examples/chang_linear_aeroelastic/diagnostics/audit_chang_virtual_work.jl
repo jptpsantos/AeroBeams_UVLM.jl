@@ -46,20 +46,30 @@ function virtual_work_load(index; step = 1.0e-7)
     return work
 end
 
-attachment_node = prop_attach_nodes[1]
-attachment_start = ndof * (attachment_node - 2)
-indices = [
-    ("attachment_chord_translation", attachment_start + 2),
-    ("attachment_vertical_translation", attachment_start + 3),
-    ("attachment_span_rotation", attachment_start + 4),
-    ("attachment_chord_rotation", attachment_start + 5),
-    ("attachment_vertical_rotation", attachment_start + 6),
+left_attachment_node, right_attachment_node = prop_attachment_node_pairs[1]
+indices = Tuple{String,Int}[]
+for (side, node) in (
+    ("left", left_attachment_node),
+    ("right", right_attachment_node),
+)
+    attachment_start = ndof * (node - 2)
+    append!(indices, [
+        ("$(side)_attachment_chord_translation", attachment_start + 2),
+        ("$(side)_attachment_vertical_translation", attachment_start + 3),
+        ("$(side)_attachment_span_rotation", attachment_start + 4),
+        ("$(side)_attachment_chord_rotation", attachment_start + 5),
+        ("$(side)_attachment_vertical_rotation", attachment_start + 6),
+    ])
+end
+append!(indices, [
     ("propeller_pitch", ndof_wing_free + 1),
     ("propeller_yaw", ndof_wing_free + 2),
-]
+])
 
 println("\nChang aerodynamic load-transfer virtual-work audit")
 println("propeller_moment_projection = $AEROELASTIC_PROPELLER_MOMENT_PROJECTION")
+println("attachment_nodes = $(prop_attachment_node_pairs[1])")
+println("attachment_weights = $(prop_attachment_weights[1])")
 println(
     "audit_propeller_angles_deg = " *
     "($(rad2deg(base_state[ndof_wing_free + 1])), " *

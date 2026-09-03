@@ -61,22 +61,36 @@ function update_aero_geometry_for_state!(system, q_free::AbstractVector, time_np
     )
 
     # Propeller motion is composed in this order: prescribed rotor spin,
-    # pylon pitch/yaw, then the complete local wing-node rotation/translation.
+    # pylon pitch/yaw, then the interpolated attachment rotation/translation.
     for propeller_index in 1:Npropellers
-        attachment_node = prop_attach_nodes[propeller_index]
+        left_node, right_node = prop_attachment_node_pairs[propeller_index]
+        left_weight, right_weight = prop_attachment_weights[propeller_index]
         pitch_aero = q_propeller_free[2 * (propeller_index - 1) + 1]
         yaw_aero = -q_propeller_free[2 * (propeller_index - 1) + 2]
 
+        u_x_attachment = left_weight * u_x_aero[left_node] +
+            right_weight * u_x_aero[right_node]
+        u_y_attachment = left_weight * u_y_aero[left_node] +
+            right_weight * u_y_aero[right_node]
+        u_z_attachment = left_weight * u_z_aero[left_node] +
+            right_weight * u_z_aero[right_node]
+        theta_x_attachment = left_weight * theta_x_aero[left_node] +
+            right_weight * theta_x_aero[right_node]
+        theta_y_attachment = left_weight * theta_y_aero[left_node] +
+            right_weight * theta_y_aero[right_node]
+        theta_z_attachment = left_weight * theta_z_aero[left_node] +
+            right_weight * theta_z_aero[right_node]
+
         pivot = SVector(
-            ea_x_aero[propeller_index] + u_x_aero[attachment_node],
-            attach_node_y[propeller_index] + u_y_aero[attachment_node],
-            u_z_aero[attachment_node],
+            ea_x_aero[propeller_index] + u_x_attachment,
+            attach_node_y[propeller_index] + u_y_attachment,
+            u_z_attachment,
         )
         T_pivot_A_current[propeller_index] = pivot
 
-        wing_rotation = RotationMatrix(theta_z_aero[attachment_node], 3) *
-            RotationMatrix(theta_x_aero[attachment_node], 1) *
-            RotationMatrix(theta_y_aero[attachment_node], 2)
+        wing_rotation = RotationMatrix(theta_z_attachment, 3) *
+            RotationMatrix(theta_x_attachment, 1) *
+            RotationMatrix(theta_y_attachment, 2)
         pitch_rotation = RotationMatrix(pitch_aero, 2)
         yaw_rotation = RotationMatrix(yaw_aero, 3)
         whirl_rotation = pitch_rotation * yaw_rotation
@@ -152,8 +166,9 @@ end
 
 Transfer the dimensional UVLM vertex forces to the Chang free-DOF
 ordering. Wing forces are summed chordwise and moments are formed about the
-deformed elastic axis. Blade forces are reduced to propeller hub/pivot wrenches,
-added to the attachment node, and projected onto the pitch/yaw modal DOFs.
+deformed elastic axis. Blade forces are reduced to propeller hub/pivot
+wrenches, distributed work-conjugately over the two attachment nodes, and
+projected onto the pitch/yaw modal DOFs.
 
 Returns one generalized-load vector ordered exactly like the reduced
 structural state used by `M`, `C`, and `K`.
@@ -247,13 +262,26 @@ function assemble_structural_aero_load!(system, kinematics;
             propeller_loads[2 * (propeller_index - 1) + 2] = -modal_moment[3]
         end
 
-        attachment_dofs = attach_dofs_all[propeller_index]
-        wing_loads[attachment_dofs[1]] += total_force[2]
-        wing_loads[attachment_dofs[2]] += total_force[1]
-        wing_loads[attachment_dofs[3]] += -total_force[3]
-        wing_loads[attachment_dofs[4]] += wing_moment[2]
-        wing_loads[attachment_dofs[5]] += wing_moment[1]
-        wing_loads[attachment_dofs[6]] += -wing_moment[3]
+        structural_wrench = (
+            total_force[2],
+            total_force[1],
+            -total_force[3],
+            wing_moment[2],
+            wing_moment[1],
+            -wing_moment[3],
+        )
+        left_node, right_node = prop_attachment_node_pairs[propeller_index]
+        left_weight, right_weight = prop_attachment_weights[propeller_index]
+        for (node, weight) in (
+            (left_node, left_weight),
+            (right_node, right_weight),
+        )
+            node_offset = ndof * (node - 1)
+            for local_dof in 1:ndof
+                wing_loads[node_offset + local_dof] +=
+                    weight * structural_wrench[local_dof]
+            end
+        end
 
         if print_loads
             println("\n--- Step $step Propeller P$(propeller_index) (partitioned GA) ---")

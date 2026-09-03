@@ -159,7 +159,7 @@ Base.@kwdef struct PartitionedCouplingOptions{T<:Real}
     load_tolerance::T = 1.0e-2
     equilibrium_tolerance::T = 1.0e-10
     coupled_equilibrium_tolerance::T = 1.0e-5
-    relaxation::T = 0.5
+    relaxation::T = 0.5 # BASE IS 0.5
 end
 
 function validate_partitioned_coupling_options(options::PartitionedCouplingOptions)

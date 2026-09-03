@@ -1,7 +1,7 @@
 """
 Run consecutive Chang aeroelastic cases and stop at the first divergent case.
 
-The default sweep is 80:1:86 m/s. Each case runs in a fresh Julia process and
+The default sweep is 80:1:84 m/s. Each case runs in a fresh Julia process and
 writes its full console output to a per-speed log. A case is divergent when it
 does not reach the requested end time, exceeds the hard propeller-angle limit,
 or has a fitted pitch/yaw envelope growth rate and ratio above the configured
@@ -10,6 +10,7 @@ thresholds.
 
 using DelimitedFiles
 using Printf
+using Plots
 
 const SWEEP_EXAMPLE_DIR = @__DIR__
 const SWEEP_PACKAGE_DIR = normpath(joinpath(SWEEP_EXAMPLE_DIR, "..", ".."))
@@ -110,6 +111,8 @@ function read_response_history(history_path)
     end
     return (;
         time = column("time_s"),
+        tip_displacement = column("tip_displacement_m"),
+        tip_twist = column("tip_twist_deg"),
         pitch = column("propeller_1_pitch_deg"),
         yaw = column("propeller_1_yaw_deg"),
     )
@@ -178,6 +181,83 @@ function write_sweep_summary(path, results)
     return path
 end
 
+"""Plot the wing and propeller histories from every completed speed case."""
+function plot_sweep_time_histories(results, output_directory)
+    available_results = filter(result -> isfile(result.history_path), results)
+    isempty(available_results) && return nothing
+
+    common_style = (
+        linewidth = 2.0,
+        xlabel = "Time (s)",
+        framestyle = :box,
+        gridalpha = 0.25,
+    )
+    tip_displacement_plot = plot(
+        ; ylabel = "Tip displacement (mm)", title = "Wing-tip displacement",
+        common_style...,
+    )
+    tip_twist_plot = plot(
+        ; ylabel = "Tip twist (deg)", title = "Wing-tip twist",
+        common_style...,
+    )
+    pitch_plot = plot(
+        ; ylabel = "Pitch (deg)", title = "Propeller pitch",
+        common_style...,
+    )
+    yaw_plot = plot(
+        ; ylabel = "Yaw (deg)", title = "Propeller yaw",
+        common_style...,
+    )
+
+    for (color_index, result) in enumerate(available_results)
+        response = read_response_history(result.history_path)
+        label = @sprintf("%.0f m/s", result.speed_mps)
+        plot!(
+            tip_displacement_plot,
+            response.time,
+            1.0e3 .* response.tip_displacement;
+            color = color_index,
+            label,
+        )
+        plot!(
+            tip_twist_plot,
+            response.time,
+            response.tip_twist;
+            color = color_index,
+            label,
+        )
+        plot!(
+            pitch_plot,
+            response.time,
+            response.pitch;
+            color = color_index,
+            label,
+        )
+        plot!(
+            yaw_plot,
+            response.time,
+            response.yaw;
+            color = color_index,
+            label,
+        )
+    end
+
+    figure = plot(
+        tip_displacement_plot,
+        tip_twist_plot,
+        pitch_plot,
+        yaw_plot;
+        layout = (2, 2),
+        size = (1400, 900),
+        plot_title = "Chang speed-sweep time histories",
+    )
+    output_path = joinpath(output_directory, "speed_sweep_time_histories.png")
+    savefig(figure, output_path)
+    display(figure)
+    println("[sweep] Time-history figure: $output_path")
+    return output_path
+end
+
 function log_tail(path; line_count = 30)
     isfile(path) || return String[]
     lines = readlines(path)
@@ -202,10 +282,10 @@ function child_environment(speed, output_directory, output_label, end_time, hard
         ENV, "CHANG_SWEEP_PROP_RADIAL_PANELS", "10",
     )
     environment["CHANG_TEST_PROP_CHORD_PANELS"] = get(
-        ENV, "CHANG_SWEEP_PROP_CHORD_PANELS", "5",
+        ENV, "CHANG_SWEEP_PROP_CHORD_PANELS", "10",
     )
     environment["CHANG_TEST_AZIMUTH_STEP_DEG"] = get(
-        ENV, "CHANG_SWEEP_AZIMUTH_STEP_DEG", "5.0",
+        ENV, "CHANG_SWEEP_AZIMUTH_STEP_DEG", "2.5",
     )
     environment["CHANG_TEST_INTERACTION"] = get(
         ENV, "CHANG_SWEEP_INTERACTION", "false",
@@ -367,18 +447,18 @@ end
 
 function main()
     first_speed = sweep_float("CHANG_SWEEP_SPEED_START_MPS", 80.0)
-    last_speed = sweep_float("CHANG_SWEEP_SPEED_STOP_MPS", 86.0)
-    speed_step = sweep_float("CHANG_SWEEP_SPEED_STEP_MPS", 2.0)
-    requested_end_time = sweep_float("CHANG_SWEEP_END_TIME_S", 2.0)
+    last_speed = sweep_float("CHANG_SWEEP_SPEED_STOP_MPS", 84.0)
+    speed_step = sweep_float("CHANG_SWEEP_SPEED_STEP_MPS", 1.0)
+    requested_end_time = sweep_float("CHANG_SWEEP_END_TIME_S", 3.0)
     fit_start_s = sweep_float("CHANG_SWEEP_FIT_START_S", 0.7)
-    growth_threshold = sweep_float("CHANG_SWEEP_DIVERGENCE_RATE_PER_S", 0.02)
+    growth_threshold = sweep_float("CHANG_SWEEP_DIVERGENCE_RATE_PER_S", 0.1)
     envelope_ratio_threshold = sweep_float("CHANG_SWEEP_ENVELOPE_RATIO", 1.05)
     minimum_fit_r_squared = sweep_float("CHANG_SWEEP_MIN_FIT_R2", 0.5)
     hard_angle_deg = sweep_float("CHANG_SWEEP_ABORT_ANGLE_DEG", 15.0)
     output_directory = abspath(get(
         ENV,
         "CHANG_SWEEP_OUTPUT_DIR",
-        joinpath(SWEEP_EXAMPLE_DIR, "output", "speed_sweep_80_86"),
+        joinpath(SWEEP_EXAMPLE_DIR, "output", "speed_sweep_80_84"),
     ))
 
     requested_end_time > fit_start_s || error(
@@ -424,9 +504,11 @@ function main()
     end
 
     println("\n[sweep] Summary: $summary_path")
+    plot_sweep_time_histories(results, output_directory)
     return results
 end
 
-if abspath(PROGRAM_FILE) == @__FILE__
+# Start when launched from the terminal or executed in the VS Code Julia REPL.
+if abspath(PROGRAM_FILE) == (@__FILE__) || isinteractive()
     main()
 end
