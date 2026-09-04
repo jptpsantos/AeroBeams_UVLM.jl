@@ -164,7 +164,7 @@ Udd[1] = U0dd
 # ==============================================================================
 println("Initializing global UVLM system...")
 # Change 0.5 to adjust the vortex-core/segment-width ratio.
-FCORE = (c, Δs) -> 0.5 * Δs
+FCORE = (c, Δs) -> 0.25 * Δs
 
 # Aerodynamic reference locations in frame A.
 # The elastic-axis fraction is measured from the wing leading edge.

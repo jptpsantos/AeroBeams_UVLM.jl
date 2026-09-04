@@ -30,8 +30,8 @@ Base.@kwdef struct PropellerConfig
     radius_m::Float64 = 1.15
     chord_m::Float64 = 0.197
     blades::Int = 4
-    radial_panels::Int = 12
-    chordwise_panels::Int = 12
+    radial_panels::Int = 10
+    chordwise_panels::Int = 10
     rotation_rpm::Float64 = 1217.6962#1207.96
     trim_speed_mps::Float64 = 65.0
     attachment_eta::Vector{Float64} = [0.83]
@@ -48,7 +48,7 @@ end
 #   axes) or :fixed_aero_axes (original small-angle axes).
 # - impulse_propeller_indices selects which propellers are excited.
 Base.@kwdef struct SimulationConfig
-    freestream_speed_mps::Float64 = 80.0
+    freestream_speed_mps::Float64 = 83.0
     angle_of_attack_deg::Float64 = 0.0
     sideslip_deg::Float64 = 0.0
     azimuth_step_deg::Float64 = 5
