@@ -8,6 +8,7 @@ include(joinpath(
     "..",
     "examples",
     "chang_linear_aeroelastic",
+    "src",
     "chang_structural_matrices.jl",
 ))
 
@@ -18,6 +19,102 @@ include(joinpath(
         @test length(grids) == 3
         @test all(size(grid) == (3,3,5) for grid in grids)
         @test grids[1][:,1,1] ≈ zeros(3)
+    end
+
+    @testset "Finite-core vortex-segment regularization" begin
+        core_size = 0.1
+
+        # A finite-core segment must approach zero velocity, rather than the
+        # singular 1/r behavior, when a point approaches the filament near
+        # the segment midpoint.
+        distances = (1.0e-1, 1.0e-2, 1.0e-3)
+        speeds = map(distances) do distance
+            r1 = @SVector [0.5, distance, 0.0]
+            r2 = @SVector [-0.5, distance, 0.0]
+            velocity = WingPropellerUVLM.bound_induced_velocity(
+                r1,
+                r2,
+                true,
+                core_size,
+            )
+            @test all(isfinite, velocity)
+            norm(velocity)
+        end
+        @test speeds[3] < speeds[2] < speeds[1]
+        @test speeds[3] / speeds[2] ≈ 0.1 rtol = 0.02
+
+        centerline_velocity = WingPropellerUVLM.bound_induced_velocity(
+            (@SVector [0.5, 0.0, 0.0]),
+            (@SVector [-0.5, 0.0, 0.0]),
+            true,
+            core_size,
+        )
+        @test centerline_velocity == @SVector [0.0, 0.0, 0.0]
+        @test WingPropellerUVLM.bound_induced_velocity(
+            (@SVector [1.0, 2.0, 3.0]),
+            (@SVector [1.0, 2.0, 3.0]),
+            true,
+            core_size,
+        ) == @SVector [0.0, 0.0, 0.0]
+
+        # Away from the filament, the regularized kernel must recover the
+        # singular Biot--Savart result as the core radius tends to zero.
+        r1 = @SVector [0.2, 0.7, 0.3]
+        r2 = @SVector [-0.8, 0.7, 0.3]
+        regularized = WingPropellerUVLM.bound_induced_velocity(r1, r2, true, 1.0e-8)
+        singular = WingPropellerUVLM.bound_induced_velocity(r1, r2, false, 0.0)
+        @test regularized ≈ singular rtol = 1.0e-12
+
+        # The semi-infinite trailing-vortex form must also be finite at its
+        # endpoint and on both directions of its centerline.
+        xhat = @SVector [1.0, 0.0, 0.0]
+        for r in (
+            @SVector([0.0, 0.0, 0.0]),
+            @SVector([1.0, 0.0, 0.0]),
+            @SVector([-1.0, 0.0, 0.0]),
+        )
+            velocity = WingPropellerUVLM.trailing_induced_velocity(
+                r,
+                xhat,
+                true,
+                core_size,
+            )
+            @test velocity == @SVector [0.0, 0.0, 0.0]
+        end
+    end
+
+    @testset "Finite-core segment-length rotation invariance" begin
+        grid, _ = wing_to_grid(
+            [0.0, 0.0],
+            [0.0, 1.0],
+            [0.0, 0.0],
+            ones(2),
+            zeros(2),
+            zeros(2),
+            1,
+            1,
+        )
+        _, _, surface = grid_to_surface_panels(grid; fcore = (c, Δs) -> Δs)
+        base_core = WingPropellerUVLM.get_core_size(surface[1, 1])
+
+        angle = pi / 3
+        rotation = @SMatrix [
+            cos(angle) -sin(angle) 0.0
+            sin(angle)  cos(angle) 0.0
+            0.0         0.0        1.0
+        ]
+        rotated_grid = similar(grid)
+        for index in CartesianIndices((size(grid, 2), size(grid, 3)))
+            rotated_grid[:, index[1], index[2]] .= rotation * grid[:, index[1], index[2]]
+        end
+        _, _, rotated_surface = grid_to_surface_panels(
+            rotated_grid;
+            fcore = (c, Δs) -> Δs,
+        )
+        rotated_core = WingPropellerUVLM.get_core_size(rotated_surface[1, 1])
+
+        @test base_core ≈ 1.0
+        @test rotated_core ≈ base_core
     end
 
     @testset "Reusable interpolation and deformed wing grid" begin

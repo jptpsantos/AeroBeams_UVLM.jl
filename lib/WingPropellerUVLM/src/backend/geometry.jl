@@ -211,7 +211,7 @@ with dimensions (i, j) containing the generated panels.
 # Keyword Arguments
 - `mirror`:  mirror the geometry across the X-Z plane? defaults to `false`.
 - `fcore`: function for setting the finite core size based on the chord length
-       (in the x-direction) and/or the panel width (in the y/z directions).
+       and/or the full three-dimensional bound-vortex segment length.
        Defaults to `(c, Δs) -> 1e-3`
 """
 function grid_to_surface_panels(xyz;
@@ -288,7 +288,7 @@ function grid_to_surface_panels(xyz;
             ncp /= norm(ncp)
 
             # set finite core size
-            Δs = sqrt((rtr[2]-rtl[2])^2 + (rtr[3]-rtl[3])^2)
+            Δs = norm(rtr - rtl)
             core_size = fcore(c, Δs)
 
             # get chord length of current panel
@@ -334,7 +334,7 @@ function grid_to_surface_panels(xyz;
         ncp /= norm(ncp)
 
         # set finite core size
-        Δs = sqrt((rtr[2]-rtl[2])^2 + (rtr[3]-rtl[3])^2)
+        Δs = norm(rtr - rtl)
         core_size = fcore(c, Δs)
 
         # get chord length of current panel
@@ -407,7 +407,7 @@ with dimensions (i, j) containing the generated panels.
 # Keyword Arguments
  - `mirror`:  mirror the geometry across the X-Z plane? defaults to `false`.
  - `fcore`: function for setting the finite core size based on the chord length
-        (in the x-direction) and/or the panel width (in the y/z directions).
+        and/or the full three-dimensional bound-vortex segment length.
         Defaults to `(c, Δs) -> 1e-3`
  - `spacing_s`: spanwise discretization scheme, defaults to `Cosine()`
  - `spacing_c`: chordwise discretization scheme, defaults to `Uniform()`
@@ -471,7 +471,7 @@ function grid_to_surface_panels(xyz, ns, nc;
             ncp /= norm(ncp)
 
             # set finite core size
-            Δs = sqrt((rtr[2]-rtl[2])^2 + (rtr[3]-rtl[3])^2)
+            Δs = norm(rtr - rtl)
             core_size = fcore(c, Δs)
 
             # set chord length of current panel
@@ -554,7 +554,7 @@ of ratios to place control points when converting to surface panels.
         This allows xle, yle, and zle to be defined about points that are not the leading edge
  - `mirror`:  mirror the geometry across the X-Z plane?, defaults to `false`
  - `fcore`: function for setting the finite core size based on the chord length
-        (in the x-direction) and/or the panel width (in the y/z directions).
+        and/or the full three-dimensional bound-vortex segment length.
         Defaults to `(c, Δs) -> 1e-3`
  - `spacing_s`: spanwise discretization scheme, defaults to `Cosine()`
  - `spacing_c`: chordwise discretization scheme, defaults to `Uniform()`
@@ -722,7 +722,7 @@ function wing_to_grid(xle, yle, zle, chord, theta, phi, ns, nc;
             ncp /= norm(ncp)
 
             # set finite core size
-            Δs = sqrt((rtr[2]-rtl[2])^2 + (rtr[3]-rtl[3])^2)
+            Δs = norm(rtr - rtl)
             core_size = fcore(c, Δs)
 
             # set chord length of current panel
@@ -845,7 +845,7 @@ function update_surface_panels!(surface, grid;
             ncp /= norm(ncp)
 
             # set finite core size
-            Δs = sqrt((rtr[2]-rtl[2])^2 + (rtr[3]-rtl[3])^2)
+            Δs = norm(rtr - rtl)
             core_size = fcore(c, Δs)
 
             # get chord length of current panel
@@ -889,7 +889,7 @@ function update_surface_panels!(surface, grid;
         ncp /= norm(ncp)
 
         # set finite core size
-        Δs = sqrt((rtr[2]-rtl[2])^2 + (rtr[3]-rtl[3])^2)
+        Δs = norm(rtr - rtl)
         core_size = fcore(c, Δs)
 
         # get chord length of current panel
@@ -1075,4 +1075,3 @@ end
 Test whether and of the points in `args` are not on the symmetry plane (y = 0)
 """
 not_on_symmetry_plane(args...; tol=eps()) = !on_symmetry_plane(args...; tol=tol)
-

@@ -72,7 +72,7 @@ There are four distinct data layers:
 | Geometry | grids and `SurfacePanel` matrices | Current wing and blade vortex lattices |
 | Aerodynamic state | `System` | Circulation, panel motion, loads, wakes, and work arrays |
 | Transaction state | `UVLMSnapshot` | Beginning-of-step copy used to repeat or reject a trial |
-| Structural state | `U`, `Ud`, `Udd` in the Chang case | Free generalized displacement, velocity, and acceleration |
+| Structural state | `solution.*_history` in the Chang case | Free generalized displacement, velocity, and acceleration |
 
 The `System` is mutable even though it is declared as an immutable Julia
 `struct`: its fields are arrays, and the contents of those arrays change in
@@ -223,7 +223,8 @@ that formulation have not been implemented.
 
 The principal driver is
 `lib/WingPropellerUVLM/examples/chang_linear_aeroelastic/run_chang_linear_aeroelastic.jl`.
-The file is now commented with the same sequence described here.
+It presents the setup/solve/output sequence described here and delegates the
+step-level algorithm to `src/chang_simulation.jl`.
 
 ### 7.1 Before the loop
 
@@ -232,23 +233,25 @@ The driver:
 1. activates the local package environment;
 2. reads the case and model parameters;
 3. assembles root-constrained structural `M`, `C`, and `K` matrices;
-4. initializes zero structural histories `U`, `Ud`, and `Udd`;
+4. asks `solve_chang_aeroelastic!` to initialize the structural histories;
 5. creates the global UVLM `System`, reference grids, wakes, interaction groups,
    and load-transfer buffers;
 6. defines a smooth pitch perturbation and a periodic trim-load averaging
    window; and
 7. creates generalized-alpha and fixed-point coupling options.
 
-`U[it]`, `Ud[it]`, and `Udd[it]` are the accepted structural state at `t[it]`.
-`F_pert_n` is the accepted aerodynamic perturbation load at that same time.
+`solution.displacement_history[it]`, `solution.velocity_history[it]`, and
+`solution.acceleration_history[it]` are the accepted structural state at
+`t[it]`. The solver also retains the accepted aerodynamic perturbation load at
+that same time.
 
 ### 7.2 Beginning a physical step
 
 At the top of step `it`, the driver executes:
 
 ```julia
-copy_surfaces_to_previous!(system, nsurf)
-snap = snapshot_uvlm(system)
+copy_surfaces_to_previous!(system, wake.surface_count)
+aerodynamic_snapshot = snapshot_uvlm(system)
 ```
 
 The first line freezes the accepted geometry at `t[n]`, which is required to
@@ -261,15 +264,15 @@ history from which every `t[n+1]` coupling trial must start.
 operation is:
 
 ```julia
-last_full_aerodynamic_load .= aero_load_for_state!(
-    system, snap, state_guess, it
+full_aerodynamic_load .= aero_load_for_state!(
+    system, aerodynamic_snapshot, state_guess, step
 )
 ```
 
 `aero_load_for_state!` is defined in `chang_uvlm_coupling.jl` and performs:
 
 ```text
-restore_uvlm!(system, snap)
+restore_uvlm!(system, aerodynamic_snapshot)
         |
         v
 update_aero_geometry_for_state!(system, state_guess, t[it+1])
@@ -371,7 +374,7 @@ using the generalized-alpha/Newmark kinematic relations. Consequently the
 returned structural state and the UVLM state left in `system` are a consistent
 fixed-point pair.
 
-If convergence fails, the driver restores `snap` and terminates without
+If convergence fails, the solver restores `aerodynamic_snapshot` and terminates without
 committing the step.
 
 ### 7.7 Trim baseline and perturbation load
@@ -481,17 +484,16 @@ reassembling these arrays in an input file.
 | `examples/rectangular_wing_free_wake.jl` | Rigid unsteady wing, accepted-state stepping, VTK series, lift history, and mean spanwise lift. |
 | `examples/README.md` | Rigid-case inputs, outputs, regression values, and environment overrides. |
 | `examples/chang_linear_aeroelastic/chang_case.jl` | User-facing wing, propeller, and simulation configurations plus validation. |
-| `chang_model_parameters.jl` | SI conversion and interpolation of Chang mass, inertia, stiffness, pylon, rotor, mesh, freestream, and time data. |
-| `chang_structural_matrices.jl` | Corrected point-mass and 3-D beam-element matrices and global assembly. |
-| `chang_structural_matrices_legacy.jl` | Explicit compatibility wrapper for the previous beam-axis-inertia interpretation. |
-| `chang_structural_model.jl` | High-level structural assembly, modal analysis/classification, and matrix diagnostics. |
-| `verify_chang_structural_model.jl` | Corrected-versus-legacy matrix and natural-frequency verification report. |
-| `chang_uvlm_coupling.jl` | Chang-specific motion transfer, load transfer, and rollback-safe aerodynamic callback. |
-| `run_chang_linear_aeroelastic.jl` | Thin orchestration driver for initialization, coupled time marching, trim capture, commit, and output. |
-| `chang_postprocessing.jl` | CSV/summary output, validation flags, and history extraction. |
-| `chang_plotting.jl` | One- and two-propeller time-history layouts. |
-| `chang_animation.jl` | Accepted-state recorder and `animate_chang_wing_wake` 3-D GIF renderer for the deformed lifting surfaces and active wakes. |
-| `plot_chang_time_histories.jl` | Standalone plot regeneration from a saved CSV. |
+| `examples/chang_linear_aeroelastic/run_chang_linear_aeroelastic.jl` | Readable primary workflow: case, structure, aerodynamics, excitation/coupling, solve, and output. |
+| `examples/chang_linear_aeroelastic/src/chang_model_parameters.jl` | SI conversion and interpolation of Chang mass, inertia, stiffness, pylon, rotor, mesh, freestream, and time data. |
+| `examples/chang_linear_aeroelastic/src/chang_structural_matrices.jl` | Point-mass and 3-D beam-element matrices and global assembly; `inertia_reference=:beam_axis` retains the historical comparison. |
+| `examples/chang_linear_aeroelastic/src/chang_structural_model.jl` | High-level structural assembly, modal analysis/classification, and matrix diagnostics. |
+| `examples/chang_linear_aeroelastic/src/chang_uvlm_coupling.jl` | Chang-specific motion transfer, load transfer, and rollback-safe aerodynamic callback. |
+| `examples/chang_linear_aeroelastic/src/chang_simulation.jl` | Runtime options, coupled time marching, trim subtraction, accepted-wake commit, animation capture, and safety checks. |
+| `examples/chang_linear_aeroelastic/src/chang_postprocessing.jl` | CSV/summary output, validation flags, history extraction, and optional plotting. |
+| `examples/chang_linear_aeroelastic/src/chang_animation.jl` | Opt-in accepted-state recorder and 3-D GIF renderer. |
+| `examples/chang_linear_aeroelastic/studies/` | Trim, airspeed, and two-stage convergence entry points. |
+| `examples/chang_linear_aeroelastic/validation/` | Structural, virtual-work, force-model, damping, and inertia-remap checks. |
 
 `Project.toml` defines package dependencies and compatibility. `test/runtests.jl`
 contains package, force, snapshot/rollback, generalized-alpha, structural, and
@@ -622,6 +624,7 @@ The coupled input recognizes these environment variables:
 |:--|:--|:--|
 | `CHANG_END_TIME_S` | case `end_time_s` | Requested simulation duration |
 | `CHANG_PLOT_RESULTS` | `true` | Load Plots.jl and create/display the history PNG |
+| `CHANG_ANIMATE_WAKE` | `false` | Retain accepted wake states and create a GIF |
 | `CHANG_OUTPUT_DIR` | example `output` directory | Output directory |
 | `CHANG_OUTPUT_LABEL` | `chang_linear_imperial_uvlm` | Filename prefix |
 | `CHANG_TRIM_REVOLUTIONS` | `10` | Wake-development revolutions before the perturbation |
@@ -629,19 +632,19 @@ The coupled input recognizes these environment variables:
 | `CHANG_IMPULSE_MAGNITUDE` | `1000` | Pitch generalized-force pulse amplitude |
 | `CHANG_IMPULSE_START_S` | end of trim | Explicit pulse start time |
 | `CHANG_IMPULSE_DURATION_S` | `0.15` | Pulse duration |
-| `CHANG_GA_RHO_INF` | `0.7` | High-frequency spectral radius |
+| `CHANG_GA_RHO_INF` | `1.0` | High-frequency spectral radius |
 | `CHANG_COUPLING_MAX_ITER` | `10` | Maximum fixed-point iterations per physical step |
 | `CHANG_COUPLING_TOL_U` | `1e-5` | Scaled state residual tolerance |
 | `CHANG_COUPLING_TOL_F` | `1e-2` | Scaled load-change tolerance |
 | `CHANG_COUPLING_TOL_EQ` | `1e-10` | Linear corrector residual tolerance |
 | `CHANG_COUPLING_TOL_COUPLED_EQ` | `1e-4` | Complete coupled equilibrium tolerance |
-| `CHANG_COUPLING_RELAXATION` | `0.5` | Fixed displacement relaxation factor |
+| `CHANG_COUPLING_RELAXATION` | `1.0` | Fixed displacement relaxation factor |
 | `CHANG_PLOT_END_TIME_S` | `5` | Plot x-axis endpoint |
 | `CHANG_ANIMATION_STRIDE` | `5` | Accepted physical steps between animation frames |
 | `CHANG_ANIMATION_FPS` | `15` | GIF playback frame rate |
 
-GIF generation is selected directly in `run_chang_linear_aeroelastic.jl` with
-`const ANIMATE_WAKE = true` or `false`; it is not an environment variable.
+GIF generation is opt-in with `CHANG_ANIMATE_WAKE=true` because retaining every
+selected surface/wake state can consume substantial memory and disk space.
 
 A short, plot-free smoke run is:
 

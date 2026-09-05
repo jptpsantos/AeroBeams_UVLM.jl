@@ -1,3 +1,0 @@
-time_s,tip_displacement_m,tip_twist_deg,propeller_1_pitch_deg,propeller_1_yaw_deg,coupling_iterations,coupling_state_residual,coupling_load_residual,coupling_equilibrium_residual,coupling_converged
-0.0,0.0,0.0,0.0,0.0,0,0.0,0.0,0.0,true
-0.0005605180083225712,0.0,0.0,0.0,0.0,1,0.0,0.0,0.0,true

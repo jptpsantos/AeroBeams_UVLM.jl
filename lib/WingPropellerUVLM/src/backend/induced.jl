@@ -9,13 +9,24 @@ relative to the end of the bound vortex
 """
 function bound_induced_velocity(r1, r2, finite_core, core_size)
 
+    segment = r1 - r2
+    segment_squared = dot(segment, segment)
+    iszero(segment_squared) && return zero(r1)
+
     nr1 = norm(r1)
     nr2 = norm(r2)
 
     if finite_core
         rdot = dot(r1, r2)
         r1s, r2s, εs = nr1^2, nr2^2, core_size^2
-        f1 = cross(r1, r2)/(r1s*r2s - rdot^2 + εs*(r1s + r2s - 2*nr1*nr2))
+        cross12 = cross(r1, r2)
+
+        # Regularize with the physical vortex-segment length.  Using
+        # (norm(r1)-norm(r2))^2 here would make the core term vanish on the
+        # perpendicular-bisector plane and would leave the 1/r singularity
+        # at the middle of the segment.
+        denominator = dot(cross12, cross12) + εs*segment_squared
+        f1 = cross12/denominator
         f2 = (r1s - rdot)/sqrt(r1s + εs) + (r2s - rdot)/sqrt(r2s + εs)
     else
         f1 = cross(r1, r2)/(nr1*nr2 + dot(r1, r2))
@@ -37,13 +48,18 @@ trailing vortex.
 function trailing_induced_velocity(r, xhat, finite_core, core_size)
 
     nr = norm(r)
+    iszero(nr) && return zero(r)
 
     rdot = dot(r, xhat)
 
     if finite_core
         εs = core_size^2
-        tmp = εs/(nr + rdot)
-        f = cross(r, xhat)/(nr*(nr - rdot + tmp))
+        cross_rx = cross(r, xhat)
+        perpendicular_squared = dot(cross_rx, cross_rx)
+
+        # Algebraically equivalent to the former expression away from the
+        # trailing-vortex axis, but well defined when nr + rdot is zero.
+        f = cross_rx*(nr + rdot)/(nr*(perpendicular_squared + εs))
     else
         f = cross(r, xhat)/(nr*(nr - rdot))
     end
@@ -2224,5 +2240,3 @@ function induced_velocity(rcp, surface, Γ = nothing, dΓ = nothing;
         return Vind
     end
 end
-
-
