@@ -57,9 +57,10 @@ function trailing_induced_velocity(r, xhat, finite_core, core_size)
         cross_rx = cross(r, xhat)
         perpendicular_squared = dot(cross_rx, cross_rx)
 
-        # Algebraically equivalent to the former expression away from the
-        # trailing-vortex axis, but well defined when nr + rdot is zero.
-        f = cross_rx*(nr + rdot)/(nr*(perpendicular_squared + εs))
+        # Use the same softened endpoint distance as the finite-segment
+        # kernel. This is its semi-infinite limit; cross_rx has the opposite
+        # cross-product order, accounted for by the minus sign below.
+        f = cross_rx*(1 + rdot/sqrt(nr^2 + εs))/(perpendicular_squared + εs)
     else
         f = cross(r, xhat)/(nr*(nr - rdot))
     end

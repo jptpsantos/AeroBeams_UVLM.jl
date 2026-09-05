@@ -26,13 +26,13 @@ using WingPropellerUVLM:
 Base.@kwdef struct ChangWindmillingTrimOptions
     flow_speed_mps::Float64 = 65.0
     air_density_kgpm3::Float64 = 1.225
-    angle_of_attack_deg::Float64 = 0.0
+    angle_of_attack_deg::Float64 = 3.0
     sideslip_deg::Float64 = 0.0
     propeller_radius_m::Float64 = 1.15
     propeller_chord_m::Float64 = 0.197
     blade_count::Int = 4
-    radial_panels::Int = 10
-    chordwise_panels::Int = 10
+    radial_panels::Int = 20
+    chordwise_panels::Int = 20
     # Added uniformly to the complete Chang twist distribution. Leave at zero
     # to use the blade geometry defined in BladeGeometry.jl unchanged.
     collective_pitch_offset_deg::Float64 = 0.0

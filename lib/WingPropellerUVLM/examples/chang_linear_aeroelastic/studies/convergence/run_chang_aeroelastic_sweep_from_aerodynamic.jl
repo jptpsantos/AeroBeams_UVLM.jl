@@ -13,6 +13,8 @@ using DelimitedFiles
 using Printf
 
 include(joinpath(@__DIR__, "chang_aeroelastic_convergence.jl"))
+include(joinpath(@__DIR__, "chang_aerodynamic_study.jl"))
+using .ChangAerodynamicStudy: metadata_options
 
 const REQUIRED_AERODYNAMIC_FAMILIES = (
     :wing_span,
@@ -65,6 +67,12 @@ function read_aerodynamic_table(path)
             prop_chord = integer("prop_chord_panels"),
             wake_revolutions = number("wake_revolutions"),
             core_factor = number("core_segment_factor"),
+            chord_core_factor = number("core_chord_factor"),
+            expected_family_levels = integer("expected_family_levels"),
+            periodic_converged = boolean("periodic_converged"),
+            periodic_cl = number("periodic_CL_RMS"),
+            periodic_ct = number("periodic_CT_RMS"),
+            reference_stable = boolean("reference_stable"),
             azimuth_deg = number("azimuth_step_deg"),
             mean_cl = number("mean_wing_CL"),
             mean_ct = number("mean_propeller_CT"),
@@ -78,90 +86,45 @@ function read_aerodynamic_table(path)
 end
 
 function verify_aerodynamic_table_provenance(rows)
-    checked = Set{String}()
+    options_by_directory = Dict{String,Any}()
     operating_points = NamedTuple[]
     for row in rows
         row.status == "completed" || continue
-        case_directory = dirname(row.history_path)
-        summary_path = joinpath(case_directory, "coupled_aerodynamic_summary.txt")
-        summary_path in checked && continue
-        isfile(summary_path) || error(
-            "Aerodynamic provenance file is missing for $(row.family)/$(row.label): " *
-            summary_path,
-        )
-        lines = readlines(summary_path)
-        line_with(prefix) = begin
-            index = findfirst(line -> startswith(line, prefix), lines)
-            isnothing(index) && error("'$prefix' is missing from $summary_path")
-            lines[index]
+        directory = dirname(row.history_path)
+        options = get!(options_by_directory, directory) do
+            metadata_options(directory)
         end
-        wing_match = match(
-            r"Wing mesh: (\d+) span x (\d+) chord panels",
-            line_with("Wing mesh:"),
-        )
-        propeller_match = match(
-            r"Propeller mesh: (\d+) radial x (\d+) chord panels per blade",
-            line_with("Propeller mesh:"),
-        )
-        azimuth_match = match(
-            r"Azimuth step: ([^ ]+) deg",
-            line_with("Azimuth step:"),
-        )
-        wake_match = match(
-            r"Retained wake: ([^ ]+) revolutions",
-            line_with("Retained wake:"),
-        )
-        core_match = match(
-            r"Corrected finite core: max\(([^ ]+) ds, ([^ ]+) c\)",
-            line_with("Corrected finite core:"),
-        )
-        interaction_match = match(r"Interaction enabled: (true|false)", line_with("Interaction enabled:"))
-        speed_match = match(r"Flow speed: ([^ ]+) m/s", line_with("Flow speed:"))
-        aoa_match = match(r"Angle of attack: ([^ ]+) deg", line_with("Angle of attack:"))
-        rpm_match = match(r"RPM: ([^ ]+)", line_with("RPM:"))
-        any(isnothing, (wing_match, propeller_match, azimuth_match, wake_match, core_match)) &&
-            error("Could not parse aerodynamic provenance from $summary_path")
-        any(isnothing, (interaction_match, speed_match, aoa_match, rpm_match)) &&
-            error("Could not parse aerodynamic operating point from $summary_path")
-        interaction_on = parse(Bool, interaction_match.captures[1])
-        matches =
-            parse(Int, wing_match.captures[1]) == row.wing_span &&
-            parse(Int, wing_match.captures[2]) == row.wing_chord &&
-            parse(Int, propeller_match.captures[1]) == row.prop_radial &&
-            parse(Int, propeller_match.captures[2]) == row.prop_chord &&
-            isapprox(parse(Float64, wake_match.captures[1]), row.wake_revolutions) &&
-            isapprox(parse(Float64, core_match.captures[1]), row.core_factor) &&
-            isapprox(parse(Float64, core_match.captures[2]), 0.0; atol = eps(Float64)) &&
-            isapprox(parse(Float64, azimuth_match.captures[1]), row.azimuth_deg) &&
-            interaction_on
-        matches || error(
-            "Aerodynamic result metadata does not match table row " *
-            "$(row.family)/$(row.label): $summary_path. Recompute this case before " *
-            "starting the aeroelastic sweep.",
-        )
+        # Check every row even when several families share one cached history.
+        (options.wing_span_panels, options.wing_chord_panels,
+            options.propeller_radial_panels, options.propeller_chord_panels,
+            options.retained_wake_revolutions, options.finite_core_segment_factor,
+            options.finite_core_chord_factor, options.azimuth_step_deg) ==
+        (row.wing_span, row.wing_chord, row.prop_radial, row.prop_chord,
+            row.wake_revolutions, row.core_factor, row.chord_core_factor, row.azimuth_deg) ||
+            error("Aerodynamic metadata differs from row $(row.family)/$(row.label)")
+        options.interaction_on || error("The gated aerodynamic study requires interaction")
+        # These controls are fixed in the production Chang adapter.
+        (options.air_density_kgpm3, options.sideslip_deg,
+            options.collective_pitch_offset_deg, options.wake_relaxation) == (1.225, 0.0, 0.0, 0.1) ||
+            error("Density, sideslip, collective pitch or shedding fraction differ from the production adapter; align them before the aeroelastic study")
         push!(operating_points, (;
-            speed_mps = parse(Float64, speed_match.captures[1]),
-            angle_of_attack_deg = parse(Float64, aoa_match.captures[1]),
-            rpm = parse(Float64, rpm_match.captures[1]),
-        ))
-        push!(checked, summary_path)
+            speed_mps = options.flow_speed_mps,
+            angle_of_attack_deg = options.angle_of_attack_deg,
+            rpm = options.reference_rpm * options.flow_speed_mps / options.reference_speed_mps))
     end
     isempty(operating_points) && error("The aerodynamic table has no completed result")
-    reference = first(operating_points)
-    all(point ->
-        isapprox(point.speed_mps, reference.speed_mps) &&
-        isapprox(point.angle_of_attack_deg, reference.angle_of_attack_deg) &&
-        isapprox(point.rpm, reference.rpm), operating_points) || error(
-        "Aerodynamic cases do not share one flow speed, angle of attack, and RPM",
-    )
-    return reference
+    all(==(first(operating_points)), operating_points) ||
+        error("Aerodynamic cases do not share one operating point")
+    return first(operating_points)
 end
 
 function completed_family(rows, family)
     group = sort(filter(row -> row.family == family, rows); by = row -> row.level)
-    length(group) >= 3 || error(
-        "Aerodynamic family '$family' is incomplete: found $(length(group)) of 3 levels",
-    )
+    isempty(group) && error("Aerodynamic family '$family' is missing")
+    expected = first(group).expected_family_levels
+    expected >= 3 && all(row -> row.expected_family_levels == expected, group) &&
+        [row.level for row in group] == collect(1:expected) ||
+        error("Aerodynamic family '$family' is incomplete or has duplicate levels")
     all(row -> row.status == "completed", group) || error(
         "Aerodynamic family '$family' contains a failed or incomplete case",
     )
@@ -174,7 +137,8 @@ function selected_row(
     periodic_ct_tolerance,
     allow_finest_only,
 )
-    acceptable(row) = row.within_tolerance &&
+    acceptable(row) = row.within_tolerance && row.periodic_converged && row.reference_stable &&
+        row.periodic_cl <= periodic_cl_tolerance && row.periodic_ct <= periodic_ct_tolerance &&
         abs(row.drift_cl) <= periodic_cl_tolerance &&
         abs(row.drift_ct) <= periodic_ct_tolerance
     for index in eachindex(group)
@@ -218,14 +182,14 @@ function select_aerodynamic_configuration(
     wing_30_index = findfirst(row -> row.wing_span == 30, groups[:wing_span])
     isnothing(wing_30_index) && error("The wing-span family must contain 30 panels")
     wing_30 = groups[:wing_span][wing_30_index]
-    wing_30.within_tolerance || error(
+    wing_30.within_tolerance && wing_30.periodic_converged && wing_30.reference_stable || error(
         "Thirty span panels did not pass the rigid aerodynamic tolerance. " *
         "A work-conjugate noncollocated aero/structure mapping is required before refinement.",
     )
-    abs(wing_30.drift_cl) <= periodic_cl_tolerance || error(
+    max(abs(wing_30.drift_cl), wing_30.periodic_cl) <= periodic_cl_tolerance || error(
         "The 30-panel wing CL is not periodic enough for aeroelastic validation",
     )
-    abs(wing_30.drift_ct) <= periodic_ct_tolerance || error(
+    max(abs(wing_30.drift_ct), wing_30.periodic_ct) <= periodic_ct_tolerance || error(
         "The 30-panel wing CT is not periodic enough for aeroelastic validation",
     )
 
@@ -236,6 +200,7 @@ function select_aerodynamic_configuration(
         prop_chord = selected[:prop_chord].prop_chord,
         wake_revolutions = selected[:wake_length].wake_revolutions,
         core_factor = selected[:finite_core].core_factor,
+        chord_core_factor = selected[:finite_core].chord_core_factor,
         azimuth_deg = selected[:time_step].azimuth_deg,
     )
     finest = (;
@@ -247,6 +212,7 @@ function select_aerodynamic_configuration(
         # Core is a model sensitivity, not a refinement direction. Keep the
         # selected plateau value in the combined numerical-refinement case.
         core_factor = configuration.core_factor,
+        chord_core_factor = configuration.chord_core_factor,
         azimuth_deg = last(groups[:time_step]).azimuth_deg,
     )
     return (; configuration, finest, groups, selected)
@@ -263,6 +229,7 @@ function convergence_case(family, level, label, configuration)
         prop_chord_panels = configuration.prop_chord,
         wake_revolutions = configuration.wake_revolutions,
         fcore_segment_factor = configuration.core_factor,
+        fcore_chord_factor = configuration.chord_core_factor,
         azimuth_step_deg = configuration.azimuth_deg,
     ))
 end
@@ -294,11 +261,12 @@ function build_gated_aeroelastic_cases(selection, stage)
     end
 
     core_group = selection.groups[:finite_core]
-    core_index = findfirst(row -> row.core_factor == baseline.core_factor, core_group)
+    core_index = findfirst(row -> row.core_factor == baseline.core_factor && row.chord_core_factor == baseline.chord_core_factor, core_group)
     if !isnothing(core_index) && core_index < length(core_group)
         core_refined = merge(
             baseline,
-            (core_factor = core_group[core_index + 1].core_factor,),
+            (core_factor = core_group[core_index + 1].core_factor,
+             chord_core_factor = core_group[core_index + 1].chord_core_factor,),
         )
         push!(cases, convergence_case(:finite_core_sensitivity, 1, "selected", baseline))
         push!(cases, convergence_case(:finite_core_sensitivity, 2, "smaller_core", core_refined))
@@ -334,8 +302,8 @@ function write_configuration(path, source_path, selection, cases, stage, analysi
         println(stream)
         println(stream, "Aeroelastic cases:")
         println(stream)
-        println(stream, "| Family | Level | Label | Wing | Propeller | Wake (rev) | Core/ds | dpsi (deg) |")
-        println(stream, "|---|---:|---|---:|---:|---:|---:|---:|")
+        println(stream, "| Family | Level | Label | Wing | Propeller | Wake (rev) | Core/ds | Core/c | dpsi (deg) |")
+        println(stream, "|---|---:|---|---:|---:|---:|---:|---:|---:|")
         for case in cases
             println(
                 stream,
@@ -343,7 +311,7 @@ function write_configuration(path, source_path, selection, cases, stage, analysi
                 "$(case.wing_span_panels)x$(case.wing_chord_panels) | " *
                 "$(case.prop_radial_panels)x$(case.prop_chord_panels) | " *
                 "$(case.wake_revolutions) | $(case.fcore_segment_factor) | " *
-                "$(case.azimuth_step_deg) |",
+                "$(case.fcore_chord_factor) | $(case.azimuth_step_deg) |",
             )
         end
     end
@@ -360,6 +328,8 @@ function main_aeroelastic_from_aerodynamic()
     end
     rows = read_aerodynamic_table(aerodynamic_summary)
     operating_point = verify_aerodynamic_table_provenance(rows)
+    lowercase(get(ENV, "CHANG_CONVERGENCE_FORCE_MODEL", "imperial")) == "imperial" ||
+        error("The rigid aerodynamic validation uses Imperial forces; the gated study must use the same force model")
     allow_finest_only = convergence_bool("CHANG_AE_ALLOW_FINEST_ONLY", false)
     selection = select_aerodynamic_configuration(
         rows;
@@ -461,6 +431,7 @@ function main_aeroelastic_from_aerodynamic()
                 moving_block_frequency_max_hz = analysis.frequency_max_hz,
                 moving_block_apply_hann_window = analysis.hann_window,
                 angle_of_attack_deg = analysis.angle_of_attack_deg,
+                sideslip_deg = 0.0,
                 interaction_on = analysis.interaction_on,
                 ga_rho_inf = analysis.ga_rho_inf,
                 coupling_relaxation = analysis.coupling_relaxation,

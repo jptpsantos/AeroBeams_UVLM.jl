@@ -6,49 +6,53 @@ using Dates
 using DelimitedFiles
 using Printf
 using Statistics
-using Plots
+include(joinpath(@__DIR__, "chang_aerodynamic_study.jl"))
+using .ChangAerodynamicStudy
 
 const AERO_SWEEP_DIR = @__DIR__
 const AERO_EXAMPLE_DIR = normpath(joinpath(AERO_SWEEP_DIR, "..", ".."))
 const AERO_CASE_DRIVER = joinpath(AERO_SWEEP_DIR, "run_chang_coupled_aerodynamic_analysis.jl")
 const AERO_PROJECT_DIR = normpath(joinpath(AERO_EXAMPLE_DIR, "..", ".."))
 
-const AERO_NOMINAL_WING_SPAN = 30
-const AERO_NOMINAL_WING_CHORD = 10
-const AERO_NOMINAL_PROP_RADIAL = 10
-const AERO_NOMINAL_PROP_CHORD = 10
-const AERO_NOMINAL_WAKE_REVOLUTIONS = 2.0
-const AERO_NOMINAL_CORE_FACTOR = 0.25
-const AERO_NOMINAL_AZIMUTH_DEG = 5.0
+aero_sweep_float(name, default) = aero_float(name, default)
+aero_sweep_int(name, default) = aero_int(name, default)
+aero_sweep_bool(name, default) = aero_bool(name, default)
 
-# Only one coordinate is refined in each family.  Unlike the aeroelastic
-# sweep, the wing is rigid here, so spanwise wing refinement is purely
-# aerodynamic and cannot change a structural natural frequency.
-const AERO_WING_SPAN_LEVELS = [20, 30, 40]
-const AERO_WING_CHORD_LEVELS = [10, 20, 30]
-const AERO_PROP_RADIAL_LEVELS = [10, 15, 20]
-const AERO_PROP_CHORD_LEVELS = [10, 15, 20]
-const AERO_WAKE_LEVELS = [1.0, 2.0, 3.0]
-# This is a regularization-sensitivity family. Decreasing the core is not, by
-# itself, proof of increasing physical accuracy.
-const AERO_CORE_LEVELS = [0.1, 0.05, 0.025, 0.01]
-# Retain three levels for a genuine time-step trend.  The 5-degree case is the
-# nominal setting; 10 degrees supplies a coarse point and 2.5 degrees is the
-# refined reference.
-const AERO_AZIMUTH_LEVELS = [5.0, 2.5, 1.0]
+# Chord mode holds a physical radius fixed as span/radial grids change.
+# Segment mode intentionally couples regularization to those mesh sizes.
+const AERO_CORE_MODE = Symbol(lowercase(get(ENV, "CHANG_AERO_SWEEP_CORE_MODE", "chord")))
+AERO_CORE_MODE in (:chord, :segment) || error("Core mode must be chord or segment")
+const AERO_NOMINAL_WING_SPAN = aero_sweep_int("CHANG_AERO_WING_SPAN_PANELS", 30)
+const AERO_NOMINAL_WING_CHORD = aero_sweep_int("CHANG_AERO_WING_CHORD_PANELS", 10)
+const AERO_NOMINAL_PROP_RADIAL = aero_sweep_int("CHANG_AERO_PROP_RADIAL_PANELS", 10)
+const AERO_NOMINAL_PROP_CHORD = aero_sweep_int("CHANG_AERO_PROP_CHORD_PANELS", 10)
+const AERO_NOMINAL_WAKE_REVOLUTIONS = aero_sweep_float("CHANG_AERO_RETAINED_WAKE_REVOLUTIONS", 2.0)
+const AERO_NOMINAL_CORE_FACTOR = AERO_CORE_MODE == :segment ?
+    aero_sweep_float("CHANG_AERO_FCORE_SEGMENT_FACTOR", 0.25) : 0.0
+const AERO_NOMINAL_CHORD_CORE_FACTOR = AERO_CORE_MODE == :chord ?
+    aero_sweep_float("CHANG_AERO_FCORE_CHORD_FACTOR", 0.01) : 0.0
+const AERO_NOMINAL_AZIMUTH_DEG = aero_sweep_float("CHANG_AERO_AZIMUTH_STEP_DEG", 5.0)
 
-aero_sweep_float(name, default) = parse(Float64, get(ENV, name, string(default)))
-aero_sweep_int(name, default) = parse(Int, get(ENV, name, string(default)))
-
-function aero_sweep_bool(name, default)
-    value = lowercase(strip(get(ENV, name, string(default))))
-    value in ("1", "true", "yes", "on") && return true
-    value in ("0", "false", "no", "off") && return false
-    error("$name must be true/false, yes/no, on/off, or 1/0")
+function sweep_levels(name, defaults, type = Float64; decreasing = false)
+    values = parse.(type, strip.(split(get(ENV, name, join(defaults, ',')), ',')))
+    length(values) >= 3 || error("$name requires at least three levels")
+    all(value -> isfinite(value) && value > 0, values) || error("$name must be finite and positive")
+    all(delta -> decreasing ? delta < 0 : delta > 0, diff(values)) ||
+        error("$name must be strictly ordered from coarse to fine")
+    return values
 end
 
+const AERO_WING_SPAN_LEVELS = sweep_levels("CHANG_AERO_SWEEP_WING_SPAN_LEVELS", [20,30,40], Int)
+const AERO_WING_CHORD_LEVELS = sweep_levels("CHANG_AERO_SWEEP_WING_CHORD_LEVELS", [10,20,30], Int)
+const AERO_PROP_RADIAL_LEVELS = sweep_levels("CHANG_AERO_SWEEP_PROP_RADIAL_LEVELS", [10,15,20], Int)
+const AERO_PROP_CHORD_LEVELS = sweep_levels("CHANG_AERO_SWEEP_PROP_CHORD_LEVELS", [10,15,20], Int)
+const AERO_WAKE_LEVELS = sweep_levels("CHANG_AERO_SWEEP_WAKE_LEVELS", [1,2,3])
+const AERO_CORE_LEVELS = sweep_levels("CHANG_AERO_SWEEP_CORE_LEVELS",
+    AERO_CORE_MODE == :chord ? [0.04,0.02,0.01,0.005] : [0.5,0.25,0.125,0.0625]; decreasing = true)
+const AERO_AZIMUTH_LEVELS = sweep_levels("CHANG_AERO_SWEEP_AZIMUTH_LEVELS", [5,2.5,1]; decreasing = true)
+
 function number_token(value)
-    return replace(@sprintf("%.3f", value), "." => "p", "-" => "m")
+    return replace(string(value), "." => "p", "-" => "m")
 end
 
 Base.@kwdef struct AerodynamicSweepCase
@@ -61,6 +65,7 @@ Base.@kwdef struct AerodynamicSweepCase
     prop_chord::Int = AERO_NOMINAL_PROP_CHORD
     wake_revolutions::Float64 = AERO_NOMINAL_WAKE_REVOLUTIONS
     core_factor::Float64 = AERO_NOMINAL_CORE_FACTOR
+    chord_core_factor::Float64 = AERO_NOMINAL_CHORD_CORE_FACTOR
     azimuth_deg::Float64 = AERO_NOMINAL_AZIMUTH_DEG
 end
 
@@ -71,6 +76,7 @@ case_key(case) = (
     case.prop_chord,
     case.wake_revolutions,
     case.core_factor,
+    case.chord_core_factor,
     case.azimuth_deg,
 )
 
@@ -153,8 +159,9 @@ function build_cases(families)
             push!(cases, AerodynamicSweepCase(
                 family = :finite_core,
                 level = level,
-                label = "core_$(number_token(value))_ds",
-                core_factor = value,
+                label = "core_$(number_token(value))_$(AERO_CORE_MODE)",
+                core_factor = AERO_CORE_MODE == :segment ? value : 0.0,
+                chord_core_factor = AERO_CORE_MODE == :chord ? value : 0.0,
             ))
         end
     end
@@ -171,116 +178,50 @@ function build_cases(families)
     return cases
 end
 
-function aerodynamic_output_matches_case(case_directory, case; warn_on_mismatch = true)
-    summary_path = joinpath(case_directory, "coupled_aerodynamic_summary.txt")
-    isfile(summary_path) || return false
-    lines = readlines(summary_path)
-    line_with(prefix) = begin
-        index = findfirst(line -> startswith(line, prefix), lines)
-        isnothing(index) ? nothing : lines[index]
-    end
-    wing_line = line_with("Wing mesh:")
-    propeller_line = line_with("Propeller mesh:")
-    azimuth_line = line_with("Azimuth step:")
-    wake_line = line_with("Retained wake:")
-    core_line = line_with("Corrected finite core:")
-    interaction_line = line_with("Interaction enabled:")
-    speed_line = line_with("Flow speed:")
-    aoa_line = line_with("Angle of attack:")
-    rpm_line = line_with("RPM:")
-    any(isnothing, (
-        wing_line,
-        propeller_line,
-        azimuth_line,
-        wake_line,
-        core_line,
-        interaction_line,
-        speed_line,
-        aoa_line,
-        rpm_line,
-    )) &&
-        return false
-
-    wing_match = match(r"Wing mesh: (\d+) span x (\d+) chord panels", wing_line)
-    propeller_match = match(
-        r"Propeller mesh: (\d+) radial x (\d+) chord panels per blade",
-        propeller_line,
-    )
-    azimuth_match = match(r"Azimuth step: ([^ ]+) deg", azimuth_line)
-    wake_match = match(r"Retained wake: ([^ ]+) revolutions", wake_line)
-    core_match = match(r"Corrected finite core: max\(([^ ]+) ds, ([^ ]+) c\)", core_line)
-    interaction_match = match(r"Interaction enabled: (true|false)", interaction_line)
-    speed_match = match(r"Flow speed: ([^ ]+) m/s", speed_line)
-    aoa_match = match(r"Angle of attack: ([^ ]+) deg", aoa_line)
-    rpm_match = match(r"RPM: ([^ ]+)", rpm_line)
-    any(isnothing, (
-        wing_match,
-        propeller_match,
-        azimuth_match,
-        wake_match,
-        core_match,
-        interaction_match,
-        speed_match,
-        aoa_match,
-        rpm_match,
-    )) &&
-        return false
-
-    expected_speed = aero_sweep_float("CHANG_AERO_SPEED_MPS", 80.0)
-    expected_aoa = aero_sweep_float("CHANG_AERO_AOA_DEG", 0.0)
-    reference_rpm = aero_sweep_float("CHANG_AERO_REFERENCE_RPM", 1217.6962)
-    reference_speed = aero_sweep_float("CHANG_AERO_REFERENCE_SPEED_MPS", 65.0)
-    expected_rpm = reference_rpm * expected_speed / reference_speed
-
-    matches =
-        parse(Int, wing_match.captures[1]) == case.wing_span &&
-        parse(Int, wing_match.captures[2]) == case.wing_chord &&
-        parse(Int, propeller_match.captures[1]) == case.prop_radial &&
-        parse(Int, propeller_match.captures[2]) == case.prop_chord &&
-        isapprox(parse(Float64, wake_match.captures[1]), case.wake_revolutions) &&
-        isapprox(parse(Float64, core_match.captures[1]), case.core_factor) &&
-        isapprox(parse(Float64, core_match.captures[2]), 0.0; atol = eps(Float64)) &&
-        isapprox(parse(Float64, azimuth_match.captures[1]), case.azimuth_deg) &&
-        parse(Bool, interaction_match.captures[1]) &&
-        isapprox(parse(Float64, speed_match.captures[1]), expected_speed) &&
-        isapprox(parse(Float64, aoa_match.captures[1]), expected_aoa) &&
-        isapprox(parse(Float64, rpm_match.captures[1]), expected_rpm; rtol = 1e-8)
-    if !matches && warn_on_mismatch
-        @warn "Existing aerodynamic output does not match its requested case and will not be reused" case_directory case
-    end
-    return matches
+function case_options(case, case_directory; simulated_revolutions, averaged_revolutions)
+    options = options_from_environment(child_environment(case, case_directory;
+        simulated_revolutions, averaged_revolutions))
+    validate_options(options)
+    return options
 end
 
-function read_periodic_result(case_directory, case, averaged_revolutions)
-    aerodynamic_output_matches_case(case_directory, case; warn_on_mismatch = false) ||
-        error("Aerodynamic output metadata does not match case $(case.family)/$(case.label)")
+function aerodynamic_output_matches_case(case_directory, case;
+    simulated_revolutions = aero_sweep_int("CHANG_AERO_SWEEP_SIMULATED_REVOLUTIONS", 8),
+    averaged_revolutions = aero_sweep_int("CHANG_AERO_SWEEP_AVERAGED_REVOLUTIONS", 2),
+    warn_on_mismatch = true)
+    options = case_options(case, case_directory; simulated_revolutions, averaged_revolutions)
+    return output_matches_options(case_directory, options; warn_on_mismatch)
+end
+
+function read_periodic_result(case_directory, case, averaged_revolutions;
+    simulated_revolutions = aero_sweep_int("CHANG_AERO_SWEEP_SIMULATED_REVOLUTIONS", 8))
+    aerodynamic_output_matches_case(case_directory, case; simulated_revolutions,
+        averaged_revolutions, warn_on_mismatch = false) ||
+        error("Aerodynamic output metadata does not match the requested case")
+    options = case_options(case, case_directory; simulated_revolutions, averaged_revolutions)
     history_path = joinpath(case_directory, "coupled_aerodynamic_history.csv")
     revolution_path = joinpath(case_directory, "coupled_aerodynamic_revolutions.csv")
-    raw_history, history_header = readdlm(history_path, ',', header = true)
-    raw_revolutions, revolution_header = readdlm(revolution_path, ',', header = true)
-    history_headers = String.(vec(history_header))
-    revolution_headers = String.(vec(revolution_header))
-    history_column(name) = Float64.(raw_history[:, something(findfirst(==(name), history_headers))])
-    revolution_column(name) = Float64.(raw_revolutions[:, something(findfirst(==(name), revolution_headers))])
-
-    cl = history_column("wing_CL")
-    ct = history_column("propeller_CT")
-    steps_per_revolution = round(Int, 360 / case.azimuth_deg)
-    average_count = averaged_revolutions * steps_per_revolution
-    length(cl) >= average_count || error("History is shorter than the requested average")
-    average_indices = (length(cl) - average_count + 1):length(cl)
-    revolution_cl = revolution_column("mean_wing_CL")
-    revolution_ct = revolution_column("mean_propeller_CT")
-    return (;
-        mean_cl = mean(cl[average_indices]),
-        mean_ct = mean(ct[average_indices]),
-        std_cl = std(cl[average_indices]),
-        std_ct = std(ct[average_indices]),
-        drift_cl = revolution_cl[end] - revolution_cl[end - 1],
-        drift_ct = revolution_ct[end] - revolution_ct[end - 1],
-        history_path,
-        revolution_path,
-    )
+    raw, header = readdlm(history_path, ',', header = true)
+    headers = String.(vec(header))
+    column(name) = Float64.(raw[:, something(findfirst(==(name), headers))])
+    steps = validate_options(options)
+    count = simulated_revolutions * steps
+    size(raw, 1) == count || error("Incomplete coefficient history")
+    dt = deg2rad(case.azimuth_deg) /
+        (options.reference_rpm * 2pi / 60 * options.flow_speed_mps / options.reference_speed_mps)
+    all(isapprox.(column("time_s"), collect(1:count) .* dt; rtol = 1e-10, atol = 1e-12)) ||
+        error("Coefficient history has an inconsistent time grid")
+    phases = mod.(collect(1:count) .* case.azimuth_deg, 360)
+    phase_delta = mod.(column("azimuth_deg") .- phases .+ 180, 360) .- 180
+    all(abs.(phase_delta) .<= 1e-8) || error("Coefficient history has an inconsistent azimuth grid")
+    cl = periodic_metrics(column("wing_CL"), steps, averaged_revolutions)
+    ct = periodic_metrics(column("propeller_CT"), steps, averaged_revolutions)
+    cq = periodic_metrics(column("propeller_CQ"), steps, averaged_revolutions)
+    return (; mean_cl = cl.mean, mean_ct = ct.mean, mean_cq = cq.mean,
+        std_cl = cl.std, std_ct = ct.std, drift_cl = cl.drift, drift_ct = ct.drift,
+        periodic_cl = cl.periodic_rms, periodic_ct = ct.periodic_rms, periodic_cq = cq.periodic_rms,
+        phase_cl = cl.phase, phase_ct = ct.phase, phase_cq = cq.phase,
+        history_path, revolution_path)
 end
 
 function child_environment(case, case_directory; simulated_revolutions, averaged_revolutions)
@@ -292,7 +233,8 @@ function child_environment(case, case_directory; simulated_revolutions, averaged
     environment["CHANG_AERO_PROP_CHORD_PANELS"] = string(case.prop_chord)
     environment["CHANG_AERO_RETAINED_WAKE_REVOLUTIONS"] = string(case.wake_revolutions)
     environment["CHANG_AERO_FCORE_SEGMENT_FACTOR"] = string(case.core_factor)
-    environment["CHANG_AERO_FCORE_CHORD_FACTOR"] = "0.0"
+    environment["CHANG_AERO_FCORE_CHORD_FACTOR"] = string(case.chord_core_factor)
+    environment["CHANG_AERO_PLOT_RESULTS"] = "false"
     environment["CHANG_AERO_AZIMUTH_STEP_DEG"] = string(case.azimuth_deg)
     environment["CHANG_AERO_SIMULATED_REVOLUTIONS"] = string(simulated_revolutions)
     environment["CHANG_AERO_AVERAGED_REVOLUTIONS"] = string(averaged_revolutions)
@@ -363,7 +305,7 @@ function run_case(
     log_path = joinpath(output_directory, output_label * ".log")
     reusable_files = isfile(history_path) && isfile(revolution_path)
     reused = reuse_existing && reusable_files &&
-        aerodynamic_output_matches_case(case_directory, case)
+        aerodynamic_output_matches_case(case_directory, case; simulated_revolutions, averaged_revolutions)
     elapsed_s = 0.0
 
     if !reused
@@ -377,39 +319,40 @@ function run_case(
         command = `$(Base.julia_cmd()) --startup-file=no --project=$(AERO_PROJECT_DIR) $(AERO_CASE_DRIVER)`
         println("\n[aero sweep] $(case.family) L$(case.level) $(case.label) -> $log_path")
         start_time = time()
-        succeeded = run_logged_child(command, environment, log_path; live_log)
+        succeeded = try
+            run_logged_child(command, environment, log_path; live_log)
+        catch exception
+            exception isa InterruptException && rethrow()
+            @warn "Could not run aerodynamic child" exception
+            false
+        end
         elapsed_s = time() - start_time
         if !succeeded || !isfile(history_path) || !isfile(revolution_path)
-            return (;
-                case,
-                status = "failed",
-                reason = succeeded ? "result files missing" : "child process failed",
-                reused = false,
-                elapsed_s,
-                mean_cl = NaN,
-                mean_ct = NaN,
-                std_cl = NaN,
-                std_ct = NaN,
-                drift_cl = NaN,
-                drift_ct = NaN,
-                history_path,
-                revolution_path,
-                log_path,
-            )
+            return failed_result(case, history_path, revolution_path, log_path, elapsed_s,
+                succeeded ? "result files missing" : "child process failed")
         end
     else
         println("\n[aero sweep] Reusing $output_label")
     end
 
-    periodic = read_periodic_result(case_directory, case, averaged_revolutions)
-    return merge((;
-        case,
-        status = "completed",
-        reason = "periodic coefficient history available",
-        reused,
-        elapsed_s,
-        log_path,
-    ), periodic)
+    periodic = try
+        read_periodic_result(case_directory, case, averaged_revolutions; simulated_revolutions)
+    catch exception
+        exception isa InterruptException && rethrow()
+        @warn "Invalid aerodynamic result" case_directory exception
+        return failed_result(case, history_path, revolution_path, log_path, elapsed_s,
+            sprint(showerror, exception))
+    end
+    return merge((; case, status = "completed", reason = "coefficient history verified",
+        reused, elapsed_s, log_path), periodic)
+end
+
+function failed_result(case, history_path, revolution_path, log_path, elapsed_s, reason)
+    return (; case, status = "failed", reason, reused = false, elapsed_s,
+        mean_cl = NaN, mean_ct = NaN, mean_cq = NaN, std_cl = NaN, std_ct = NaN,
+        drift_cl = NaN, drift_ct = NaN, periodic_cl = NaN, periodic_ct = NaN, periodic_cq = NaN,
+        phase_cl = Float64[], phase_ct = Float64[], phase_cq = Float64[],
+        history_path, revolution_path, log_path)
 end
 
 finite_or_blank(value) = value isa Real && isfinite(value) ? @sprintf("%.12g", value) : ""
@@ -428,31 +371,54 @@ function expected_final_level(family)
     return length(levels[family])
 end
 
-function annotate_results(results; cl_absolute_tolerance, ct_absolute_tolerance, relative_tolerance)
+function annotate_results(results; cl_absolute_tolerance, ct_absolute_tolerance, relative_tolerance,
+    cq_absolute_tolerance = aero_sweep_float("CHANG_AERO_SWEEP_CQ_ABS_TOL", 1e-6),
+    periodic_cl_tolerance = aero_sweep_float("CHANG_AERO_SWEEP_PERIODIC_CL_TOL", 1e-4),
+    periodic_ct_tolerance = aero_sweep_float("CHANG_AERO_SWEEP_PERIODIC_CT_TOL", 1e-6),
+    periodic_cq_tolerance = aero_sweep_float("CHANG_AERO_SWEEP_PERIODIC_CQ_TOL", 1e-6))
+    tolerances = (cl_absolute_tolerance, ct_absolute_tolerance, cq_absolute_tolerance,
+        relative_tolerance, periodic_cl_tolerance, periodic_ct_tolerance, periodic_cq_tolerance)
+    all(value -> isfinite(value) && value >= 0, tolerances) || error("Tolerances must be finite and nonnegative")
+    periodic(result) = result.status == "completed" &&
+        result.periodic_cl <= periodic_cl_tolerance &&
+        result.periodic_ct <= periodic_ct_tolerance && result.periodic_cq <= periodic_cq_tolerance
     annotated = NamedTuple[]
     for family in unique(result.case.family for result in results)
         group = sort(filter(result -> result.case.family == family, results); by = r -> r.case.level)
         reference = last(group)
-        # During a long run, the last *completed* case is not necessarily the
-        # configured finest reference. Keep convergence flags false until the
-        # actual last level of this family is available.
-        valid_reference = reference.status == "completed" &&
-            reference.case.level == expected_final_level(family)
-        cl_limit = valid_reference ? max(cl_absolute_tolerance, relative_tolerance * abs(reference.mean_cl)) : NaN
-        ct_limit = valid_reference ? max(ct_absolute_tolerance, relative_tolerance * abs(reference.mean_ct)) : NaN
-        for result in group
-            cl_error = result.status == "completed" && valid_reference ?
-                abs(result.mean_cl - reference.mean_cl) : NaN
-            ct_error = result.status == "completed" && valid_reference ?
-                abs(result.mean_ct - reference.mean_ct) : NaN
+        expected = expected_final_level(family)
+        complete = [r.case.level for r in group] == collect(1:expected) &&
+            all(r -> r.status == "completed", group)
+        # Keep diagnostic errors visible even when periodicity fails; the
+        # acceptance path below still requires periodic candidate/reference loads.
+        valid_reference = complete
+        cl_limit = max(cl_absolute_tolerance, relative_tolerance * abs(reference.mean_cl))
+        ct_limit = max(ct_absolute_tolerance, relative_tolerance * abs(reference.mean_ct))
+        cq_limit = max(cq_absolute_tolerance, relative_tolerance * abs(reference.mean_cq))
+        # A finest case cannot prove convergence by agreeing with itself.
+        agrees(a, b) = periodic(a) && periodic(b) &&
+            abs(a.mean_cl - b.mean_cl) <= cl_limit &&
+            abs(a.mean_ct - b.mean_ct) <= ct_limit &&
+            abs(a.mean_cq - b.mean_cq) <= cq_limit &&
+            phase_rms_error(a.phase_cl, b.phase_cl) <= cl_limit &&
+            phase_rms_error(a.phase_ct, b.phase_ct) <= ct_limit &&
+            phase_rms_error(a.phase_cq, b.phase_cq) <= cq_limit
+        reference_stable = valid_reference && agrees(group[end - 1], reference)
+        for (index, result) in enumerate(group)
+            errors = valid_reference && result.status == "completed" ?
+                (abs(result.mean_cl - reference.mean_cl), abs(result.mean_ct - reference.mean_ct),
+                 abs(result.mean_cq - reference.mean_cq),
+                 phase_rms_error(result.phase_cl, reference.phase_cl),
+                 phase_rms_error(result.phase_ct, reference.phase_ct),
+                 phase_rms_error(result.phase_cq, reference.phase_cq)) : ntuple(_ -> NaN, 6)
             push!(annotated, merge(result, (;
-                reference_label = reference.case.label,
-                cl_reference_error = cl_error,
-                ct_reference_error = ct_error,
-                cl_tolerance = cl_limit,
-                ct_tolerance = ct_limit,
-                within_tolerance = isfinite(cl_error) && isfinite(ct_error) &&
-                    cl_error <= cl_limit && ct_error <= ct_limit,
+                expected_family_levels = expected, reference_label = reference.case.label,
+                cl_reference_error = errors[1], ct_reference_error = errors[2], cq_reference_error = errors[3],
+                cl_phase_error = errors[4], ct_phase_error = errors[5], cq_phase_error = errors[6],
+                cl_tolerance = cl_limit, ct_tolerance = ct_limit, cq_tolerance = cq_limit,
+                periodic_cl_tolerance, periodic_ct_tolerance, periodic_cq_tolerance,
+                periodic_converged = periodic(result), reference_stable,
+                within_tolerance = reference_stable && all(r -> agrees(r, reference), group[index:end]),
             )))
         end
     end
@@ -462,33 +428,37 @@ end
 function write_summary(path, results)
     headers = [
         "family", "level", "label", "status", "reason", "reused",
-        "wing_span_panels", "wing_chord_panels", "prop_radial_panels",
-        "prop_chord_panels", "wake_revolutions", "core_segment_factor",
-        "azimuth_step_deg", "mean_wing_CL", "mean_propeller_CT",
-        "std_wing_CL", "std_propeller_CT", "last_revolution_CL_change",
-        "last_revolution_CT_change", "reference_label", "CL_reference_error",
-        "CT_reference_error", "CL_tolerance", "CT_tolerance", "within_tolerance",
-        "elapsed_s", "history_path", "log_path",
+        "wing_span_panels", "wing_chord_panels", "prop_radial_panels", "prop_chord_panels",
+        "wake_revolutions", "core_segment_factor", "core_chord_factor", "azimuth_step_deg",
+        "mean_wing_CL", "mean_propeller_CT", "mean_propeller_CQ", "std_wing_CL", "std_propeller_CT",
+        "last_revolution_CL_change", "last_revolution_CT_change",
+        "periodic_CL_RMS", "periodic_CT_RMS", "periodic_CQ_RMS", "periodic_converged",
+        "periodic_CL_tolerance", "periodic_CT_tolerance", "periodic_CQ_tolerance",
+        "reference_label", "CL_reference_error", "CT_reference_error", "CQ_reference_error",
+        "CL_phase_RMS_error", "CT_phase_RMS_error", "CQ_phase_RMS_error",
+        "CL_tolerance", "CT_tolerance", "CQ_tolerance", "reference_stable",
+        "within_tolerance", "expected_family_levels", "elapsed_s", "history_path", "log_path",
     ]
     open(path, "w") do stream
-        println(stream, join(headers, ','))
+        writedlm(stream, permutedims(headers), ',')
         for result in results
             case = result.case
             values = [
-                case.family, case.level, case.label, result.status, result.reason,
-                result.reused, case.wing_span, case.wing_chord, case.prop_radial,
-                case.prop_chord, case.wake_revolutions, case.core_factor,
-                case.azimuth_deg, finite_or_blank(result.mean_cl),
-                finite_or_blank(result.mean_ct), finite_or_blank(result.std_cl),
-                finite_or_blank(result.std_ct), finite_or_blank(result.drift_cl),
-                finite_or_blank(result.drift_ct), result.reference_label,
-                finite_or_blank(result.cl_reference_error),
-                finite_or_blank(result.ct_reference_error),
-                finite_or_blank(result.cl_tolerance), finite_or_blank(result.ct_tolerance),
-                result.within_tolerance, finite_or_blank(result.elapsed_s),
+                case.family, case.level, case.label, result.status, result.reason, result.reused,
+                case.wing_span, case.wing_chord, case.prop_radial, case.prop_chord,
+                case.wake_revolutions, case.core_factor, case.chord_core_factor, case.azimuth_deg,
+                result.mean_cl, result.mean_ct, result.mean_cq, result.std_cl, result.std_ct,
+                result.drift_cl, result.drift_ct, result.periodic_cl, result.periodic_ct,
+                result.periodic_cq, result.periodic_converged,
+                result.periodic_cl_tolerance, result.periodic_ct_tolerance, result.periodic_cq_tolerance,
+                result.reference_label,
+                result.cl_reference_error, result.ct_reference_error, result.cq_reference_error,
+                result.cl_phase_error, result.ct_phase_error, result.cq_phase_error,
+                result.cl_tolerance, result.ct_tolerance, result.cq_tolerance, result.reference_stable,
+                result.within_tolerance, result.expected_family_levels, result.elapsed_s,
                 result.history_path, result.log_path,
             ]
-            println(stream, join(string.(values), ','))
+            writedlm(stream, permutedims(values), ',')
         end
     end
     return path
@@ -496,32 +466,28 @@ end
 
 function write_report(path, results; simulated_revolutions, averaged_revolutions)
     open(path, "w") do stream
-        println(stream, "# Chang rigid coupled aerodynamic convergence")
-        println(stream)
+        println(stream, "# Chang rigid coupled aerodynamic convergence\n")
         println(stream, "Generated: $(Dates.format(now(), "yyyy-mm-dd HH:MM:SS"))")
-        println(stream, "Interaction: enabled (wing and propeller are in one UVLM solve).")
-        println(stream, "Finite-core kernel: corrected regularized segment, epsilon = factor times 3-D segment length.")
-        println(stream, "Simulated/averaged revolutions: $simulated_revolutions/$averaged_revolutions.")
-        println(stream)
+        println(stream, "Interaction enabled. Core mode: $AERO_CORE_MODE; radius = max(segment factor * ds, chord factor * c).")
+        println(stream, "Here ds is the 3-D span/radial bound-edge length, and c is the full local chord.")
+        println(stream, "Simulated/averaged revolutions: $simulated_revolutions/$averaged_revolutions.\n")
+        println(stream, "Acceptance requires periodic CL/CT/CQ waveforms, agreement of the final two levels, and agreement of all finer levels with the reference.")
+        println(stream, "Waveform RMS errors use both azimuth grids; standard deviation is a physical fluctuation measure, not a statistical confidence interval.\n")
         for family in unique(result.case.family for result in results)
-            println(stream, "## $(replace(string(family), '_' => ' '))")
-            println(stream)
-            println(stream, "| Level | Case | Wing CL | Propeller CT | Delta CL/rev | Delta CT/rev | Converged |")
-            println(stream, "|---:|---|---:|---:|---:|---:|:---:|")
+            println(stream, "## $(replace(string(family), '_' => ' '))\n")
+            println(stream, "| Level | Case | Status | CL | CT | CQ | Periodic | Accepted |")
+            println(stream, "|---:|---|---|---:|---:|---:|:---:|:---:|")
             group = sort(filter(result -> result.case.family == family, results); by = r -> r.case.level)
             for result in group
-                println(
-                    stream,
-                    "| $(result.case.level) | $(result.case.label) | " *
+                println(stream, "| $(result.case.level) | $(result.case.label) | $(result.status) | " *
                     "$(finite_or_blank(result.mean_cl)) | $(finite_or_blank(result.mean_ct)) | " *
-                    "$(finite_or_blank(result.drift_cl)) | $(finite_or_blank(result.drift_ct)) | " *
-                    "$(result.within_tolerance ? "yes" : "no") |",
-                )
+                    "$(finite_or_blank(result.mean_cq)) | $(result.periodic_converged) | $(result.within_tolerance) |")
             end
             println(stream)
         end
-        println(stream, "The finite-core table is a sensitivity test. Its smallest core is not automatically the physically preferred value.")
-        println(stream, "Only settings with small revolution-to-revolution drift should be used to judge spatial convergence.")
+        println(stream, "Finite core is a regularization-sensitivity study. A small radius is not proof of physical accuracy.")
+        println(stream, "If periodicity fails, increase simulated revolutions before interpreting grid differences.")
+        println(stream, "If the final pair disagrees, extend the levels. Confirm the selected settings together in a combined refinement study.")
     end
     return path
 end
@@ -529,35 +495,39 @@ end
 function plot_results(path, results)
     families = unique(result.case.family for result in results)
     panels = Any[]
+    ratio(error, tolerance) = tolerance > 0 ? error / tolerance : iszero(error) ? 0.0 : NaN
     for family in families
         group = sort(filter(result -> result.case.family == family, results); by = r -> r.case.level)
         x = collect(eachindex(group))
-        labels = [result.case.label for result in group]
-        cl = [result.mean_cl for result in group]
-        ct = [result.mean_ct for result in group]
-        panel = plot(
-            x,
-            cl;
-            marker = :circle,
-            linewidth = 2,
-            label = "wing CL",
-            xticks = (x, labels),
-            xrotation = 25,
-            framestyle = :box,
-            gridalpha = 0.25,
-            title = replace(string(family), '_' => ' '),
-        )
-        plot!(panel, x, ct; marker = :diamond, linewidth = 2, label = "propeller CT")
+        labels = [begin
+            c = result.case
+            family == :time_step ? "$(c.azimuth_deg) deg" :
+            family == :wake_length ? "$(c.wake_revolutions) rev" :
+            family == :finite_core ? (c.chord_core_factor > 0 ? "$(c.chord_core_factor) c" : "$(c.core_factor) ds") :
+            string(getfield(c, family))
+        end for result in group]
+        cl = [ratio(max(r.cl_reference_error, r.cl_phase_error), r.cl_tolerance) for r in group]
+        ct = [ratio(max(r.ct_reference_error, r.ct_phase_error), r.ct_tolerance) for r in group]
+        cq = [ratio(max(r.cq_reference_error, r.cq_phase_error), r.cq_tolerance) for r in group]
+        panel = plot(x, cl; marker = :circle, linewidth = 2, label = "CL",
+            ylabel = "Error / tolerance", xticks = (x, labels), xrotation = 0,
+            framestyle = :box, gridalpha = 0.25,
+            title = replace(string(family), '_' => ' '))
+        plot!(panel, x, ct; marker = :diamond, linewidth = 2, label = "CT")
+        plot!(panel, x, cq; marker = :square, linewidth = 2, label = "CQ")
+        hline!(panel, [1.0]; color = :black, linestyle = :dash, label = "tolerance")
+        # A zero reference error is only a comparison, not a convergence result.
+        accepted = findall(r -> r.within_tolerance, group)
+        scatter!(panel, x[accepted], zeros(length(accepted)); marker = :star5,
+            color = :green, markersize = 8, label = "accepted")
         push!(panels, panel)
     end
     columns = min(2, length(panels))
     rows = ceil(Int, length(panels) / columns)
-    figure = plot(
-        panels...;
-        layout = (rows, columns),
+    figure = plot(panels...; layout = (rows, columns),
         size = (760 * columns, 430 * rows),
-        plot_title = "Rigid coupled aerodynamic convergence",
-    )
+        plot_title = "Aerodynamic convergence: mean and waveform errors",
+        plot_titlefontsize = 12, bottom_margin = 5Plots.mm)
     savefig(figure, path)
     return path
 end
@@ -565,8 +535,8 @@ end
 function main()
     families = requested_families()
     cases = build_cases(families)
-    simulated_revolutions = aero_sweep_int("CHANG_AERO_SWEEP_SIMULATED_REVOLUTIONS", 4)
-    averaged_revolutions = aero_sweep_int("CHANG_AERO_SWEEP_AVERAGED_REVOLUTIONS", 1)
+    simulated_revolutions = aero_sweep_int("CHANG_AERO_SWEEP_SIMULATED_REVOLUTIONS", 8)
+    averaged_revolutions = aero_sweep_int("CHANG_AERO_SWEEP_AVERAGED_REVOLUTIONS", 2)
     reuse_existing = aero_sweep_bool("CHANG_AERO_SWEEP_REUSE_EXISTING", true)
     live_log = aero_sweep_bool("CHANG_AERO_SWEEP_LIVE_LOG", true)
     dry_run = aero_sweep_bool("CHANG_AERO_SWEEP_DRY_RUN", false)
@@ -576,6 +546,15 @@ function main()
     # smaller CT floor; the common relative tolerance still scales at larger CT.
     ct_absolute_tolerance = aero_sweep_float("CHANG_AERO_SWEEP_CT_ABS_TOL", 1e-6)
     relative_tolerance = aero_sweep_float("CHANG_AERO_SWEEP_REL_TOL", 0.01)
+    # Validate every case before starting an expensive batch, including dry runs.
+    for case in cases
+        case_options(case, ""; simulated_revolutions, averaged_revolutions)
+    end
+    annotate_results(NamedTuple[]; cl_absolute_tolerance, ct_absolute_tolerance, relative_tolerance)
+    make_plots = aero_sweep_bool("CHANG_AERO_SWEEP_PLOT_RESULTS", true)
+    if make_plots && !dry_run
+        @eval using Plots
+    end
     run_stamp = Dates.format(now(), "yyyymmdd_HHMMSS")
     output_directory = abspath(get(
         ENV,
@@ -587,10 +566,10 @@ function main()
     println("Generated $(length(cases)) entries ($(length(unique(case_key.(cases)))) unique cases)")
     for case in cases
         @printf(
-            "  %-12s L%d %-20s wing=%dx%d prop=%dx%d wake=%.3g rev core=%.3g ds dpsi=%.3g deg\n",
+            "  %-12s L%d %-20s wing=%dx%d prop=%dx%d wake=%.3g rev core=max(%.3g ds, %.3g c) dpsi=%.3g deg\n",
             string(case.family), case.level, case.label, case.wing_span,
             case.wing_chord, case.prop_radial, case.prop_chord,
-            case.wake_revolutions, case.core_factor, case.azimuth_deg,
+            case.wake_revolutions, case.core_factor, case.chord_core_factor, case.azimuth_deg,
         )
     end
     dry_run && return cases
@@ -633,7 +612,7 @@ function main()
         write_summary(summary_path, partial)
         write_report(report_path, partial; simulated_revolutions, averaged_revolutions)
         try
-            plot_results(plot_path, partial)
+            make_plots && Base.invokelatest(plot_results, plot_path, partial)
         catch exception
             @warn "Could not refresh the partial aerodynamic convergence plot" exception
         end
@@ -647,13 +626,13 @@ function main()
     )
     write_summary(summary_path, results)
     write_report(report_path, results; simulated_revolutions, averaged_revolutions)
-    plot_results(plot_path, results)
+    make_plots && Base.invokelatest(plot_results, plot_path, results)
     println("\nSummary: $summary_path")
     println("Report:  $report_path")
     println("Plot:    $plot_path")
     return results
 end
 
-#if abspath(PROGRAM_FILE) == @__FILE__
+if abspath(PROGRAM_FILE) == @__FILE__
     main()
-#end
+end

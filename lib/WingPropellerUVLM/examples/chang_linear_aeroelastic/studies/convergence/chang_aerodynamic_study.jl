@@ -53,42 +53,36 @@ Base.@kwdef struct ChangCoupledAerodynamicOptions
 end
 
 function options_from_environment(environment = ENV)
-aero_float(name, default) = parse(Float64, get(environment, name, string(default)))
-aero_int(name, default) = parse(Int, get(environment, name, string(default)))
-flag(name, default) = aero_bool(name, default; environment)
-    return ChangCoupledAerodynamicOptions(
-        flow_speed_mps = aero_float("CHANG_AERO_SPEED_MPS", 65.0),
-        air_density_kgpm3 = aero_float("CHANG_AERO_DENSITY_KGPM3", 1.225),
-        angle_of_attack_deg = aero_float("CHANG_AERO_AOA_DEG", 3.0),
-        sideslip_deg = aero_float("CHANG_AERO_BETA_DEG", 0.0),
-        wing_span_panels = aero_int("CHANG_AERO_WING_SPAN_PANELS", 30),
-        wing_chord_panels = aero_int("CHANG_AERO_WING_CHORD_PANELS", 10),
-        propeller_radial_panels = aero_int("CHANG_AERO_PROP_RADIAL_PANELS", 10),
-        propeller_chord_panels = aero_int("CHANG_AERO_PROP_CHORD_PANELS", 10),
-        reference_rpm = aero_float("CHANG_AERO_REFERENCE_RPM", 1217.6962),
-        reference_speed_mps = aero_float("CHANG_AERO_REFERENCE_SPEED_MPS", 65.0),
-        collective_pitch_offset_deg = aero_float(
-            "CHANG_AERO_COLLECTIVE_OFFSET_DEG",
-            0.0,
-        ),
-        azimuth_step_deg = aero_float("CHANG_AERO_AZIMUTH_STEP_DEG", 5.0),
-        simulated_revolutions = aero_int("CHANG_AERO_SIMULATED_REVOLUTIONS", 8),
-        averaged_revolutions = aero_int("CHANG_AERO_AVERAGED_REVOLUTIONS", 2),
-        retained_wake_revolutions = aero_float(
-            "CHANG_AERO_RETAINED_WAKE_REVOLUTIONS",
-            2.0,
-        ),
-        wake_relaxation = aero_float("CHANG_AERO_WAKE_RELAXATION", 0.1),
-        finite_core_segment_factor = aero_float(
-            "CHANG_AERO_FCORE_SEGMENT_FACTOR",
-            0.0,
-        ),
-        finite_core_chord_factor = aero_float(
-            "CHANG_AERO_FCORE_CHORD_FACTOR",
-            0.01,
-        ),
-        interaction_on = flag("CHANG_AERO_INTERACTION", true),
+    defaults = ChangCoupledAerodynamicOptions()
+    fields = (
+        :flow_speed_mps => "SPEED_MPS",
+        :air_density_kgpm3 => "DENSITY_KGPM3",
+        :angle_of_attack_deg => "AOA_DEG",
+        :sideslip_deg => "BETA_DEG",
+        :wing_span_panels => "WING_SPAN_PANELS",
+        :wing_chord_panels => "WING_CHORD_PANELS",
+        :propeller_radial_panels => "PROP_RADIAL_PANELS",
+        :propeller_chord_panels => "PROP_CHORD_PANELS",
+        :reference_rpm => "REFERENCE_RPM",
+        :reference_speed_mps => "REFERENCE_SPEED_MPS",
+        :collective_pitch_offset_deg => "COLLECTIVE_OFFSET_DEG",
+        :azimuth_step_deg => "AZIMUTH_STEP_DEG",
+        :simulated_revolutions => "SIMULATED_REVOLUTIONS",
+        :averaged_revolutions => "AVERAGED_REVOLUTIONS",
+        :retained_wake_revolutions => "RETAINED_WAKE_REVOLUTIONS",
+        :wake_relaxation => "WAKE_RELAXATION",
+        :finite_core_segment_factor => "FCORE_SEGMENT_FACTOR",
+        :finite_core_chord_factor => "FCORE_CHORD_FACTOR",
+        :interaction_on => "INTERACTION",
     )
+    values = map(fields) do (field, suffix)
+        default = getfield(defaults, field)
+        name = "CHANG_AERO_" * suffix
+        value = default isa Bool ? aero_bool(name, default; environment) :
+            parse(typeof(default), get(environment, name, string(default)))
+        field => value
+    end
+    return ChangCoupledAerodynamicOptions(; values...)
 end
 
 function validate_options(options)
@@ -157,8 +151,9 @@ end
 const RESULT_FILES = ("coupled_aerodynamic_history.csv", "coupled_aerodynamic_revolutions.csv",
     "coupled_aerodynamic_summary.txt")
 
-function write_metadata(directory, options)
-    metadata = Dict("schema" => 2, "source_sha256" => source_fingerprint(),
+function write_metadata(directory, options; expected_fingerprint = source_fingerprint())
+    source_fingerprint() == expected_fingerprint || error("Numerical source changed during the aerodynamic run")
+    metadata = Dict("schema" => 2, "source_sha256" => expected_fingerprint,
         "options" => options_dict(options),
         "files" => Dict(file => bytes2hex(sha256(read(joinpath(directory, file))))
             for file in RESULT_FILES))
@@ -223,7 +218,6 @@ Linear interpolation preserves phase zero at the final sample. Using both
 grids catches fine-grid oscillations that alias to zero on the coarse grid.
 """
 function phase_rms_error(a, b)
-    isempty(a) || isempty(b) && return NaN
     (isempty(a) || isempty(b)) && return NaN
     sample(v, phase) = begin
         index = phase * length(v)

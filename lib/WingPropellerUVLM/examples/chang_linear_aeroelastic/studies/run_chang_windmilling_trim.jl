@@ -23,8 +23,8 @@ options = ChangWindmillingTrimOptions(
     propeller_radius_m = PROPELLER_CONFIG.radius_m,
     propeller_chord_m = PROPELLER_CONFIG.chord_m,
     blade_count = PROPELLER_CONFIG.blades,
-    radial_panels = env_int("CHANG_TRIM_RADIAL_PANELS", PROPELLER_CONFIG.radial_panels),
-    chordwise_panels = env_int("CHANG_TRIM_CHORDWISE_PANELS", PROPELLER_CONFIG.chordwise_panels),
+    radial_panels = env_int("CHANG_TRIM_RADIAL_PANELS", 10), #  PROPELLER_CONFIG.radial_panels
+    chordwise_panels = env_int("CHANG_TRIM_CHORDWISE_PANELS", 10), #PROPELLER_CONFIG.chordwise_panels
     # Zero uses the Chang twist distribution without changing its blade angle.
     collective_pitch_offset_deg = env_float("CHANG_TRIM_COLLECTIVE_OFFSET_DEG", 0.0),
     azimuth_step_deg = env_float("CHANG_TRIM_AZIMUTH_STEP_DEG", SIMULATION_CONFIG.azimuth_step_deg),

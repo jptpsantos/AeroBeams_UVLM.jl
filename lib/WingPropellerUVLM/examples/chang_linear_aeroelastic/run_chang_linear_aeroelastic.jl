@@ -105,8 +105,8 @@ free_dofs = structural.free_dofs
 ndof_wing_free = structural.ndof_wing_free
 
 ## Aerodynamic model
-# The finite-core law uses the local 3-D vortex-segment length together with an
-# optional chord-based floor. Both factors are collected in the aerodynamic
+# Each panel gets one core radius from its 3-D span/radial bound-edge length
+# and the full local chord. Both factors are collected in the aerodynamic
 # options below and can be overridden for dedicated sensitivity studies.
 aerodynamic_options = chang_aerodynamic_options(nc_wing, L_pylon)
 FCORE = aerodynamic_options.finite_core

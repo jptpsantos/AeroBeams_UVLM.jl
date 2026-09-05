@@ -76,7 +76,7 @@ end
 # - impulse_propeller_indices selects which propellers are excited.
 Base.@kwdef struct SimulationConfig
     freestream_speed_mps::Float64 = environment_number(
-        Float64, "CHANG_SPEED_MPS", 80.0, "CHANG_FREESTREAM_SPEED_MPS",
+        Float64, "CHANG_SPEED_MPS", 84.0, "CHANG_FREESTREAM_SPEED_MPS",
     )
     angle_of_attack_deg::Float64 = environment_number(
         Float64, "CHANG_AOA_DEG", 3.0,

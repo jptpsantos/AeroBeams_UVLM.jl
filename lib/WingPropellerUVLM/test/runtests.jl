@@ -3,6 +3,8 @@ using WingPropellerUVLM
 using StaticArrays
 using LinearAlgebra
 
+include("aerodynamic_convergence.jl")
+
 include(joinpath(
     @__DIR__,
     "..",
@@ -115,6 +117,38 @@ include(joinpath(
 
         @test base_core ≈ 1.0
         @test rotated_core ≈ base_core
+    end
+
+    @testset "Finite-core kernel consistency and physical scaling" begin
+        segment = WingPropellerUVLM.bound_induced_velocity
+        trailing = WingPropellerUVLM.trailing_induced_velocity
+        direction = SVector(1.0, 0.0, 0.0)
+        radius = 0.15
+        for point in (SVector(0.03, 0.02, 0.01), SVector(-0.04, 0.02, 0.0),
+                      SVector(1.0, 0.5, 0.2))
+            # A trailing filament is the long-segment limit in the same direction.
+            @test trailing(point, direction, true, radius) ≈
+                segment(point, point - 1e5 * direction, true, radius) rtol = 1e-8
+        end
+        r1, r2 = SVector(0.2, 0.07, 0.03), SVector(-0.8, 0.07, 0.03)
+        velocity = segment(r1, r2, true, radius)
+        @test segment(r2, r1, true, radius) ≈ -velocity
+        @test segment(100r1, 100r2, true, 100radius) ≈ velocity / 100
+        # Independent midpoint integration of the softened Biot--Savart law.
+        line = r1 - r2
+        numerical = sum(begin
+            r = r1 - ((i - 0.5) / 10000) * line
+            cross(line, r) / (dot(r, r) + radius^2)^(3/2)
+        end for i in 1:10000) / (4pi * 10000)
+        @test velocity ≈ numerical rtol = 1e-7
+
+        # A fraction of full local chord is independent of both panel counts.
+        for (ns, nc) in ((2, 2), (4, 2), (2, 8))
+            grid, _ = wing_to_grid([0.0,0.0], [0.0,1.0], [0.0,0.0],
+                [2.0,2.0], zeros(2), zeros(2), ns, nc)
+            _, _, surface = grid_to_surface_panels(grid; fcore = (c, ds) -> 0.01c)
+            @test all(panel -> isapprox(panel.core_size, 0.02), surface)
+        end
     end
 
     @testset "Reusable interpolation and deformed wing grid" begin

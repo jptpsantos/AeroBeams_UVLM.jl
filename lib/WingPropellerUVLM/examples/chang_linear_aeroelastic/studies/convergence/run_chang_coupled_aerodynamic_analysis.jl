@@ -74,6 +74,7 @@ end
 
 """March the rigid interacting wing--propeller system and return periodic loads."""
 function simulate_coupled_aerodynamics(options; verbose = true)
+    source_sha256 = ChangAerodynamicStudy.source_fingerprint()
     steps_per_revolution = validate_options(options)
     omega = options.reference_rpm * 2pi / 60 *
         options.flow_speed_mps / options.reference_speed_mps
@@ -210,15 +211,15 @@ function simulate_coupled_aerodynamics(options; verbose = true)
     verbose && flush(stdout)
 
     core_diagnostics = [begin
-    radii = [panel.core_size for panel in surface]
-    widths = [norm(panel.rtr - panel.rtl) for panel in surface]
-    chords = [panel.chord for panel in surface]
-    (; minimum_m = minimum(radii), maximum_m = maximum(radii),
-        max_radius_over_span_edge = maximum(radii ./ widths),
-        max_radius_over_panel_chord = maximum(radii ./ chords))
-end for surface in system.surfaces]
+        radii = [panel.core_size for panel in surface]
+        widths = [norm(panel.rtr - panel.rtl) for panel in surface]
+        chords = [panel.chord for panel in surface]
+        (; minimum_m = minimum(radii), maximum_m = maximum(radii),
+            max_radius_over_span_edge = maximum(radii ./ widths),
+            max_radius_over_panel_chord = maximum(radii ./ chords))
+    end for surface in system.surfaces]
 
-for step in 1:total_steps
+    for step in 1:total_steps
         copy_surfaces_to_previous!(system, length(system.surfaces))
         time_s = step * dt
         update_propeller_grids!(
@@ -285,9 +286,9 @@ for step in 1:total_steps
         propeller_ct[step] = -prop_force[1] / ct_denominator
 
         all(isfinite, (wing_cl[step], propeller_ct[step], propeller_torque[step])) ||
-    error("Nonfinite aerodynamic coefficients at step $step")
+            error("Nonfinite aerodynamic coefficients at step $step")
 
-if verbose && step % steps_per_revolution == 0
+        if verbose && step % steps_per_revolution == 0
             revolution = step ÷ steps_per_revolution
             indices = (step - steps_per_revolution + 1):step
             @printf(
@@ -315,6 +316,7 @@ if verbose && step % steps_per_revolution == 0
     return (;
         options,
         core_diagnostics,
+        source_sha256,
         omega_radps = omega,
         rpm,
         advance_ratio = options.flow_speed_mps / (rotation_rate_hz * diameter),
@@ -384,8 +386,8 @@ function write_results(result, output_directory; plot_results = true)
         println(stream, "Rigid coupled Chang wing--propeller aerodynamic analysis")
         println(stream, "Generated: $(Dates.format(now(), "yyyy-mm-dd HH:MM:SS"))")
         println(stream, "Core radius by surface (m and mesh ratios): $(result.core_diagnostics)")
-println(stream, "Wake shedding fraction eta: $(options.wake_relaxation)")
-println(stream, "Interaction enabled: $(options.interaction_on)")
+        println(stream, "Wake shedding fraction eta: $(options.wake_relaxation)")
+        println(stream, "Interaction enabled: $(options.interaction_on)")
         @printf(stream, "Flow speed: %.8f m/s\n", options.flow_speed_mps)
         @printf(stream, "Angle of attack: %.8f deg\n", options.angle_of_attack_deg)
         @printf(stream, "RPM: %.8f\n", result.rpm)
@@ -414,7 +416,7 @@ println(stream, "Interaction enabled: $(options.interaction_on)")
         println(stream, "Mean propeller CT by revolution: $(result.revolution_mean_ct)")
     end
 
-    write_metadata(output_directory, result.options)
+    write_metadata(output_directory, result.options; expected_fingerprint = result.source_sha256)
     plot_results || return (; history_path, revolution_path, summary_path, plot_path = "")
     @eval using Plots
     return Base.invokelatest(write_coefficient_plot, result, output_directory,

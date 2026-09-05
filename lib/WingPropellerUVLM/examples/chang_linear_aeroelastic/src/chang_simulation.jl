@@ -58,6 +58,9 @@ function chang_aerodynamic_options(wing_chord_panels::Int, pylon_length::Real)
     isfinite(chord_core_factor) && chord_core_factor >= 0.0 || error(
         "CHANG_FCORE_CHORD_FACTOR must be finite and nonnegative",
     )
+    max(segment_core_factor, chord_core_factor) > 0.0 || error(
+        "A positive finite core is required for free-wake self induction",
+    )
     hub_load_arm_factor >= 0.0 || error(
         "CHANG_HUB_LOAD_ARM_FACTOR must be nonnegative",
     )

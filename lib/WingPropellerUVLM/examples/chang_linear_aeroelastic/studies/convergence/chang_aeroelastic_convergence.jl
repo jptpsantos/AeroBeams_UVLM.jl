@@ -226,6 +226,7 @@ Base.@kwdef struct UVLMConvergenceCase
     prop_chord_panels::Int = NOMINAL_PROP_CHORD_PANELS
     wake_revolutions::Float64 = NOMINAL_WAKE_REVOLUTIONS
     fcore_segment_factor::Float64 = NOMINAL_FCORE_SEGMENT_FACTOR
+    fcore_chord_factor::Float64 = 0.0
     azimuth_step_deg::Float64 = NOMINAL_AZIMUTH_STEP_DEG
 end
 
@@ -243,7 +244,9 @@ function validate_case(case::UVLMConvergenceCase)
     case.prop_radial_panels > 0 || error("Propeller radial panels must be positive")
     case.prop_chord_panels > 0 || error("Propeller chordwise panels must be positive")
     case.wake_revolutions > 0 || error("Wake length must be positive")
-    case.fcore_segment_factor >= 0 || error("Finite-core factor must be nonnegative")
+    all(x -> isfinite(x) && x >= 0, (case.fcore_segment_factor, case.fcore_chord_factor)) ||
+        error("Finite-core factors must be finite and nonnegative")
+    max(case.fcore_segment_factor, case.fcore_chord_factor) > 0 || error("Free wakes require a positive core")
     case.azimuth_step_deg > 0 || error("Azimuth step must be positive")
     return case
 end
@@ -307,6 +310,7 @@ function case_key(case::UVLMConvergenceCase)
         case.prop_chord_panels,
         case.wake_revolutions,
         case.fcore_segment_factor,
+        case.fcore_chord_factor,
         case.azimuth_step_deg,
     )
 end
@@ -729,6 +733,7 @@ function child_environment(
     end_time_s,
     hard_angle_deg,
     angle_of_attack_deg = nothing,
+    sideslip_deg = nothing,
     interaction_on = nothing,
     ga_rho_inf = nothing,
     coupling_relaxation = nothing,
@@ -742,6 +747,7 @@ function child_environment(
     environment["CHANG_SPEED_MPS"] = string(speed_mps)
     environment["CHANG_AOA_DEG"] = isnothing(angle_of_attack_deg) ?
         get(ENV, "CHANG_CONVERGENCE_AOA_DEG", "0.0") : string(angle_of_attack_deg)
+    !isnothing(sideslip_deg) && (environment["CHANG_SIDESLIP_DEG"] = string(sideslip_deg))
     environment["CHANG_ROTATION_RPM"] = string(trim_rpm)
     environment["CHANG_TRIM_SPEED_MPS"] = string(trim_speed_mps)
     environment["CHANG_END_TIME_S"] = string(end_time_s)
@@ -758,7 +764,7 @@ function child_environment(
     environment["CHANG_WAKE_ROWS_WING"] = string(rows)
     environment["CHANG_WAKE_ROWS_PROPELLER"] = string(rows)
     environment["CHANG_FCORE_SEGMENT_FACTOR"] = string(case.fcore_segment_factor)
-    environment["CHANG_FCORE_CHORD_FACTOR"] = "0.0"
+    environment["CHANG_FCORE_CHORD_FACTOR"] = string(case.fcore_chord_factor)
 
     # Aerodynamic-model switches used directly by chang_case.jl.
     environment["CHANG_INTERACTION"] = isnothing(interaction_on) ? get(
@@ -883,6 +889,7 @@ function run_case(
     moving_block_frequency_max_hz = Inf,
     moving_block_apply_hann_window = false,
     angle_of_attack_deg = nothing,
+    sideslip_deg = nothing,
     interaction_on = nothing,
     ga_rho_inf = nothing,
     coupling_relaxation = nothing,
@@ -904,6 +911,7 @@ function run_case(
         end_time_s,
         hard_angle_deg,
         angle_of_attack_deg,
+        sideslip_deg,
         interaction_on,
         ga_rho_inf,
         coupling_relaxation,
@@ -1158,7 +1166,7 @@ function write_summary_csv(path, results)
         "family", "level", "label", "status", "reason", "reused", "reused_from",
         "wing_span_panels", "wing_chord_panels", "prop_radial_panels",
         "prop_chord_panels", "wake_revolutions", "wake_rows",
-        "finite_core_segment_factor", "azimuth_step_deg", "time_step_s",
+        "finite_core_segment_factor", "finite_core_chord_factor", "azimuth_step_deg", "time_step_s",
         "pitch_moving_block_lambda_per_s", "yaw_moving_block_lambda_per_s",
         "pitch_damping_percent", "yaw_damping_percent",
         "pitch_frequency_hz", "yaw_frequency_hz", "pitch_fit_r_squared",
@@ -1191,6 +1199,7 @@ function write_summary_csv(path, results)
                 finite_or_blank(case.wake_revolutions),
                 wake_rows(case),
                 finite_or_blank(case.fcore_segment_factor),
+                finite_or_blank(case.fcore_chord_factor),
                 finite_or_blank(case.azimuth_step_deg),
                 finite_or_blank(result.time_step_s),
                 finite_or_blank(result.pitch.moving_block_lambda_per_s),
@@ -1458,7 +1467,7 @@ function print_case_matrix(cases, speed_mps, trim_rpm, trim_speed_mps, radius_m)
         dt = physical_time_step(case, speed_mps, trim_rpm, trim_speed_mps, radius_m)
         println(
             @sprintf(
-                "  %-15s L%d %-22s wing=%dx%d prop=%dx%d wake=%g rev/%d rows core=%g ds dpsi=%g deg dt=%.7g s",
+                "  %-15s L%d %-22s wing=%dx%d prop=%dx%d wake=%g rev/%d rows core=max(%g ds, %g c) dpsi=%g deg dt=%.7g s",
                 string(case.family),
                 case.level,
                 case.label,
@@ -1469,6 +1478,7 @@ function print_case_matrix(cases, speed_mps, trim_rpm, trim_speed_mps, radius_m)
                 case.wake_revolutions,
                 wake_rows(case),
                 case.fcore_segment_factor,
+                case.fcore_chord_factor,
                 case.azimuth_step_deg,
                 dt,
             ),
