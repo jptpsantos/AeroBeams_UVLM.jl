@@ -1,153 +1,148 @@
-# User-controlled configuration for the Chang UVLM case.
-# Physical quantities use SI units unless the variable name says otherwise.
+# Chang wing–propeller case: edit the run settings in this file.
+# Lengths are in metres, time in seconds, and angles in degrees.
+# CHANG_* environment variables override these defaults when set (e.g. by sweeps).
+# nothing selects an automatic value where explained below.
 
-# Read one environment override while retaining the editable defaults below.
-function environment_value(name::AbstractString, default, aliases::AbstractString...)
-    key = findfirst(candidate -> haskey(ENV, candidate), (name, aliases...))
-    return isnothing(key) ? string(default) : ENV[(name, aliases...)[key]]
-end
+# 1. Wing geometry and mesh
+const WING_DEFAULTS = (
+    root_chord_m = 1.8,
+    tip_chord_m = 1.8,
+    span_m = 7.5,              # Modelled span, from the clamped root to the tip.
 
-function environment_flag(name::AbstractString, default::Bool, aliases::AbstractString...)
-    raw_value = lowercase(strip(environment_value(name, default, aliases...)))
-    raw_value in ("1", "true", "yes", "on") && return true
-    raw_value in ("0", "false", "no", "off") && return false
-    error("$name must be true/false, yes/no, on/off, or 1/0")
-end
+    spanwise_panels = 20,      # Also sets the number of structural beam elements.
+    chordwise_panels = 10,
+)
 
-function environment_number(::Type{T}, name, default, aliases::AbstractString...) where {T<:Real}
-    raw_value = environment_value(name, default, aliases...)
-    value = tryparse(T, raw_value)
-    isnothing(value) && error("$name must be a valid $T value, received '$raw_value'")
-    return value
-end
+# 2. Propeller geometry, mesh, and installation
+const PROPELLER_DEFAULTS = (
+    radius_m = 1.15,
+    chord_m = 0.197,           # Constant blade chord.
+    blades = 4,
 
-environment_symbol(name, default, aliases::AbstractString...) =
-    Symbol(lowercase(strip(environment_value(name, default, aliases...))))
+    radial_panels = 7,         # Panels along each blade.
+    chordwise_panels = 7,      # Panels across each blade chord.
 
-# Wing geometry and aerodynamic mesh:
-# - root_chord_m and tip_chord_m define the chord distribution.
-# - span_m is the full modeled span.
-# - spanwise_panels and chordwise_panels define the wing UVLM grid.
-Base.@kwdef struct WingConfig
-    root_chord_m::Float64 = 1.8
-    tip_chord_m::Float64 = 1.8
-    span_m::Float64 = 7.5
-    spanwise_panels::Int = environment_number(
-        Int, "CHANG_WING_SPAN_PANELS", 20,
-    )
-    chordwise_panels::Int = environment_number(
-        Int, "CHANG_WING_CHORD_PANELS", 5,
-    )
-end
+    # RPM is specified at trim_speed_mps. The solver scales RPM with airspeed
+    # to keep the advance ratio fixed.
+    rotation_rpm = 1212.0,#1217.6962,
+    trim_speed_mps = 65.0,
 
-# Propeller geometry, mesh, rotation, and wing attachment:
-# - radius_m, chord_m, and blades define the rotor geometry.
-# - radial_panels and chordwise_panels define each blade UVLM grid.
-# - rotation_rpm is specified at trim_speed_mps and preserves its advance ratio.
-# - attachment_eta gives each propeller span location from root (0) to tip (1).
-Base.@kwdef struct PropellerConfig
-    radius_m::Float64 = 1.15
-    chord_m::Float64 = 0.197
-    blades::Int = 4
-    radial_panels::Int = environment_number(
-        Int, "CHANG_PROP_RADIAL_PANELS", 5,
-    )
-    chordwise_panels::Int = environment_number(
-        Int, "CHANG_PROP_CHORD_PANELS", 5,
-    )
-    rotation_rpm::Float64 = environment_number(
-        Float64, "CHANG_ROTATION_RPM", 1217.6962,
-    )
-    trim_speed_mps::Float64 = environment_number(
-        Float64, "CHANG_TRIM_SPEED_MPS", 65.0,
-    )
-    attachment_eta::Vector{Float64} = [0.83]
-end
+    # One entry per propeller: 0 = wing root, 1 = wing tip.
+    attachment_eta = [0.83],
+    collective_pitch_offset_deg = 0.0, # Added to the Chang blade-angle distribution.
+)
 
-# Simulation controls:
-# - Flow speed and angles define the incoming air.
-# - azimuth_step_deg sets the aerodynamic time step.
-# - end_time_s sets the simulation duration.
-# - interaction_on enables interaction between aerodynamic surface groups.
-# - near_field_force_model selects :imperial (corrected direct model) or
-#   :legacy_imperial_segments (original-compatible model).
-# - propeller_moment_projection selects :exact_virtual_work (instantaneous
-#   axes) or :fixed_aero_axes (original small-angle axes).
-# - impulse_propeller_indices selects which propellers are excited.
-Base.@kwdef struct SimulationConfig
-    freestream_speed_mps::Float64 = environment_number(
-        Float64, "CHANG_SPEED_MPS", 84.0, "CHANG_FREESTREAM_SPEED_MPS",
-    )
-    angle_of_attack_deg::Float64 = environment_number(
-        Float64, "CHANG_AOA_DEG", 3.0,
-    )
-    sideslip_deg::Float64 = environment_number(Float64, "CHANG_SIDESLIP_DEG", 0.0)
-    azimuth_step_deg::Float64 = environment_number(
-        Float64, "CHANG_AZIMUTH_STEP_DEG", 5.0,
-    )
-    end_time_s::Float64 = environment_number(
-        Float64, "CHANG_END_TIME_S", 5.0,
-    )
-    interaction_on::Bool = environment_flag(
-        "CHANG_INTERACTION", false,
-    )
-    near_field_force_model::Symbol = environment_symbol(
-        "CHANG_NEAR_FIELD_FORCE_MODEL", :imperial,
-    )
-    propeller_moment_projection::Symbol = environment_symbol(
-        "CHANG_PROP_MOMENT_PROJECTION", :exact_virtual_work,
-    )
-    impulse_propeller_indices::Vector{Int} = [1]
-end
+# 3. Flow, time stepping, and coupling
+const SIMULATION_DEFAULTS = (
+    air_density_kgpm3 = 1.225,
+    freestream_speed_mps = 85.0,
+    angle_of_attack_deg = 3.0,
+    sideslip_deg = 0.0,
 
+    azimuth_step_deg = 5.0,    # Rotor angle advanced per time step.
+    end_time_s = 5.0,          # Total requested simulation duration.
+
+    # true: include wing–propeller and propeller–propeller aerodynamic influence.
+    # false: isolate those groups; blades within each propeller still interact.
+    # Structural wing–propeller coupling remains active in both modes.
+    interaction_on = false,
+
+    # Aerodynamic loads: :imperial (corrected) or :legacy_imperial_segments.
+    near_field_force_model = :imperial,
+
+    # Propeller pitch/yaw moments: :exact_virtual_work or :fixed_aero_axes.
+    propeller_moment_projection = :exact_virtual_work,
+
+    impulse_propeller_indices = [1],   # Propellers receiving the pitch impulse.
+)
+
+# 4. Aerodynamic finite core and load geometry
+const AERODYNAMIC_DEFAULTS = (
+    # Core radius = max(segment_core_factor * Δs, chord_core_factor * c).
+    # Δs is the local span/radial edge length; c is the full local chord.
+    segment_core_factor = 1e-5,
+    chord_core_factor = 1e-5,
+
+    elastic_axis_fraction = 0.30,      # Chord fraction measured from the leading edge.
+    hub_load_arm_factor = 0.5,         # Modal load arm divided by pylon length.
+)
+
+# 5. Retained wake length
+const WAKE_DEFAULTS = (
+    # One wake row is shed per time step: retained wake age ≈ rows * Δt.
+    # Wing: use an integer for a fixed row count, or nothing for automatic sizing.
+    maximum_rows_wing = nothing,
+    wing_rows_per_chord_panel = 10,    # Automatic count = this * active chordwise panels.
+    maximum_rows_propeller = 72,
+)
+
+# 6. Trim baseline and pitch impulse
+const EXCITATION_DEFAULTS = (
+    trim_revolutions = 10.0,           # Revolutions before the automatic impulse start.
+    trim_average_revolutions = 1.0,    # Revolutions used for the mean baseline load.
+    impulse_start_s = nothing,        # nothing: start after trim_revolutions.
+    impulse_duration_s = 0.15,
+    impulse_magnitude_nm = 1200.0,     # Peak pitch moment per selected propeller.
+)
+
+# 7. Time integration and stop limits
+const INTEGRATION_DEFAULTS = (
+    # Generalized-alpha high-frequency spectral radius, between 0 and 1.
+    # 1 = no algorithmic damping; smaller values increase numerical damping.
+    rho_inf = 1.0,
+    # The actual time step comes from SIMULATION_DEFAULTS.azimuth_step_deg and RPM.
+    state_norm_limit = 1.0e3,          # Maximum absolute state component (mixed m/rad).
+    propeller_angle_limit_deg = Inf,  # Inf disables the propeller-angle stop limit.
+)
+
+# 8. Iterations coupling the aerodynamic loads and structural motion
+const COUPLING_DEFAULTS = (
+    maximum_iterations = 10,
+    state_tolerance = 1.0e-5,               # Scaled change in displacement.
+    load_tolerance = 1.0e-2,                # Scaled change in aerodynamic load.
+    equilibrium_tolerance = 1.0e-10,        # Structural linear-solve residual.
+    coupled_equilibrium_tolerance = 1.0e-4, # Equilibrium with the updated aero load.
+    relaxation = 1.0,                      # 1 = full update; smaller values under-relax.
+)
+
+# 9. Files, plots, and wake animation
+const OUTPUT_DEFAULTS = (
+    directory = "output",             # Relative to this example, or an absolute path.
+    label = nothing,                   # nothing: chang_linear_<force_model>_uvlm.
+    plot_results = true,
+    plot_time_limit_s = 5.0,
+    animate_wake = false,
+    animation_stride = 5,              # Record every N accepted steps.
+    animation_fps = 15,
+    animation_axis_limits = ((-3.0, 5.0), (0.0, 8.0), (-4.0, 4.0)),
+    animation_tick_spacing_m = 1.0,
+)
+
+# 10. Structural damping and pylon/rotor properties
+# The tabulated Chang wing mass/stiffness and blade distributions remain reference
+# data in the model helpers. The scalar controls for this run are collected here.
+const STRUCTURAL_DEFAULTS = (
+    propeller_damping_ratio = 0.0,
+    stiffness_damping_ratio = 0.0,     # Global stiffness-proportional Rayleigh damping.
+    damping_reference_frequency_hz = nothing, # nothing: use the pitch frequency below.
+
+    pitch_frequency_hz = 7.97,
+    yaw_frequency_hz = 7.97,
+    pitch_stiffness_nm_per_rad = 19220.0,
+    yaw_stiffness_nm_per_rad = 18916.0,
+    twist_frequency_hz = 12.73,        # Frequency/stiffness pair defines rotor axial inertia.
+    twist_stiffness_nm_per_rad = 16835.0,
+
+    pylon_length_m = 5.6 * 0.3048,     # Original Chang value: 5.6 ft.
+    pylon_mass_per_length_kgpm = 0.0506 * 14.5939029372064 / 0.3048, # 0.0506 slug/ft.
+    blade_mass_kg = 1.44,
+)
+
+# Apply environment overrides and validate the active case.
+# Parsing and type definitions live in the helper; routine edits belong above.
+# Runtime option helpers consume the remaining groups when the runner calls them.
+include(joinpath(@__DIR__, "src", "chang_configuration.jl"))
 const WING_CONFIG = WingConfig()
 const PROPELLER_CONFIG = PropellerConfig()
-
-# Active case used by run_chang_linear_aeroelastic.jl. Edit the defaults above
-# for routine work; the environment overrides are intended for automated sweeps.
 const SIMULATION_CONFIG = SimulationConfig()
-
-# Check geometry, mesh, model selections, and excitation indices before running.
-function validate_configuration(wing::WingConfig, prop::PropellerConfig, sim::SimulationConfig)
-    wing.root_chord_m > 0 || error("Wing root chord must be positive")
-    wing.tip_chord_m > 0 || error("Wing tip chord must be positive")
-    wing.span_m > 0 || error("Wing span must be positive")
-    wing.spanwise_panels > 0 || error("Wing spanwise panel count must be positive")
-    wing.chordwise_panels > 0 || error("Wing chordwise panel count must be positive")
-
-    prop.radius_m > 0 || error("Propeller radius must be positive")
-    prop.chord_m > 0 || error("Propeller chord must be positive")
-    prop.blades > 0 || error("Number of propeller blades must be positive")
-    prop.radial_panels > 0 || error("Propeller radial panel count must be positive")
-    prop.chordwise_panels > 0 || error("Propeller chordwise panel count must be positive")
-    prop.rotation_rpm > 0 || error("Propeller rotation speed must be positive")
-    prop.trim_speed_mps > 0 || error("Propeller trim reference speed must be positive")
-    all(0.0 .<= prop.attachment_eta .<= 1.0) || error("Propeller attachment eta values must be between 0 and 1")
-    length(unique(prop.attachment_eta)) == length(prop.attachment_eta) ||
-        error("Propeller attachment eta values must be unique")
-
-    sim.freestream_speed_mps >= 0 || error("Freestream speed cannot be negative")
-    sim.azimuth_step_deg > 0 || error("Azimuth step must be positive")
-    sim.end_time_s > 0 || error("Simulation end time must be positive")
-    sim.near_field_force_model in (:imperial, :legacy_imperial_segments) ||
-        error("Near-field force model must be :imperial or :legacy_imperial_segments")
-    sim.propeller_moment_projection in (:fixed_aero_axes, :exact_virtual_work) ||
-        error(
-            "Propeller moment projection must be :fixed_aero_axes or " *
-            ":exact_virtual_work",
-        )
-    isempty(sim.impulse_propeller_indices) &&
-        error("At least one impulse propeller index is required")
-    all(
-        (1 .<= sim.impulse_propeller_indices) .&
-        (sim.impulse_propeller_indices .<= length(prop.attachment_eta)),
-    ) ||
-        error("Impulse propeller indices must be between 1 and $(length(prop.attachment_eta))")
-    length(unique(sim.impulse_propeller_indices)) ==
-        length(sim.impulse_propeller_indices) ||
-        error("Impulse propeller indices must be unique")
-    return nothing
-end
-
-# Stop immediately if any case input is invalid.
 validate_configuration(WING_CONFIG, PROPELLER_CONFIG, SIMULATION_CONFIG)

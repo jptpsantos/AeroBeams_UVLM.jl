@@ -1,6 +1,6 @@
 # Time integration and runtime checks for the Chang aeroelastic example.
 #
-# The entry-point file keeps the physical setup visible. This file contains the
+# Editable defaults live in chang_case.jl. This file resolves options and manages
 # step-level bookkeeping: structural history, trim-load subtraction, coupling
 # diagnostics, accepted-wake updates, optional animation snapshots, and aborts.
 
@@ -9,14 +9,16 @@
 """Read plotting and animation controls shared by interactive and batch runs."""
 function chang_visualization_options()
     options = (;
-        plot_results = environment_flag("CHANG_PLOT_RESULTS", true),
-        animate_wake = environment_flag("CHANG_ANIMATE_WAKE", false),
-        animation_stride = environment_number(Int, "CHANG_ANIMATION_STRIDE", 5),
-        animation_fps = environment_number(Int, "CHANG_ANIMATION_FPS", 15),
+        plot_results = environment_flag("CHANG_PLOT_RESULTS", OUTPUT_DEFAULTS.plot_results),
+        animate_wake = environment_flag("CHANG_ANIMATE_WAKE", OUTPUT_DEFAULTS.animate_wake),
+        animation_stride = environment_number(
+            Int, "CHANG_ANIMATION_STRIDE", OUTPUT_DEFAULTS.animation_stride,
+        ),
+        animation_fps = environment_number(Int, "CHANG_ANIMATION_FPS", OUTPUT_DEFAULTS.animation_fps),
         plot_time_limit_s = environment_number(
             Float64,
             "CHANG_PLOT_END_TIME_S",
-            5.0,
+            OUTPUT_DEFAULTS.plot_time_limit_s,
         ),
     )
     options.animation_stride > 0 || error("CHANG_ANIMATION_STRIDE must be positive")
@@ -24,32 +26,50 @@ function chang_visualization_options()
     return options
 end
 
+"""Create the solver's frame callback; disabled animation needs no plotting package."""
+function chang_animation_options(system, active_rows, visualization)
+    record_frame = if visualization.animate_wake
+        (surfaces, wakes, rows, times, time) -> record_chang_animation_frame!(
+            surfaces, wakes, rows, times, system, active_rows, time,
+        )
+    else
+        (arguments...) -> nothing
+    end
+    return (;
+        enabled = visualization.animate_wake,
+        stride = visualization.animation_stride,
+        record_frame,
+    )
+end
+
 """Read the UVLM regularization, load-arm, and retained-wake controls."""
 function chang_aerodynamic_options(wing_chord_panels::Int, pylon_length::Real)
     segment_core_factor = environment_number(
         Float64,
         "CHANG_FCORE_SEGMENT_FACTOR",
-        0.01,
+        AERODYNAMIC_DEFAULTS.segment_core_factor,
     )
     chord_core_factor = environment_number(
         Float64,
         "CHANG_FCORE_CHORD_FACTOR",
-        0.01,
+        AERODYNAMIC_DEFAULTS.chord_core_factor,
     )
     hub_load_arm_factor = environment_number(
         Float64,
         "CHANG_HUB_LOAD_ARM_FACTOR",
-        0.5,
+        AERODYNAMIC_DEFAULTS.hub_load_arm_factor,
     )
     maximum_wake_rows_wing = environment_number(
         Int,
         "CHANG_WAKE_ROWS_WING",
-        10 * wing_chord_panels,
+        isnothing(WAKE_DEFAULTS.maximum_rows_wing) ?
+            WAKE_DEFAULTS.wing_rows_per_chord_panel * wing_chord_panels :
+            WAKE_DEFAULTS.maximum_rows_wing,
     )
     maximum_wake_rows_propeller = environment_number(
         Int,
         "CHANG_WAKE_ROWS_PROPELLER",
-        72,
+        WAKE_DEFAULTS.maximum_rows_propeller,
     )
 
     isfinite(segment_core_factor) && segment_core_factor >= 0.0 || error(
@@ -79,7 +99,7 @@ function chang_aerodynamic_options(wing_chord_panels::Int, pylon_length::Real)
         segment_core_factor,
         chord_core_factor,
         finite_core,
-        elastic_axis_fraction = 0.30,
+        elastic_axis_fraction = AERODYNAMIC_DEFAULTS.elastic_axis_fraction,
         propeller_pivot_offset_A = SVector(0.0, 0.0, 0.0),
         physical_hub_center_A = SVector(-pylon_length, 0.0, 0.0),
         load_center_A = SVector(-hub_load_arm_factor * pylon_length, 0.0, 0.0),
@@ -98,19 +118,22 @@ function chang_excitation_options(
     trim_revolutions = environment_number(
         Float64,
         "CHANG_TRIM_REVOLUTIONS",
-        10.0,
+        EXCITATION_DEFAULTS.trim_revolutions,
     )
     trim_average_revolutions = environment_number(
         Float64,
         "CHANG_TRIM_AVERAGE_REVOLUTIONS",
-        1.0,
+        EXCITATION_DEFAULTS.trim_average_revolutions,
     )
     start_time = environment_number(
         Float64,
         "CHANG_IMPULSE_START_S",
-        trim_revolutions * revolution_period,
+        isnothing(EXCITATION_DEFAULTS.impulse_start_s) ?
+            trim_revolutions * revolution_period : EXCITATION_DEFAULTS.impulse_start_s,
     )
-    duration = environment_number(Float64, "CHANG_IMPULSE_DURATION_S", 0.15)
+    duration = environment_number(
+        Float64, "CHANG_IMPULSE_DURATION_S", EXCITATION_DEFAULTS.impulse_duration_s,
+    )
 
     trim_revolutions > 0.0 || error("CHANG_TRIM_REVOLUTIONS must be positive")
     trim_average_revolutions > 0.0 || error(
@@ -125,7 +148,7 @@ function chang_excitation_options(
         magnitude = environment_number(
             Float64,
             "CHANG_IMPULSE_MAGNITUDE",
-            1000.0,
+            EXCITATION_DEFAULTS.impulse_magnitude_nm,
         ),
         start_time,
         duration,
@@ -149,38 +172,38 @@ function chang_integration_options(
     dofs_per_node::Int,
 )
     generalized_alpha = generalized_alpha_parameters(
-        environment_number(Float64, "CHANG_GA_RHO_INF", 1.0),
+        environment_number(Float64, "CHANG_GA_RHO_INF", INTEGRATION_DEFAULTS.rho_inf),
     )
     coupling = PartitionedCouplingOptions(
         maximum_iterations = environment_number(
             Int,
             "CHANG_COUPLING_MAX_ITER",
-            10,
+            COUPLING_DEFAULTS.maximum_iterations,
         ),
         state_tolerance = environment_number(
             Float64,
             "CHANG_COUPLING_TOL_U",
-            1.0e-5,
+            COUPLING_DEFAULTS.state_tolerance,
         ),
         load_tolerance = environment_number(
             Float64,
             "CHANG_COUPLING_TOL_F",
-            1.0e-2,
+            COUPLING_DEFAULTS.load_tolerance,
         ),
         equilibrium_tolerance = environment_number(
             Float64,
             "CHANG_COUPLING_TOL_EQ",
-            1.0e-10,
+            COUPLING_DEFAULTS.equilibrium_tolerance,
         ),
         coupled_equilibrium_tolerance = environment_number(
             Float64,
             "CHANG_COUPLING_TOL_COUPLED_EQ",
-            1.0e-4,
+            COUPLING_DEFAULTS.coupled_equilibrium_tolerance,
         ),
         relaxation = environment_number(
             Float64,
             "CHANG_COUPLING_RELAXATION",
-            1.0,
+            COUPLING_DEFAULTS.relaxation,
         ),
     )
     scales = build_chang_coupling_scales(
@@ -196,12 +219,12 @@ function chang_integration_options(
     state_norm_limit = environment_number(
         Float64,
         "CHANG_STATE_ABORT_NORM",
-        1.0e3,
+        INTEGRATION_DEFAULTS.state_norm_limit,
     )
     propeller_angle_limit_deg = environment_number(
         Float64,
         "CHANG_PROP_ANGLE_ABORT_DEG",
-        Inf,
+        INTEGRATION_DEFAULTS.propeller_angle_limit_deg,
     )
     state_norm_limit > 0.0 || error("CHANG_STATE_ABORT_NORM must be positive")
     propeller_angle_limit_deg > 0.0 || error(

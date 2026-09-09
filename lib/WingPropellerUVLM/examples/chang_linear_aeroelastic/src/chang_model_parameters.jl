@@ -1,5 +1,6 @@
 # Chang-specific geometry, structural distributions, propeller properties,
 # and simulation environment. Reusable algorithms belong in WingPropellerUVLM.
+# Run settings come from chang_case.jl; the tables below are Chang reference data.
 
 # ### Wing model
 Cr = WING_CONFIG.root_chord_m
@@ -326,20 +327,20 @@ J = μ_prop * pi
 Nb_prop = PROPELLER_CONFIG.blades
 c_prop = PROPELLER_CONFIG.chord_m
 
-fθ_prop = 7.97 * 2 * pi
-fψ_prop = 7.97 * 2 * pi
-Kθ_prop = 19220.0
-Kψ_prop = 18916.0
+fθ_prop = STRUCTURAL_DEFAULTS.pitch_frequency_hz * 2 * pi
+fψ_prop = STRUCTURAL_DEFAULTS.yaw_frequency_hz * 2 * pi
+Kθ_prop = STRUCTURAL_DEFAULTS.pitch_stiffness_nm_per_rad
+Kψ_prop = STRUCTURAL_DEFAULTS.yaw_stiffness_nm_per_rad
 
-f_twist = 12.73 * 2 * pi
-K_twist = 16835.0
+f_twist = STRUCTURAL_DEFAULTS.twist_frequency_hz * 2 * pi
+K_twist = STRUCTURAL_DEFAULTS.twist_stiffness_nm_per_rad
 
-ξ_prop = 0.0
+ξ_prop = STRUCTURAL_DEFAULTS.propeller_damping_ratio
 # Global stiffness-proportional Rayleigh damping. For C = βK, the modal
-# damping is ξ(ω) = βω/2. Calibrate β to 1% at the nominal 7.97 Hz pylon
-# pitch frequency; lower-frequency modes receive proportionally less damping.
-stiffness_damping_ratio = 0.0
-stiffness_damping_reference_omega = fθ_prop
+# damping is ξ(ω) = βω/2. Use the configured ratio at the reference frequency.
+stiffness_damping_ratio = STRUCTURAL_DEFAULTS.stiffness_damping_ratio
+stiffness_damping_reference_omega = isnothing(STRUCTURAL_DEFAULTS.damping_reference_frequency_hz) ?
+    fθ_prop : STRUCTURAL_DEFAULTS.damping_reference_frequency_hz * 2 * pi
 η0_prop = 0.0 / R_prop
 
 ns_prop = PROPELLER_CONFIG.radial_panels
@@ -347,7 +348,7 @@ nc_prop = PROPELLER_CONFIG.chordwise_panels
 
 # The Chang data already define the full blade-angle distribution. Keep this
 # offset at zero unless a deliberate collective-pitch variation is required.
-collective_pitch_offset_deg = 0.0
+collective_pitch_offset_deg = PROPELLER_DEFAULTS.collective_pitch_offset_deg
 nodal_radii, _, twists_at_nodes = get_nodal_properties_chang(ns_prop)
 blade_twists_prop = 1.0 .* (
     (twists_at_nodes .- 90 .+ collective_pitch_offset_deg) .|> deg2rad
@@ -356,9 +357,9 @@ blade_twists_prop = 1.0 .* (
 slug_to_kg = chang_slug_to_kg
 ft_to_m = chang_ft_to_m
 
-L_pylon = 5.6 * ft_to_m
-m_pylon = (0.0506 * slug_to_kg / ft_to_m) * L_pylon
-m_blade = 1.44
+L_pylon = STRUCTURAL_DEFAULTS.pylon_length_m
+m_pylon = STRUCTURAL_DEFAULTS.pylon_mass_per_length_kgpm * L_pylon
+m_blade = STRUCTURAL_DEFAULTS.blade_mass_kg
 m_rotor = Nb_prop * m_blade
 mP_prop = m_pylon + m_rotor
 

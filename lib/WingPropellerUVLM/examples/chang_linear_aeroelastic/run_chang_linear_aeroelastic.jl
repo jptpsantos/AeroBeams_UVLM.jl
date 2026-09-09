@@ -1,229 +1,94 @@
-# # Linear aeroelastic response of the Chang wing--propeller model
-#
-# This example couples a linear beam/pylon model to a free-wake UVLM model.
-# Each physical step converges the structural state and aerodynamic load while
-# holding the wake fixed; the accepted wake is then advanced exactly once.
-# A mean pre-impulse aerodynamic load is removed so the saved motion represents
-# the perturbation response to a smooth propeller-pitch impulse.
-#
-# The structural basis is `[span, chord, down]`, with nodal rotations in the
-# same order. Detailed coordinate and load-transfer conventions are documented
-# in the example README and `src/chang_uvlm_coupling.jl`.
+# Chang wing–propeller aeroelastic response.
+# Edit chang_case.jl for the physical case, numerical controls, and output.
+# CHANG_* environment variables override those defaults.
+# The five steps below prepare the models, solve the response, and save it.
 
 import Pkg
-
-# Use the WingPropellerUVLM project that owns this example.
 Pkg.activate(normpath(joinpath(@__DIR__, "..", "..")))
 
 using LinearAlgebra
 using StaticArrays
 using WingPropellerUVLM:
-    Uniform,
-    Freestream,
-    Reference,
-    RotationMatrix,
-    initialize_bohnisch_uvlm_system,
-    get_nodal_properties_chang,
-    grid_to_surface_panels,
-    copy_surfaces_to_previous!,
-    propagate_system!,
-    near_field_forces!,
-    legacy_imperial_segment_forces!,
-    advance_wake!,
-    snapshot_uvlm,
-    restore_uvlm!,
-    imperial_nodal_forces,
-    imperial_nodal_positions,
-    generate_panel_grid_and_interpolate,
-    linear_interpolate_1d,
-    generalized_alpha_parameters,
-    PartitionedCouplingOptions,
-    partitioned_generalized_alpha_step,
-    smooth_hann_pulse_load
+    Uniform, Freestream, Reference, RotationMatrix,
+    initialize_bohnisch_uvlm_system, get_nodal_properties_chang,
+    grid_to_surface_panels, generate_panel_grid_and_interpolate, linear_interpolate_1d,
+    copy_surfaces_to_previous!, propagate_system!, advance_wake!, snapshot_uvlm, restore_uvlm!,
+    near_field_forces!, legacy_imperial_segment_forces!, imperial_nodal_forces, imperial_nodal_positions,
+    generalized_alpha_parameters, PartitionedCouplingOptions,
+    partitioned_generalized_alpha_step, smooth_hann_pulse_load
 
-# ### Problem setup
-
-## Case definition
-# Edit chang_case.jl for routine geometry, mesh, and operating-point changes.
-# CHANG_* environment variables provide temporary overrides for automated runs.
+# 1. Read the case and choose the output.
 include(joinpath(@__DIR__, "chang_case.jl"))
 include(joinpath(@__DIR__, "src", "chang_simulation.jl"))
+include(joinpath(@__DIR__, "src", "chang_uvlm_coupling.jl"))
+include(joinpath(@__DIR__, "src", "chang_postprocessing.jl"))
 
-const AIR_DENSITY = 1.225 # kg/m^3; model parameters use this to create `ref`.
-
-# Choose the dimensional near-field loads and propeller moment projection.
-const AEROELASTIC_NEAR_FIELD_FORCE_MODEL =
-    SIMULATION_CONFIG.near_field_force_model
+const AIR_DENSITY = SIMULATION_DEFAULTS.air_density_kgpm3
+const AEROELASTIC_NEAR_FIELD_FORCE_MODEL = SIMULATION_CONFIG.near_field_force_model
+const AEROELASTIC_PROPELLER_MOMENT_PROJECTION = SIMULATION_CONFIG.propeller_moment_projection
 const AEROELASTIC_NEAR_FIELD_FORCE_FUNCTION =
     AEROELASTIC_NEAR_FIELD_FORCE_MODEL == :legacy_imperial_segments ?
         legacy_imperial_segment_forces! : near_field_forces!
-const AEROELASTIC_PROPELLER_MOMENT_PROJECTION =
-    SIMULATION_CONFIG.propeller_moment_projection
 
 println("Aeroelastic near-field force model: $AEROELASTIC_NEAR_FIELD_FORCE_MODEL")
 println("Propeller moment projection: $AEROELASTIC_PROPELLER_MOMENT_PROJECTION")
 
-## Output and visualization
-# Plotting is useful for an interactive run. Animation is opt-in because its
-# retained wake geometry and GIF can be large; studies disable both.
 visualization_options = chang_visualization_options()
-
-(visualization_options.plot_results || visualization_options.animate_wake) &&
-    (@eval using Plots)
-visualization_options.plot_results &&
+output_directory, output_label = chang_output_paths(@__DIR__, AEROELASTIC_NEAR_FIELD_FORCE_MODEL)
+if visualization_options.plot_results || visualization_options.animate_wake
+    using Plots
+end
+if visualization_options.plot_results
     include(joinpath(@__DIR__, "src", "chang_plotting.jl"))
-visualization_options.animate_wake &&
+end
+if visualization_options.animate_wake
     include(joinpath(@__DIR__, "src", "chang_animation.jl"))
-include(joinpath(@__DIR__, "src", "chang_postprocessing.jl"))
+end
 
-output_directory = normpath(get(
-    ENV,
-    "CHANG_OUTPUT_DIR",
-    joinpath(@__DIR__, "output"),
-))
-output_label = get(
-    ENV,
-    "CHANG_OUTPUT_LABEL",
-    "chang_linear_$(AEROELASTIC_NEAR_FIELD_FORCE_MODEL)_uvlm",
-)
-mkpath(output_directory)
-
-## Structural model
-# Physical mass, inertia, stiffness, damping, and the time grid are defined in
-# chang_model_parameters.jl. The assembly applies the clamped-root boundary
-# condition and uses center-of-mass spatial inertia with parallel-axis terms.
+# 2. Build and check the structural model.
+# Parameters define geometry, physical properties, rotor speed Ω, and time
+# points t and step sizes dt in seconds. Assembly applies the clamped root.
+# M, C, K are the free-DOF mass, damping/gyroscopic, and stiffness matrices.
 include(joinpath(@__DIR__, "src", "chang_model_parameters.jl"))
 include(joinpath(@__DIR__, "src", "chang_structural_model.jl"))
-
 println("Assembling Chang structural matrices (Z-DOWN)...")
 structural = assemble_chang_structural_model(inertia_reference = :center_of_mass)
 structural_diagnostics = report_and_validate_structural_model(structural)
 println("Matrices after BCs. Total DOFs (free): $(structural.ndof_free)")
 
-# The example-specific aerodynamic adapter uses these reduced-system indices.
-free_dofs = structural.free_dofs
-ndof_wing_free = structural.ndof_wing_free
-
-## Aerodynamic model
-# Each panel gets one core radius from its 3-D span/radial bound-edge length
-# and the full local chord. Both factors are collected in the aerodynamic
-# options below and can be overridden for dedicated sensitivity studies.
+# 3. Build the aerodynamic model and wake.
+# The core law uses full local chord c and the 3-D span/radial edge length Δs.
 aerodynamic_options = chang_aerodynamic_options(nc_wing, L_pylon)
-FCORE = aerodynamic_options.finite_core
 println(
     "Finite-core radius: max($(aerodynamic_options.segment_core_factor) Δs, " *
     "$(aerodynamic_options.chord_core_factor) c)",
 )
+uvlm = initialize_chang_uvlm(aerodynamic_options)
 
-# Aerodynamic locations are expressed in frame A. The physical hub and the
-# load-reduction point are distinct so their moment arms remain explicit.
-elastic_axis_fraction = aerodynamic_options.elastic_axis_fraction
-prop_pivot_offset_from_ea_A = aerodynamic_options.propeller_pivot_offset_A
-hub_center_prop_A = aerodynamic_options.physical_hub_center_A
-hub_center_load_A = aerodynamic_options.load_center_A
+# Bind the geometry/load workspaces used by the adapter and validation scripts.
+include(joinpath(@__DIR__, "src", "chang_workspaces.jl"))
+wake_context = chang_wake_context(uvlm; interaction_on = INTERACTION_ON)
+animation_options = chang_animation_options(system, iwake, visualization_options)
 
-# The adapter contains the detailed structural/aerodynamic coordinate mapping.
-include(joinpath(@__DIR__, "src", "chang_uvlm_coupling.jl"))
-uvlm = initialize_chang_uvlm(
-    finite_core = FCORE,
-    elastic_axis_fraction = elastic_axis_fraction,
-    propeller_pivot_offset_A = prop_pivot_offset_from_ea_A,
-    physical_hub_center_A = hub_center_prop_A,
-    maximum_wake_rows_wing = aerodynamic_options.maximum_wake_rows_wing,
-    maximum_wake_rows_propeller = aerodynamic_options.maximum_wake_rows_propeller,
-)
-
-# These workspaces are shared with the example-specific geometry/load adapter.
-(;
-    ratio_wing,
-    grids_prop_ref,
-    attach_node_y,
-    ea_x_aero,
-    prop_surface_indices,
-    nsurf,
-    surface_interaction_id,
-    nwake,
-    system,
-    repeated_points,
-    iwake,
-    fs_vec,
-    save,
-    TF,
-    surface_history,
-    nodal_forces_wing,
-    nodal_moments_wing,
-    EA_nodes_wing,
-    nodal_forces_prop,
-    grids_prop_current,
-    T_pivot_A_current,
-) = uvlm
-T_hub_A_current = Vector{SVector{3,Float64}}(undef, Npropellers)
-T_load_A_current = Vector{SVector{3,Float64}}(undef, Npropellers)
-pitch_axis_A_current = Vector{SVector{3,Float64}}(undef, Npropellers)
-yaw_axis_A_current = Vector{SVector{3,Float64}}(undef, Npropellers)
-
-## Excitation and coupling solver
+# 4. Configure the excitation and solve the coupled response.
+# A pre-impulse mean load is subtracted to obtain the perturbation response.
 excitation_options = chang_excitation_options(
-    Ω,
-    Npropellers,
-    SIMULATION_CONFIG.impulse_propeller_indices,
+    Ω, Npropellers, SIMULATION_CONFIG.impulse_propeller_indices,
 )
 integration_options = chang_integration_options(
     structural;
-    reference = ref,
-    freestream_speed = Vinf,
-    reference_area = Sref,
-    reference_chord = cref,
-    propeller_radius = R_prop,
-    wing_node_count = nnodes,
-    dofs_per_node = ndof,
+    reference = ref, freestream_speed = Vinf,
+    reference_area = Sref, reference_chord = cref, propeller_radius = R_prop,
+    wing_node_count = nnodes, dofs_per_node = ndof,
 )
 report_chang_solver_options(excitation_options, integration_options)
 
-wake_context = (;
-    surface_count = nsurf,
-    repeated_points,
-    maximum_rows = nwake,
-    active_rows = iwake,
-    interaction_ids = surface_interaction_id,
-    interaction_on = INTERACTION_ON,
-    saved_steps = save,
-    surface_history,
-)
+aerodynamic_load = (snapshot, state, step) ->
+    aero_load_for_state!(system, snapshot, state, step; print_loads = false)
 
-record_animation_frame = if visualization_options.animate_wake
-    (surface_frames, wake_frames, active_rows_frames, frame_times, frame_time) ->
-        record_chang_animation_frame!(
-            surface_frames,
-            wake_frames,
-            active_rows_frames,
-            frame_times,
-            system,
-            iwake,
-            frame_time,
-        )
-else
-    (arguments...) -> nothing
-end
-animation_options = (;
-    enabled = visualization_options.animate_wake,
-    stride = visualization_options.animation_stride,
-    record_frame = record_animation_frame,
-)
-
-# ### Problem solution
-# The detailed loop lives in chang_simulation.jl. Its key transaction is:
-# snapshot -> fixed-wake coupling trials -> accept or restore -> advance wake.
-aerodynamic_load = (aerodynamic_snapshot, state, step) -> aero_load_for_state!(
-    system,
-    aerodynamic_snapshot,
-    state,
-    step;
-    print_loads = false,
-)
+# Each step converges loads and motion with a fixed wake, then advances it once.
 solution = solve_chang_aeroelastic!(
-    system,
-    structural;
+    system, structural;
     time = t,
     time_steps = dt,
     freestream_history = fs_vec,
@@ -234,48 +99,13 @@ solution = solve_chang_aeroelastic!(
     animation = animation_options,
 )
 
-# ### Post-processing
-# Export the accepted response and coupling diagnostics. Plotting and animation
-# are optional views of the same accepted states.
+# 5. Save the history and diagnostics; create the requested plot/animation.
+# solution contains the full accepted state histories; results contains the
+# extracted wing/propeller responses and output paths.
 results = write_chang_results(
-    displacement_history = solution.displacement_history,
-    time = t,
-    time_steps = dt,
-    last_step = solution.last_step,
-    wing_node_count = nnodes,
-    degrees_of_freedom_per_node = ndof,
-    number_of_propellers = Npropellers,
-    number_of_blades = Nb_prop,
-    propeller_eta = propeller_eta,
-    span_length = b,
-    density = ref.rho,
-    freestream_speed = Vinf,
-    interaction_on = INTERACTION_ON,
-    near_field_force_model = AEROELASTIC_NEAR_FIELD_FORCE_MODEL,
-    propeller_moment_projection = AEROELASTIC_PROPELLER_MOMENT_PROJECTION,
-    requested_end_time = t_end,
-    coupling_iterations = solution.coupling_iterations,
-    coupling_state_residual = solution.coupling_state_residual,
-    coupling_load_residual = solution.coupling_load_residual,
-    coupling_equilibrium_residual = solution.coupling_equilibrium_residual,
-    coupling_converged = solution.coupling_converged,
-    output_directory = output_directory,
-    output_label = output_label,
-    plot_results = visualization_options.plot_results,
-    plot_time_limit = visualization_options.plot_time_limit_s,
+    solution;
+    wing = WING_CONFIG, propeller = PROPELLER_CONFIG, simulation = SIMULATION_CONFIG,
+    time = t, time_steps = dt, wing_node_count = nnodes, dofs_per_node = ndof,
+    density = ref.rho, visualization = visualization_options,
+    output_directory, output_label,
 )
-
-if visualization_options.animate_wake
-    wake_animation_path = joinpath(output_directory, output_label * "_wing_wake.gif")
-    animate_chang_wing_wake(
-        solution.animation_surface_history,
-        solution.animation_wake_history,
-        solution.animation_active_wake_rows_history,
-        solution.animation_time_history;
-        output_path = wake_animation_path,
-        fps = visualization_options.animation_fps,
-        axis_limits = ((-3.0, 5.0), (0.0, 8.0), (-4.0, 4.0)),
-        tick_spacing = 1.0,
-    )
-    results = merge(results, (; wake_animation_path))
-end

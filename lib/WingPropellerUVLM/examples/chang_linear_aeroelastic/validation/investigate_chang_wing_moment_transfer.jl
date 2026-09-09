@@ -1,4 +1,4 @@
-# Investigate the current wing moment map without changing the production solver.
+# Regression audit of the corrected production map against geometry derivatives.
 # Run from the repository root:
 # julia --startup-file=no --compiled-modules=existing --project=lib/WingPropellerUVLM <this file>
 #
@@ -25,7 +25,7 @@ using Test
 # For R = Rz(theta_z) Rx(theta_x) Ry(theta_y):
 # a_span = Rz Rx e_y, a_chord = Rz e_x, a_down = -e_z.
 # theta_z is the negative of the structural down-rotation coordinate.
-function proposed_wing_moments(moment, theta_x, theta_z)
+function analytic_wing_moments(moment, theta_x, theta_z)
     sx, cx = sincos(theta_x)
     sz, cz = sincos(theta_z)
     return SVector(
@@ -37,7 +37,7 @@ end
 
 # The correction uses spatial moments, not finite-difference derivatives.
 # Keep separate wing/propeller parts to identify the source of the discrepancy.
-function proposed_projection_delta(kinematics)
+function projection_correction(kinematics)
     positions = imperial_nodal_positions(system)
     forces = imperial_nodal_forces(system)
     delta_wing, delta_prop = zeros(structural.ndof_free), zeros(structural.ndof_free)
@@ -47,7 +47,7 @@ function proposed_projection_delta(kinematics)
         node == 1 && return
         offset = ndof * (node - 2)
         fixed = SVector(moment[2], moment[1], -moment[3])
-        projected = proposed_wing_moments(moment, theta_x, theta_z)
+        projected = analytic_wing_moments(moment, theta_x, theta_z)
         old[offset+4:offset+6] .+= weight .* fixed
         delta[offset+4:offset+6] .+= weight .* (projected - fixed)
     end
@@ -103,9 +103,15 @@ end
 function evaluate_projection(state)
     kinematics = update_aero_geometry_for_state!(system, state, base_time)
     mapped = assemble_structural_aero_load!(system, kinematics)
-    parts = proposed_projection_delta(kinematics)
-    proposed = mapped + parts.delta_wing + parts.delta_prop
-    return (; mapped, proposed, parts)
+    parts = projection_correction(kinematics)
+    # Reconstruct the former fixed-axis result for historical comparison.
+    # The production result itself is tested against independent geometry FD.
+    fixed = copy(mapped)
+    for node in 2:nnodes, component in 4:6
+        index = ndof * (node - 2) + component
+        fixed[index] = parts.old_wing[index] + parts.old_prop[index]
+    end
+    return (; mapped, fixed, parts)
 end
 
 function investigation_finite_difference(state, step)
@@ -131,38 +137,37 @@ append!(scenarios, [
     (label="zero_propeller_angles", angle=1.0, pattern=:uniform, propeller_motion=false)])
 fd_steps = (1e-5, 1e-6, 1e-7)
 summary_rows = NamedTuple[]
-@testset "Proposed wing projection against actual geometry" begin
+@testset "Production wing projection against actual geometry" begin
     open(joinpath(INVESTIGATION_DIR, "components.csv"), "w") do stream
-        println(stream, "scenario,fd_step,dof,current,proposed,finite_difference,current_scaled_error,proposed_scaled_error,wing_correction,attachment_correction")
+        println(stream, "scenario,fd_step,dof,fixed_axis,production,finite_difference,fixed_axis_scaled_error,production_scaled_error,wing_correction,attachment_correction")
         for scenario in scenarios
             state = investigation_state(scenario.angle; pattern=scenario.pattern,
                 propeller_motion=scenario.propeller_motion)
             evaluation = evaluate_projection(state)
             for step in fd_steps
                 fd_load = investigation_finite_difference(state, step)
-                scales = max.(abs.(evaluation.proposed), abs.(fd_load), 1.0)
-                current_scales = max.(abs.(evaluation.mapped), abs.(fd_load), 1.0)
-                current_error = abs.(evaluation.mapped - fd_load) ./ current_scales
-                proposed_error = abs.(evaluation.proposed - fd_load) ./ scales
+                scales = max.(abs.(evaluation.mapped), abs.(fd_load), 1.0)
+                fixed_scales = max.(abs.(evaluation.fixed), abs.(fd_load), 1.0)
+                fixed_error = abs.(evaluation.fixed - fd_load) ./ fixed_scales
+                production_error = abs.(evaluation.mapped - fd_load) ./ scales
                 # Independent geometry derivatives verify ALL free coordinates.
-                @test maximum(proposed_error) < 1e-6
-                wing_rotation_indices = [ndof*(node-2)+c for node in 2:nnodes for c in 4:6]
-                @test evaluation.mapped[wing_rotation_indices] ≈
-                    (evaluation.parts.old_wing + evaluation.parts.old_prop)[wing_rotation_indices]
+                @test maximum(production_error) < 1e-6
+                @test evaluation.mapped ≈ evaluation.fixed +
+                    evaluation.parts.delta_wing + evaluation.parts.delta_prop
                 if scenario.angle == 0 || scenario.pattern == :span
-                    @test maximum(current_error) < 1e-6
+                    @test maximum(fixed_error) < 1e-6
                 end
-                worst = argmax(current_error)
+                worst = argmax(fixed_error)
                 push!(summary_rows, (; scenario=scenario.label, step,
-                    worst_dof=dof_name(worst), current_error=maximum(current_error),
-                    proposed_error=maximum(proposed_error), current=evaluation.mapped[worst],
-                    proposed=evaluation.proposed[worst], finite_difference=fd_load[worst],
+                    worst_dof=dof_name(worst), fixed_error=maximum(fixed_error),
+                    production_error=maximum(production_error), fixed=evaluation.fixed[worst],
+                    production=evaluation.mapped[worst], finite_difference=fd_load[worst],
                     wing_delta=evaluation.parts.delta_wing[worst],
                     attachment_delta=evaluation.parts.delta_prop[worst]))
                 for index in eachindex(state)
                     println(stream, join((scenario.label, step, dof_name(index),
-                        evaluation.mapped[index], evaluation.proposed[index], fd_load[index],
-                        current_error[index], proposed_error[index],
+                        evaluation.fixed[index], evaluation.mapped[index], fd_load[index],
+                        fixed_error[index], production_error[index],
                         evaluation.parts.delta_wing[index], evaluation.parts.delta_prop[index]), ","))
                 end
             end
@@ -177,7 +182,7 @@ open(joinpath(INVESTIGATION_DIR, "summary.csv"), "w") do stream
     end
 end
 
-# A nonzero preload makes the omitted axis derivative first-order in q.
+# A nonzero preload makes the restored axis derivative first-order in q.
 # This check freezes aerodynamic forces and uses zero wing AND propeller angles.
 # It therefore isolates the load-map contribution to the tangent, not the
 # complete aeroelastic stiffness or flutter damping.
@@ -186,22 +191,21 @@ end
     state_plus = investigation_state(rad2deg(angle_step); propeller_motion=false)
     state_minus = investigation_state(-rad2deg(angle_step); propeller_motion=false)
     plus, minus = evaluate_projection(state_plus), evaluate_projection(state_minus)
-    tangent = ((plus.proposed - plus.mapped) - (minus.proposed - minus.mapped)) / (2angle_step)
+    tangent = ((plus.mapped - plus.fixed) - (minus.mapped - minus.fixed)) / (2angle_step)
     @test maximum(abs, tangent) > 1.0
     finer_plus = evaluate_projection(investigation_state(rad2deg(angle_step/2); propeller_motion=false))
     finer_minus = evaluate_projection(investigation_state(-rad2deg(angle_step/2); propeller_motion=false))
-    finer_tangent = ((finer_plus.proposed-finer_plus.mapped) -
-        (finer_minus.proposed-finer_minus.mapped)) / angle_step
+    finer_tangent = ((finer_plus.mapped-finer_plus.fixed) -
+        (finer_minus.mapped-finer_minus.fixed)) / angle_step
     @test isapprox(tangent, finer_tangent; rtol=1e-7, atol=1e-6)
-    open(joinpath(INVESTIGATION_DIR, "omitted_preload_tangent.csv"), "w") do stream
-        println(stream, "dof,omitted_directional_tangent_Nm_per_rad")
+    open(joinpath(INVESTIGATION_DIR, "restored_preload_tangent.csv"), "w") do stream
+        println(stream, "dof,restored_directional_tangent_Nm_per_rad")
         for i in eachindex(tangent)
             println(stream, "$(dof_name(i)),$(tangent[i])")
         end
     end
-    println("OMITTED_PRELOAD_TANGENT_MAX: ", maximum(abs, tangent), " N*m/rad")
+    println("RESTORED_PRELOAD_TANGENT_MAX: ", maximum(abs, tangent), " N*m/rad")
 end
 base_state .= INVESTIGATION_REFERENCE_STATE
 update_aero_geometry_for_state!(system, base_state, base_time)
 println("Investigation outputs: ", abspath(INVESTIGATION_DIR))
-

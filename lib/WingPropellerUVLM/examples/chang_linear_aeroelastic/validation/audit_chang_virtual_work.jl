@@ -34,9 +34,9 @@ function vortex_positions_at(state)
     return imperial_nodal_positions(system)
 end
 
-function virtual_work_load(index; step = 1.0e-7)
-    plus_state = copy(base_state)
-    minus_state = copy(base_state)
+function virtual_work_load(index; state = base_state, step = 1.0e-7)
+    plus_state = copy(state)
+    minus_state = copy(state)
     plus_state[index] += step
     minus_state[index] -= step
     plus_positions = vortex_positions_at(plus_state)
@@ -57,23 +57,54 @@ end
 
 left_attachment_node, right_attachment_node = prop_attachment_node_pairs[1]
 indices = Tuple{String,Int}[]
-for (side, node) in (
-    ("left", left_attachment_node),
-    ("right", right_attachment_node),
-)
+for node in 2:nnodes
+    prefix = node == left_attachment_node ? "left_attachment" :
+        node == right_attachment_node ? "right_attachment" : "wing_node_$node"
     attachment_start = ndof * (node - 2)
     append!(indices, [
-        ("$(side)_attachment_chord_translation", attachment_start + 2),
-        ("$(side)_attachment_vertical_translation", attachment_start + 3),
-        ("$(side)_attachment_span_rotation", attachment_start + 4),
-        ("$(side)_attachment_chord_rotation", attachment_start + 5),
-        ("$(side)_attachment_vertical_rotation", attachment_start + 6),
+        ("$(prefix)_span_translation", attachment_start + 1),
+        ("$(prefix)_chord_translation", attachment_start + 2),
+        ("$(prefix)_vertical_translation", attachment_start + 3),
+        ("$(prefix)_span_rotation", attachment_start + 4),
+        ("$(prefix)_chord_rotation", attachment_start + 5),
+        ("$(prefix)_vertical_rotation", attachment_start + 6),
     ])
 end
-append!(indices, [
-    ("propeller_pitch", ndof_wing_free + 1),
-    ("propeller_yaw", ndof_wing_free + 2),
-])
+for propeller_index in 1:Npropellers
+    prefix = propeller_index == 1 ? "propeller" : "propeller_$propeller_index"
+    offset = ndof_wing_free + 2 * (propeller_index - 1)
+    append!(indices, [("$(prefix)_pitch", offset + 1), ("$(prefix)_yaw", offset + 2)])
+end
+
+function audit_state_virtual_work(state; label)
+    kinematics = update_aero_geometry_for_state!(system, state, base_time)
+    mapped_load = assemble_structural_aero_load!(system, kinematics)
+    errors = Dict{String,Float64}()
+    maximum_checked_error = 0.0
+    println("\nstate=$label")
+    println("quantity,generalized_load,virtual_work_load,scaled_error")
+    try
+        for (name, index) in indices
+            work_load = virtual_work_load(index; state)
+            assembled_load = mapped_load[index]
+            scale = max(abs(assembled_load), abs(work_load), 1.0)
+            error = abs(assembled_load - work_load) / scale
+            errors[name] = error
+            println("$name,$assembled_load,$work_load,$error")
+            # Wing projection is exact for either propeller modal option.
+            # The retained fixed-axis modal option is intentionally approximate.
+            if index <= ndof_wing_free ||
+                AEROELASTIC_PROPELLER_MOMENT_PROJECTION == :exact_virtual_work
+                maximum_checked_error = max(maximum_checked_error, error)
+                @assert error <= 1.0e-6 "$label: virtual-work mismatch for $name ($error)"
+            end
+        end
+    finally
+        update_aero_geometry_for_state!(system, base_state, base_time)
+    end
+    println("maximum_checked_virtual_work_error = $maximum_checked_error")
+    return (; errors, maximum_checked_error)
+end
 
 println("\nChang aerodynamic load-transfer virtual-work audit")
 println("propeller_moment_projection = $AEROELASTIC_PROPELLER_MOMENT_PROJECTION")
@@ -84,21 +115,26 @@ println(
     "($(rad2deg(base_state[ndof_wing_free + 1])), " *
     "$(rad2deg(base_state[ndof_wing_free + 2])))",
 )
-println("quantity,generalized_load,virtual_work_load,scaled_error")
-maximum_error = 0.0
-errors = Dict{String,Float64}()
-for (name, index) in indices
-    work_load = virtual_work_load(index)
-    assembled_load = generalized_load[index]
-    scale = max(abs(assembled_load), abs(work_load), 1.0)
-    error = abs(assembled_load - work_load) / scale
-    errors[name] = error
-    global maximum_error = max(maximum_error, error)
-    println("$name,$assembled_load,$work_load,$error")
+reference_audit = audit_state_virtual_work(base_state; label = "reference")
+errors = reference_audit.errors
+maximum_error = reference_audit.maximum_checked_error
+
+# Frozen forces isolate load transfer from the circulation solver. Exercise
+# both a uniform rotation and the interpolation chain rule at attachments.
+for pattern in (:uniform, :nonuniform)
+    trial_state = copy(base_state)
+    for node in 2:nnodes
+        offset = ndof * (node - 2)
+        eta = span_nodes[node] / span_length
+        trial_state[offset+1:offset+3] .= (0.001eta, -0.002eta^2, 0.003eta)
+        trial_state[offset+4:offset+6] .= pattern == :uniform ? fill(deg2rad(1.0), 3) :
+            deg2rad(5.0) .* [sin(pi*eta/2), -0.7eta^2, 0.6sin(pi*eta)]
+    end
+    for propeller_index in 1:Npropellers
+        offset = ndof_wing_free + 2 * (propeller_index - 1)
+        trial_state[offset+1:offset+2] .= deg2rad.([4.0, 3.0])
+    end
+    audit = audit_state_virtual_work(trial_state; label = string(pattern))
+    global maximum_error = max(maximum_error, audit.maximum_checked_error)
 end
-update_aero_geometry_for_state!(system, base_state, base_time)
 println("maximum_scaled_virtual_work_error = $maximum_error")
-if AEROELASTIC_PROPELLER_MOMENT_PROJECTION == :exact_virtual_work
-    @assert errors["propeller_pitch"] <= 1.0e-6
-    @assert errors["propeller_yaw"] <= 1.0e-6
-end

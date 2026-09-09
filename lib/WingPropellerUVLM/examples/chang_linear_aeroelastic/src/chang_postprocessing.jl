@@ -1,5 +1,70 @@
 # Result extraction and file-output helpers for the Chang example.
 
+"""Resolve the output directory/label and create the directory before running."""
+function chang_output_paths(example_directory, force_model)
+    default_directory = isabspath(OUTPUT_DEFAULTS.directory) ?
+        OUTPUT_DEFAULTS.directory : joinpath(example_directory, OUTPUT_DEFAULTS.directory)
+    default_label = isnothing(OUTPUT_DEFAULTS.label) ?
+        "chang_linear_$(force_model)_uvlm" : OUTPUT_DEFAULTS.label
+    directory = normpath(get(ENV, "CHANG_OUTPUT_DIR", default_directory))
+    label = get(ENV, "CHANG_OUTPUT_LABEL", default_label)
+    mkpath(directory)
+    return (; directory, label)
+end
+
+"""
+    write_chang_results(solution; wing, propeller, simulation, ...)
+
+Save a complete run using its case configuration and visualization options.
+The keyword-only method below handles CSV/summary extraction; this wrapper
+forwards the solution diagnostics and optionally renders the accepted wake.
+"""
+function write_chang_results(solution;
+    wing, propeller, simulation, time, time_steps, wing_node_count, dofs_per_node,
+    density, visualization, output_directory, output_label,
+)
+    results = write_chang_results(;
+        displacement_history = solution.displacement_history,
+        time, time_steps,
+        last_step = solution.last_step,
+        wing_node_count,
+        degrees_of_freedom_per_node = dofs_per_node,
+        number_of_propellers = length(propeller.attachment_eta),
+        number_of_blades = propeller.blades,
+        propeller_eta = propeller.attachment_eta,
+        span_length = wing.span_m,
+        density,
+        freestream_speed = simulation.freestream_speed_mps,
+        interaction_on = simulation.interaction_on,
+        near_field_force_model = simulation.near_field_force_model,
+        propeller_moment_projection = simulation.propeller_moment_projection,
+        requested_end_time = simulation.end_time_s,
+        coupling_iterations = solution.coupling_iterations,
+        coupling_state_residual = solution.coupling_state_residual,
+        coupling_load_residual = solution.coupling_load_residual,
+        coupling_equilibrium_residual = solution.coupling_equilibrium_residual,
+        coupling_converged = solution.coupling_converged,
+        output_directory, output_label,
+        plot_results = visualization.plot_results,
+        plot_time_limit = visualization.plot_time_limit_s,
+    )
+    if visualization.animate_wake
+        wake_animation_path = joinpath(output_directory, output_label * "_wing_wake.gif")
+        animate_chang_wing_wake(
+            solution.animation_surface_history,
+            solution.animation_wake_history,
+            solution.animation_active_wake_rows_history,
+            solution.animation_time_history;
+            output_path = wake_animation_path,
+            fps = visualization.animation_fps,
+            axis_limits = OUTPUT_DEFAULTS.animation_axis_limits,
+            tick_spacing = OUTPUT_DEFAULTS.animation_tick_spacing_m,
+        )
+        results = merge(results, (; wake_animation_path))
+    end
+    return results
+end
+
 function finite_maximum(values)
     finite_values = filter(isfinite, collect(values))
     return isempty(finite_values) ? NaN : maximum(finite_values)

@@ -1,13 +1,17 @@
 # Investigation: work-conjugate wing moments
 
-The discrepancy is confirmed for the geometry currently implemented. The
+The former fixed-axis discrepancy was confirmed for the implemented geometry. The
 structural-to-aerodynamic sign conversion is correct; the missing operation
 is projection of spatial moments onto the instantaneous axes of the wing's
 Euler coordinates. It occurs in both direct wing loads and propeller wrenches
 distributed to wing attachment nodes.
 
-This investigation adds a standalone diagnostic and validates an analytic
-candidate. It does not change the production load mapping or structural model.
+The production adapter now applies the analytic Euler-axis projection at wing
+nodes and interpolated propeller attachments. The ordinary audit asserts all
+wing coordinates at reference, uniform, and nonuniform states. The extended
+investigation now tests the production result directly against independent
+geometry derivatives and reconstructs the former fixed-axis result for
+comparison. The structural model is unchanged.
 
 ## Derivation for the actual rotation order
 
@@ -48,7 +52,7 @@ Q_chord = cos(gamma) Mx - sin(gamma) My
 Q_down  = -Mz.
 ```
 
-The current code uses (My, Mx, -Mz). These expressions agree when beta and
+The former code used (My, Mx, -Mz). These expressions agree when beta and
 gamma are zero, including pure spanwise torsion at nonzero alpha. A nonzero
 rotation by itself does not imply an error. The outer and middle rotations
 change the axes associated with the inner coordinates.
@@ -61,8 +65,9 @@ Relevant sources:
 
 - [Wing geometry](../../../src/wing_propeller/GridUtilities.jl), line 86:
   Rz(theta_z) Rx(theta_x) Ry(theta_y).
-- [Chang geometry/load adapter](../src/chang_uvlm_coupling.jl), lines 91–99,
-  145–147, 273–275, and 319–336.
+- [Chang geometry/load adapter](../src/chang_uvlm_coupling.jl):
+  update_aero_geometry_for_state!, chang_wing_generalized_moment, and
+  assemble_structural_aero_load!.
 - [Paired force application points](../../../src/backend/nearfield.jl),
   imperial_nodal_positions. The audit differentiates these vortex vertices,
   so it does not mix physical-grid points with vortex-grid force locations.
@@ -86,7 +91,7 @@ The propeller's pitch/yaw modal projections already use their instantaneous
 axes. Those components pass the current audit and need no analogous change
 for this particular issue.
 
-## Numerical evidence
+## Original investigation evidence
 
 The diagnostic explicitly reproduces the earlier review setup: 84 m/s,
 interaction enabled, 4x2 wing panels, 2x2 panels per blade, and both core
@@ -103,7 +108,7 @@ For uniform 1-degree wing rotations, the original attachment result is:
 
 | Right attachment, chord rotation | Generalized moment (N m) |
 | --- | ---: |
-| Current mapping | 20.7960458652 |
+| Former fixed-axis mapping | 20.7960458652 |
 | Analytic candidate | 17.9386876274 |
 | Geometry finite difference, h=1e-6 | 17.9386876227 |
 
@@ -121,7 +126,7 @@ max(abs(current), abs(FD), 1 N m). It is not an overall force or response error.
 The extended check includes all 26 free coordinates, not only the attachment
 and propeller coordinates checked previously. At node 2, which has no
 propeller attachment, a pure 1-degree down-axis rotation gives a spurious
-chord-rotation generalized moment of 0.5069174933 N m in the current mapping.
+chord-rotation generalized moment of 0.5069174933 N m in the former mapping.
 The candidate and independent derivative both give zero to numerical
 precision. At zero span rotation, a variation of the middle chord rotation
 does not move a point lying on the chord axis; the nonzero Cartesian moment
@@ -165,26 +170,44 @@ work-conjugate to its existing finite geometry does not introduce a complete
 geometrically nonlinear beam or prove that every prestress term required
 for a particular linearization is present.
 
-## Recommended correction and validation
+## Applied correction and validation
 
-For the existing finite geometry, apply the analytic moment projection at
-every wing node and at each interpolated propeller attachment. Keep the
-current force components, moment reference points, and propeller modal
-axes. The candidate uses three scalar projections; numerical differentiation
-is only a validation tool and need not enter the time-marching solver.
+For the existing finite geometry, the adapter applies the analytic moment
+projection at every wing node and at each interpolated propeller attachment.
+Force components, moment reference points, and propeller modal axes are
+preserved. The implementation uses three scalar projections; numerical
+differentiation remains only a validation tool.
 
 If the intended model instead uses strictly linearized geometry, derive
 that displacement map explicitly and transfer loads through its transpose.
 Keeping exact geometry with an unexplained fixed-axis moment map leaves
 the virtual-work mismatch demonstrated here.
 
-After applying either modeling choice, the production audit should assert
-all wing and propeller coordinates at nonzero, nonuniform states. Then compare
-identical coupled-response cases, recording full wing rotations and
-generalized loads. The ordinary response CSV contains only tip torsion and
+The production audit now asserts all wing coordinates at nonzero, nonuniform
+states, and all propeller coordinates with exact modal projection. Assessing
+the effect on damping still requires identical coupled-response cases,
+recording full wing rotations and generalized loads. The ordinary response
+CSV contains only tip torsion and
 propeller angles; it cannot establish the size of this error throughout
 the user's current full run. No damping or flutter change is quantified
 by the frozen-load investigation.
+
+The corrected production mapping passed all 858 finite-difference component
+comparisons, with maximum scaled discrepancy 5.28666e-8. The original right
+attachment chord-rotation component now gives 17.9386876274 N m versus the
+independent derivative's 17.9386876227 N m (scaled discrepancy 2.63e-10).
+The ordinary three-state audit also passes, with maximum checked discrepancy
+4.24e-8. The extended regression completed 74 test assertions, and all 148
+library and aerodynamic-convergence integrity checks passed.
+
+A reduced coupled run also completed 188 steps through trim capture and a
+100 N m pitch pulse, with finite displacement, velocity, and acceleration
+histories and every coupling step converged. It used 84 m/s, interaction on,
+the same 4x2/2x2 meshes and 0.025 core factors, one pre-impulse revolution,
+a 0.015 s pulse, and a requested duration of 0.10 s. This is a time-marching
+check, not a converged damping calculation. Its
+[summary](../output/validation/wing_moment_smoke/chang_linear_imperial_uvlm_summary.txt)
+records the completed run.
 
 ## Reproduction
 
@@ -194,12 +217,12 @@ by the frozen-load investigation.
 julia --startup-file=no --compiled-modules=existing --project=lib/WingPropellerUVLM lib/WingPropellerUVLM/examples/chang_linear_aeroelastic/validation/investigate_chang_wing_moment_transfer.jl
 ```
 
-The script calls the existing audit, compares the production mapping to the
-candidate and independent geometry derivatives, and writes:
+The script calls the ordinary audit, compares the production mapping to
+independent geometry derivatives and the reconstructed former mapping, and writes:
 
 - [All component comparisons](../output/wing_moment_investigation/components.csv)
 - [Scenario summaries](../output/wing_moment_investigation/summary.csv)
-- [Omitted directional tangent](../output/wing_moment_investigation/omitted_preload_tangent.csv)
+- [Restored directional tangent](../output/wing_moment_investigation/restored_preload_tangent.csv)
 
-These checks validate the proposed projection. They must not be interpreted
-as assertions that the unchanged production mapping is correct.
+These checks now validate the actual production load mapping. The historical
+fixed-axis discrepancy remains visible in the CSV output for comparison.

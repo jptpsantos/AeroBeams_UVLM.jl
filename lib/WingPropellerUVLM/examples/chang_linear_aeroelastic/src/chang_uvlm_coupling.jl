@@ -5,6 +5,32 @@
 # conversion. Generic grid deformation, UVLM stepping, segment-to-nodal loads,
 # and generalized-alpha integration live in WingPropellerUVLM itself.
 
+"""Initialize the case UVLM system from `chang_aerodynamic_options`."""
+function initialize_chang_uvlm(options)
+    return initialize_chang_uvlm(;
+        finite_core = options.finite_core,
+        elastic_axis_fraction = options.elastic_axis_fraction,
+        propeller_pivot_offset_A = options.propeller_pivot_offset_A,
+        physical_hub_center_A = options.physical_hub_center_A,
+        maximum_wake_rows_wing = options.maximum_wake_rows_wing,
+        maximum_wake_rows_propeller = options.maximum_wake_rows_propeller,
+    )
+end
+
+"""Collect the wake controls while sharing the initialized mutable storage."""
+function chang_wake_context(uvlm; interaction_on::Bool)
+    return (;
+        surface_count = uvlm.nsurf,
+        repeated_points = uvlm.repeated_points,
+        maximum_rows = uvlm.nwake,
+        active_rows = uvlm.iwake,
+        interaction_ids = uvlm.surface_interaction_id,
+        interaction_on,
+        saved_steps = uvlm.save,
+        surface_history = uvlm.surface_history,
+    )
+end
+
 """
     initialize_chang_uvlm(; kwargs...)
 
@@ -216,13 +242,33 @@ function update_aero_geometry_for_state!(system, q_free::AbstractVector, time_np
 end
 
 """
+    chang_wing_generalized_moment(moment_A, theta_x_A, theta_z_A)
+
+Project a spatial moment in the aerodynamic basis onto the wing's structural
+Euler coordinates `[span, chord, down]`. Geometry uses
+`R = Rz(theta_z_A) Rx(theta_x_A) Ry(theta_y_A)`, with structural down rotation
+equal to `-theta_z_A`. The work-conjugate axes are `Rz Rx e_y`, `Rz e_x`, and
+`-e_z`; they do not depend on the innermost angle `theta_y_A`.
+"""
+function chang_wing_generalized_moment(moment_A, theta_x_A, theta_z_A)
+    sx, cx = sincos(theta_x_A)
+    sz, cz = sincos(theta_z_A)
+    return SVector(
+        -sz * cx * moment_A[1] + cz * cx * moment_A[2] + sx * moment_A[3],
+        cz * moment_A[1] + sz * moment_A[2],
+        -moment_A[3],
+    )
+end
+
+"""
     assemble_structural_aero_load!(system, kinematics; step=0, print_loads=false)
 
 Transfer the dimensional UVLM vertex forces to the Chang free-DOF
 ordering. Wing forces are summed chordwise and moments are formed about the
-deformed elastic axis. Blade forces are reduced to propeller hub/pivot
-wrenches, distributed work-conjugately over the two attachment nodes, and
-projected onto the pitch/yaw modal DOFs.
+deformed elastic axis and projected onto the instantaneous wing rotation axes.
+Blade forces are reduced to propeller hub/pivot wrenches. Their wing moments
+are projected at the interpolated attachment angles before distribution over
+the two attachment nodes; modal moments use the selected pitch/yaw projection.
 
 Returns one generalized-load vector ordered exactly like the reduced
 structural state used by `M`, `C`, and `K`.
@@ -267,12 +313,17 @@ function assemble_structural_aero_load!(system, kinematics;
 
     for node_index in 1:nnodes
         offset = ndof * (node_index - 1)
+        generalized_moment = chang_wing_generalized_moment(
+            SVector(moment_x[node_index], moment_y[node_index], moment_z[node_index]),
+            kinematics.theta_x_A[node_index],
+            kinematics.theta_z_A[node_index],
+        )
         wing_loads[offset + 1] = force_y[node_index]
         wing_loads[offset + 2] = force_x[node_index]
         wing_loads[offset + 3] = -force_z[node_index]
-        wing_loads[offset + 4] = moment_y[node_index]
-        wing_loads[offset + 5] = moment_x[node_index]
-        wing_loads[offset + 6] = -moment_z[node_index]
+        wing_loads[offset + 4] = generalized_moment[1]
+        wing_loads[offset + 5] = generalized_moment[2]
+        wing_loads[offset + 6] = generalized_moment[3]
     end
 
     propeller_loads = zeros(ndof_P)
@@ -316,16 +367,29 @@ function assemble_structural_aero_load!(system, kinematics;
             propeller_loads[2 * (propeller_index - 1) + 2] = -modal_moment[3]
         end
 
+        # The geometry interpolates Euler angles before rotating the propeller.
+        # Apply that same chain rule: project at the attachment, then multiply
+        # by the nodal weights. Individual node axes would be inconsistent when
+        # the neighboring rotations differ.
+        left_node, right_node = prop_attachment_node_pairs[propeller_index]
+        left_weight, right_weight = prop_attachment_weights[propeller_index]
+        theta_x_attachment = left_weight * kinematics.theta_x_A[left_node] +
+            right_weight * kinematics.theta_x_A[right_node]
+        theta_z_attachment = left_weight * kinematics.theta_z_A[left_node] +
+            right_weight * kinematics.theta_z_A[right_node]
+        generalized_wing_moment = chang_wing_generalized_moment(
+            wing_moment,
+            theta_x_attachment,
+            theta_z_attachment,
+        )
         structural_wrench = (
             total_force[2],
             total_force[1],
             -total_force[3],
-            wing_moment[2],
-            wing_moment[1],
-            -wing_moment[3],
+            generalized_wing_moment[1],
+            generalized_wing_moment[2],
+            generalized_wing_moment[3],
         )
-        left_node, right_node = prop_attachment_node_pairs[propeller_index]
-        left_weight, right_weight = prop_attachment_weights[propeller_index]
         for (node, weight) in (
             (left_node, left_weight),
             (right_node, right_weight),
