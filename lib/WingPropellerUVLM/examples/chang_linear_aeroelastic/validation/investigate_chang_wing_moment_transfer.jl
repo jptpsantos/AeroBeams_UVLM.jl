@@ -101,8 +101,8 @@ function investigation_state(angle; pattern=:uniform, propeller_motion=true)
 end
 
 function evaluate_projection(state)
-    kinematics = update_aero_geometry_for_state!(system, state, base_time)
-    mapped = assemble_structural_aero_load!(system, kinematics)
+    kinematics = update_aero_geometry_for_state!(model, workspace, state, base_time)
+    mapped = assemble_structural_aero_load!(model, workspace, kinematics)
     parts = projection_correction(kinematics)
     # Reconstruct the former fixed-axis result for historical comparison.
     # The production result itself is tested against independent geometry FD.
@@ -207,5 +207,5 @@ end
     println("RESTORED_PRELOAD_TANGENT_MAX: ", maximum(abs, tangent), " N*m/rad")
 end
 base_state .= INVESTIGATION_REFERENCE_STATE
-update_aero_geometry_for_state!(system, base_state, base_time)
+update_aero_geometry_for_state!(model, workspace, base_state, base_time)
 println("Investigation outputs: ", abspath(INVESTIGATION_DIR))

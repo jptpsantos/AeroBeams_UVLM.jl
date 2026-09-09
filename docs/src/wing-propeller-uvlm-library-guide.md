@@ -483,8 +483,11 @@ reassembling these arrays in an input file.
 |:--|:--|
 | `examples/rectangular_wing_free_wake.jl` | Rigid unsteady wing, accepted-state stepping, VTK series, lift history, and mean spanwise lift. |
 | `examples/README.md` | Rigid-case inputs, outputs, regression values, and environment overrides. |
-| `examples/chang_linear_aeroelastic/chang_case.jl` | User-facing wing, propeller, and simulation configurations plus validation. |
-| `examples/chang_linear_aeroelastic/run_chang_linear_aeroelastic.jl` | Readable primary workflow: case, structure, aerodynamics, excitation/coupling, solve, and output. |
+| `examples/chang_linear_aeroelastic/chang_case.jl` | All editable primary-case defaults, returned by `chang_case_defaults()`. |
+| `examples/chang_linear_aeroelastic/run_chang_linear_aeroelastic.jl` | Load one configuration and call `run_chang(config)`. |
+| `examples/chang_linear_aeroelastic/src/ChangAeroelastic.jl` | Example API: build a model/workspace, solve, and return the run objects and results. |
+| `examples/chang_linear_aeroelastic/src/chang_configuration.jl` | Resolve all environment overrides and automatic settings into one validated configuration. |
+| `examples/chang_linear_aeroelastic/src/chang_workspaces.jl` | Allocate mutable geometry, loads, and wake storage for one model. |
 | `examples/chang_linear_aeroelastic/src/chang_model_parameters.jl` | SI conversion and interpolation of Chang mass, inertia, stiffness, pylon, rotor, mesh, freestream, and time data. |
 | `examples/chang_linear_aeroelastic/src/chang_structural_matrices.jl` | Point-mass and 3-D beam-element matrices and global assembly; `inertia_reference=:beam_axis` retains the historical comparison. |
 | `examples/chang_linear_aeroelastic/src/chang_structural_model.jl` | High-level structural assembly, modal analysis/classification, and matrix diagnostics. |

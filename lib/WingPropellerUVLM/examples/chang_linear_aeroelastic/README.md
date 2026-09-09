@@ -22,32 +22,60 @@ load transfer, and generalized-alpha coupling in detail.
 
 ## How to read the main script
 
-`run_chang_linear_aeroelastic.jl` follows five numbered steps:
+The runner loads one complete `config`, calls `run_chang(config)`, and exposes
+`chang_run` and `results` for inspection. All case settings, environment
+overrides, and automatic values are resolved before model construction.
 
-| Step | What it does | Where the details live |
-|:--|:--|:--|
-| 1. Case and output | Read physical inputs, select load models, enable requested plots | `chang_case.jl`, `src/chang_postprocessing.jl` |
-| 2. Structure | Build and check the mass, damping/gyroscopic, and stiffness matrices | `src/chang_model_parameters.jl`, `src/chang_structural_model.jl` |
-| 3. Aerodynamics | Initialize surfaces, finite cores, and wake storage | `src/chang_uvlm_coupling.jl` |
-| 4. Simulation | Configure trim, impulse, and coupling; advance the response | `src/chang_simulation.jl` |
-| 5. Results | Write CSV/summary files and the requested PNG/GIF | `src/chang_postprocessing.jl` |
+| Object | Contents |
+|:--|:--|
+| `chang_run.config` | Active geometry, flow, finite-core, wake, excitation, integration, coupling, output, and structural settings |
+| `chang_run.model` | Configuration, derived parameters, structural matrices, and aerodynamic load model |
+| `chang_run.workspace` | This run's mutable UVLM system, wake, geometry, and load buffers |
+| `chang_run.solution` | Accepted structural histories and coupling diagnostics |
+| `chang_run.results` | Extracted responses and output paths |
 
-The main objects follow the same flow: `structural` holds the reduced matrices,
-`uvlm` holds aerodynamic storage, `solution` holds the state histories and
-coupling diagnostics, and `results` holds extracted responses and file paths.
+`src/ChangAeroelastic.jl` defines the example module and the build/solve/save
+workflow. `src/chang_workspaces.jl` provides `build_chang_workspace(model)`,
+which allocates fresh aerodynamic storage. The geometry and load-transfer
+functions receive `model` and `workspace` explicitly. Loading the module
+defines functions; it does not construct or run a case.
+
 Within each time step, the solver converges motion and loads with the wake
-fixed, then advances the accepted wake once.
+fixed, then advances the accepted wake once. Numerical integration remains in
+`src/chang_simulation.jl`. Tabulated Chang mass and stiffness distributions
+remain reference data in `src/chang_model_parameters.jl`.
 
-`src/chang_workspaces.jl` binds the initialized arrays to the names used by the
-geometry/load adapter and validation scripts. Include it after creating
-`structural`, `aerodynamic_options`, and `uvlm`. These bindings share the same
-arrays; the file does not construct another aerodynamic model.
+### Use the API or run multiple cases
 
-For routine work, edit `chang_case.jl`. Its groups include core factors, wake
-retention, trim/impulse timing, integration, coupling tolerances, output, and
-structural damping. The option functions in `src/chang_simulation.jl` read those
-defaults and apply environment overrides. Tabulated Chang wing mass/stiffness
-distributions remain reference data in `src/chang_model_parameters.jl`.
+With the WingPropellerUVLM project active, load the module once and build each
+case from fresh defaults:
+
+```julia
+include("lib/WingPropellerUVLM/examples/chang_linear_aeroelastic/src/ChangAeroelastic.jl")
+using .ChangAeroelastic
+
+defaults = chang_case_defaults()
+defaults = merge(defaults, (
+    simulation = merge(defaults.simulation, (; freestream_speed_mps = 80.0)),
+    coupling = merge(defaults.coupling, (; state_tolerance = 1e-6)),
+))
+config = load_chang_configuration(defaults; env = Dict{String,String}())
+response = run_chang(config)
+```
+
+Omit `env` to apply the existing `CHANG_*` environment overrides. Resolve
+settings again after changing inputs so automatic wake counts and impulse
+timing use the new case. Environment changes after loading do not affect the
+resolved configuration. Each run owns a copy of its settings and fresh
+aerodynamic storage, so successive cases do not overwrite one another.
+
+For an audit that only needs the model and geometry, use
+`model = build_chang_model(config)` and
+`workspace = build_chang_workspace(model)`. Then call, for example,
+`update_aero_geometry_for_state!(model, workspace, state, time)`.
+Treat model data as read-only after construction; build a new model when
+changing the case. The primary runner reloads `chang_case.jl` on each
+invocation, including when rerun in the same IDE session.
 
 ## Run the primary case
 
@@ -57,7 +85,7 @@ From the repository root:
 julia --threads=auto lib/WingPropellerUVLM/examples/chang_linear_aeroelastic/run_chang_linear_aeroelastic.jl
 ```
 
-The default case uses a 20-by-5 wing grid, a 5-by-5 grid per propeller blade,
+The default case uses a 20-by-10 wing grid, a 7-by-7 grid per propeller blade,
 85 m/s, and the corrected Imperial near-field loads. It writes a CSV history,
 a text summary, and (by default) a PNG under `output/`. Wake animation is off
 by default because retained geometry and GIF files can be large.
@@ -81,22 +109,21 @@ Edit the plain values in the numbered groups in `chang_case.jl`:
 
 | Group | What to adjust |
 |:--|:--|
-| `WING_DEFAULTS` | Wing dimensions and mesh |
-| `PROPELLER_DEFAULTS` | Blade geometry, mesh, installation, RPM, and pitch offset |
-| `SIMULATION_DEFAULTS` | Air density, speed, flow angles, duration, azimuth step, interaction, and load models |
-| `AERODYNAMIC_DEFAULTS` | Finite-core factors, elastic axis, and modal load arm |
-| `WAKE_DEFAULTS` | Retained wake row counts |
-| `EXCITATION_DEFAULTS` | Trim revolutions, averaging window, and pitch impulse |
-| `INTEGRATION_DEFAULTS` | Generalized-alpha damping and stop limits |
-| `COUPLING_DEFAULTS` | Iteration limit, convergence tolerances, and relaxation |
-| `OUTPUT_DEFAULTS` | Directory, filename label, plots, and animation |
-| `STRUCTURAL_DEFAULTS` | Damping, pylon properties, and rotor mass/inertia inputs |
+| `wing` | Wing dimensions and mesh |
+| `propeller` | Blade geometry, mesh, installation, RPM, and pitch offset |
+| `simulation` | Air density, speed, flow angles, duration, azimuth step, interaction, and load models |
+| `aerodynamic` | Finite-core factors, elastic axis, and modal load arm |
+| `wake` | Retained wake row counts |
+| `excitation` | Trim revolutions, averaging window, and pitch impulse |
+| `integration` | Generalized-alpha damping and stop limits |
+| `coupling` | Iteration limit, convergence tolerances, and relaxation |
+| `output` | Directory, filename label, plots, and animation |
+| `structural` | Damping, pylon properties, and rotor mass/inertia inputs |
 
-The existing `WING_CONFIG`, `PROPELLER_CONFIG`, and `SIMULATION_CONFIG` objects
-are constructed at the bottom of the file. The runner and its helpers resolve
-the other groups when preparing the model and runtime options.
+The file returns these groups through `chang_case_defaults()`. The runner uses
+`load_chang_configuration()` to turn them into the complete active `config`.
 
-Environment parsing, configuration types, and input checks live in
+Environment parsing, automatic values, and input checks live in
 `src/chang_configuration.jl`. Automated studies can override the visible
 defaults through the existing environment variables; a set environment value
 takes precedence over the corresponding setting in the file:
@@ -104,10 +131,10 @@ takes precedence over the corresponding setting in the file:
 | Variable | Case default | Meaning |
 |:--|--:|:--|
 | `CHANG_WING_SPAN_PANELS` | `20` | Wing spanwise panels and beam elements |
-| `CHANG_WING_CHORD_PANELS` | `5` | Wing chordwise panels |
-| `CHANG_PROP_RADIAL_PANELS` | `5` | Radial panels per blade |
-| `CHANG_PROP_CHORD_PANELS` | `5` | Chordwise panels per blade |
-| `CHANG_ROTATION_RPM` | `1217.6962` | RPM at the trim reference speed |
+| `CHANG_WING_CHORD_PANELS` | `10` | Wing chordwise panels |
+| `CHANG_PROP_RADIAL_PANELS` | `7` | Radial panels per blade |
+| `CHANG_PROP_CHORD_PANELS` | `7` | Chordwise panels per blade |
+| `CHANG_ROTATION_RPM` | `1212.0` | RPM at the trim reference speed |
 | `CHANG_TRIM_SPEED_MPS` | `65` | RPM reference speed |
 | `CHANG_SPEED_MPS` | `85` | Aeroelastic flow speed |
 | `CHANG_AOA_DEG` | `3` | Angle of attack |
@@ -120,7 +147,7 @@ takes precedence over the corresponding setting in the file:
 | `CHANG_ANIMATE_WAKE` | `false` | Record accepted states and write a GIF |
 | `CHANG_OUTPUT_DIR` | `output/` | Result directory |
 
-For example, set `interaction_on = true` in `SIMULATION_DEFAULTS` to include
+For example, set `interaction_on = true` in `simulation` to include
 aerodynamic influence between the wing and propellers (and between separate
 propellers). With `false`, those groups are aerodynamically isolated, while
 blades within each propeller still interact. Structural wing–propeller
@@ -130,13 +157,13 @@ environment, it takes precedence over this file setting.
 For example, the following edits can all be made in `chang_case.jl`:
 
 ```julia
-# Inside the corresponding *_DEFAULTS group:
-segment_core_factor = 0.01,             # AERODYNAMIC_DEFAULTS
-maximum_rows_wing = 120,                # WAKE_DEFAULTS
-maximum_rows_propeller = 144,           # WAKE_DEFAULTS
-rho_inf = 0.8,                          # INTEGRATION_DEFAULTS
-state_tolerance = 1.0e-6,               # COUPLING_DEFAULTS
-maximum_iterations = 20,                # COUPLING_DEFAULTS
+# Inside the corresponding group:
+segment_core_factor = 0.01,             # aerodynamic
+maximum_rows_wing = 120,                # wake
+maximum_rows_propeller = 144,           # wake
+rho_inf = 0.8,                          # integration
+state_tolerance = 1.0e-6,               # coupling
+maximum_iterations = 20,                # coupling
 ```
 
 `maximum_rows_wing = nothing` retains automatic sizing: the configured
@@ -176,6 +203,10 @@ wing/propeller `CL` and `CT` convergence, then run only the gated aeroelastic
 damping cases selected from that result.
 
 ## Validation
+
+Run `validation/verify_chang_context.jl` to check configuration isolation,
+automatic settings, and interleaved aerodynamic trials with different models
+in one Julia session.
 
 Run the structural modal and matrix checks with:
 

@@ -6,27 +6,25 @@ const EXAMPLE_DIR = normpath(joinpath(@__DIR__, ".."))
 Pkg.activate(normpath(joinpath(EXAMPLE_DIR, "..", "..")))
 
 using LinearAlgebra
-using StaticArrays
-using WingPropellerUVLM:
-    Freestream,
-    Reference,
-    Uniform,
-    get_nodal_properties_chang,
-    linear_interpolate_1d
+include(joinpath(EXAMPLE_DIR, "src", "ChangAeroelastic.jl"))
+using .ChangAeroelastic
+using .ChangAeroelastic: build_chang_model_parameters, assemble_chang_structural_model,
+    chang_structural_diagnostics, chang_wing_modal_analysis
 
-const AIR_DENSITY = 1.225
-
-# The published-frequency tolerance below was established for 30 beam elements.
-# Fix that discretization here so this check is independent of the interactive
-# case default or inherited shell settings.
-ENV["CHANG_WING_SPAN_PANELS"] = "30"
-
-include(joinpath(EXAMPLE_DIR, "chang_case.jl"))
-include(joinpath(EXAMPLE_DIR, "src", "chang_model_parameters.jl"))
-include(joinpath(EXAMPLE_DIR, "src", "chang_structural_model.jl"))
-
-structural = assemble_chang_structural_model()
-legacy_structural = assemble_chang_structural_model(inertia_reference = :beam_axis)
+# The published-frequency tolerance was established for 30 beam elements.
+environment = merge(Dict(ENV), Dict("CHANG_WING_SPAN_PANELS" => "30"))
+config = load_chang_configuration(; env = environment)
+parameters = build_chang_model_parameters(config)
+structural = assemble_chang_structural_model(parameters)
+legacy_structural = assemble_chang_structural_model(parameters; inertia_reference = :beam_axis)
+(;
+   ndof, NDOF, span_nodes, M_orig_nodes, cg_x_orig_nodes,
+   cg_y_orig_nodes, cg_z_orig_nodes, m_node_vec, mass_moment_x_node, mass_moment_y_node,
+   mass_moment_z_node, Ixx_beam_orig, Iyy_beam_orig, Izz_beam_orig, Ixy_beam_orig,
+   Ixz_beam_orig, Iyz_beam_orig, Ixx_beam_node, Iyy_beam_node, Izz_beam_node,
+   Ixy_beam_node, Ixz_beam_node, Iyz_beam_node, propeller_span_positions, prop_attachment_node_pairs,
+   prop_attachment_weights
+) = parameters
 diagnostics = chang_structural_diagnostics(structural)
 legacy_diagnostics = chang_structural_diagnostics(legacy_structural)
 

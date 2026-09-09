@@ -4,60 +4,61 @@
 isdefined(@__MODULE__, :assemble_chang_structural_matrices) ||
     include(joinpath(@__DIR__, "chang_structural_matrices.jl"))
 
-function assemble_chang_structural_model(;
+function assemble_chang_structural_model(parameters;
     inertia_reference::Symbol = :center_of_mass,
 )
-    return assemble_chang_structural_matrices(
-        Ne = Ne,
-        le = le,
-        ndof = ndof,
-        NDOF = NDOF,
-        nnodes = nnodes,
-        EIy_vec = EIy_vec,
-        EIz_vec = EIz_vec,
-        EIzy_vec = EIzy_vec,
-        GJ_vec = GJ_vec,
-        EA_vec = EA_vec,
-        span_nodes = span_nodes,
-        span_length = span_length,
-        stiffness_distribution = wing_stiffness_distribution,
-        m_node_vec = m_node_vec,
-        Ixx_node_vec = Ixx_node_vec,
-        Iyy_node_vec = Iyy_node_vec,
-        Izz_node_vec = Izz_node_vec,
-        Ixy_node_vec = Ixy_node_vec,
-        Ixz_node_vec = Ixz_node_vec,
-        Iyz_node_vec = Iyz_node_vec,
-        cg_x_node_vec = cg_x_node_vec,
-        cg_y_node_vec = cg_y_node_vec,
-        cg_z_node_vec = cg_z_node_vec,
+    matrices = assemble_chang_structural_matrices(
+        Ne = parameters.Ne,
+        le = parameters.le,
+        ndof = parameters.ndof,
+        NDOF = parameters.NDOF,
+        nnodes = parameters.nnodes,
+        EIy_vec = parameters.EIy_vec,
+        EIz_vec = parameters.EIz_vec,
+        EIzy_vec = parameters.EIzy_vec,
+        GJ_vec = parameters.GJ_vec,
+        EA_vec = parameters.EA_vec,
+        span_nodes = parameters.span_nodes,
+        span_length = parameters.span_length,
+        stiffness_distribution = parameters.wing_stiffness_distribution,
+        m_node_vec = parameters.m_node_vec,
+        Ixx_node_vec = parameters.Ixx_node_vec,
+        Iyy_node_vec = parameters.Iyy_node_vec,
+        Izz_node_vec = parameters.Izz_node_vec,
+        Ixy_node_vec = parameters.Ixy_node_vec,
+        Ixz_node_vec = parameters.Ixz_node_vec,
+        Iyz_node_vec = parameters.Iyz_node_vec,
+        cg_x_node_vec = parameters.cg_x_node_vec,
+        cg_y_node_vec = parameters.cg_y_node_vec,
+        cg_z_node_vec = parameters.cg_z_node_vec,
         spatial_inertia_blocks = inertia_reference == :center_of_mass ?
-            spatial_inertia_node_blocks : nothing,
-        ndof_P = ndof_P,
-        Npropellers = Npropellers,
-        prop_attach_nodes = prop_attach_nodes,
-        prop_attachment_node_pairs = prop_attachment_node_pairs,
-        prop_attachment_weights = prop_attachment_weights,
-        Inθ_prop = Inθ_prop,
-        Inψ_prop = Inψ_prop,
-        Kθ_prop = Kθ_prop,
-        Kψ_prop = Kψ_prop,
-        ξ_prop = ξ_prop,
-        stiffness_damping_ratio = stiffness_damping_ratio,
-        stiffness_damping_reference_omega = stiffness_damping_reference_omega,
-        Ix_prop = Ix_prop,
-        Ω = Ω,
-        mP_prop = mP_prop,
-        SθP_prop = SθP_prop,
-        SψP_prop = SψP_prop,
-        SαP_prop = SαP_prop,
-        SγP_prop = SγP_prop,
-        IθαP_prop = IθαP_prop,
-        IψγP_prop = IψγP_prop,
-        IαP_prop = IαP_prop,
-        IγP_prop = IγP_prop,
+            parameters.spatial_inertia_node_blocks : nothing,
+        ndof_P = parameters.ndof_P,
+        Npropellers = parameters.Npropellers,
+        prop_attach_nodes = parameters.prop_attach_nodes,
+        prop_attachment_node_pairs = parameters.prop_attachment_node_pairs,
+        prop_attachment_weights = parameters.prop_attachment_weights,
+        Inθ_prop = parameters.Inθ_prop,
+        Inψ_prop = parameters.Inψ_prop,
+        Kθ_prop = parameters.Kθ_prop,
+        Kψ_prop = parameters.Kψ_prop,
+        ξ_prop = parameters.ξ_prop,
+        stiffness_damping_ratio = parameters.stiffness_damping_ratio,
+        stiffness_damping_reference_omega = parameters.stiffness_damping_reference_omega,
+        Ix_prop = parameters.Ix_prop,
+        Ω = parameters.Ω,
+        mP_prop = parameters.mP_prop,
+        SθP_prop = parameters.SθP_prop,
+        SψP_prop = parameters.SψP_prop,
+        SαP_prop = parameters.SαP_prop,
+        SγP_prop = parameters.SγP_prop,
+        IθαP_prop = parameters.IθαP_prop,
+        IψγP_prop = parameters.IψγP_prop,
+        IαP_prop = parameters.IαP_prop,
+        IγP_prop = parameters.IγP_prop,
         inertia_reference = inertia_reference,
     )
+    return merge(matrices, (; dofs_per_node = parameters.ndof))
 end
 
 """
@@ -87,7 +88,8 @@ uses `u_span`.
 """
 function chang_wing_modal_analysis(structural; number_of_modes::Int = 6)
     number_of_modes > 0 || throw(ArgumentError("number_of_modes must be positive"))
-    wing_free_dofs = (ndof + 1):NDOF
+    ndof = structural.dofs_per_node
+    wing_free_dofs = (ndof + 1):size(structural.Ms_W, 1)
     wing_mass = Symmetric(structural.Ms_W[wing_free_dofs, wing_free_dofs])
     wing_stiffness = Symmetric(structural.Ks_W[wing_free_dofs, wing_free_dofs])
     solution = eigen(wing_stiffness, wing_mass)

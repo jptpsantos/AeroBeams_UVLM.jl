@@ -1,15 +1,9 @@
 # Result extraction and file-output helpers for the Chang example.
 
-"""Resolve the output directory/label and create the directory before running."""
-function chang_output_paths(example_directory, force_model)
-    default_directory = isabspath(OUTPUT_DEFAULTS.directory) ?
-        OUTPUT_DEFAULTS.directory : joinpath(example_directory, OUTPUT_DEFAULTS.directory)
-    default_label = isnothing(OUTPUT_DEFAULTS.label) ?
-        "chang_linear_$(force_model)_uvlm" : OUTPUT_DEFAULTS.label
-    directory = normpath(get(ENV, "CHANG_OUTPUT_DIR", default_directory))
-    label = get(ENV, "CHANG_OUTPUT_LABEL", default_label)
-    mkpath(directory)
-    return (; directory, label)
+"""Create the configured output directory and return its paths."""
+function chang_output_paths(output)
+    mkpath(output.directory)
+    return (; directory = output.directory, label = output.label)
 end
 
 """
@@ -57,8 +51,8 @@ function write_chang_results(solution;
             solution.animation_time_history;
             output_path = wake_animation_path,
             fps = visualization.animation_fps,
-            axis_limits = OUTPUT_DEFAULTS.animation_axis_limits,
-            tick_spacing = OUTPUT_DEFAULTS.animation_tick_spacing_m,
+            axis_limits = visualization.animation_axis_limits,
+            tick_spacing = visualization.animation_tick_spacing_m,
         )
         results = merge(results, (; wake_animation_path))
     end

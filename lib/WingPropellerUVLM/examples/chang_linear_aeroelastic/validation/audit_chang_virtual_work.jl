@@ -11,6 +11,21 @@ get!(ENV, "CHANG_PROP_CHORD_PANELS", "2")
 get!(ENV, "CHANG_OUTPUT_DIR", joinpath(EXAMPLE_DIR, "output", "validation", "virtual_work"))
 include(joinpath(EXAMPLE_DIR, "run_chang_linear_aeroelastic.jl"))
 
+using LinearAlgebra
+using StaticArrays
+using WingPropellerUVLM: imperial_nodal_forces, imperial_nodal_positions
+
+# Inspect the objects returned by the run; the adapter receives them explicitly.
+(; model, workspace, solution) = chang_run
+structural = model.structural
+(; ndof_wing_free) = structural
+(;
+   span_length, nnodes, ndof, chord, xle_distribution,
+   span_nodes, Npropellers, prop_attachment_node_pairs, prop_attachment_weights, t
+) = model.parameters
+(; system, surface_interaction_id, T_pivot_A_current, prop_surface_indices) = workspace
+elastic_axis_fraction = model.aerodynamic_options.elastic_axis_fraction
+
 base_state = copy(solution.displacement_history[solution.last_step + 1])
 base_time = t[solution.last_step + 1]
 if haskey(ENV, "CHANG_AUDIT_PROP_PITCH_DEG")
@@ -25,12 +40,12 @@ if haskey(ENV, "CHANG_AUDIT_PROP_YAW_DEG")
         ENV["CHANG_AUDIT_PROP_YAW_DEG"],
     ))
 end
-base_kinematics = update_aero_geometry_for_state!(system, base_state, base_time)
-generalized_load = assemble_structural_aero_load!(system, base_kinematics)
+base_kinematics = update_aero_geometry_for_state!(model, workspace, base_state, base_time)
+generalized_load = assemble_structural_aero_load!(model, workspace, base_kinematics)
 nodal_forces = imperial_nodal_forces(system)
 
 function vortex_positions_at(state)
-    update_aero_geometry_for_state!(system, state, base_time)
+    update_aero_geometry_for_state!(model, workspace, state, base_time)
     return imperial_nodal_positions(system)
 end
 
@@ -77,8 +92,8 @@ for propeller_index in 1:Npropellers
 end
 
 function audit_state_virtual_work(state; label)
-    kinematics = update_aero_geometry_for_state!(system, state, base_time)
-    mapped_load = assemble_structural_aero_load!(system, kinematics)
+    kinematics = update_aero_geometry_for_state!(model, workspace, state, base_time)
+    mapped_load = assemble_structural_aero_load!(model, workspace, kinematics)
     errors = Dict{String,Float64}()
     maximum_checked_error = 0.0
     println("\nstate=$label")
@@ -94,20 +109,20 @@ function audit_state_virtual_work(state; label)
             # Wing projection is exact for either propeller modal option.
             # The retained fixed-axis modal option is intentionally approximate.
             if index <= ndof_wing_free ||
-                AEROELASTIC_PROPELLER_MOMENT_PROJECTION == :exact_virtual_work
+                model.config.simulation.propeller_moment_projection == :exact_virtual_work
                 maximum_checked_error = max(maximum_checked_error, error)
                 @assert error <= 1.0e-6 "$label: virtual-work mismatch for $name ($error)"
             end
         end
     finally
-        update_aero_geometry_for_state!(system, base_state, base_time)
+        update_aero_geometry_for_state!(model, workspace, base_state, base_time)
     end
     println("maximum_checked_virtual_work_error = $maximum_checked_error")
     return (; errors, maximum_checked_error)
 end
 
 println("\nChang aerodynamic load-transfer virtual-work audit")
-println("propeller_moment_projection = $AEROELASTIC_PROPELLER_MOMENT_PROJECTION")
+println("propeller_moment_projection = $(model.config.simulation.propeller_moment_projection)")
 println("attachment_nodes = $(prop_attachment_node_pairs[1])")
 println("attachment_weights = $(prop_attachment_weights[1])")
 println(

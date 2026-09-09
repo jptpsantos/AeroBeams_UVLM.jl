@@ -6,8 +6,8 @@
 # and generalized-alpha integration live in WingPropellerUVLM itself.
 
 """Initialize the case UVLM system from `chang_aerodynamic_options`."""
-function initialize_chang_uvlm(options)
-    return initialize_chang_uvlm(;
+function initialize_chang_uvlm(parameters, options)
+    return initialize_chang_uvlm(parameters;
         finite_core = options.finite_core,
         elastic_axis_fraction = options.elastic_axis_fraction,
         propeller_pivot_offset_A = options.propeller_pivot_offset_A,
@@ -32,13 +32,13 @@ function chang_wake_context(uvlm; interaction_on::Bool)
 end
 
 """
-    initialize_chang_uvlm(; kwargs...)
+    initialize_chang_uvlm(parameters; kwargs...)
 
 Create the coupled wing--propeller UVLM state from the geometry and operating
-point loaded by `chang_model_parameters.jl`. The entry-point file supplies only
+point in `parameters`. The options supply
 the numerical regularization, reference locations, and retained-wake limits.
 """
-function initialize_chang_uvlm(;
+function initialize_chang_uvlm(parameters;
     finite_core,
     elastic_axis_fraction,
     propeller_pivot_offset_A,
@@ -47,34 +47,34 @@ function initialize_chang_uvlm(;
     maximum_wake_rows_propeller,
 )
     return initialize_bohnisch_uvlm_system(
-        xle = xle,
-        yle = yle,
-        zle = zle,
-        chord_geo = chord_geo,
-        theta_geo = theta_geo,
-        phi_geo = phi_geo,
-        ns_wing = ns_wing,
-        nc_wing = nc_wing,
-        mirror_wing = mirror_wing,
-        spacing_s_wing = spacing_s_wing,
-        spacing_c_wing = spacing_c_wing,
-        R_prop = R_prop,
-        c_prop = c_prop,
-        ns_prop = ns_prop,
-        nc_prop = nc_prop,
-        blade_twists_prop = blade_twists_prop,
-        Nb_prop = Nb_prop,
-        Npropellers = Npropellers,
-        span_nodes = span_nodes,
-        prop_attach_nodes = prop_attach_nodes,
-        propeller_span_positions = propeller_span_positions,
-        chord = chord,
-        xle_distribution = xle_distribution,
-        ref = ref,
-        symmetric_wing = symmetric_wing,
-        fs = fs,
-        dt = dt,
-        nnodes = nnodes,
+        xle = parameters.xle,
+        yle = parameters.yle,
+        zle = parameters.zle,
+        chord_geo = parameters.chord_geo,
+        theta_geo = parameters.theta_geo,
+        phi_geo = parameters.phi_geo,
+        ns_wing = parameters.ns_wing,
+        nc_wing = parameters.nc_wing,
+        mirror_wing = parameters.mirror_wing,
+        spacing_s_wing = parameters.spacing_s_wing,
+        spacing_c_wing = parameters.spacing_c_wing,
+        R_prop = parameters.R_prop,
+        c_prop = parameters.c_prop,
+        ns_prop = parameters.ns_prop,
+        nc_prop = parameters.nc_prop,
+        blade_twists_prop = parameters.blade_twists_prop,
+        Nb_prop = parameters.Nb_prop,
+        Npropellers = parameters.Npropellers,
+        span_nodes = parameters.span_nodes,
+        prop_attach_nodes = parameters.prop_attach_nodes,
+        propeller_span_positions = parameters.propeller_span_positions,
+        chord = parameters.chord,
+        xle_distribution = parameters.xle_distribution,
+        ref = parameters.ref,
+        symmetric_wing = parameters.symmetric_wing,
+        fs = parameters.fs,
+        dt = parameters.dt,
+        nnodes = parameters.nnodes,
         prop_pivot_offset_from_ea_A = propeller_pivot_offset_A,
         hub_center_prop_A = physical_hub_center_A,
         fcore = finite_core,
@@ -86,7 +86,7 @@ function initialize_chang_uvlm(;
 end
 
 """
-    update_aero_geometry_for_state!(system, q_free, time_np1)
+    update_aero_geometry_for_state!(model, workspace, q_free, time_np1)
 
 Map one structural displacement guess to the UVLM geometry at `time_np1`.
 
@@ -100,7 +100,19 @@ This function changes geometry only. It does not solve circulation or advance
 the wake.
 """
 
-function update_aero_geometry_for_state!(system, q_free::AbstractVector, time_np1::Real)
+function update_aero_geometry_for_state!(model, workspace, q_free::AbstractVector, time_np1::Real)
+    (; ndof, span_length, chord, xle_distribution, ns_wing, nc_wing,
+       Npropellers, prop_attachment_node_pairs, prop_attachment_weights, Ω,
+       Nb_prop) = model.parameters
+    ndof_wing_free = model.structural.ndof_wing_free
+    (; system, ea_x_aero, attach_node_y, T_pivot_A_current, pitch_axis_A_current,
+       yaw_axis_A_current, T_hub_A_current, T_load_A_current, grids_prop_ref,
+       grids_prop_current, ratio_wing) = workspace
+    (; elastic_axis_fraction) = model.aerodynamic_options
+    FCORE = model.aerodynamic_options.finite_core
+    hub_center_prop_A = model.aerodynamic_options.physical_hub_center_A
+    hub_center_load_A = model.aerodynamic_options.load_center_A
+
     # Split the global free-state vector according to the assembly convention:
     # all wing free DOFs first, then [pitch, yaw] for each propeller.
     q_wing_free = q_free[1:ndof_wing_free]
@@ -261,7 +273,7 @@ function chang_wing_generalized_moment(moment_A, theta_x_A, theta_z_A)
 end
 
 """
-    assemble_structural_aero_load!(system, kinematics; step=0, print_loads=false)
+    assemble_structural_aero_load!(model, workspace, kinematics; step=0, print_loads=false)
 
 Transfer the dimensional UVLM vertex forces to the Chang free-DOF
 ordering. Wing forces are summed chordwise and moments are formed about the
@@ -273,8 +285,18 @@ the two attachment nodes; modal moments use the selected pitch/yaw projection.
 Returns one generalized-load vector ordered exactly like the reduced
 structural state used by `M`, `C`, and `K`.
 """
-function assemble_structural_aero_load!(system, kinematics;
+function assemble_structural_aero_load!(model, workspace, kinematics;
     step::Int = 0, print_loads::Bool = false)
+
+    (; nnodes, ndof, NDOF, ndof_P, chord, xle_distribution, span_nodes,
+       nc_wing, ns_wing, Npropellers, Nb_prop, prop_attachment_node_pairs,
+       prop_attachment_weights) = model.parameters
+    (; free_dofs, ndof_wing_free) = model.structural
+    (; system, TF, nodal_forces_wing, nodal_moments_wing, EA_nodes_wing,
+       nodal_forces_prop, prop_surface_indices, T_pivot_A_current,
+       T_hub_A_current, T_load_A_current) = workspace
+    elastic_axis_fraction = model.aerodynamic_options.elastic_axis_fraction
+    projection = model.config.simulation.propeller_moment_projection
 
     zero_vector = SVector{3,TF}(0.0, 0.0, 0.0)
     fill!(nodal_forces_wing, zero_vector)
@@ -354,7 +376,7 @@ function assemble_structural_aero_load!(system, kinematics;
         modal_moment = total_moment_about_hub + cross(modal_load_point - pivot, total_force)
         wing_moment = total_moment_about_hub + cross(hub - pivot, total_force)
 
-        if AEROELASTIC_PROPELLER_MOMENT_PROJECTION == :exact_virtual_work
+        if projection == :exact_virtual_work
             pitch_axis = kinematics.propeller_pitch_axes_A[propeller_index]
             yaw_axis = kinematics.propeller_yaw_axes_A[propeller_index]
             propeller_loads[2 * (propeller_index - 1) + 1] =
@@ -409,7 +431,7 @@ function assemble_structural_aero_load!(system, kinematics;
             println("  total_moment_wing_A      = $wing_moment")
             println(
                 "  propeller moment projection = " *
-                "$AEROELASTIC_PROPELLER_MOMENT_PROJECTION",
+                "$projection",
             )
         end
     end
@@ -419,7 +441,7 @@ function assemble_structural_aero_load!(system, kinematics;
 end
 
 """
-    aero_load_for_state!(system, snapshot, state, step; print_loads=false)
+    aero_load_for_state!(model, workspace, snapshot, state, step; print_loads=false)
 
 Evaluate the complete aerodynamic generalized-load operator for one structural
 fixed-point guess at `t[step+1]`.
@@ -431,15 +453,18 @@ same coupled step are deterministic trials from `t[step]`, not successive wake
 steps. On return, `system` contains the circulation/load trial corresponding to
 `state`; the run driver advances its wake only after convergence.
 """
-function aero_load_for_state!(system, snapshot, state::AbstractVector, step::Int;
+function aero_load_for_state!(model, workspace, snapshot, state::AbstractVector, step::Int;
     print_loads::Bool = false)
+
+    (; t, dt) = model.parameters
+    (; system, fs_vec, repeated_points, iwake, surface_interaction_id) = workspace
 
     # Transaction rollback: discard the previous coupling iterate's wake,
     # circulation, geometry, and surface-history changes.
     restore_uvlm!(system, snapshot)
     # Geometry is evaluated at the end of the physical step, including the
     # prescribed rotor azimuth at that time.
-    kinematics = update_aero_geometry_for_state!(system, state, t[step + 1])
+    kinematics = update_aero_geometry_for_state!(model, workspace, state, t[step + 1])
     # Solve the unsteady aerodynamic trial through circulation, gamma-dot, and
     # selected near-field segment loads. The expensive free-wake convection is a
     # physical-time update, so it is deferred until this structural state has
@@ -455,15 +480,15 @@ function aero_load_for_state!(system, snapshot, state::AbstractVector, step::Int
         calculate_influence_matrix = true,
         near_field_analysis = true,
         derivatives = false,
-        near_field_force_function = AEROELASTIC_NEAR_FIELD_FORCE_FUNCTION,
+        near_field_force_function = model.near_field_force_function,
         interaction_id = surface_interaction_id,
-        interaction = INTERACTION_ON,
+        interaction = model.config.simulation.interaction_on,
         advance_wake = false,
     )
     # Convert the aerodynamic trial into a load vector for the structural
     # corrector. The caller decides whether to subtract the trim baseline.
     return assemble_structural_aero_load!(
-        system,
+        model, workspace,
         kinematics;
         step = step,
         print_loads = print_loads,

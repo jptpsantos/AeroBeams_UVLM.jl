@@ -9,7 +9,9 @@ using DelimitedFiles
 using Printf
 using WingPropellerUVLM
 
-include(joinpath(EXAMPLE_DIR, "chang_case.jl"))
+include(joinpath(EXAMPLE_DIR, "src", "ChangAeroelastic.jl"))
+using .ChangAeroelastic: load_chang_configuration
+config = load_chang_configuration()
 include(joinpath(EXAMPLE_DIR, "src", "chang_propeller_trim.jl"))
 
 env_float(name, default) = parse(Float64, get(ENV, name, string(default)))
@@ -21,18 +23,18 @@ env_symbol(name, default) = Symbol(lowercase(strip(get(ENV, name, string(default
 target_thrust_n = env_float("CHANG_TRIM_TARGET_THRUST_N", 650.0)
 
 options = ChangWindmillingTrimOptions(
-    flow_speed_mps = env_float("CHANG_TRIM_SPEED_MPS", PROPELLER_CONFIG.trim_speed_mps),
+    flow_speed_mps = env_float("CHANG_TRIM_SPEED_MPS", config.propeller.trim_speed_mps),
     air_density_kgpm3 = env_float("CHANG_TRIM_AIR_DENSITY", 1.225),
-    angle_of_attack_deg = env_float("CHANG_TRIM_ALPHA_DEG", SIMULATION_CONFIG.angle_of_attack_deg),
-    sideslip_deg = env_float("CHANG_TRIM_BETA_DEG", SIMULATION_CONFIG.sideslip_deg),
-    propeller_radius_m = PROPELLER_CONFIG.radius_m,
-    propeller_chord_m = PROPELLER_CONFIG.chord_m,
-    blade_count = PROPELLER_CONFIG.blades,
-    radial_panels = env_int("CHANG_TRIM_RADIAL_PANELS", PROPELLER_CONFIG.radial_panels),
-    chordwise_panels = env_int("CHANG_TRIM_CHORDWISE_PANELS", PROPELLER_CONFIG.chordwise_panels),
+    angle_of_attack_deg = env_float("CHANG_TRIM_ALPHA_DEG", config.simulation.angle_of_attack_deg),
+    sideslip_deg = env_float("CHANG_TRIM_BETA_DEG", config.simulation.sideslip_deg),
+    propeller_radius_m = config.propeller.radius_m,
+    propeller_chord_m = config.propeller.chord_m,
+    blade_count = config.propeller.blades,
+    radial_panels = env_int("CHANG_TRIM_RADIAL_PANELS", config.propeller.radial_panels),
+    chordwise_panels = env_int("CHANG_TRIM_CHORDWISE_PANELS", config.propeller.chordwise_panels),
     # Zero uses the Chang twist distribution without changing its blade angle.
     collective_pitch_offset_deg = env_float("CHANG_TRIM_COLLECTIVE_OFFSET_DEG", 0.0),
-    azimuth_step_deg = env_float("CHANG_TRIM_AZIMUTH_STEP_DEG", SIMULATION_CONFIG.azimuth_step_deg),
+    azimuth_step_deg = env_float("CHANG_TRIM_AZIMUTH_STEP_DEG", config.simulation.azimuth_step_deg),
     simulated_revolutions = env_int("CHANG_TRIM_SIMULATED_REVOLUTIONS", 4),
     averaged_revolutions = env_int("CHANG_TRIM_AVERAGED_REVOLUTIONS", 1),
     retained_wake_revolutions = env_int("CHANG_TRIM_RETAINED_WAKE_REVOLUTIONS", 3),
@@ -41,12 +43,12 @@ options = ChangWindmillingTrimOptions(
     vortex_core_chord_fraction = env_float("CHANG_TRIM_FCORE_CHORD_FACTOR", 0.3),
     near_field_force_model = env_symbol(
         "CHANG_TRIM_NEAR_FIELD_FORCE_MODEL",
-        SIMULATION_CONFIG.near_field_force_model,
+        config.simulation.near_field_force_model,
     ),
-    initial_rpm = env_float("CHANG_TRIM_INITIAL_RPM", PROPELLER_CONFIG.rotation_rpm),
+    initial_rpm = env_float("CHANG_TRIM_INITIAL_RPM", config.propeller.rotation_rpm),
     rpm_bracket = (
-        env_float("CHANG_TRIM_MIN_RPM", 0.85 * PROPELLER_CONFIG.rotation_rpm),
-        env_float("CHANG_TRIM_MAX_RPM", 1.50 * PROPELLER_CONFIG.rotation_rpm),
+        env_float("CHANG_TRIM_MIN_RPM", 0.85 * config.propeller.rotation_rpm),
+        env_float("CHANG_TRIM_MAX_RPM", 1.50 * config.propeller.rotation_rpm),
     ),
     torque_tolerance_nm = env_float("CHANG_TRIM_TORQUE_TOLERANCE_NM", 0.25),
     thrust_tolerance_n = env_float("CHANG_TRIM_THRUST_TOLERANCE_N", 1.0),

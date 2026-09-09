@@ -12,15 +12,26 @@ get!(ENV, "CHANG_PROP_CHORD_PANELS", "2")
 get!(ENV, "CHANG_NEAR_FIELD_FORCE_MODEL", "imperial")
 get!(ENV, "CHANG_OUTPUT_DIR", joinpath(EXAMPLE_DIR, "output", "validation", "force_comparison"))
 include(joinpath(EXAMPLE_DIR, "run_chang_linear_aeroelastic.jl"))
+
+using LinearAlgebra
+using StaticArrays
+using WingPropellerUVLM: imperial_nodal_forces, imperial_nodal_positions
+
+# Inspect the objects returned by the run; the adapter receives them explicitly.
+(; model, workspace, solution) = chang_run
+structural = model.structural
+(; ndof_wing_free) = structural
+(; t) = model.parameters
+(; system, surface_interaction_id) = workspace
 import WingPropellerUVLM
 
 final_state = solution.displacement_history[solution.last_step + 1]
 kinematics = update_aero_geometry_for_state!(
-    system,
+    model, workspace,
     final_state,
     t[solution.last_step + 1],
 )
-imperial_load = assemble_structural_aero_load!(system, kinematics)
+imperial_load = assemble_structural_aero_load!(model, workspace, kinematics)
 imperial_chord = deepcopy(system.chord_seg_forces)
 imperial_span = deepcopy(system.span_seg_forces)
 imperial_unsteady = deepcopy(system.unsteady_forces)
@@ -46,7 +57,7 @@ _, legacy_chord, legacy_span, legacy_unsteady =
     trailing_vortices = system.trailing_vortices,
     xhat = system.xhat[],
     interaction_id = surface_interaction_id,
-    interaction = INTERACTION_ON,
+    interaction = model.config.simulation.interaction_on,
 )
 
 for surface_index in eachindex(system.surfaces)
@@ -54,7 +65,7 @@ for surface_index in eachindex(system.surfaces)
     system.span_seg_forces[surface_index] .= legacy_span[surface_index]
     system.unsteady_forces[surface_index] .= legacy_unsteady[surface_index]
 end
-legacy_load = assemble_structural_aero_load!(system, kinematics)
+legacy_load = assemble_structural_aero_load!(model, workspace, kinematics)
 
 function component_load(chord, span, unsteady, selected::Symbol)
     zero_force = SVector{3,Float64}(0.0, 0.0, 0.0)
@@ -69,7 +80,7 @@ function component_load(chord, span, unsteady, selected::Symbol)
         selected == :unsteady &&
             (system.unsteady_forces[surface_index] .= unsteady[surface_index])
     end
-    return assemble_structural_aero_load!(system, kinematics)
+    return assemble_structural_aero_load!(model, workspace, kinematics)
 end
 
 imperial_components = Dict(

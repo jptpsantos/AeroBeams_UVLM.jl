@@ -1,30 +1,6 @@
-# Time integration and runtime checks for the Chang aeroelastic example.
-#
-# Editable defaults live in chang_case.jl. This file resolves options and manages
-# step-level bookkeeping: structural history, trim-load subtraction, coupling
-# diagnostics, accepted-wake updates, optional animation snapshots, and aborts.
-
-# ### Runtime option groups
-
-"""Read plotting and animation controls shared by interactive and batch runs."""
-function chang_visualization_options()
-    options = (;
-        plot_results = environment_flag("CHANG_PLOT_RESULTS", OUTPUT_DEFAULTS.plot_results),
-        animate_wake = environment_flag("CHANG_ANIMATE_WAKE", OUTPUT_DEFAULTS.animate_wake),
-        animation_stride = environment_number(
-            Int, "CHANG_ANIMATION_STRIDE", OUTPUT_DEFAULTS.animation_stride,
-        ),
-        animation_fps = environment_number(Int, "CHANG_ANIMATION_FPS", OUTPUT_DEFAULTS.animation_fps),
-        plot_time_limit_s = environment_number(
-            Float64,
-            "CHANG_PLOT_END_TIME_S",
-            OUTPUT_DEFAULTS.plot_time_limit_s,
-        ),
-    )
-    options.animation_stride > 0 || error("CHANG_ANIMATION_STRIDE must be positive")
-    options.animation_fps > 0 || error("CHANG_ANIMATION_FPS must be positive")
-    return options
-end
+# Time integration and checks for the Chang aeroelastic example.
+# Options below derive solver data from the explicit, resolved configuration.
+# The solver owns structural history, trim subtraction, and accepted wake updates.
 
 """Create the solver's frame callback; disabled animation needs no plotting package."""
 function chang_animation_options(system, active_rows, visualization)
@@ -42,201 +18,63 @@ function chang_animation_options(system, active_rows, visualization)
     )
 end
 
-"""Read the UVLM regularization, load-arm, and retained-wake controls."""
-function chang_aerodynamic_options(wing_chord_panels::Int, pylon_length::Real)
-    segment_core_factor = environment_number(
-        Float64,
-        "CHANG_FCORE_SEGMENT_FACTOR",
-        AERODYNAMIC_DEFAULTS.segment_core_factor,
-    )
-    chord_core_factor = environment_number(
-        Float64,
-        "CHANG_FCORE_CHORD_FACTOR",
-        AERODYNAMIC_DEFAULTS.chord_core_factor,
-    )
-    hub_load_arm_factor = environment_number(
-        Float64,
-        "CHANG_HUB_LOAD_ARM_FACTOR",
-        AERODYNAMIC_DEFAULTS.hub_load_arm_factor,
-    )
-    maximum_wake_rows_wing = environment_number(
-        Int,
-        "CHANG_WAKE_ROWS_WING",
-        isnothing(WAKE_DEFAULTS.maximum_rows_wing) ?
-            WAKE_DEFAULTS.wing_rows_per_chord_panel * wing_chord_panels :
-            WAKE_DEFAULTS.maximum_rows_wing,
-    )
-    maximum_wake_rows_propeller = environment_number(
-        Int,
-        "CHANG_WAKE_ROWS_PROPELLER",
-        WAKE_DEFAULTS.maximum_rows_propeller,
-    )
 
-    isfinite(segment_core_factor) && segment_core_factor >= 0.0 || error(
-        "CHANG_FCORE_SEGMENT_FACTOR must be finite and nonnegative",
-    )
-    isfinite(chord_core_factor) && chord_core_factor >= 0.0 || error(
-        "CHANG_FCORE_CHORD_FACTOR must be finite and nonnegative",
-    )
-    max(segment_core_factor, chord_core_factor) > 0.0 || error(
-        "A positive finite core is required for free-wake self induction",
-    )
-    hub_load_arm_factor >= 0.0 || error(
-        "CHANG_HUB_LOAD_ARM_FACTOR must be nonnegative",
-    )
-    maximum_wake_rows_wing >= 0 || error(
-        "CHANG_WAKE_ROWS_WING must be nonnegative",
-    )
-    maximum_wake_rows_propeller >= 0 || error(
-        "CHANG_WAKE_ROWS_PROPELLER must be nonnegative",
-    )
-
+"""Build the finite-core law and load reference points for one configured case."""
+function chang_aerodynamic_options(config)
+    (; segment_core_factor, chord_core_factor, hub_load_arm_factor,
+       elastic_axis_fraction) = config.aerodynamic
+    pylon_length = config.structural.pylon_length_m
     finite_core = (chord_length, segment_length) -> max(
         segment_core_factor * segment_length,
         chord_core_factor * chord_length,
     )
     return (;
-        segment_core_factor,
-        chord_core_factor,
-        finite_core,
-        elastic_axis_fraction = AERODYNAMIC_DEFAULTS.elastic_axis_fraction,
+        segment_core_factor, chord_core_factor, finite_core, elastic_axis_fraction,
         propeller_pivot_offset_A = SVector(0.0, 0.0, 0.0),
         physical_hub_center_A = SVector(-pylon_length, 0.0, 0.0),
         load_center_A = SVector(-hub_load_arm_factor * pylon_length, 0.0, 0.0),
-        maximum_wake_rows_wing,
-        maximum_wake_rows_propeller,
+        maximum_wake_rows_wing = config.wake.maximum_rows_wing,
+        maximum_wake_rows_propeller = config.wake.maximum_rows_propeller,
     )
 end
 
-"""Read the pre-impulse trim window and smooth pitch-pulse controls."""
-function chang_excitation_options(
-    angular_speed::Real,
-    number_of_propellers::Int,
-    propeller_indices,
-)
-    revolution_period = 2pi / abs(angular_speed)
-    trim_revolutions = environment_number(
-        Float64,
-        "CHANG_TRIM_REVOLUTIONS",
-        EXCITATION_DEFAULTS.trim_revolutions,
-    )
-    trim_average_revolutions = environment_number(
-        Float64,
-        "CHANG_TRIM_AVERAGE_REVOLUTIONS",
-        EXCITATION_DEFAULTS.trim_average_revolutions,
-    )
-    start_time = environment_number(
-        Float64,
-        "CHANG_IMPULSE_START_S",
-        isnothing(EXCITATION_DEFAULTS.impulse_start_s) ?
-            trim_revolutions * revolution_period : EXCITATION_DEFAULTS.impulse_start_s,
-    )
-    duration = environment_number(
-        Float64, "CHANG_IMPULSE_DURATION_S", EXCITATION_DEFAULTS.impulse_duration_s,
-    )
-
-    trim_revolutions > 0.0 || error("CHANG_TRIM_REVOLUTIONS must be positive")
-    trim_average_revolutions > 0.0 || error(
-        "CHANG_TRIM_AVERAGE_REVOLUTIONS must be positive",
-    )
-    start_time >= 0.0 || error("CHANG_IMPULSE_START_S must be nonnegative")
-    duration > 0.0 || error("CHANG_IMPULSE_DURATION_S must be positive")
-
+"""Derive the trim averaging window and the smooth pitch pulse from the case."""
+function chang_excitation_options(config, parameters)
+    revolution_period = 2pi / abs(parameters.Ω)
+    excitation = config.excitation
     return (;
-        propeller_indices,
-        number_of_propellers,
-        magnitude = environment_number(
-            Float64,
-            "CHANG_IMPULSE_MAGNITUDE",
-            EXCITATION_DEFAULTS.impulse_magnitude_nm,
-        ),
-        start_time,
-        duration,
-        trim_average_revolutions,
+        propeller_indices = config.simulation.impulse_propeller_indices,
+        number_of_propellers = parameters.Npropellers,
+        magnitude = excitation.impulse_magnitude_nm,
+        start_time = excitation.impulse_start_s,
+        duration = excitation.impulse_duration_s,
+        trim_average_revolutions = excitation.trim_average_revolutions,
         trim_average_start_time = max(
             0.0,
-            start_time - trim_average_revolutions * revolution_period,
+            excitation.impulse_start_s - excitation.trim_average_revolutions * revolution_period,
         ),
     )
 end
 
-"""Read generalized-alpha, partitioned-coupling, and safety controls."""
-function chang_integration_options(
-    structural;
-    reference,
-    freestream_speed::Real,
-    reference_area::Real,
-    reference_chord::Real,
-    propeller_radius::Real,
-    wing_node_count::Int,
-    dofs_per_node::Int,
-)
-    generalized_alpha = generalized_alpha_parameters(
-        environment_number(Float64, "CHANG_GA_RHO_INF", INTEGRATION_DEFAULTS.rho_inf),
-    )
-    coupling = PartitionedCouplingOptions(
-        maximum_iterations = environment_number(
-            Int,
-            "CHANG_COUPLING_MAX_ITER",
-            COUPLING_DEFAULTS.maximum_iterations,
-        ),
-        state_tolerance = environment_number(
-            Float64,
-            "CHANG_COUPLING_TOL_U",
-            COUPLING_DEFAULTS.state_tolerance,
-        ),
-        load_tolerance = environment_number(
-            Float64,
-            "CHANG_COUPLING_TOL_F",
-            COUPLING_DEFAULTS.load_tolerance,
-        ),
-        equilibrium_tolerance = environment_number(
-            Float64,
-            "CHANG_COUPLING_TOL_EQ",
-            COUPLING_DEFAULTS.equilibrium_tolerance,
-        ),
-        coupled_equilibrium_tolerance = environment_number(
-            Float64,
-            "CHANG_COUPLING_TOL_COUPLED_EQ",
-            COUPLING_DEFAULTS.coupled_equilibrium_tolerance,
-        ),
-        relaxation = environment_number(
-            Float64,
-            "CHANG_COUPLING_RELAXATION",
-            COUPLING_DEFAULTS.relaxation,
-        ),
-    )
+"""Build generalized-alpha/coupling parameters and physical convergence scales."""
+function chang_integration_options(config, structural, parameters)
     scales = build_chang_coupling_scales(
         structural;
-        reference,
-        freestream_speed,
-        reference_area,
-        reference_chord,
-        propeller_radius,
-        wing_node_count,
-        dofs_per_node,
-    )
-    state_norm_limit = environment_number(
-        Float64,
-        "CHANG_STATE_ABORT_NORM",
-        INTEGRATION_DEFAULTS.state_norm_limit,
-    )
-    propeller_angle_limit_deg = environment_number(
-        Float64,
-        "CHANG_PROP_ANGLE_ABORT_DEG",
-        INTEGRATION_DEFAULTS.propeller_angle_limit_deg,
-    )
-    state_norm_limit > 0.0 || error("CHANG_STATE_ABORT_NORM must be positive")
-    propeller_angle_limit_deg > 0.0 || error(
-        "CHANG_PROP_ANGLE_ABORT_DEG must be positive",
+        reference = parameters.ref,
+        freestream_speed = parameters.Vinf,
+        reference_area = parameters.Sref,
+        reference_chord = parameters.cref,
+        propeller_radius = parameters.R_prop,
+        wing_node_count = parameters.nnodes,
+        dofs_per_node = parameters.ndof,
     )
     return (;
-        generalized_alpha,
-        coupling,
+        generalized_alpha = generalized_alpha_parameters(config.integration.rho_inf),
+        coupling = PartitionedCouplingOptions(; config.coupling...),
         state_scale = scales.state,
         load_scale = scales.load,
-        state_norm_limit,
-        propeller_angle_limit_deg,
+        state_norm_limit = config.integration.state_norm_limit,
+        propeller_angle_limit_deg = config.integration.propeller_angle_limit_deg,
     )
 end
 
