@@ -5,6 +5,8 @@ Pkg.activate(normpath(joinpath(@__DIR__, "..", "..", "..", "..")))
 
 module ChangConvergenceAeroelastic
 include(joinpath(@__DIR__,"src","Convergence.jl"))
+include("MovingBlockDamping.jl")
+include("moving_block_adapter.jl")
 
 function aeroelastic_study()
     return (;
@@ -42,9 +44,17 @@ function aeroelastic_study()
         ),
         damping = (
             fit_start_s = nothing, # after pulse + one revolution; at least 0.75 s
-            block_duration_s = 1.0,
-            block_overlap = 0.9,
-            frequency_band_hz = (3.0,6.0), # set for the modes being investigated
+            # moving_block_2.jl: rectangular, mean-removed FFT blocks shifted
+            # one sample; lambda is the slope of log amplitude against time.
+            block_size_mode = :record_fraction, # or :duration for a fixed window
+            block_size = 512, # doubled/halved to satisfy the ratios below
+            size_ratio_lb = 0.25,
+            size_ratio_ub = 0.50,
+            peak_from_start = 1,
+            peak_from_end = 0,
+            block_duration_s = 1.0, # used only with :duration
+            block_overlap = 0.9,    # used only with :duration
+            frequency_band_hz = (3.0,6.0), # acceptance check on GLOBAL dominant frequency
             minimum_peaks = 8,
             minimum_fit_r_squared = 0.8,
             lambda_tolerance_per_s = 0.01,
@@ -91,7 +101,7 @@ function run_aeroelastic(s=aeroelastic_study())
     selection=operating_selection(reference,s)
     println("Aeroelastic operating point: $(selection.physical.speed_mps) m/s, $(selection.physical.rpm) RPM")
     Convergence.load_model()
-    result=Base.invokelatest(Convergence.run_aeroelastic_loaded,s,selection)
+    result=Base.invokelatest(Convergence.run_aeroelastic_loaded,MovingBlockStudy(s),selection)
     description="Aerodynamic reference: $(reference.physical.speed_mps) m/s, $(reference.physical.rpm) RPM.\n\nAeroelastic operating point: $(selection.physical.speed_mps) m/s, $(selection.physical.rpm) RPM.\n\n"
     if selection.physical.speed_mps!=reference.physical.speed_mps
         description*="The aerodynamic selection was verified at the reference speed; this study checks aeroelastic sensitivity at the overridden speed with proportional RPM.\n\n"

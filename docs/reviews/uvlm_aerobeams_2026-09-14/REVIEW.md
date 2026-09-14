@@ -1,5 +1,7 @@
 **Implementation review: Chang convergence, WingPropellerUVLM, and AeroBeams integration — 14 September 2026**
 
+**Follow-up:** The [full terminology and structure migration plan](../../plans/UVLM_AEROBEAMS_MIGRATION.md) defines the implementation sequence and acceptance gates. This review records the earlier snapshot: moving-block postprocessing and the aeroelastic entry's nested speed-override delegation were subsequently implemented, as noted in the plan.
+
 The reviewed time-marching and load-transfer path has a sound foundation, but the current automated damping acceptance can report a misleading result. Correct the damping estimator and project isolation before using `accepted=true` as the basis for final mesh or flutter conclusions. The speed override works through the new entry-level API; the older internal API still silently uses the original speed.
 
 This review concerns the current working tree, including uncommitted changes, at base commit `68b685be56e0f8800bcb6c632aca6ef7e6a8b5db`. The numerical source fingerprint exercised by the smoke tests is recorded in [smoke_summary.toml](smoke_summary.toml). Production code and existing aerodynamic result files were not modified during this review. New files in this directory contain diagnostics, test outputs, and this proposal.

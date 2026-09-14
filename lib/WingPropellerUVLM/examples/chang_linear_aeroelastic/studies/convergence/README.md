@@ -107,8 +107,9 @@ scaled RPM.
 
 Run the entry script normally, or call
 `ChangConvergenceAeroelastic.run_aeroelastic(settings)` in the REPL after including
-it. This entry-level function applies the override; the internal
-`Convergence.run_aeroelastic` function uses the original operating point.
+it. `ChangConvergenceAeroelastic.Convergence.run_aeroelastic(settings)` also
+delegates to this entry-level function, including the speed override and
+moving-block postprocessing.
 The source TOML is verified without modification. For an override,
 `aerodynamic_input.toml` records the effective physical inputs and nests the
 verified original selection under `aerodynamic_reference`; `report.md` records
@@ -120,6 +121,58 @@ integration/coupling settings, and damping fit controls in the second file.
 The table-based Chang wing model remains implemented in the shared model source.
 `frequency_band_hz` must correspond to the modes being studied; the 3–6 Hz
 example is an initial choice, not automatic mode identification.
+
+The aeroelastic entry uses the moving-block formulation supplied in
+`moving_block_2.jl`. Its implementation is in `MovingBlockDamping.jl` alongside
+the entry file. It cuts the response between selected positive peaks, chooses
+an FFT block occupying 25–50% of that segment, shifts the block **one sample**,
+removes each block's mean, and fits a straight line to log dominant spectral
+amplitude versus block start time. The slope is lambda in s⁻¹; negative means
+decay and positive means growth. The equivalent damping ratio is also saved.
+It uses rectangular blocks, without the previous Hann window. Polynomial and
+peak-finding dependencies are not needed for the linear regression and local
+maximum operation. The reference file's demonstration and flutter-speed
+interpolation are not executed.
+
+Edit the `damping` settings in the aeroelastic entry:
+
+```julia
+block_size_mode = :record_fraction,
+block_size = 512,
+size_ratio_lb = 0.25,
+size_ratio_ub = 0.50,
+peak_from_start = 1,
+peak_from_end = 0,
+```
+
+`:record_fraction` follows the reference's block sizing and one-sample shift.
+For a fixed physical window across time-step refinements, use `:duration`;
+only that mode uses `block_duration_s` and `block_overlap`. In either mode,
+the dominant non-DC frequency is sought over the full spectrum. The configured
+`frequency_band_hz` checks whether it remains in the expected band; the code
+does not choose an in-band leakage component in place of the dominant mode.
+Minimum peak count and R² remain acceptance checks for the study.
+
+Each case saves `pitch_moving_block.csv` and `yaw_moving_block.csv`, containing
+block start times, log amplitudes, fitted values and dominant frequencies.
+With `make_plots=true`, corresponding PNGs show the analyzed segment and fit.
+`damping_fit.toml` includes the FFT frequency spacing (`frequency_resolution_hz`),
+the growth rate, frequency, angular frequency, damping ratio and fit quality.
+Frequencies remain FFT-bin estimates as in the reference: a fine convergence
+tolerance alone does not confer sub-bin accuracy. Positive-peak trimming also
+retains the reference's offset sensitivity; inspect the recorded fit curves.
+
+For standalone postprocessing, include `MovingBlockDamping.jl` and call
+`MovingBlockDamping.moving_block_damping(t, x)` to obtain the reference-compatible
+tuple `(lambda, frequency_hz, omega_radps)`. Use `moving_block_metrics(t, x)`
+for the summary and diagnostic arrays. Inputs must be finite and uniformly sampled.
+
+The entry-level postprocessing extension uses a dedicated study wrapper and
+separate estimator fingerprints in `study.toml` and `damping_fit.toml`. The
+shared aerodynamic solver sources are unchanged, preserving existing verified
+aerodynamic selections. The legacy metrics in `src/` remain available to
+archived/internal workflows; the two aeroelastic entry calls above select the
+new method.
 
 For each damping sweep, `nothing` selects the aerodynamic value and two finer
 levels. Alternatively, supply an absolute list, e.g. `prop_radial=[10,12,15]`

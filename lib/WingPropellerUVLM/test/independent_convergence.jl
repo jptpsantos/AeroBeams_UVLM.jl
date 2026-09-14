@@ -89,6 +89,10 @@ end
         dt_column=findfirst(==("dt_s"),vec(header))
         @test Float64.(matrix[:,dt_column])≈[c.azimuth_deg/(6overridden.selection.physical.rpm) for c in overridden.cases]
         @test occursin("85.0 m/s",read(joinpath(overridden.directory,"report.md"),String))
+        @test TOML.parsefile(joinpath(overridden.directory,"study.toml"))["settings"]["damping_method"]=="moving_block_2"
+        nested=E.Convergence.run_aeroelastic(merge(E.aeroelastic_study(),(;dry_run=true,make_plots=false,
+            speed_mps=85.0,selection_file=path,output_directory=joinpath(directory,"nested_U85"))))
+        @test nested.selection.physical.speed_mps==85.0
         payload=TOML.parsefile(path); payload["selected"]["core"]*=2
         C.save_toml(path,payload)
         @test_throws ErrorException C.load_selection(path)
@@ -133,5 +137,28 @@ end
     @test all(c->c.wing_span==2,plan)
     @test_throws ErrorException C.validate_elastic(merge(e,(;families=[:wing_span],sweeps=(wing_span=[2,3,4],))),selection)
     @test_throws ErrorException C.validate_elastic(e,merge(selection,(;physical=merge(s.physical,(;wake_shedding_fraction=.2)))))
+end
+
+@testset "Moving-block case diagnostics" begin
+    mktempdir() do directory
+        path=joinpath(directory,"response_history.csv")
+        t=collect(0.:.002:6.)
+        wave=exp.(-.15t).*sin.(2pi*4.1t)
+        open(path,"w") do io
+            println(io,"time_s,propeller_1_pitch_deg,propeller_1_yaw_deg")
+            writedlm(io,hcat(t,wave,.5wave),',')
+        end
+        e=merge(E.aeroelastic_study(),(;make_plots=false))
+        wrapped=E.MovingBlockStudy(e)
+        result=E.Convergence.damping_result(path,wrapped,fixture().physical)
+        @test result.method=="moving_block_2"
+        @test result.valid
+        @test result.pitch.moving_block_lambda_per_s≈-.15 atol=.01
+        @test result.yaw.moving_block_lambda_per_s≈result.pitch.moving_block_lambda_per_s atol=1e-10
+        @test result.pitch.block_count>100
+        @test isfile(joinpath(directory,"pitch_moving_block.csv"))
+        @test isfile(joinpath(directory,"yaw_moving_block.csv"))
+        @test result.method_sha256==wrapped.estimator_sha256
+    end
 end
 end
