@@ -39,6 +39,9 @@ options = ChangWindmillingTrimOptions(
     averaged_revolutions = env_int("CHANG_TRIM_AVERAGED_REVOLUTIONS", 1),
     retained_wake_revolutions = env_int("CHANG_TRIM_RETAINED_WAKE_REVOLUTIONS", 3),
     wake_relaxation = env_float("CHANG_TRIM_WAKE_RELAXATION", 0.1),
+    core_radius_m = ChangAeroelastic.environment_optional_number(
+        Float64, "CHANG_TRIM_CORE_RADIUS_M", config.aerodynamic.core_radius_m,
+    ),
     vortex_core_span_fraction = env_float("CHANG_TRIM_FCORE_SPAN_FACTOR", 0.5),
     vortex_core_chord_fraction = env_float("CHANG_TRIM_FCORE_CHORD_FACTOR", 0.3),
     near_field_force_model = env_symbol(
@@ -71,6 +74,7 @@ println("Chang powered thrust trim")
     options.azimuth_step_deg,
 )
 println("  near-field model: $(options.near_field_force_model)")
+println("  finite-core radius: $(chang_trim_core_description(options))")
 
 trim_solution = trim_chang_thrusting_rpm(
     options;
@@ -140,6 +144,7 @@ summary_path = joinpath(output_directory, "$(model_label)_thrusting_trim_summary
 open(summary_path, "w") do io
     println(io, "Chang isolated-propeller powered thrust trim")
     println(io, "Near-field force model: $(options.near_field_force_model)")
+    println(io, "Finite-core radius: $(chang_trim_core_description(options))")
     @printf(io, "Target mean thrust: %+.10f N\n", target_thrust_n)
     @printf(io, "Flow speed: %.8f m/s\n", options.flow_speed_mps)
     @printf(io, "Air density: %.8f kg/m^3\n", options.air_density_kgpm3)

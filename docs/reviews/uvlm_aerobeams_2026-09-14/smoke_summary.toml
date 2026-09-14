@@ -1,0 +1,8 @@
+julia_version = "1.11.5"
+steps = 38
+max_coupling_iterations = 3
+interacting_steps = 38
+source_sha256 = "449afc7f52e08d14c021ae0788fa00d56788665ffedb3d1787d069bbe64a525c"
+maximum_virtual_work_relative_error = 1.5162671857330032e-7
+surface_panel_bytes = 208
+retained_surface_history_bytes = 107352

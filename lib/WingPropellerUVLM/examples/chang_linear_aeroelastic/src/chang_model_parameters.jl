@@ -132,7 +132,7 @@ function build_chang_model_parameters(config)
     spacing_s_wing = Uniform()
     spacing_c_wing = Uniform()
     mirror_wing = false
-    symmetric_wing = true
+    symmetric_wing = config.wing.symmetric
 
     ns_wing = config.wing.spanwise_panels
     nc_wing = config.wing.chordwise_panels

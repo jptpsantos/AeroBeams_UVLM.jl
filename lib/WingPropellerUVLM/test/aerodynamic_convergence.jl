@@ -4,7 +4,7 @@ using Test
 # Keep the library suite independent of a user's sweep environment.
 withenv((name => nothing for name in keys(ENV) if startswith(name, "CHANG_AERO_"))...) do
     include(joinpath(@__DIR__, "..", "examples", "chang_linear_aeroelastic",
-        "studies", "convergence", "run_chang_coupled_aerodynamic_sweep.jl"))
+        "studies", "convergence", "archive", "run_chang_coupled_aerodynamic_sweep.jl"))
 end
 
 withenv((name => nothing for name in keys(ENV) if startswith(name, "CHANG_AERO_"))...) do

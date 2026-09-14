@@ -10,7 +10,7 @@ include(joinpath(@__DIR__, "chang_aerodynamic_study.jl"))
 using .ChangAerodynamicStudy
 
 const AERO_SWEEP_DIR = @__DIR__
-const AERO_EXAMPLE_DIR = normpath(joinpath(AERO_SWEEP_DIR, "..", ".."))
+const AERO_EXAMPLE_DIR = normpath(joinpath(AERO_SWEEP_DIR, "..", "..", ".."))
 const AERO_CASE_DRIVER = joinpath(AERO_SWEEP_DIR, "run_chang_coupled_aerodynamic_analysis.jl")
 const AERO_PROJECT_DIR = normpath(joinpath(AERO_EXAMPLE_DIR, "..", ".."))
 
@@ -232,6 +232,7 @@ function child_environment(case, case_directory; simulated_revolutions, averaged
     environment["CHANG_AERO_PROP_RADIAL_PANELS"] = string(case.prop_radial)
     environment["CHANG_AERO_PROP_CHORD_PANELS"] = string(case.prop_chord)
     environment["CHANG_AERO_RETAINED_WAKE_REVOLUTIONS"] = string(case.wake_revolutions)
+    environment["CHANG_AERO_CORE_RADIUS_M"] = "nothing" # This driver sweeps core factors.
     environment["CHANG_AERO_FCORE_SEGMENT_FACTOR"] = string(case.core_factor)
     environment["CHANG_AERO_FCORE_CHORD_FACTOR"] = string(case.chord_core_factor)
     environment["CHANG_AERO_PLOT_RESULTS"] = "false"

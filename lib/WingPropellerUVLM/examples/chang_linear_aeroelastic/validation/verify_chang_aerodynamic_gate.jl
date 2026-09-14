@@ -1,7 +1,7 @@
 # Focused checks of the aerodynamic-to-aeroelastic handoff; no time marching.
 using Test
 include(joinpath(@__DIR__, "..", "studies", "convergence",
-    "run_chang_aeroelastic_sweep_from_aerodynamic.jl"))
+    "archive", "run_chang_aeroelastic_sweep_from_aerodynamic.jl"))
 
 @testset "Aerodynamic-to-aeroelastic gate" begin
     row(level; expected = 4, chord = 0.04 / 2^(level - 1)) = (;
@@ -30,8 +30,14 @@ include(joinpath(@__DIR__, "..", "studies", "convergence",
     environment = child_environment(case, "unused", "unused"; speed_mps = 65.0,
         trim_rpm = 1217.6962, trim_speed_mps = 65.0, end_time_s = 6.0, hard_angle_deg = 15.0,
         sideslip_deg = 0.0)
+    @test environment["CHANG_CORE_RADIUS_M"] == "nothing"
     @test environment["CHANG_FCORE_SEGMENT_FACTOR"] == "0.0"
     @test environment["CHANG_FCORE_CHORD_FACTOR"] == "0.01"
     @test environment["CHANG_SIDESLIP_DEG"] == "0.0"
+    for symmetric in (false,true)
+        env = child_environment(case,"unused","unused";speed_mps=65.,trim_rpm=1217.6962,
+            trim_speed_mps=65.,end_time_s=6.,hard_angle_deg=15.,wing_symmetric=symmetric)
+        @test env["CHANG_WING_SYMMETRIC"] == string(symmetric)
+    end
     print_case_matrix([case], 65.0, 1217.6962, 65.0, 1.15)
 end

@@ -21,6 +21,15 @@ function environment_number(::Type{T}, name, default, aliases::AbstractString...
     return value
 end
 
+"""Read an optional number; the literal `nothing` selects the alternative mode."""
+function environment_optional_number(::Type{T}, name, default; env = ENV) where {T<:Real}
+    raw = strip(environment_value(name, default; env))
+    lowercase(raw) == "nothing" && return nothing
+    value = tryparse(T, raw)
+    isnothing(value) && error("$name must be a valid $T value or nothing, received '$raw'")
+    return value
+end
+
 environment_symbol(name, default, aliases::AbstractString...; env = ENV) =
     Symbol(lowercase(strip(environment_value(name, default, aliases...; env))))
 
@@ -61,6 +70,7 @@ case programmatically, merge changes into defaults before calling this loader.
 function load_chang_configuration(defaults = chang_case_defaults(); env = ENV)
     defaults = deepcopy(defaults)
     wing = environment_overrides(defaults.wing, (
+        symmetric = (Bool, "CHANG_WING_SYMMETRIC"),
         spanwise_panels = (Int, "CHANG_WING_SPAN_PANELS"),
         chordwise_panels = (Int, "CHANG_WING_CHORD_PANELS"),
     ), env)
@@ -85,6 +95,11 @@ function load_chang_configuration(defaults = chang_case_defaults(); env = ENV)
         chord_core_factor = (Float64, "CHANG_FCORE_CHORD_FACTOR"),
         hub_load_arm_factor = (Float64, "CHANG_HUB_LOAD_ARM_FACTOR"),
     ), env)
+    aerodynamic = merge(aerodynamic, (;
+        core_radius_m = environment_optional_number(
+            Float64, "CHANG_CORE_RADIUS_M", defaults.aerodynamic.core_radius_m; env,
+        ),
+    ))
     wing_rows = isnothing(defaults.wake.maximum_rows_wing) ?
         defaults.wake.wing_rows_per_chord_panel * wing.chordwise_panels :
         defaults.wake.maximum_rows_wing
@@ -191,10 +206,15 @@ function validate_configuration(config)
         isfinite(value) && value > 0 || error("$label must be finite and positive")
     end
     aero = config.aerodynamic
-    all(x -> isfinite(x) && x >= 0, (aero.segment_core_factor, aero.chord_core_factor)) ||
-        error("Finite-core factors must be finite and nonnegative")
-    max(aero.segment_core_factor, aero.chord_core_factor) > 0 ||
-        error("A positive finite core is required for free-wake self induction")
+    if isnothing(aero.core_radius_m)
+        all(x -> isfinite(x) && x >= 0, (aero.segment_core_factor, aero.chord_core_factor)) ||
+            error("Finite-core factors must be finite and nonnegative")
+        max(aero.segment_core_factor, aero.chord_core_factor) > 0 ||
+            error("A positive finite core is required for free-wake self induction")
+    else
+        isfinite(aero.core_radius_m) && aero.core_radius_m > 0 ||
+            error("core_radius_m must be finite and positive, or nothing to use core factors")
+    end
     isfinite(aero.hub_load_arm_factor) && aero.hub_load_arm_factor >= 0 ||
         error("Hub load-arm factor must be finite and nonnegative")
     config.wake.maximum_rows_wing >= 0 || error("Wing wake rows must be nonnegative")

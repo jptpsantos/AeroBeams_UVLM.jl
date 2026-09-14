@@ -16,7 +16,13 @@ export chang_case_defaults, load_chang_configuration, ChangModel,
        update_aero_geometry_for_state!, assemble_structural_aero_load!, aero_load_for_state!
 
 # Includes define functions only. A case is constructed explicitly below.
-include(joinpath(@__DIR__, "..", "chang_case.jl"))
+# Read the interactive case only when defaults are requested. Callers passing
+# an explicit configuration (including convergence studies) never read it.
+function chang_case_defaults()
+    scope = Module(gensym(:ChangCaseDefaults))
+    Base.include(scope, joinpath(@__DIR__, "..", "chang_case.jl"))
+    return Base.invokelatest(scope.chang_case_defaults)
+end
 include("chang_configuration.jl")
 include("chang_model_parameters.jl")
 include("chang_structural_model.jl")
@@ -86,10 +92,14 @@ function run_chang_case(config)
     println("Propeller moment projection: $(config.simulation.propeller_moment_projection)")
     report_and_validate_structural_model(structural)
     println("Matrices after BCs. Total DOFs (free): $(structural.ndof_free)")
-    println(
-        "Finite-core radius: max($(config.aerodynamic.segment_core_factor) Δs, " *
-        "$(config.aerodynamic.chord_core_factor) c)",
-    )
+    if isnothing(config.aerodynamic.core_radius_m)
+        println(
+            "Finite-core radius: max($(config.aerodynamic.segment_core_factor) Δs, " *
+            "$(config.aerodynamic.chord_core_factor) c)",
+        )
+    else
+        println("Fixed finite-core radius: $(config.aerodynamic.core_radius_m) m")
+    end
     workspace = build_chang_workspace(model)
     wake = chang_wake_context(workspace; interaction_on = config.simulation.interaction_on)
     animation = chang_animation_options(workspace.system, workspace.iwake, config.output)

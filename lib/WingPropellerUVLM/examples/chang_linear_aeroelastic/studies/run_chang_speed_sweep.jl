@@ -311,6 +311,8 @@ function child_environment(speed, output_directory, output_label, end_time, hard
     environment["CHANG_HUB_LOAD_ARM_FACTOR"] = get(
         ENV, "CHANG_SWEEP_HUB_LOAD_ARM_FACTOR", "0.5",
     )
+    # Preserve this study's factor defaults unless a fixed radius is requested.
+    environment["CHANG_CORE_RADIUS_M"] = get(ENV, "CHANG_SWEEP_CORE_RADIUS_M", "nothing")
     environment["CHANG_FCORE_SEGMENT_FACTOR"] = get(
         ENV, "CHANG_SWEEP_FCORE_SEGMENT_FACTOR", "0.025",
     )

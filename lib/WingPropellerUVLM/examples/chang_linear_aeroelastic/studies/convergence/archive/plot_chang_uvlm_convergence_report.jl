@@ -22,7 +22,7 @@ using DelimitedFiles
 using Printf
 using Plots
 
-const EXAMPLE_DIR = normpath(joinpath(@__DIR__, "..", ".."))
+const EXAMPLE_DIR = normpath(joinpath(@__DIR__, "..", "..", ".."))
 
 const FAMILY_ORDER = [
     "wing_mesh",

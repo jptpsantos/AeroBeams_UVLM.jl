@@ -112,7 +112,7 @@ Edit the plain values in the numbered groups in `chang_case.jl`:
 | `wing` | Wing dimensions and mesh |
 | `propeller` | Blade geometry, mesh, installation, RPM, and pitch offset |
 | `simulation` | Air density, speed, flow angles, duration, azimuth step, interaction, and load models |
-| `aerodynamic` | Finite-core factors, elastic axis, and modal load arm |
+| `aerodynamic` | Fixed core radius or core factors, elastic axis, and modal load arm |
 | `wake` | Retained wake row counts |
 | `excitation` | Trim revolutions, averaging window, and pitch impulse |
 | `integration` | Generalized-alpha damping and stop limits |
@@ -122,6 +122,60 @@ Edit the plain values in the numbered groups in `chang_case.jl`:
 
 The file returns these groups through `chang_case_defaults()`. The runner uses
 `load_chang_configuration()` to turn them into the complete active `config`.
+
+The `wing.symmetric` setting controls wing image symmetry:
+
+```julia
+symmetric = true,  # Inside the wing tuple: false disables wing image symmetry.
+```
+
+The main solver and the archived `run_chang_core_convergence.jl` read this setting.
+The independent convergence workflow defines `physical.wing_symmetric` in
+`studies/convergence/chang_convergence_aerodynamic.jl`; its aeroelastic stage
+inherits the saved aerodynamic setting.
+`CHANG_WING_SYMMETRIC=true/false` overrides it for the main solver; the
+fixed-radius study reads the case file and passes the setting to its children.
+The separate factor-based aerodynamic scripts use `CHANG_AERO_WING_SYMMETRIC`
+(default false), and their gated aeroelastic stage inherits it from metadata.
+
+The mesh remains on the modelled side, from y=0 to the specified span.
+`mirror_wing=false` creates no additional grid. When symmetry is enabled,
+Biot–Savart evaluations add wing and wing-wake images across the X-Z plane:
+`(x,y,z) -> (x,-y,z)`, with reversed vortex-edge traversal and the same
+circulation and core radius. Images have no independent circulation unknowns
+or structural DOFs. Propeller blade symmetry is always false; all physical
+blades are explicitly discretized. Wing images can influence propellers
+when aerodynamic interaction is enabled.
+
+The Imperial nodal load transfer acts on the explicitly modelled wing; it
+does not double structural loads. Generic `body_forces` postprocessing does
+include image force/moment totals for symmetric surfaces, so use a consistent
+reference area when interpreting those coefficients. A wing-only image is
+not a fully symmetric wing–propeller configuration: an unmirrored propeller,
+sideslip, or asymmetric excitation can break symmetry of the complete flow.
+
+The `aerodynamic.core_radius_m` setting selects a fixed radius in metres:
+
+```julia
+core_radius_m = 1e-3,  # 1 mm, shared by the wing, blades, and shed wakes.
+```
+
+This radius remains fixed during mesh refinement, deformation, and wake
+convection. It takes precedence over `segment_core_factor` and
+`chord_core_factor`. Set `core_radius_m = nothing` to restore
+`max(segment_core_factor * ds, chord_core_factor * c)`. A fixed radius must
+be finite and positive; in factor mode, at least one factor must be positive.
+The 1 mm setting is a numerical trial, not a calibrated Chang vortex radius.
+It does not change where the solver enables finite-core induction.
+
+The windmilling and powered trim scripts inherit this setting. Override it
+with `CHANG_TRIM_CORE_RADIUS_M` (a radius or `nothing`) if needed. The existing
+factor-based convergence studies explicitly select `nothing` so their core
+factors remain effective. The separate speed sweep also retains its factor
+defaults; use `CHANG_SWEEP_CORE_RADIUS_M` to give that study a fixed radius.
+
+Restart Julia once after updating the source. Subsequent edits to
+`core_radius_m` in `chang_case.jl` are picked up when rerunning the main script.
 
 Environment parsing, automatic values, and input checks live in
 `src/chang_configuration.jl`. Automated studies can override the visible
@@ -143,6 +197,7 @@ takes precedence over the corresponding setting in the file:
 | `CHANG_INTERACTION` | `false` | Wing--propeller aerodynamic interaction |
 | `CHANG_NEAR_FIELD_FORCE_MODEL` | `imperial` | `imperial` or `legacy_imperial_segments` |
 | `CHANG_PROP_MOMENT_PROJECTION` | `exact_virtual_work` | Exact or fixed-axis modal projection |
+| `CHANG_CORE_RADIUS_M` | See `chang_case.jl` | Fixed radius in metres; `nothing` selects core factors |
 | `CHANG_PLOT_RESULTS` | `true` | Write/display the response PNG |
 | `CHANG_ANIMATE_WAKE` | `false` | Record accepted states and write a GIF |
 | `CHANG_OUTPUT_DIR` | `output/` | Result directory |
@@ -158,7 +213,7 @@ For example, the following edits can all be made in `chang_case.jl`:
 
 ```julia
 # Inside the corresponding group:
-segment_core_factor = 0.01,             # aerodynamic
+core_radius_m = 0.002,                 # aerodynamic: fixed 2 mm radius
 maximum_rows_wing = 120,                # wake
 maximum_rows_propeller = 144,           # wake
 rho_inf = 0.8,                          # integration
@@ -191,6 +246,7 @@ configure the primary aeroelastic runner.
 | Powered thrust trim | `studies/run_chang_thrusting_trim.jl` |
 | Airspeed stability sweep | `studies/run_chang_speed_sweep.jl` |
 | UVLM and damping convergence | [`studies/convergence/README.md`](studies/convergence/README.md) |
+| Fixed core radius, mesh, time-step and wake studies | [`studies/convergence/archive/CORE_CONVERGENCE.md`](studies/convergence/archive/CORE_CONVERGENCE.md) |
 
 For example:
 
@@ -198,9 +254,11 @@ For example:
 julia --project=lib/WingPropellerUVLM lib/WingPropellerUVLM/examples/chang_linear_aeroelastic/studies/run_chang_windmilling_trim.jl
 ```
 
-The recommended convergence process is aerodynamic-first: establish rigid
-wing/propeller `CL` and `CT` convergence, then run only the gated aeroelastic
-damping cases selected from that result.
+The independent convergence workflow uses two entry files under
+`studies/convergence/`: `chang_convergence_aerodynamic.jl` defines its own
+inputs and checks CT/CQ; `chang_convergence_aeroelastic.jl` reads its verified
+selection and checks damping. Neither reads `chang_case.jl`. Older convergence
+scripts and reference notes are preserved under `studies/convergence/archive/`.
 
 ## Validation
 

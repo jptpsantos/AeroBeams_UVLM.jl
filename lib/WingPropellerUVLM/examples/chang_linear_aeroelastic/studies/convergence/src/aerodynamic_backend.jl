@@ -6,15 +6,8 @@
 # propeller thrust are reduced from the same dimensional Imperial near-field
 # nodal loads used by the production aeroelastic driver.
 #
-# Run from the repository root with
-#
-#   julia --project=lib/WingPropellerUVLM lib/WingPropellerUVLM/examples/chang_linear_aeroelastic/studies/convergence/run_chang_coupled_aerodynamic_analysis.jl
-#
-# Every numerical control can be overridden from PowerShell, for example:
-#
-#   $env:CHANG_AERO_INTERACTION = "true"
-#   $env:CHANG_AERO_FCORE_SEGMENT_FACTOR = "0.25"
-#   $env:CHANG_AERO_SIMULATED_REVOLUTIONS = "4"
+# Internal backend. The independent chang_convergence_aerodynamic.jl entry
+# supplies explicit options; it does not call the legacy environment parser.
 
 using Dates
 using DelimitedFiles
@@ -24,7 +17,7 @@ using Statistics
 using StaticArrays
 
 const CONVERGENCE_DIR = @__DIR__
-const EXAMPLE_DIR = normpath(joinpath(CONVERGENCE_DIR, "..", ".."))
+const EXAMPLE_DIR = normpath(joinpath(CONVERGENCE_DIR, "..", "..", ".."))
 
 using WingPropellerUVLM:
     Freestream,
@@ -41,7 +34,7 @@ using WingPropellerUVLM:
     update_propeller_grids!,
     update_system_surfaces!
 
-include(joinpath(@__DIR__, "chang_aerodynamic_study.jl"))
+include(joinpath(@__DIR__, "aerodynamic_options.jl"))
 using .ChangAerodynamicStudy
 
 """Return lift in the stability-axis vertical direction."""
@@ -108,10 +101,15 @@ function simulate_coupled_aerodynamics(options; verbose = true)
     blade_twists = deg2rad.(
         twists_at_nodes .- 90.0 .+ options.collective_pitch_offset_deg,
     )
-    fcore = (chord_value, segment_length) -> max(
-        options.finite_core_segment_factor * segment_length,
-        options.finite_core_chord_factor * chord_value,
-    )
+    fcore = if isnothing(options.core_radius_m)
+        (chord_value, segment_length) -> max(
+            options.finite_core_segment_factor * segment_length,
+            options.finite_core_chord_factor * chord_value,
+        )
+    else
+        radius = Float64(options.core_radius_m)
+        (chord_value, segment_length) -> radius
+    end
     reference = Reference(
         span * (root_chord + tip_chord) / 2,
         0.5 * (root_chord + tip_chord),
@@ -153,7 +151,7 @@ function simulate_coupled_aerodynamics(options; verbose = true)
         chord = chord_distribution,
         xle_distribution = xle_distribution,
         ref = reference,
-        symmetric_wing = false,
+        symmetric_wing = options.wing_symmetric,
         fs = freestream,
         dt = fill(dt, total_steps),
         nnodes = length(span_nodes),
@@ -191,6 +189,10 @@ function simulate_coupled_aerodynamics(options; verbose = true)
     ) + hub_center
 
     verbose && println("Rigid coupled aerodynamic analysis")
+    core_description = isnothing(options.core_radius_m) ?
+        "max($(options.finite_core_segment_factor) ds, $(options.finite_core_chord_factor) c)" :
+        "fixed $(options.core_radius_m) m"
+    verbose && println("  Core radius: $core_description")
     verbose && @printf(
         "  V=%.3f m/s, RPM=%.3f, J=%.6f, grids wing=%dx%d prop=%dx%d\n",
         options.flow_speed_mps,
@@ -202,10 +204,8 @@ function simulate_coupled_aerodynamics(options; verbose = true)
         options.propeller_chord_panels,
     )
     verbose && @printf(
-        "  interaction=%s, corrected core=max(%.4g ds, %.4g c), wake=%.3f rev\n",
+        "  interaction=%s, wake=%.3f rev\n",
         options.interaction_on,
-        options.finite_core_segment_factor,
-        options.finite_core_chord_factor,
         options.retained_wake_revolutions,
     )
     verbose && flush(stdout)
@@ -388,6 +388,8 @@ function write_results(result, output_directory; plot_results = true)
         println(stream, "Core radius by surface (m and mesh ratios): $(result.core_diagnostics)")
         println(stream, "Wake shedding fraction eta: $(options.wake_relaxation)")
         println(stream, "Interaction enabled: $(options.interaction_on)")
+        println(stream, "Wing image symmetry across y=0: $(options.wing_symmetric); blade symmetry: false")
+        println(stream, "Fixed core radius (m; nothing uses factors): $(options.core_radius_m)")
         @printf(stream, "Flow speed: %.8f m/s\n", options.flow_speed_mps)
         @printf(stream, "Angle of attack: %.8f deg\n", options.angle_of_attack_deg)
         @printf(stream, "RPM: %.8f\n", result.rpm)
@@ -402,8 +404,12 @@ function write_results(result, output_directory; plot_results = true)
             options.simulated_revolutions, options.averaged_revolutions)
         @printf(stream, "Retained wake: %.8f revolutions (%d rows)\n",
             options.retained_wake_revolutions, result.maximum_wake_rows)
-        @printf(stream, "Corrected finite core: max(%.8g ds, %.8g c)\n",
-            options.finite_core_segment_factor, options.finite_core_chord_factor)
+        if isnothing(options.core_radius_m)
+            @printf(stream, "Corrected finite core: max(%.8g ds, %.8g c)\n",
+                options.finite_core_segment_factor, options.finite_core_chord_factor)
+        else
+            @printf(stream, "Corrected finite core: fixed %.8g m\n", options.core_radius_m)
+        end
         @printf(stream, "Mean wing CL: %+.12e\n", result.mean_wing_cl)
         @printf(stream, "Wing CL standard deviation: %.12e\n", result.std_wing_cl)
         @printf(stream, "Mean propeller CT: %+.12e\n", result.mean_propeller_ct)

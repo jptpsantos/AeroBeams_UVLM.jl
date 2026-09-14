@@ -10,9 +10,11 @@ function chang_case_defaults()
         root_chord_m = 1.8,
         tip_chord_m = 1.8,
         span_m = 7.5,              # Modelled span, from the clamped root to the tip.
+        symmetric = true,         # Wing + wing-wake images across y=0 (X-Z plane).
+                                  # false: model only this side. Blades are never mirrored.
 
-        spanwise_panels = 20,      # Also sets the number of structural beam elements.
-        chordwise_panels = 5,
+        spanwise_panels = 30,      # Also sets the number of structural beam elements.
+        chordwise_panels = 10,
     )
 
     # 2. Propeller geometry, mesh, and installation
@@ -21,12 +23,12 @@ function chang_case_defaults()
         chord_m = 0.197,           # Constant blade chord.
         blades = 4,
 
-        radial_panels = 5,         # Panels along each blade.
-        chordwise_panels = 5,      # Panels across each blade chord.
+        radial_panels = 10,         # Panels along each blade.
+        chordwise_panels = 10,      # Panels across each blade chord.
 
         # RPM is specified at trim_speed_mps. The solver scales RPM with airspeed
         # to keep the advance ratio fixed.
-        rotation_rpm = 1212.0,#1217.6962,
+        rotation_rpm = 1217.6962,
         trim_speed_mps = 65.0,
 
         # One entry per propeller: 0 = wing root, 1 = wing tip.
@@ -41,7 +43,7 @@ function chang_case_defaults()
         angle_of_attack_deg = 3.0,
         sideslip_deg = 0.0,
 
-        azimuth_step_deg = 5.0,    # Rotor angle advanced per time step.
+        azimuth_step_deg = 2.5,    # Rotor angle advanced per time step.
         end_time_s = 5.0,          # Total requested simulation duration.
 
         # true: include wing–propeller and propeller–propeller aerodynamic influence.
@@ -60,10 +62,16 @@ function chang_case_defaults()
 
     # 4. Aerodynamic finite core and load geometry
     aerodynamic = (
-        # Core radius = max(segment_core_factor * Δs, chord_core_factor * c).
+        # Fixed radius in metres for wing, blades, and shed wakes.
+        # Examples: 1e-3 = 1 mm; 1e-6 = 1 micrometre.
+        # Set nothing to use the factor-based rule below.
+        core_radius_m = nothing,#0.1*0.197,
+
+        # Used only when core_radius_m = nothing:
+        # radius = max(segment_core_factor * Δs, chord_core_factor * c).
         # Δs is the local span/radial edge length; c is the full local chord.
-        segment_core_factor = 1e-6,
-        chord_core_factor = 1e-6,
+        segment_core_factor = 0.0,
+        chord_core_factor = 5*0.003,#1e-2,
 
         elastic_axis_fraction = 0.30,      # Chord fraction measured from the leading edge.
         hub_load_arm_factor = 0.5,         # Modal load arm divided by pylon length.

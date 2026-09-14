@@ -94,6 +94,7 @@ function verify_aerodynamic_table_provenance(rows)
         options = get!(options_by_directory, directory) do
             metadata_options(directory)
         end
+        isnothing(options.core_radius_m) || error("This gate selects core factors; use the fixed-core convergence driver for dimensional radii")
         # Check every row even when several families share one cached history.
         (options.wing_span_panels, options.wing_chord_panels,
             options.propeller_radial_panels, options.propeller_chord_panels,
@@ -109,6 +110,7 @@ function verify_aerodynamic_table_provenance(rows)
             error("Density, sideslip, collective pitch or shedding fraction differ from the production adapter; align them before the aeroelastic study")
         push!(operating_points, (;
             speed_mps = options.flow_speed_mps,
+            wing_symmetric = options.wing_symmetric,
             angle_of_attack_deg = options.angle_of_attack_deg,
             rpm = options.reference_rpm * options.flow_speed_mps / options.reference_speed_mps))
     end
@@ -285,6 +287,7 @@ function write_configuration(path, source_path, selection, cases, stage, analysi
         println(stream, "Angle of attack: $(analysis.angle_of_attack_deg) deg")
         println(stream, "Propeller speed: $(analysis.rpm) RPM")
         println(stream, "Wing--propeller aerodynamic interaction: $(analysis.interaction_on)")
+        println(stream, "Wing image symmetry: $(analysis.wing_symmetric); blade symmetry: false")
         println(stream, "Generalized-alpha rho_inf: $(analysis.ga_rho_inf)")
         println(stream, "Coupling relaxation: $(analysis.coupling_relaxation)")
         println(stream, "Simulation/fit interval: 0--$(analysis.end_time_s) s / " *
@@ -350,6 +353,7 @@ function main_aeroelastic_from_aerodynamic()
         speed_mps = operating_point.speed_mps,
         angle_of_attack_deg = operating_point.angle_of_attack_deg,
         rpm = operating_point.rpm,
+        wing_symmetric = operating_point.wing_symmetric,
         interaction_on = convergence_bool("CHANG_AE_INTERACTION", true),
         ga_rho_inf = convergence_float("CHANG_AE_GA_RHO_INF", 1.0),
         coupling_relaxation = convergence_float("CHANG_AE_COUPLING_RELAXATION", 1.0),
@@ -433,6 +437,7 @@ function main_aeroelastic_from_aerodynamic()
                 angle_of_attack_deg = analysis.angle_of_attack_deg,
                 sideslip_deg = 0.0,
                 interaction_on = analysis.interaction_on,
+                wing_symmetric = analysis.wing_symmetric,
                 ga_rho_inf = analysis.ga_rho_inf,
                 coupling_relaxation = analysis.coupling_relaxation,
             )

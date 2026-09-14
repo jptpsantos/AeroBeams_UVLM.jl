@@ -29,6 +29,7 @@ Base.@kwdef struct ChangCoupledAerodynamicOptions
     wing_tip_chord_m::Float64 = 1.8
     wing_span_panels::Int = 30
     wing_chord_panels::Int = 10
+    wing_symmetric::Bool = false
     elastic_axis_fraction::Float64 = 0.30
 
     propeller_radius_m::Float64 = 1.15
@@ -47,6 +48,7 @@ Base.@kwdef struct ChangCoupledAerodynamicOptions
     averaged_revolutions::Int = 2
     retained_wake_revolutions::Float64 = 2.0
     wake_relaxation::Float64 = 0.1
+    core_radius_m::Union{Nothing,Float64} = nothing
     finite_core_segment_factor::Float64 = 0.0
     finite_core_chord_factor::Float64 = 0.01
     interaction_on::Bool = true
@@ -61,6 +63,7 @@ function options_from_environment(environment = ENV)
         :sideslip_deg => "BETA_DEG",
         :wing_span_panels => "WING_SPAN_PANELS",
         :wing_chord_panels => "WING_CHORD_PANELS",
+        :wing_symmetric => "WING_SYMMETRIC",
         :propeller_radial_panels => "PROP_RADIAL_PANELS",
         :propeller_chord_panels => "PROP_CHORD_PANELS",
         :reference_rpm => "REFERENCE_RPM",
@@ -82,18 +85,24 @@ function options_from_environment(environment = ENV)
             parse(typeof(default), get(environment, name, string(default)))
         field => value
     end
-    return ChangCoupledAerodynamicOptions(; values...)
+    raw_radius = strip(get(environment, "CHANG_AERO_CORE_RADIUS_M", "nothing"))
+    core_radius_m = lowercase(raw_radius) == "nothing" ? nothing : parse(Float64, raw_radius)
+    return ChangCoupledAerodynamicOptions(; values..., core_radius_m)
 end
 
 function validate_options(options)
-    all(name -> isfinite(getfield(options, name)), fieldnames(typeof(options))) ||
+    all(name -> isnothing(getfield(options, name)) || isfinite(getfield(options, name)), fieldnames(typeof(options))) ||
         error("All aerodynamic controls must be finite")
     all(value -> value > 0, (options.wing_span_m, options.wing_root_chord_m,
         options.wing_tip_chord_m, options.propeller_radius_m, options.propeller_chord_m,
         options.propeller_blades, options.pylon_length_m)) || error("Geometry must be positive")
     0 <= options.elastic_axis_fraction <= 1 || error("Elastic axis must be in [0,1]")
-    max(options.finite_core_segment_factor, options.finite_core_chord_factor) > 0 ||
-        error("A positive finite core is required for free-wake self induction")
+    if isnothing(options.core_radius_m)
+        max(options.finite_core_segment_factor, options.finite_core_chord_factor) > 0 ||
+            error("A positive finite core is required for free-wake self induction")
+    else
+        options.core_radius_m > 0 || error("Fixed core radius must be positive")
+    end
     options.flow_speed_mps > 0 || error("Flow speed must be positive")
     options.air_density_kgpm3 > 0 || error("Air density must be positive")
     options.wing_span_panels > 0 || error("Wing spanwise panel count must be positive")
@@ -126,15 +135,20 @@ function validate_options(options)
     return steps_per_revolution
 end
 
-options_dict(options) = Dict(string(name) => getfield(options, name)
+options_dict(options) = Dict(string(name) => something(getfield(options, name), "nothing")
     for name in fieldnames(typeof(options)))
 
 """Fingerprint the numerical source, including uncommitted solver edits."""
 function source_fingerprint()
-    package = normpath(joinpath(@__DIR__, "..", "..", "..", ".."))
-    paths = [@__FILE__, joinpath(@__DIR__, "run_chang_coupled_aerodynamic_analysis.jl")]
-    for (root, _, files) in walkdir(joinpath(package, "src"))
-        append!(paths, [joinpath(root, file) for file in files if endswith(file, ".jl")])
+    package = normpath(joinpath(@__DIR__, "..", "..", "..", "..", ".."))
+    paths = String[]
+    example = normpath(joinpath(@__DIR__, "..", "..", ".."))
+    # Physical and study inputs are recorded in metadata, not read from the
+    # interactive case. Its edits must not invalidate independent results.
+    for directory in (@__DIR__, joinpath(example,"src"), joinpath(package,"src"))
+        for (root, _, files) in walkdir(directory)
+            append!(paths, [joinpath(root,file) for file in files if endswith(file,".jl")])
+        end
     end
     manifest = joinpath(package, "Manifest.toml")
     isfile(manifest) && push!(paths, manifest)
@@ -176,7 +190,8 @@ function metadata_options(directory)
     end
     values = metadata["options"]
     options = ChangCoupledAerodynamicOptions(;
-        (name => values[string(name)] for name in fieldnames(ChangCoupledAerodynamicOptions))...)
+        (name => (values[string(name)] == "nothing" ? nothing : values[string(name)])
+            for name in fieldnames(ChangCoupledAerodynamicOptions))...)
     validate_options(options)
     return options
 end

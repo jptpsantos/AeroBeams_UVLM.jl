@@ -1,0 +1,28 @@
+julia_version = "1.11.5"
+
+[offset]
+negative_offset_valid = false
+unshifted_valid = true
+
+[[frequencies]]
+reported_lambda_per_s = -0.15000400440355086
+valid = true
+actual_frequency_hz = 4.1
+reported_frequency_hz = 4.0000000000004405
+r_squared = 0.9999995174574746
+[[frequencies]]
+reported_lambda_per_s = -0.14998432349720817
+valid = true
+actual_frequency_hz = 4.4
+reported_frequency_hz = 4.0000000000004405
+r_squared = 0.9999949767419735
+[[frequencies]]
+reported_lambda_per_s = -0.1500817496066306
+valid = true
+actual_frequency_hz = 8.0
+reported_frequency_hz = 5.000000000000551
+r_squared = 0.9977275217542124
+
+[available_in_isolated_project]
+Plots = false
+FFTW = false

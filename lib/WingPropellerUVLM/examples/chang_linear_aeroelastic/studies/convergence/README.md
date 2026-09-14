@@ -1,198 +1,163 @@
-# Chang two-stage UVLM convergence workflow
+# Independent Chang convergence studies
 
-The convergence study is split into two fronts so that expensive damping
-simulations are not used to diagnose basic aerodynamic discretization errors.
+For the staged finite-core, aerodynamic and damping investigation, see
+[the analysis plan](FINITE_CORE_ANALYSIS_PLAN.md). It distinguishes existing
+automation from additional checks and proposed extensions.
 
-| File | Role |
-|:--|:--|
-| `run_chang_coupled_aerodynamic_sweep.jl` | Recommended rigid aerodynamic sweep |
-| `run_chang_coupled_aerodynamic_analysis.jl` | Isolated child case used by that sweep |
-| `run_chang_aeroelastic_sweep_from_aerodynamic.jl` | Gated damping study |
-| `run_chang_uvlm_convergence_sweep.jl` | Legacy one-stage entry point |
-| `chang_aeroelastic_convergence.jl` | Shared damping metrics and process/report helpers |
-| `plot_chang_uvlm_convergence_report.jl` | Rebuild plots for a legacy one-stage result |
+Only two entry files need editing:
 
-## Stage 1: rigid coupled aerodynamics
+| File | Purpose |
+|---|---|
+| [chang_convergence_aerodynamic.jl](chang_convergence_aerodynamic.jl) | Define independent physical/numerical inputs; converge propeller CT and CQ |
+| [chang_convergence_aeroelastic.jl](chang_convergence_aeroelastic.jl) | Read the verified aerodynamic selection; converge pitch/yaw damping |
+| `src/` | Shared solver adapters, metrics, plots, and result verification |
+| `archive/` | Previous drivers, their editable presets, and reference notes |
 
-Run `run_chang_coupled_aerodynamic_sweep.jl`.  The wing is rigid, the
-propeller rotates, and wing--propeller aerodynamic interaction is enabled.
-Each family changes one quantity and compares periodic wing `CL` and
-propeller `CT` and `CQ` with the reference. Both the child and reuse checker
-read shared option definitions. The default operating point is 65 m/s,
-3 degrees angle of attack, 1217.6962 RPM, with interaction enabled:
+Neither new study reads `chang_case.jl` or `CHANG_*` environment settings.
+They reuse the existing UVLM and Chang structural solvers and tabulated
+wing/blade properties. Numerical source changes invalidate old verification;
+editing the interactive case does not.
 
-- wing span panels: 20, 30, 40;
-- wing chord panels: 10, 20, 30;
-- propeller radial panels: 10, 15, 20;
-- propeller chord panels: 10, 15, 20;
-- retained wake: 1, 2, 3 revolutions;
-- core/full-chord factor: 0.04, 0.02, 0.01, 0.005; and
-- propeller azimuth step: 5, 2.5, 1 degrees.
+## 1. Aerodynamic study
 
-Nominal grids are wing 30x10 and blades 10x10, with two retained wake
-revolutions, a 5-degree step, and `rc = 0.01 c`. Eight revolutions are
-simulated and the last two averaged. These are starting settings for a study,
-not validated converged settings.
+Edit `chang_convergence_aerodynamic.jl`:
 
-The default `CHANG_AERO_SWEEP_CORE_MODE=chord` keeps radius independent of
-span/radial mesh. `c` is the full local chord, not a panel's chord. The primary
-aeroelastic runner retains its editable mixed law; the gated driver transfers
-both selected factors. See [the finite-core review](FINITE_CORE_REVIEW.md)
-for dimensional radii, evidence, and remaining modeling limitations.
+- `physical`: wing/blade geometry, **actual RPM at the specified speed**,
+  density, angles, collective, symmetry, and aerodynamic interaction.
+- `core_mode`: `:fixed` for metres, `:chord` for a fraction of full local chord,
+  or `:segment` for a fraction of each spanwise/radial vortex edge.
+- `nominal`: absolute wing/blade panel counts, core value, wake age, and azimuth increment.
+- `sweeps`: explicit counts/values in refinement order. Mesh and wake levels
+  increase; core and azimuth levels decrease. Each enabled family needs >=3 levels.
+- `families`: which sweeps to execute. A partial study produces inspection
+  results; publishing a selection requires all seven families.
+- `simulated_revolutions`, `averaged_revolutions`, tolerances, and output settings.
 
-Core acceptance means insensitivity over the tested interval, not physical
-validation of the smallest core. For a separate mesh-linked experiment, use
-`CHANG_AERO_SWEEP_CORE_MODE=segment`: default factors are 0.5, 0.25, 0.125,
-0.0625 with nominal 0.25. That mode couples span/radial mesh and core changes.
-Only the factor selected by the mode is active; the other is forced to zero.
+Propeller panel counts are per blade. Symmetry mirrors only the wing and its
+wake across y=0; all physical blades remain explicit. Both wakes retain the
+specified age in revolutions, so row counts increase as the time step decreases.
+Each family changes one parameter while the others keep their nominal values.
+Fixed-core mode separates dimensional radius from mesh refinement; segment
+mode changes the radius when its defining edge length changes.
 
-Mean and waveform comparisons use `max(absolute_tolerance, relative_tolerance
-* abs(reference_mean))`: defaults are 1% relative, `1e-4` absolute for `CL`,
-and `1e-6` for `CT` and `CQ`. Near zero thrust/torque, the absolute floor matters.
+The supplied `interaction=false` disables wing/propeller aerodynamic interaction.
+In that configuration CT/CQ cannot establish convergence of the wing loads:
+changing the wing mesh need not change either propeller coefficient. Enable
+interaction when studying the coupled aerodynamics, and inspect wing loads
+separately if wing aerodynamic convergence is required. Stage 2 checks the
+resulting damping sensitivity.
 
-Acceptance also requires:
+Run from the repository root:
 
-1. A complete history with matching source, physical/numerical options,
-   sample count, and time/azimuth grids.
-2. Wake filling before the averaging and periodicity windows: simulate at least
-   `ceil(retained_revolutions) + max(averaged_revolutions, 2) + 1` revolutions.
-3. Phase-aligned loads that repeat. The worst RMS change over the final
-   `max(averaged_revolutions, 2)` cycle pairs must satisfy absolute limits of
-   `1e-4`, `1e-6`, and `1e-6` for `CL`, `CT`, and `CQ` respectively.
-4. All family levels present, agreement of the final two levels, and agreement
-   of the candidate and every finer level with the reference in mean and waveform.
-
-The finest case agreeing with itself cannot establish convergence. Waveform
-standard deviations measure deterministic fluctuations, not confidence intervals.
-Increase duration when periodicity fails; extend refinement when the final pair
-disagrees. All comparison and periodicity limits are recorded in the CSV.
-
-The driver now streams each flushed child log to the terminal.  It rewrites
-the CSV and Markdown report and refreshes the convergence PNG after every
-completed case. TOML metadata records all controls, including duration,
-averaging, density, sideslip, collective pitch, and shedding fraction. SHA-256
-fingerprints check numerical source, Julia version, manifest, and result files.
-Old outputs without this metadata are recomputed. Changing tolerances only
-recomputes comparisons; changing simulated settings or source invalidates reuse.
-
-The PNG shows the larger mean/waveform error divided by tolerance for each
-coefficient; the dashed line marks one and green stars mark accepted cases.
-Children run without plotting dependencies. Set
-`CHANG_AERO_SWEEP_PLOT_RESULTS=false` to disable sweep plots, or
-`CHANG_AERO_PLOT_RESULTS=false` for a standalone rigid case.
-
-From the repository root in PowerShell:
+Both entry scripts activate the local `lib/WingPropellerUVLM` project before
+loading the solver, including when run or included from the IDE.
 
 ```powershell
-$env:CHANG_AERO_SWEEP_LIVE_LOG = "true"
-$env:CHANG_AERO_SWEEP_REUSE_EXISTING = "true"
-Remove-Item Env:CHANG_AERO_SWEEP_DRY_RUN -ErrorAction SilentlyContinue
-
-julia --project=lib/WingPropellerUVLM `
-  lib/WingPropellerUVLM/examples/chang_linear_aeroelastic/studies/convergence/run_chang_coupled_aerodynamic_sweep.jl
+julia --startup-file=no --project=lib/WingPropellerUVLM lib/WingPropellerUVLM/examples/chang_linear_aeroelastic/studies/convergence/chang_convergence_aerodynamic.jl
 ```
 
-To resume a stopped sweep, set `CHANG_AERO_SWEEP_OUTPUT_DIR` to its existing
-directory before invoking the same command.  The metadata audit prevents a
-result computed with one grid from being silently reused under another grid.
+`dry_run=true` writes only the proposed case matrix. The supplied preset uses
+`false`, so the command runs simulations. Cases run sequentially with fresh
+solver states, sharing compilation and reusing duplicate cases. Existing rigid
+histories are reused only when their options, source and file hashes match.
+The example values are starting points, not established converged settings.
 
-Refinement tables can be extended without editing Julia:
+Results go to `output/convergence_aerodynamic/` relative to the Chang example:
+
+- `case_matrix.csv`: every numerical setting, physical time step, and wake rows.
+- `convergence.csv`: CT/CQ means, waveform errors, previous-level changes,
+  periodicity, validity and acceptance.
+- `convergence.png`: CT/CQ against refinement level for each family.
+- Per-case raw histories, logs, summaries and metadata. CL remains available
+  in raw histories but does **not** control this CT/CQ study's acceptance.
+- `study.toml` and `report.md`: frozen study inputs and selection status.
+
+For each coefficient, error is the larger of the mean difference and the
+phase-waveform RMS difference. Tolerance is the larger of the absolute
+tolerance and the relative tolerance times the absolute reference mean.
+Cycle-to-cycle periodicity has its own absolute RMS limit. A candidate needs
+a complete family, valid signals, agreement of the last two levels, and
+agreement of all subsequent levels with the final reference. A finest case
+cannot pass merely by comparing against itself.
+
+When all families pass, the driver selects the first accepted value from
+each family. It then runs that **combined candidate** and a finer combined
+mesh/wake/time-step case, keeping the selected core law/value. Only if both
+are periodic and agree does it write a verified `aerodynamic_selection.toml`.
+Otherwise the selection status remains `not_converged`, with a reason in the
+report. Increase the settling duration or extend/refine the failing ranges
+before starting stage 2. Selecting a numerical core plateau does not calibrate
+a physical vortex radius. RPM and collective remain fixed; no retrim is performed.
+
+## 2. Aeroelastic study
+
+Edit `chang_convergence_aeroelastic.jl`. Its `selection_file` points to stage 1.
+The physical wing/propeller/flow configuration is inherited from that saved
+selection, so changing stage 1's script later does not silently change stage 2.
+The handoff rechecks source hashes, every raw aerodynamic history, all family
+acceptance decisions, and the combined refinement evidence.
+
+To investigate a different aeroelastic speed using the same aerodynamic
+selection, set `speed_mps = 85.0` (for example) in the aeroelastic entry file.
+`nothing` retains the aerodynamic speed. RPM scales in proportion to speed,
+preserving the advance ratio; selected meshes, wake revolutions and core settings
+remain the starting values for the sweeps. Choose a separate `output_directory`
+for each speed. The time step and automatic excitation/fitting times use the
+scaled RPM.
+
+Run the entry script normally, or call
+`ChangConvergenceAeroelastic.run_aeroelastic(settings)` in the REPL after including
+it. This entry-level function applies the override; the internal
+`Convergence.run_aeroelastic` function uses the original operating point.
+The source TOML is verified without modification. For an override,
+`aerodynamic_input.toml` records the effective physical inputs and nests the
+verified original selection under `aerodynamic_reference`; `report.md` records
+both speeds and RPMs. Aerodynamic verification remains specific to the original
+speed. This entry-file change preserves existing numerical source fingerprints.
+
+Set the independent structural/pylon properties, response duration and impulse,
+integration/coupling settings, and damping fit controls in the second file.
+The table-based Chang wing model remains implemented in the shared model source.
+`frequency_band_hz` must correspond to the modes being studied; the 3–6 Hz
+example is an initial choice, not automatic mode identification.
+
+For each damping sweep, `nothing` selects the aerodynamic value and two finer
+levels. Alternatively, supply an absolute list, e.g. `prop_radial=[10,12,15]`
+when 10 was selected. The list must begin at the aerodynamic selection.
+Wing span stays fixed at the selected count because it also defines the
+structural elements. Structural mesh convergence is a separate task.
 
 ```powershell
-$env:CHANG_AERO_SWEEP_FAMILIES = "time_step,wake_length"
-$env:CHANG_AERO_SWEEP_AZIMUTH_LEVELS = "5,2.5,1,0.5"
-$env:CHANG_AERO_SWEEP_WAKE_LEVELS = "2,3,4"
-$env:CHANG_AERO_SWEEP_SIMULATED_REVOLUTIONS = "12"
-$env:CHANG_AERO_SWEEP_AVERAGED_REVOLUTIONS = "3"
-$env:CHANG_AERO_SWEEP_DRY_RUN = "true"
+julia --startup-file=no --project=lib/WingPropellerUVLM lib/WingPropellerUVLM/examples/chang_linear_aeroelastic/studies/convergence/chang_convergence_aeroelastic.jl
 ```
 
-All level lists have prefix `CHANG_AERO_SWEEP_`: `WING_SPAN_LEVELS`,
-`WING_CHORD_LEVELS`, `PROP_RADIAL_LEVELS`, `PROP_CHORD_LEVELS`, `WAKE_LEVELS`,
-`CORE_LEVELS`, and `AZIMUTH_LEVELS`. Supply at least three strictly ordered
-values. Core and azimuth decrease; other coordinates increase. Azimuth must
-divide 360 degrees. Nominal meshes use the `CHANG_AERO_*_PANELS` controls.
+Results go to `output/convergence_aeroelastic/`. Each case includes the full
+response history, `resolved_configuration.toml`, and `damping_fit.toml` with
+fit quality, frequency, lambda, and damping ratio. The summary compares both
+pitch/yaw lambda and frequency. Positive lambda means growth; negative lambda
+means decay. FFT windows use a fixed physical duration, rounded to a sample.
+Fits with insufficient peaks or poor quality remain indeterminate. Inspect
+raw signals for beating, mode changes, and nonlinear response amplitudes.
 
-Tolerance suffixes under the same prefix are `CL_ABS_TOL`, `CT_ABS_TOL`,
-`CQ_ABS_TOL`, `REL_TOL`, `PERIODIC_CL_TOL`, `PERIODIC_CT_TOL`, and
-`PERIODIC_CQ_TOL`. The old name `CHANG_AERO_WAKE_RELAXATION` actually controls
-the trailing-edge shedding fraction eta, which the production adapter fixes
-to 0.1.
+Aeroelastic cases always run fresh; duplicate cases within one study are
+reused in memory. The solver receives a complete explicit configuration,
+without launching the interactive entry point. The current production
+shedding fraction is 0.1; the handoff rejects other aerodynamic values.
+This study checks damping sensitivity at one operating point. To establish
+flutter-speed convergence, repeat near the stability crossing.
 
-## Stage 2: gated aeroelastic damping
+## Previous scripts and verification
 
-Run `run_chang_aeroelastic_sweep_from_aerodynamic.jl` only after every
-aerodynamic family is complete.  This driver reads
-`coupled_aerodynamic_convergence.csv` and refuses to proceed if:
+Old filenames now live under `archive/`; their relative solver paths and
+test imports have been updated. Existing simulation output directories are
+preserved. The archive retains the older CT/CQ/CL and case-dependent workflows;
+their instructions describe those versions, not the new two-file workflow.
 
-- a family is incomplete (including all four default core levels), duplicated,
-  or contains a failed case;
-- a result file does not match the numerical settings recorded in the table;
-- no level and all levels finer than it satisfy the `CL`/`CT` tolerances and
-  revolution-to-revolution waveform and mean-drift limits; or
-- the 30-panel wing fails the aerodynamic spanwise tolerance.
+Run package checks with `julia --project=lib/WingPropellerUVLM lib/WingPropellerUVLM/test/runtests.jl`.
+The independent workflow tests cover planning, CT/CQ-only acceptance,
+selection provenance, rejected stale/tampered results, and explicit model configuration.
 
-The last condition is required because the current production coupling uses
-the same spanwise grid for the beam and aerodynamic surface.  Structural
-modal convergence established 30 beam elements.  Using 40 aerodynamic span
-panels with 30 beam elements would first require a conservative,
-work-conjugate noncollocated mapping.
-
-Start with a dry run, which only writes and prints the selected case matrix:
-
-```powershell
-$env:CHANG_AEROELASTIC_AERO_SUMMARY = "FULL_PATH_TO\coupled_aerodynamic_convergence.csv"
-$env:CHANG_AE_DRY_RUN = "true"
-$env:CHANG_AE_VALIDATION_STAGE = "combined"
-
-julia --project=lib/WingPropellerUVLM `
-  lib/WingPropellerUVLM/examples/chang_linear_aeroelastic/studies/convergence/run_chang_aeroelastic_sweep_from_aerodynamic.jl
-```
-
-After checking `aeroelastic_case_matrix.md`, run the two combined cases:
-
-```powershell
-$env:CHANG_AE_DRY_RUN = "false"
-$env:CHANG_AE_OUTPUT_DIR = "FULL_PATH_TO\output\gated_aeroelastic_combined"
-
-julia --project=lib/WingPropellerUVLM `
-  lib/WingPropellerUVLM/examples/chang_linear_aeroelastic/studies/convergence/run_chang_aeroelastic_sweep_from_aerodynamic.jl
-```
-
-If the selected and combined-refined damping slopes differ materially, run
-the attribution stage in a new output directory:
-
-```powershell
-$env:CHANG_AE_VALIDATION_STAGE = "attribution"
-$env:CHANG_AE_OUTPUT_DIR = "FULL_PATH_TO\output\gated_aeroelastic_attribution"
-
-julia --project=lib/WingPropellerUVLM `
-  lib/WingPropellerUVLM/examples/chang_linear_aeroelastic/studies/convergence/run_chang_aeroelastic_sweep_from_aerodynamic.jl
-```
-
-The default aeroelastic controls are deliberately fixed across cases:
-
-- full wing--propeller aerodynamic interaction;
-- generalized-alpha `rho_inf = 1.0` (no high-frequency algorithmic damping);
-- partitioned-coupling relaxation `1.0`;
-- 6 s response with a 0.8--6 s damping interval;
-- 1.5 s moving FFT blocks with 90% overlap and a Hann window; and
-- tracking restricted to 3--6 Hz for the pitch/yaw mode.
-
-The direct comparison metric is the moving-block exponential slope `lambda`
-in 1/s.  Both pitch and yaw fits must have `R2 >= 0.8`; the default numerical
-convergence tolerance is `0.01 1/s`.  The CSV and PNG are refreshed after
-each completed aeroelastic case.
-
-The gate transfers both selected core factors into the aeroelastic child. It
-currently requires the rigid study to use the production density (1.225 kg/m^3),
-zero sideslip/collective offset, and eta=0.1. Rigid options explicitly define
-the Chang geometry; reflect primary case geometry edits in those options too.
-
-## Verification
-
-```powershell
-julia --project=lib/WingPropellerUVLM lib/WingPropellerUVLM/test/runtests.jl
-julia --project=lib/WingPropellerUVLM `
-  lib/WingPropellerUVLM/examples/chang_linear_aeroelastic/validation/verify_chang_aerodynamic_gate.jl
-```
+`validation/verify_independent_convergence.jl` (relative to the Chang example)
+runs three small rigid cases and a short production aeroelastic case. This
+checks solver integration and rejection of insufficient damping data; it does
+not establish aerodynamic or damping convergence for the supplied study preset.

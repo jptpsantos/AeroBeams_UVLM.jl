@@ -41,6 +41,7 @@ Base.@kwdef struct ChangWindmillingTrimOptions
     averaged_revolutions::Int = 1
     retained_wake_revolutions::Int = 3
     wake_relaxation::Float64 = 0.1
+    core_radius_m::Union{Nothing,Float64} = nothing
     vortex_core_span_fraction::Float64 = 0.5
     vortex_core_chord_fraction::Float64 = 0.0
     near_field_force_model::Symbol = :imperial
@@ -68,10 +69,15 @@ function validate_chang_windmilling_options(options::ChangWindmillingTrimOptions
         error("averaged_revolutions must be positive and smaller than simulated_revolutions")
     options.retained_wake_revolutions > 0 || error("retained_wake_revolutions must be positive")
     options.wake_relaxation >= 0 || error("wake_relaxation must be nonnegative")
-    options.vortex_core_span_fraction >= 0 ||
-        error("vortex_core_span_fraction must be nonnegative")
-    options.vortex_core_chord_fraction >= 0 ||
-        error("vortex_core_chord_fraction must be nonnegative")
+    if isnothing(options.core_radius_m)
+        factors = (options.vortex_core_span_fraction, options.vortex_core_chord_fraction)
+        all(x -> isfinite(x) && x >= 0, factors) ||
+            error("Vortex-core factors must be finite and nonnegative")
+        max(factors...) > 0 || error("A positive finite core is required for free-wake self induction")
+    else
+        isfinite(options.core_radius_m) && options.core_radius_m > 0 ||
+            error("core_radius_m must be finite and positive, or nothing to use core factors")
+    end
     options.near_field_force_model in (:imperial, :legacy_imperial_segments) ||
         error(
             "near_field_force_model must be :imperial or " *
@@ -104,6 +110,24 @@ function chang_trim_near_field_function(model::Symbol)
     model === :imperial && return near_field_forces!
     model === :legacy_imperial_segments && return legacy_imperial_segment_forces!
     error("Unsupported near-field force model: $model")
+end
+
+"""Core callback shared by initial and rotated trim geometry."""
+function chang_trim_finite_core(options::ChangWindmillingTrimOptions)
+    if isnothing(options.core_radius_m)
+        return (chord, segment_width) -> max(
+            options.vortex_core_span_fraction * segment_width,
+            options.vortex_core_chord_fraction * chord,
+        )
+    end
+    radius = Float64(options.core_radius_m)
+    return (chord, segment_width) -> radius
+end
+
+function chang_trim_core_description(options::ChangWindmillingTrimOptions)
+    return isnothing(options.core_radius_m) ?
+        "max($(options.vortex_core_span_fraction) Δs, $(options.vortex_core_chord_fraction) c)" :
+        "$(options.core_radius_m) m (fixed)"
 end
 
 function rotate_chang_propeller_grids!(current_grids, reference_grids, omega, time)
@@ -174,10 +198,7 @@ function simulate_chang_propeller_rpm(
         options.blade_count,
     )
     current_grids = deepcopy(reference_grids)
-    fcore = (chord, segment_width) -> max(
-        options.vortex_core_span_fraction * segment_width,
-        options.vortex_core_chord_fraction * chord,
-    )
+    fcore = chang_trim_finite_core(options)
     initial_surfaces = [
         grid_to_surface_panels(grid; fcore = fcore)[3]
         for grid in current_grids

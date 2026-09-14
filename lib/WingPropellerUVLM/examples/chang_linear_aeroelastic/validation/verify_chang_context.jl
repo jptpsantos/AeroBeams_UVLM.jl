@@ -19,6 +19,7 @@ BLAS.set_num_threads(1)
         "CHANG_FREESTREAM_SPEED_MPS" => "80.0", "CHANG_SPEED_MPS" => "85.0",
         "CHANG_END_TIME_S" => "0.003", "CHANG_PLOT_RESULTS" => "false",
         "CHANG_ANIMATE_WAKE" => "false", "CHANG_INTERACTION" => "true",
+        "CHANG_CORE_RADIUS_M" => "nothing",
         "CHANG_FCORE_SEGMENT_FACTOR" => "0.02", "CHANG_FCORE_CHORD_FACTOR" => "0.03",
         "CHANG_WAKE_ROWS_PROPELLER" => "8", "CHANG_TRIM_REVOLUTIONS" => "0.5",
         "CHANG_TRIM_AVERAGE_REVOLUTIONS" => "0.25",

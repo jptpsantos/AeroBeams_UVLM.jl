@@ -98,6 +98,7 @@ function initialize_bohnisch_uvlm_system(;
 
     system.reference[] = ref
     system.symmetric .= vcat(symmetric_wing, fill(false, Npropellers*Nb_prop))
+    verbose && println("Wing image symmetry across y=0: $symmetric_wing; propeller blade symmetry: false")
     system.surface_id .= 1:nsurf
     system.wake_finite_core .= fill(true, nsurf)
     system.trailing_vortices .= false

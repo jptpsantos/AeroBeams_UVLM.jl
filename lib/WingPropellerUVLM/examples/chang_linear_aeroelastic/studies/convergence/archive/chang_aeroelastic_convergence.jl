@@ -95,8 +95,8 @@ const NOMINAL_AZIMUTH_STEP_DEG = 5.0
 # coupled aero-structural discretization check rather than a pure UVLM check.
 const WING_MESH_LEVELS = [
     (label = "coarse_20x10", span = 20, chord = 10),
-    (label = "nominal_30x10", span = 30, chord = 10),
-    (label = "fine_40x10", span = 40, chord = 10),
+    (label = "nominal_30x10", span = 30, chord = 15),
+    (label = "fine_40x10", span = 40, chord = 20),
 ]
 
 # Propeller mesh is radial x chord for each blade.
@@ -112,7 +112,7 @@ const WAKE_LENGTH_LEVELS_REVOLUTIONS = [1.0, 2.0, 3.0]
 
 # The production core law is epsilon = factor * local 3-D vortex-segment length. Smaller
 # factors are ordered later and treated as the refinement direction here.
-const FINITE_CORE_LEVELS = [0.25, 0.1, 0.05]
+const FINITE_CORE_LEVELS = [0.025, 0.01, 0.005]
 
 # Because the time step is derived from rotor azimuth, smaller angles are
 # finer. Wake rows are rescaled for every entry to retain the same wake age.
@@ -227,6 +227,7 @@ Base.@kwdef struct UVLMConvergenceCase
     wake_revolutions::Float64 = NOMINAL_WAKE_REVOLUTIONS
     fcore_segment_factor::Float64 = NOMINAL_FCORE_SEGMENT_FACTOR
     fcore_chord_factor::Float64 = 0.0
+    core_radius_m::Union{Nothing,Float64} = nothing
     azimuth_step_deg::Float64 = NOMINAL_AZIMUTH_STEP_DEG
 end
 
@@ -246,7 +247,11 @@ function validate_case(case::UVLMConvergenceCase)
     case.wake_revolutions > 0 || error("Wake length must be positive")
     all(x -> isfinite(x) && x >= 0, (case.fcore_segment_factor, case.fcore_chord_factor)) ||
         error("Finite-core factors must be finite and nonnegative")
-    max(case.fcore_segment_factor, case.fcore_chord_factor) > 0 || error("Free wakes require a positive core")
+    if isnothing(case.core_radius_m)
+        max(case.fcore_segment_factor, case.fcore_chord_factor) > 0 || error("Free wakes require a positive core")
+    else
+        isfinite(case.core_radius_m) && case.core_radius_m > 0 || error("Fixed core radius must be finite and positive")
+    end
     case.azimuth_step_deg > 0 || error("Azimuth step must be positive")
     return case
 end
@@ -312,6 +317,7 @@ function case_key(case::UVLMConvergenceCase)
         case.fcore_segment_factor,
         case.fcore_chord_factor,
         case.azimuth_step_deg,
+        case.core_radius_m,
     )
 end
 
@@ -581,7 +587,10 @@ function moving_block_metrics(
     else
         block_duration_s > 0 || error("Moving-block duration must be positive")
         target_samples = max(2.0, block_duration_s / sample_dt)
-        block_size = 2^round(Int, log2(target_samples))
+        # FFTW supports arbitrary lengths. Power-of-two rounding would change
+        # the physical fit window when time steps are not refined by factors
+        # of two, contaminating a time-step convergence comparison.
+        block_size = round(Int, target_samples)
     end
     block_size >= 1 || return unavailable_metrics(length(peak_indices))
     block_size <= sample_size || return unavailable_metrics(
@@ -735,6 +744,7 @@ function child_environment(
     angle_of_attack_deg = nothing,
     sideslip_deg = nothing,
     interaction_on = nothing,
+    wing_symmetric = nothing,
     ga_rho_inf = nothing,
     coupling_relaxation = nothing,
 )
@@ -755,6 +765,7 @@ function child_environment(
     # Aerodynamic grids and azimuth-based time step.
     environment["CHANG_WING_SPAN_PANELS"] = string(case.wing_span_panels)
     environment["CHANG_WING_CHORD_PANELS"] = string(case.wing_chord_panels)
+    !isnothing(wing_symmetric) && (environment["CHANG_WING_SYMMETRIC"] = string(wing_symmetric))
     environment["CHANG_PROP_RADIAL_PANELS"] = string(case.prop_radial_panels)
     environment["CHANG_PROP_CHORD_PANELS"] = string(case.prop_chord_panels)
     environment["CHANG_AZIMUTH_STEP_DEG"] = string(case.azimuth_step_deg)
@@ -763,6 +774,7 @@ function child_environment(
     # retain the same physical wake age even when the azimuth step changes.
     environment["CHANG_WAKE_ROWS_WING"] = string(rows)
     environment["CHANG_WAKE_ROWS_PROPELLER"] = string(rows)
+    environment["CHANG_CORE_RADIUS_M"] = string(case.core_radius_m)
     environment["CHANG_FCORE_SEGMENT_FACTOR"] = string(case.fcore_segment_factor)
     environment["CHANG_FCORE_CHORD_FACTOR"] = string(case.fcore_chord_factor)
 
@@ -891,6 +903,7 @@ function run_case(
     angle_of_attack_deg = nothing,
     sideslip_deg = nothing,
     interaction_on = nothing,
+    wing_symmetric = nothing,
     ga_rho_inf = nothing,
     coupling_relaxation = nothing,
 )
@@ -913,6 +926,7 @@ function run_case(
         angle_of_attack_deg,
         sideslip_deg,
         interaction_on,
+        wing_symmetric,
         ga_rho_inf,
         coupling_relaxation,
     )

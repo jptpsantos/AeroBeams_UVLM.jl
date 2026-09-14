@@ -9,6 +9,7 @@ mkpath(INVESTIGATION_DIR)
 pushfirst!(DEPOT_PATH, abspath(joinpath(INVESTIGATION_DIR, "depot")))
 for (key, value) in (
     "CHANG_SPEED_MPS" => "84.0", "CHANG_INTERACTION" => "true",
+    "CHANG_CORE_RADIUS_M" => "nothing",
     "CHANG_FCORE_SEGMENT_FACTOR" => "0.025", "CHANG_FCORE_CHORD_FACTOR" => "0.025",
     "CHANG_PROP_MOMENT_PROJECTION" => "exact_virtual_work",
     "CHANG_AUDIT_PROP_PITCH_DEG" => "4.0", "CHANG_AUDIT_PROP_YAW_DEG" => "3.0",

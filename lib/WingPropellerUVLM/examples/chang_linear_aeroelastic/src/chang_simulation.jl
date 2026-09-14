@@ -21,15 +21,21 @@ end
 
 """Build the finite-core law and load reference points for one configured case."""
 function chang_aerodynamic_options(config)
-    (; segment_core_factor, chord_core_factor, hub_load_arm_factor,
+    (; core_radius_m, segment_core_factor, chord_core_factor, hub_load_arm_factor,
        elastic_axis_fraction) = config.aerodynamic
     pylon_length = config.structural.pylon_length_m
-    finite_core = (chord_length, segment_length) -> max(
-        segment_core_factor * segment_length,
-        chord_core_factor * chord_length,
-    )
+    finite_core = if isnothing(core_radius_m)
+        (chord_length, segment_length) -> max(
+            segment_core_factor * segment_length,
+            chord_core_factor * chord_length,
+        )
+    else
+        # Choose the law once; panel construction reuses this captured radius.
+        radius = Float64(core_radius_m)
+        (chord_length, segment_length) -> radius
+    end
     return (;
-        segment_core_factor, chord_core_factor, finite_core, elastic_axis_fraction,
+        core_radius_m, segment_core_factor, chord_core_factor, finite_core, elastic_axis_fraction,
         propeller_pivot_offset_A = SVector(0.0, 0.0, 0.0),
         physical_hub_center_A = SVector(-pylon_length, 0.0, 0.0),
         load_center_A = SVector(-hub_load_arm_factor * pylon_length, 0.0, 0.0),

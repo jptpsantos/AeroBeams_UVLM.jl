@@ -112,9 +112,19 @@ using Interpolations
 
 # --- 1. Define the Data ---
 
-# We assume the 16 points are equally spaced from Root (0.0) to Tip (1.0)
-const R_DATA = range(0.0, stop=1.0, length=16)
+# Model Properties.xlsx, "Propeller blade": B2:B18 contains radial nodes
+# in feet; E21:E36 assigns twist to the 16 segments between those nodes.
+# Locate each sample at its segment midpoint, normalized by the tip radius.
+const CHANG_RADIAL_NODES_FT = [
+    0.0, 0.235813, 0.471625, 0.707437, 0.943250, 1.179063,
+    1.414875, 1.650687, 1.886500, 2.122313, 2.358125, 2.593937,
+    2.829750, 3.065563, 3.301375, 3.537187, 3.773000,
+]
+const R_DATA = (CHANG_RADIAL_NODES_FT[1:end-1] .+ CHANG_RADIAL_NODES_FT[2:end]) ./
+    (2 * CHANG_RADIAL_NODES_FT[end])
 
+# Preserve the tabulated angles converted to degrees; only their locations
+# change. Do not replace them with rounded nominal root/tip angles.
 const TWIST_DATA = [
     62.59324988,
     59.84464529,
@@ -134,10 +144,8 @@ const TWIST_DATA = [
     21.36416379
 ]
 
-# Create the interpolation object. 
-# We use LinearInterpolation which connects points with straight lines.
-# 'extrapolation_bc=Line()' ensures that if numerical noise pushes a value slightly 
-# outside [0,1] (e.g. 1.0000000001), it won't crash.
+# Linearly interpolate between segment centers and extrapolate over the
+# half-segments at the root and tip to obtain the UVLM nodal twist angles.
 const twist_interpolator = linear_interpolation(R_DATA, TWIST_DATA, extrapolation_bc=Line())
 
 
@@ -146,7 +154,8 @@ const twist_interpolator = linear_interpolation(R_DATA, TWIST_DATA, extrapolatio
 """
     get_twist_deg_interp(non_dim_radius::Float64) -> Float64
 
-Calculates the twist angle using linear interpolation on the provided 16-point dataset.
+Calculate the blade angle in degrees from the 16 segment-midpoint samples.
+The root and tip values are linearly extrapolated from the nearest samples.
 """
 function get_twist_deg_interp(non_dim_radius::Float64)
     # Sanity check for bounds (with small tolerance for floating point errors)
@@ -162,9 +171,9 @@ end
 # --- 3. New Nodal Properties Function ---
 
 """
-    get_nodal_properties_interp(num_panels::Int) -> Tuple{Vector{Float64}, Vector{Float64}, Vector{Float64}}
+    get_nodal_properties_chang(num_panels::Int) -> Tuple{Vector{Float64}, Vector{Float64}, Vector{Float64}}
 
-Generates nodal properties using the new interpolated twist distribution.
+Generate nodal properties from the Chang segment-midpoint twist distribution.
 """
 function get_nodal_properties_chang(num_panels::Int)
     if num_panels <= 0
@@ -214,4 +223,3 @@ end
 #             ", chord/R=", round(chords_R_at_nodes[i], digits=2), 
 #             ", twist=", round(twists_at_nodes[i], digits=3), " deg")
 # end
-

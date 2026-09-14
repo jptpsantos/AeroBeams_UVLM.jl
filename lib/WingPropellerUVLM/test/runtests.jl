@@ -4,6 +4,9 @@ using StaticArrays
 using LinearAlgebra
 
 include("aerodynamic_convergence.jl")
+include("chang_core_configuration.jl")
+include("core_convergence.jl")
+include("independent_convergence.jl")
 
 include(joinpath(
     @__DIR__,
@@ -21,6 +24,32 @@ include(joinpath(
         @test length(grids) == 3
         @test all(size(grid) == (3,3,5) for grid in grids)
         @test grids[1][:,1,1] ≈ zeros(3)
+    end
+
+    @testset "Chang blade twist at segment midpoints" begin
+        # Independent locations and angles from Model Properties.xlsx,
+        # "Propeller blade", rather than the interpolation's own constants.
+        first_midpoint = (0.0 + 0.235813) / (2 * 3.773)
+        last_midpoint = (3.537187 + 3.773) / (2 * 3.773)
+        angle = WingPropellerUVLM.get_twist_deg_interp
+        @test angle(first_midpoint) ≈ 62.59324988 atol = 1e-8
+        @test angle(last_midpoint) ≈ 21.36416379 atol = 1e-8
+
+        # The endpoint samples previously imposed only 41.229 degrees of
+        # twist. Midpoint data recover the approximately 44-degree range.
+        @test angle(0.0) ≈ 63.96755 atol = 1e-5
+        @test angle(1.0) ≈ 19.98986 atol = 1e-5
+        @test angle(0.75) ≈ 30.98428 atol = 1e-5
+
+        for panels in (4, 16, 32)
+            radii, _, twists = get_nodal_properties_chang(panels)
+            @test length(twists) == panels + 1
+            @test twists[1] ≈ 63.96755 atol = 1e-5
+            @test twists[end] ≈ 19.98986 atol = 1e-5
+            @test twists[3panels ÷ 4 + 1] ≈ 30.98428 atol = 1e-5
+            @test all(diff(twists) .< 0)
+            @test radii[[1, end]] == [0.0, 1.0]
+        end
     end
 
     @testset "Finite-core vortex-segment regularization" begin
