@@ -119,7 +119,8 @@ end
     @test config.wake.maximum_rows_propeller==4
     @test config.simulation.freestream_speed_mps==s.physical.speed_mps
     selection=(;physical=s.physical,core_mode=:fixed,selected=s.nominal)
-    @test E.operating_selection(selection,e)==selection
+    # Own the no-override fixture; the editable entry may select another speed.
+    @test E.operating_selection(selection,merge(e,(;speed_mps=nothing)))==selection
     fast=E.operating_selection(selection,merge(e,(;speed_mps=85.0)))
     fast_defaults=C.model_defaults(fast.physical,:fixed,c,e,mktempdir())
     fast_config=C.Model.ChangAeroelastic.load_chang_configuration(fast_defaults;env=Dict{String,String}())

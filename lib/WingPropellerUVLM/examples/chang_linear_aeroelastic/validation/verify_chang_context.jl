@@ -38,6 +38,9 @@ BLAS.set_num_threads(1)
     @test load_chang_configuration(defaults; env = alias_environment).simulation.freestream_speed_mps == 80.0
     @test first_config.wake.maximum_rows_wing == defaults.wake.wing_rows_per_chord_panel * 2
     @test first_config.wake.maximum_rows_propeller == 8
+    revolution_wake = load_chang_configuration(defaults;
+        env = Dict("CHANG_WAKE_REVOLUTIONS" => "1.5"))
+    @test revolution_wake.wake.maximum_rows_propeller == 216
     @test first_config.output.animation_fps == 20
     @test first_config.structural.damping_reference_frequency_hz == defaults.structural.pitch_frequency_hz
 

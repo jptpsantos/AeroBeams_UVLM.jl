@@ -100,10 +100,24 @@ function load_chang_configuration(defaults = chang_case_defaults(); env = ENV)
             Float64, "CHANG_CORE_RADIUS_M", defaults.aerodynamic.core_radius_m; env,
         ),
     ))
-    wing_rows = isnothing(defaults.wake.maximum_rows_wing) ?
+    wake_defaults = environment_overrides(defaults.wake, (
+        retained_revolutions_propeller = (
+            Float64, "CHANG_WAKE_REVOLUTIONS", "CHANG_WAKE_REVOLUTIONS_PROPELLER",
+        ),
+    ), env)
+    isfinite(wake_defaults.retained_revolutions_propeller) &&
+        wake_defaults.retained_revolutions_propeller >= 0 ||
+        error("Propeller retained wake revolutions must be finite and nonnegative")
+    wing_rows = isnothing(wake_defaults.maximum_rows_wing) ?
         defaults.wake.wing_rows_per_chord_panel * wing.chordwise_panels :
-        defaults.wake.maximum_rows_wing
-    wake = environment_overrides(merge(defaults.wake, (; maximum_rows_wing = wing_rows)), (
+        wake_defaults.maximum_rows_wing
+    propeller_rows = isnothing(wake_defaults.maximum_rows_propeller) ?
+        ceil(Int, 360 * wake_defaults.retained_revolutions_propeller / simulation.azimuth_step_deg) :
+        wake_defaults.maximum_rows_propeller
+    wake = environment_overrides(merge(wake_defaults, (;
+        maximum_rows_wing = wing_rows,
+        maximum_rows_propeller = propeller_rows,
+    )), (
         maximum_rows_wing = (Int, "CHANG_WAKE_ROWS_WING"),
         maximum_rows_propeller = (Int, "CHANG_WAKE_ROWS_PROPELLER"),
     ), env)
@@ -219,6 +233,9 @@ function validate_configuration(config)
         error("Hub load-arm factor must be finite and nonnegative")
     config.wake.maximum_rows_wing >= 0 || error("Wing wake rows must be nonnegative")
     config.wake.maximum_rows_propeller >= 0 || error("Propeller wake rows must be nonnegative")
+    isfinite(config.wake.retained_revolutions_propeller) &&
+        config.wake.retained_revolutions_propeller >= 0 ||
+        error("Propeller retained wake revolutions must be finite and nonnegative")
     isfinite(config.excitation.impulse_start_s) && config.excitation.impulse_start_s >= 0 ||
         error("Impulse start time must be finite and nonnegative")
     isfinite(config.excitation.impulse_magnitude_nm) || error("Impulse magnitude must be finite")

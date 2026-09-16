@@ -5,16 +5,19 @@
 import Pkg
 Pkg.activate(normpath(joinpath(@__DIR__, "..", "..")))
 
-if !isdefined(@__MODULE__, :ChangAeroelastic)
+if !isdefined(@__MODULE__, :ChangAeroelastic) ||
+        !isdefined(ChangAeroelastic, :load_chang_configuration)
     include(joinpath(@__DIR__, "src", "ChangAeroelastic.jl"))
-else
-    # Pick up edits to the case when rerunning in the same Julia/IDE session.
-    Base.include(ChangAeroelastic, joinpath(@__DIR__, "chang_case.jl"))
 end
 using .ChangAeroelastic
 
-config = load_chang_configuration()
-chang_run = run_chang(config)
+function run_chang_example()
+    config = load_chang_configuration()
+    return run_chang(config)
+end
 
 # Inspect chang_run.model, chang_run.workspace, or chang_run.solution as needed.
-results = chang_run.results
+#if abspath(PROGRAM_FILE) == @__FILE__
+    chang_run = run_chang_example()
+    results = chang_run.results
+#end

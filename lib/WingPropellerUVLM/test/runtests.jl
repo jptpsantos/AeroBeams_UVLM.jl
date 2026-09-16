@@ -3,11 +3,8 @@ using WingPropellerUVLM
 using StaticArrays
 using LinearAlgebra
 
-include("aerodynamic_convergence.jl")
 include("chang_core_configuration.jl")
-include("core_convergence.jl")
-include("independent_convergence.jl")
-include("moving_block_damping.jl")
+include("migration_core.jl")
 
 include(joinpath(
     @__DIR__,

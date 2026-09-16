@@ -1,0 +1,8 @@
+assertions_passed = 508
+date = "2026-09-15"
+julia_version = "1.11.5"
+latex_compiled = false
+load_path = ["@", "@stdlib"]
+moving_block_sha256 = "4bc789db4c5a0adbb85b8b5f8827f6318385c7ab839b84f2c1d3b8e5f312d953"
+native_aerobeams_bridge_implemented = false
+source_sha256 = "87e673727244cd78f369888c607b9580767469349c433bfaaca597104966d0a5"

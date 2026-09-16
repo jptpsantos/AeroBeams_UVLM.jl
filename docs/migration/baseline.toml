@@ -1,0 +1,4 @@
+julia_version = "1.11.5"
+assertions_passed = 434
+scope = "Pre-migration numerical source identity; archived selections are not rewritten"
+source_sha256 = "449afc7f52e08d14c021ae0788fa00d56788665ffedb3d1787d069bbe64a525c"

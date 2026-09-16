@@ -83,9 +83,8 @@ function run_chang(config = load_chang_configuration())
     return Base.invokelatest(run_chang_case, config)
 end
 
-function run_chang_case(config)
+function run_chang_case(config; model=build_chang_model(config))
     # 1. Build and check the physical and aerodynamic models.
-    model = build_chang_model(config)
     config = model.config
     parameters, structural = model.parameters, model.structural
     println("Aeroelastic near-field force model: $(config.simulation.near_field_force_model)")

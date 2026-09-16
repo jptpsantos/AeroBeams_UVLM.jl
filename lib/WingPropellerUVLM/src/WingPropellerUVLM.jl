@@ -37,6 +37,15 @@ include("wing_propeller/Initialization.jl")
 include("UVLMState.jl")
 include("aeroelastic/GeneralizedAlpha.jl")
 include("aeroelastic/Excitations.jl")
+include("OperatingPoint.jl")
+include("UVLMModel.jl")
+include("UVLMProblem.jl")
+
+export OperatingPoint, create_OperatingPoint, UVLMModel, create_UVLMModel
+export UVLMSolver, create_UVLMSolver, create_PartitionedCoupling
+export UVLMState, UVLMWorkspace, UVLMResults, UVLMDynamicProblem, UVLMSteadyProblem
+export create_UVLMDynamicProblem, create_UVLMSteadyProblem, solve!
+export begin_time_step!, evaluate_trial!, commit_time_step!, rollback_time_step!, dimensional_loads
 
 export SectionProperties, grid_to_sections, nonlinear_analysis!
 export generate_rotor

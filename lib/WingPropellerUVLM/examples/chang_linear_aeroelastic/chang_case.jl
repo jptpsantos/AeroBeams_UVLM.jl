@@ -44,7 +44,7 @@ function chang_case_defaults()
         sideslip_deg = 0.0,
 
         azimuth_step_deg = 2.5,    # Rotor angle advanced per time step.
-        end_time_s = 5.0,          # Total requested simulation duration.
+        end_time_s = 3.0,          # Total requested simulation duration.
 
         # true: include wing–propeller and propeller–propeller aerodynamic influence.
         # false: isolate those groups; blades within each propeller still interact.
@@ -71,7 +71,7 @@ function chang_case_defaults()
         # radius = max(segment_core_factor * Δs, chord_core_factor * c).
         # Δs is the local span/radial edge length; c is the full local chord.
         segment_core_factor = 0.0,
-        chord_core_factor = 5*0.003,#1e-2,
+        chord_core_factor = 5*0.001,#1e-2,
 
         elastic_axis_fraction = 0.30,      # Chord fraction measured from the leading edge.
         hub_load_arm_factor = 0.5,         # Modal load arm divided by pylon length.
@@ -83,7 +83,11 @@ function chang_case_defaults()
         # Wing: use an integer for a fixed row count, or nothing for automatic sizing.
         maximum_rows_wing = nothing,
         wing_rows_per_chord_panel = 10,    # Automatic count = this * active chordwise panels.
-        maximum_rows_propeller = 72,
+        # Propeller wake: rows = ceil(revolutions * 360 / azimuth_step_deg).
+        # This keeps the retained wake duration fixed when the azimuth step changes.
+        retained_revolutions_propeller = 0.5,
+        # Set an integer here only to override the revolution-based count directly.
+        maximum_rows_propeller = nothing,
     )
 
     # 6. Trim baseline and pitch impulse

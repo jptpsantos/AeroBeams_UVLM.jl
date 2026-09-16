@@ -1,5 +1,13 @@
 # Independent Chang convergence studies
 
+The entries now expose camelCase settings through `create_study()`. The shared
+implementation is in `lib/WingPropellerUVLM/studies/src`; the local `src/` files
+forward to it for compatibility. Run with the studies project. See the
+[complete LaTeX guide](../../../../../../docs/migration/UVLM_ANALYSIS_GUIDE.tex)
+and [studies setup](../../../../studies/README.md). The snake_case examples below
+remain supported through the legacy `aerodynamic_study()` / `aeroelastic_study()`
+settings accessors. Including an entry no longer launches a study.
+
 For the staged finite-core, aerodynamic and damping investigation, see
 [the analysis plan](FINITE_CORE_ANALYSIS_PLAN.md). It distinguishes existing
 automation from additional checks and proposed extensions.
@@ -10,7 +18,7 @@ Only two entry files need editing:
 |---|---|
 | [chang_convergence_aerodynamic.jl](chang_convergence_aerodynamic.jl) | Define independent physical/numerical inputs; converge propeller CT and CQ |
 | [chang_convergence_aeroelastic.jl](chang_convergence_aeroelastic.jl) | Read the verified aerodynamic selection; converge pitch/yaw damping |
-| `src/` | Shared solver adapters, metrics, plots, and result verification |
+| `src/` | Compatibility includes forwarding to the shared studies package |
 | `archive/` | Previous drivers, their editable presets, and reference notes |
 
 Neither new study reads `chang_case.jl` or `CHANG_*` environment settings.
@@ -49,11 +57,12 @@ resulting damping sensitivity.
 
 Run from the repository root:
 
-Both entry scripts activate the local `lib/WingPropellerUVLM` project before
-loading the solver, including when run or included from the IDE.
+Direct execution activates `lib/WingPropellerUVLM/studies`. In the IDE/REPL,
+activate that project before including an entry; inclusion defines functions
+without running or changing the active project.
 
 ```powershell
-julia --startup-file=no --project=lib/WingPropellerUVLM lib/WingPropellerUVLM/examples/chang_linear_aeroelastic/studies/convergence/chang_convergence_aerodynamic.jl
+julia --startup-file=no --project=lib/WingPropellerUVLM/studies lib/WingPropellerUVLM/examples/chang_linear_aeroelastic/studies/convergence/chang_convergence_aerodynamic.jl
 ```
 
 `dry_run=true` writes only the proposed case matrix. The supplied preset uses
@@ -181,7 +190,7 @@ Wing span stays fixed at the selected count because it also defines the
 structural elements. Structural mesh convergence is a separate task.
 
 ```powershell
-julia --startup-file=no --project=lib/WingPropellerUVLM lib/WingPropellerUVLM/examples/chang_linear_aeroelastic/studies/convergence/chang_convergence_aeroelastic.jl
+julia --startup-file=no --project=lib/WingPropellerUVLM/studies lib/WingPropellerUVLM/examples/chang_linear_aeroelastic/studies/convergence/chang_convergence_aeroelastic.jl
 ```
 
 Results go to `output/convergence_aeroelastic/`. Each case includes the full
@@ -206,7 +215,7 @@ test imports have been updated. Existing simulation output directories are
 preserved. The archive retains the older CT/CQ/CL and case-dependent workflows;
 their instructions describe those versions, not the new two-file workflow.
 
-Run package checks with `julia --project=lib/WingPropellerUVLM lib/WingPropellerUVLM/test/runtests.jl`.
+Run package checks with `julia --project=lib/WingPropellerUVLM/studies lib/WingPropellerUVLM/test/runtests.jl`.
 The independent workflow tests cover planning, CT/CQ-only acceptance,
 selection provenance, rejected stale/tampered results, and explicit model configuration.
 

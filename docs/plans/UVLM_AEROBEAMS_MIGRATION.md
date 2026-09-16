@@ -1,3 +1,4 @@
+> Implementation update (15 September 2026): the user authorized the terminology migration. The working facade APIs and shared convergence package are described in [the self-contained analysis guide](../migration/UVLM_ANALYSIS_GUIDE.tex). That guide identifies implemented behavior and remaining items; the P0--P11 list below remains the broader roadmap, including the future native AeroBeams structural bridge.
 **UVLM migration to AeroBeams terminology and structure — implementation plan**
 
 Prepared 14 September 2026 against working tree based on `d0fe40bf7f58f174c49cac62c62e424e32b41586`, AeroBeams 0.8.1 and WingPropellerUVLM 0.1.0. This is a proposed implementation sequence. Names marked **proposed** below are design targets, not callable APIs today. No solver refactoring is performed by this document.

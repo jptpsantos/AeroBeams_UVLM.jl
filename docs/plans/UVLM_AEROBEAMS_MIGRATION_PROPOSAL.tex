@@ -1,0 +1,1342 @@
+% !TeX program = pdflatex
+% Standalone document: compile twice with pdflatex, or use latexmk -pdf.
+% No external figures, bibliography database, shell escape, or code execution.
+% Historical proposal. The user subsequently authorized terminology migration.
+% See docs/migration/UVLM_ANALYSIS_GUIDE.tex for implemented interfaces and limits.
+\documentclass[11pt,a4paper]{article}
+\usepackage[T1]{fontenc}
+\usepackage[utf8]{inputenc}
+\usepackage{lmodern}
+\usepackage[margin=24mm,headheight=14pt]{geometry}
+\usepackage{microtype}
+\usepackage{amsmath,amssymb}
+\usepackage{array,booktabs,longtable}
+\usepackage{enumitem}
+\usepackage{xcolor}
+\usepackage{listings}
+\usepackage{xurl}
+\usepackage{fancyhdr}
+\usepackage{hyperref}
+\definecolor{ink}{HTML}{16324F}
+\definecolor{accent}{HTML}{19647E}
+\definecolor{papergray}{HTML}{F4F6F8}
+\hypersetup{colorlinks=true,linkcolor=ink,urlcolor=accent,
+  pdftitle={UVLM to AeroBeams: Terminology and Architecture Migration Proposal},
+  pdfauthor={Technical planning document},bookmarksnumbered=true}
+\urlstyle{tt}
+\newcommand{\code}{\nolinkurl}
+\newcommand{\proposed}{\textbf{Proposed interface.}\ }
+\newcommand{\current}{\textbf{Current implementation.}\ }
+\newcolumntype{L}[1]{>{\raggedright\arraybackslash}p{#1}}
+\setlength{\parindent}{0pt}
+\setlength{\parskip}{0.5em}
+\setlength{\emergencystretch}{2em}
+\renewcommand{\arraystretch}{1.2}
+\setlist{itemsep=0.2em,topsep=0.3em,leftmargin=*}
+\setcounter{tocdepth}{2}
+\pagestyle{fancy}
+\fancyhf{}
+\fancyhead[L]{\small UVLM / AeroBeams migration}
+\fancyhead[R]{\small Proposal for review}
+\fancyfoot[C]{\thepage}
+\lstdefinestyle{juliaplan}{
+  basicstyle=\ttfamily\footnotesize,
+  backgroundcolor=\color{papergray},
+  frame=single,rulecolor=\color{black!15},
+  breaklines=true,breakatwhitespace=false,
+  columns=fullflexible,keepspaces=true,
+  showstringspaces=false,tabsize=4,
+  xleftmargin=4pt,xrightmargin=4pt,
+  aboveskip=0.8em,belowskip=0.8em,
+  escapeinside={(*@}{@*)}
+}
+\lstset{style=juliaplan}
+
+\begin{document}
+\begin{titlepage}
+\vspace*{18mm}
+{\color{accent}\Large Technical migration proposal\par}
+\vspace{8mm}
+{\color{ink}\Huge\bfseries From the current UVLM code\\[3mm]
+to AeroBeams terminology\\[3mm]
+and structure\par}
+\vspace{10mm}
+{\Large Meaning of the names, ownership of the data,\\
+solver interfaces, and implementation sequence\par}
+\vspace{15mm}
+\hrule
+\vspace{5mm}
+\textbf{Historical proposal: terminology migration subsequently authorized.}
+
+The delivered interfaces, retained convergence studies and remaining roadmap
+items are documented in \code{docs/migration/UVLM_ANALYSIS_GUIDE.tex}.
+Approval language elsewhere below records the original proposal checkpoint.
+
+This document proposes changes. It does not authorize or implement the migration.
+The first delivery would reorganize the existing UVLM interface while preserving
+its numerical calculations. Actual coupling to AeroBeams would follow through
+separate, validated implementation stages.
+\vspace{5mm}
+\hrule
+\vfill
+\textbf{Reference checkout}\par
+AeroBeams 0.8.1; WingPropellerUVLM 0.1.0.\par
+Planning baseline: \code{d0fe40bf7f58f174c49cac62c62e424e32b41586},
+including the subsequent moving-block damping changes.\par
+Prepared 14 September 2026.
+\end{titlepage}
+
+\tableofcontents
+\clearpage
+
+\section{Purpose and proposed decision}
+\label{sec:decision}
+
+The objective is to make the wing--propeller UVLM code recognizable to an
+AeroBeams user: build a model, choose an analysis problem and solver, call
+\code{solve!}, and inspect clearly named results. Achieving this requires more
+than changing spelling. Some existing names describe several responsibilities
+at once, and some similar names in the two libraries describe different physics.
+
+The recommendation is to preserve \code{WingPropellerUVLM} as a standalone
+aerodynamic package, adopt AeroBeams-style constructors and problem objects,
+and introduce a separate proposed \code{AeroBeamsUVLM} bridge. The bridge would
+transfer motion and dimensional loads while coordinating accepted time steps.
+AeroBeams would remain responsible for the structural equations and structural
+integration in the coupled analysis.
+
+\subsection{Three different kinds of change}
+
+\begin{longtable}{@{}L{0.18\linewidth}L{0.36\linewidth}L{0.38\linewidth}@{}}
+\toprule
+Change & Example & Required evidence\\
+\midrule\endhead
+Terminology & \code{maximum_iterations} becomes
+\code{maximumIterations}. & Both inputs resolve to the same value, with the
+same residual definition and numerical result.\\
+Organization & The current \code{System} is presented through separate model,
+state, and workspace objects. & No duplicated ownership, unintended array
+aliasing, changed wake chronology, or numerical drift.\\
+Formulation & The Chang linear structural integrator is replaced by an
+AeroBeams structural problem. & Structural and coupled physical benchmarks;
+matching names alone cannot establish equivalence.\\
+\bottomrule
+\end{longtable}
+
+This distinction determines the order of implementation. First preserve the
+existing calculation behind a clearer interface. Then introduce the geometric
+and structural bridge. Numerical extensions such as adaptive stepping or
+linearized UVLM eigenanalysis follow after the basic coupling is established.
+
+\subsection{What approval would cover}
+
+The recommended initial approval scope is phases P0--P5: baseline capture,
+environment isolation, public terminology, ownership separation, studies,
+results, and provenance. Phases P6--P9 describe the subsequent AeroBeams bridge
+and rotor validation. They can be approved together with the whole roadmap or
+as a later implementation milestone. Advanced analyses in P11 require their
+own numerical design and validation.
+
+\textbf{Until approval is given, all names and examples labeled proposed in
+this document remain design specifications.} Existing simulation files,
+settings, and aerodynamic selections are not changed by preparing this plan.
+
+\subsection{How to read this document}
+
+Read Sections~\ref{sec:concepts}--\ref{sec:dictionary} to understand the names,
+Sections~\ref{sec:semantics}--\ref{sec:lifecycle} for the main technical
+differences, and Sections~\ref{sec:phases}--\ref{sec:approval} for the work and
+acceptance decision. The code listings illustrate an intended API. They are
+not runnable examples of interfaces that already exist.
+
+\section{What AeroBeams means by model, problem, and solver}
+\label{sec:concepts}
+
+\subsection{Model: the physical assembly}
+
+An AeroBeams \code{Model} describes an assembly of beams, boundary conditions,
+connections, inertial properties, prescribed reference motion, and related
+physical data. A \code{Beam} carries its geometry, sectional properties, and
+element discretization. The public constructors include \code{create_Beam}
+and \code{create_Model}.
+
+For UVLM, the proposed \code{UVLMModel} would contain aerodynamic topology,
+reference surface geometry, rotor definitions, surface IDs, and reference
+quantities for coefficients. Creating it would validate the geometry and build
+derived topology. It would not simulate six seconds of motion, create plots,
+or write a convergence result.
+
+\textbf{Practical example.} Increasing airspeed from 65 to 85~m/s generally
+creates a new operating point for the same reference geometry. Increasing the
+number of blade panels changes the aerodynamic model discretization. These
+operations should not both be implemented as arbitrary mutations of one
+large run object.
+
+\subsection{Problem: the analysis to perform}
+
+An AeroBeams \code{DynamicProblem} combines a model, a system solver, time
+settings, the current numerical state, and tracked output. Its existing
+constructor uses names such as \code{initialTime}, \code{finalTime},
+\code{timeVector}, \code{trackingTimeSteps}, and \code{trackingFrequency}.
+The time-step keyword is the mathematical symbol $\Delta t$ in the Julia API.
+
+The corresponding standalone aerodynamic object would be a
+\code{UVLMDynamicProblem}. It would answer: which model, at which operating
+point, over which time grid, with which initial wake and output policy?
+A separate \code{UVLMSteadyProblem} would describe a supported steady
+aerodynamic calculation.
+
+The proposed coupled wrapper, \code{CoupledDynamicProblem}, would contain a
+real AeroBeams \code{DynamicProblem} and references to the UVLM model, state,
+workspace, and coupling configuration. It would not disguise the old Chang
+state vector as an AeroBeams structural problem.
+
+\subsection{Solver: the algorithm and convergence controls}
+
+AeroBeams uses \code{create_NewtonRaphson} to configure the structural nonlinear
+solution. The UVLM migration needs two additional concepts:
+
+\begin{itemize}
+\item \code{UVLMSolver}: aerodynamic algorithm choices, including force model,
+core policy, interactions, wake treatment, and applicable matrix reuse.
+\item \code{PartitionedCoupling}: outer iteration controls, including state
+and load tolerances, maximum iterations, and relaxation.
+\end{itemize}
+
+The structural Newton solver and the outer partitioned solver have different
+residuals. Setting both fields to the same numerical tolerance does not make
+their convergence criteria equivalent.
+
+\subsection{State, workspace, and results}
+
+\begin{longtable}{@{}L{0.24\linewidth}L{0.34\linewidth}L{0.34\linewidth}@{}}
+\toprule
+Proposed object & Question it answers & Typical contents\\
+\midrule\endhead
+\code{UVLMState} & What aerodynamic history has been accepted? & Bound/wake
+circulation, wake positions, previous geometry, active wake rows, rotor phase.\\
+\code{UVLMWorkspace} & What storage is needed to compute the next trial? & AIC,
+right-hand side, factorization cache, temporary velocities, force buffers.\\
+\code{UVLMResults} & What should the user inspect or save? & Accepted time
+coordinates, response histories, loads, status, optional geometry snapshots.\\
+\bottomrule
+\end{longtable}
+
+A workspace is disposable scratch storage. A state contains history that
+affects the next solution. A result is a saved record. A saved result must not
+change when a later trial overwrites a workspace array.
+
+These UVLM object names are proposed organizational counterparts. AeroBeams
+does not already provide a one-to-one set of these UVLM types. Compatibility
+means matching its conventions and lifecycle where meaningful, not claiming
+that both libraries have identical internals.
+
+\section{Naming rules and a detailed terminology dictionary}
+\label{sec:dictionary}
+
+\subsection{Rules to apply consistently}
+
+\begin{enumerate}
+\item Use PascalCase for public types: \code{UVLMModel}, \code{UVLMState}.
+\item Use keyword constructors named \code{create_Type}, following
+\code{create_Model} and \code{create_DynamicProblem}.
+\item Use snake_case operation names, with \code{!} for mutation:
+\code{update_geometry!}, \code{commit_time_step!}.
+\item Use camelCase for descriptive public fields and keywords:
+\code{maximumIterations}, \code{nChordwisePanels}.
+\item Keep established mathematical symbols when their meaning is explicit.
+Do not replace every internal short variable with a long descriptive name.
+\item Document units, basis, ownership, and whether a value is prescribed,
+derived, trial, accepted, or saved.
+\end{enumerate}
+
+Keep the UVLM prefix on exported model/problem types to avoid ambiguity when
+both packages are loaded. Internal backend routines can retain their original
+names during the first migration. Using concrete or parameterized storage is
+preferable in hot loops; broad \code{Real} or \code{Function} fields do not
+need to be copied merely because some AeroBeams types use them.
+
+\subsection{Objects and operation names}
+
+\begingroup\small
+\begin{longtable}{@{}L{0.29\linewidth}L{0.29\linewidth}L{0.34\linewidth}@{}}
+\toprule
+Current UVLM concept & Proposed terminology & Meaning and migration action\\
+\midrule\endhead
+\code{System} & \code{UVLMModel}, \code{UVLMState}, \code{UVLMWorkspace} &
+Separate physical definition, numerical history, and scratch arrays. Keep a
+backend facade during transition.\\
+\code{initialize_bohnisch_uvlm_system} & \code{create_UVLMModel} and
+problem initialization & Move Bohnisch-specific defaults into a named case
+builder. Generic construction must not encode a particular experiment.\\
+\code{ChangModel}, \code{build_chang_model} & Benchmark
+\code{create_ChangModel} & Preserve the current linear benchmark; later add a
+separate AeroBeams-based builder.\\
+\code{run_chang} & Construction, \code{solve!}, explicit result writing &
+Retain a compatibility wrapper so current workflows keep working.\\
+\code{steady_analysis!} & \code{solve!} on \code{UVLMSteadyProblem} &
+Wrap the existing backend before changing numerical behavior.\\
+\code{unsteady_analysis!} & \code{solve!} on \code{UVLMDynamicProblem} &
+Distinguish the full analysis from a single physical-step trial.\\
+\code{PartitionedCouplingOptions} & \code{create_PartitionedCoupling} &
+Provide a validated public constructor; preserve outer residual definitions.\\
+\code{snapshot_uvlm}, \code{restore_uvlm!} & Explicit step snapshot and
+\code{rollback_time_step!} & Restore all history needed for a deterministic
+trial, not just circulation.\\
+\code{advance_uvlm_trial!} & \code{evaluate_trial!} & A coupling trial must
+not advance the accepted wake by default.\\
+\code{advance_wake!}, \code{commit_wake_rows!} &
+\code{commit_time_step!} orchestration & Advance wake/history and active-row
+counts exactly once after acceptance.\\
+\bottomrule
+\end{longtable}
+\endgroup
+
+\subsection{Geometry, operating point, and solver settings}
+
+\begingroup\small
+\begin{longtable}{@{}L{0.29\linewidth}L{0.29\linewidth}L{0.34\linewidth}@{}}
+\toprule
+Current field & Proposed field & What must be preserved\\
+\midrule\endhead
+\code{speed_mps}, \code{freestream_speed_mps} & \code{airspeed} &
+m/s; also document the full freestream vector and basis.\\
+\code{rpm}, \code{rotation_rpm} & Input \code{rotationRPM}; resolved
+\code{angularSpeed} & Convert RPM to rad/s once.\\
+Proportional speed override & \code{rotorSpeedPolicy} with
+\code{:constantAdvanceRatio} & Scale each prescribed rotor speed from its
+reference point and keep that reference in metadata.\\
+\code{angle_of_attack_deg}, \code{sideslip_deg} & \code{angleOfAttack},
+\code{sideslip} & Resolved values are radians; legacy degrees require conversion.\\
+\code{azimuth_step_deg}, \code{azimuth_deg} & \code{azimuthStep} &
+Radians; derive physical time step from the intended rotor speed policy.\\
+\code{spanwise_panels}, \code{ns} & \code{nSpanwisePanels} &
+Aerodynamic discretization, independent of structural \code{nElements}.\\
+\code{radial_panels} & \code{nRadialPanels} & Number of blade radial panels.\\
+\code{chordwise_panels}, \code{nc} & \code{nChordwisePanels} &
+Keep the backend array ordering unchanged initially.\\
+Maximum wake rows, \code{nw} & \code{maximumWakeRows} & Allocated capacity.\\
+\code{nwake}, \code{iwake} & \code{activeWakeRows} & Accepted/trial active
+length, bounded by capacity.\\
+\code{wake_revolutions} & \code{wakeRevolutions} & Retention policy;
+conversion to rows depends on the time/azimuth grid.\\
+\code{core_radius_m} & \code{coreRadius} & Fixed physical radius in metres.\\
+\code{segment_core_factor}, \code{chord_core_factor} &
+\code{segmentCoreFactor}, \code{chordCoreFactor} & Keep the factor-based
+core law distinct from a fixed-radius law.\\
+\code{interaction_on}, \code{surface_id} & Resolved
+\code{interactionGroups} policy & Disabling cross-group interaction must
+retain interaction between blades of one rotor.\\
+\code{attachment_eta} & \code{attachments} & Store beam identity and
+physical/normalized attachment coordinate; interpolate off-node attachment.\\
+\code{elastic_axis_fraction} & \code{normSparPos}, if equivalent &
+Verify chord origin, direction and offset before unifying the names.\\
+\code{maximum_iterations} & \code{maximumIterations} & Same algorithmic limit.\\
+\code{state_tolerance}, \code{load_tolerance} & \code{stateTolerance},
+\code{loadTolerance} & Preserve scaling, denominator and tested quantity.\\
+\code{equilibrium_tolerance} & \code{equilibriumTolerance} &
+Do not assume that the Chang and AeroBeams equilibrium residuals are identical.\\
+\bottomrule
+\end{longtable}
+\endgroup
+
+\subsection{Outputs, damping, and initialization}
+
+\begingroup\small
+\begin{longtable}{@{}L{0.29\linewidth}L{0.29\linewidth}L{0.34\linewidth}@{}}
+\toprule
+Current concept & Proposed concept & Important distinction\\
+\midrule\endhead
+\code{surface_history} & Optional \code{surfaceGeometryOverTime} & Heavy
+geometry history is independent of dense lightweight response samples.\\
+Response \code{time} & \code{responseTimeVector} & The time coordinates
+must match the exact response samples used by the estimator.\\
+Tracked states & \code{savedTimeVector} and named histories & Match the
+AeroBeams tracking vocabulary, documenting each sampling stride.\\
+\code{moving_block_lambda_per_s} & \code{growthRate} &
+$\lambda$ in s$^{-1}$; negative means decay.\\
+\code{frequency_hz} & \code{frequencyHz} & Cycles per second.\\
+\code{omega_radps} & \code{angularFrequency} & Radians per second.\\
+\code{damping_ratio_percent} & \code{dampingRatio}, explicit percent export &
+Internal dimensionless fraction and plotted percentage are different.\\
+Startup \code{trim_revolutions} & \code{baselineRevolutions} &
+Mean aerodynamic load preparation about the current baseline; not a solved
+deformed structural trim.\\
+\code{validation_passed} & Separate \code{completed},
+\code{solverConverged}, \code{acceptedForStudy} & Distinguish finishing the
+calculation, satisfying equations, and satisfying study criteria.\\
+\bottomrule
+\end{longtable}
+\endgroup
+
+Julia field names and serialized keys have different audiences. Changing a
+public Julia field to camelCase need not break existing snake_case CSV/TOML
+columns. Preserve readers and version any necessary output changes.
+
+\section{Main semantic and numerical differences}
+\label{sec:semantics}
+
+\subsection{The structural state vectors are not interchangeable}
+
+The Chang benchmark advances a linear structural coordinate vector through
+mass, damping/gyroscopic, and stiffness matrices. Conceptually its equations
+have the familiar form
+\begin{equation}
+ M\ddot q+C\dot q+Kq=Q_{\mathrm{aero}}+Q_{\mathrm{excitation}}.
+\end{equation}
+The exact contents and constraints of $q$ belong to that benchmark.
+
+AeroBeams uses a mixed geometrically exact beam formulation. Its elemental
+states include
+\begin{equation}
+ \{u,p,F,M,V,\Omega,\chi\},
+\end{equation}
+where $u$ and $p$ are deformation variables, $F$ and $M$ are sectional
+resultants, $V$ and $\Omega$ are sectional velocities, and $\chi$ denotes
+the existing local aerodynamic states when present. The global unknown
+vector also reflects constraints and formulation-specific degrees of freedom.
+
+Consequently, a Chang expression that extracts six coordinates per node
+cannot be reused by changing the variable name to \code{problem.x}. The bridge
+must obtain element/node states using AeroBeams IDs and reconstruction logic.
+Structural-only mode frequencies, static compliance, mass, and attachment
+motion must be compared before attempting aeroelastic parity.
+
+\subsection{Euler angles and Wiener--Milenkovic parameters}
+
+The active Chang adapter constructs rotations using its Euler-angle
+composition. AeroBeams deformation rotations use Wiener--Milenkovic
+parameters. A vector of Euler angles is therefore not the same quantity as
+AeroBeams' $p$, even if both have three components.
+
+For the bridge, reconstruct the deformation rotation through the existing
+\code{rotation_tensor_WM} utilities and compose it with the initial section
+orientation consistently. The initial beam \code{rotationParametrization}
+is a separate issue from the representation of its deformation state.
+
+The rate $\dot p$ is not generally the physical angular velocity $\omega$.
+They are related by a parameterization-dependent tangent map. The same issue
+appears when converting a generalized rotational force into a physical moment.
+This is why renaming Euler coordinates to $p$ would introduce a physical error.
+
+\subsection{Panel count and beam-element count}
+
+The current Chang setup ties wing spanwise aerodynamic panels to structural
+elements. The proposed interface exposes these independently:
+\begin{equation}
+ n_{\mathrm{spanwise\ panels}}\quad\hbox{and}\quad
+ n_{\mathrm{structural\ elements}}.
+\end{equation}
+A beam might use 20 elements while the aerodynamic wing uses 30 spanwise
+panels and 10 chordwise panels. The bridge interpolates the beam motion to
+aerodynamic vertices and transfers loads back consistently. These numbers
+are illustrative, not recommended converged values.
+
+An attachment at 83\% of the modeled span must remain at that physical
+position after either mesh is refined. Rounding it to the nearest beam node
+would change the modeled installation during a convergence study.
+
+\subsection{Local aerodynamics and global UVLM}
+
+Existing AeroBeams aerodynamic models are evaluated through element-local
+aerodynamic properties and states. UVLM solves a circulation system whose
+surfaces and wakes interact globally. Its schematic aerodynamic solve is
+\begin{equation}
+ A(\mathcal{G},\mathcal{W})\,\Gamma=b(\mathcal{G},\mathcal{W},v),
+\end{equation}
+where $\mathcal{G}$ denotes the current geometry and $\mathcal{W}$ the
+retained wake/history.
+
+A separate UVLM solve inside every element's \code{aerodynamic_loads!}
+would repeat the global calculation and could advance the same wake multiple
+times. The bridge must evaluate the global aerodynamic subsystem once for
+each coupling trial and distribute its loads to the participating structure.
+Surfaces must not simultaneously receive full sectional and full UVLM loads
+unless a deliberately defined combination model is being used.
+
+\subsection{Dimensional loads and aerodynamic coefficients}
+
+Structural equilibrium requires forces in N and moments in N\,m. UVLM
+coefficient-output functions may instead normalize loads by reference density,
+velocity, area, or length. Coefficients are useful for plots and convergence
+metrics, but they are not structural load vectors.
+
+The interface must document every stored circulation and force quantity.
+In particular, the backend's freestream derivative storage must not be
+interpreted as a temporal increment merely because its name begins with ``d''.
+Audit the source fields denoted $\mathrm{d}\Gamma$ and
+$\mathrm{d}\Gamma\mathrm{dt}$ when implementing the contract; the first
+contains freestream derivatives and the second a temporal rate.
+
+AeroBeams' \code{forceScaling} is numerical residual scaling. The load buffer
+should remain dimensional, and scaling should be applied once at residual
+assembly. The current \code{UnitsSystem} labels affect plotting; they do not
+convert numerical input values.
+
+\subsection{Growth rate, angular frequency, and damping ratio}
+\label{sec:dampingmeaning}
+
+For a decaying or growing single-mode response,
+\begin{equation}
+ x(t)\simeq A_0 e^{\lambda t}\sin(\omega_d t+\varphi),
+ \qquad \omega_d=2\pi f,
+\end{equation}
+$\lambda$ is the exponential growth rate, $f$ is frequency in Hz, and
+$\omega_d$ is angular frequency in rad/s. The associated modal damping ratio is
+\begin{equation}
+ \zeta=-\frac{\lambda}{\sqrt{\lambda^2+\omega_d^2}}.
+\end{equation}
+Negative $\lambda$ means decay and positive $\zeta$; positive $\lambda$
+means growth and negative $\zeta$.
+
+The local AeroBeams eigenproblem stores \code{frequencies} as angular
+frequencies and \code{dampings} as real eigenvalue parts. For a matched
+oscillatory mode, the latter has the growth-rate sign convention above. It
+is not already a percentage damping ratio.
+
+For example, $f=4$~Hz and $\lambda=-0.15$~s$^{-1}$ correspond to
+$\omega_d\approx25.13$~rad/s and $\zeta\approx0.00597$, or about
+$0.597\%$. Comparing ``4'' directly to an AeroBeams frequency of ``25.13''
+would be a unit error, not a disagreement in the physical mode.
+
+\subsection{Baseline subtraction, steady equilibrium, and trim}
+
+The current startup procedure collects mean aerodynamic loads about the
+chosen configuration and subtracts that baseline during the response. It
+does not automatically solve a deformed equilibrium configuration.
+
+AeroBeams steady analysis solves a steady equilibrium; trim also introduces
+appropriate unknown operating/control variables. Therefore a field such as
+\code{trim_revolutions} should become \code{baselineRevolutions} in the
+present workflow. A future \code{TrimProblem} must implement actual trim
+semantics instead of inheriting that name from the startup procedure.
+
+With rotating propellers, the baseline may be periodic. A phase-averaged
+equilibrium, an azimuth-frozen calculation, and a periodic orbit are different
+approximations. The selected interpretation must be stated before adding
+eigenanalysis or interpreting a moving-block fit as free modal damping.
+
+\subsection{Structural integration and physical damping}
+
+The current Chang calculation uses its generalized-alpha structural scheme.
+AeroBeams dynamic integration computes rates within its own problem lifecycle.
+Once AeroBeams supplies the structure, the bridge must not also integrate the
+same structural state with the Chang generalized-alpha corrector.
+
+The local AeroBeams version does not provide general structural damping as
+a direct counterpart to the current Chang damping-matrix options. A nonzero
+pylon/mount damping specification requires a documented physical component
+or a separately supported legacy model. It cannot silently become zero, and
+numerical time-integration dissipation is not a physical substitute.
+
+\section{Target architecture and data ownership}
+\label{sec:architecture}
+
+\subsection{Three packages with one dependency direction}
+
+\begin{center}
+\setlength{\fboxsep}{8pt}
+\fbox{\begin{minipage}{0.84\linewidth}\centering
+\textbf{AeroBeamsUVLM: proposed bridge}\\[3pt]
+Mapping, coupled problem, trial/commit coordination\\[6pt]
+$\swarrow\hspace{45mm}\searrow$\\[5pt]
+\textbf{AeroBeams}\hfill\textbf{WingPropellerUVLM}\\[3pt]
+Structure and constraints\hfill Aerodynamics and wake
+\end{minipage}}
+\end{center}
+
+The bridge depends on both discipline packages. Neither discipline package
+depends on the bridge. This avoids a circular dependency and allows rigid
+aerodynamic studies without loading AeroBeams.
+
+Small generic structural facilities are still needed in AeroBeams: external
+dimensional resultants and safe single-step preparation/acceptance/rollback.
+These facilities should not contain UVLM equations. This plan selects a
+separate bridge package rather than leaving the choice between a bridge and
+an extension unresolved.
+
+\subsection{Proposed file organization}
+
+\begin{lstlisting}
+lib/WingPropellerUVLM/
+  src/WingPropellerUVLM.jl
+  src/OperatingPoint.jl
+  src/UVLMSurface.jl
+  src/UVLMModel.jl
+  src/UVLMSolver.jl
+  src/UVLMState.jl
+  src/UVLMWorkspace.jl
+  src/UVLMProblem.jl
+  src/UVLMResults.jl
+  src/Core.jl
+  src/Kinematics.jl
+  src/Loads.jl
+  src/Compatibility.jl
+  src/backend/             # retained numerical kernels
+  src/aeroelastic/         # retained linear benchmark
+  studies/Project.toml
+  studies/src/Convergence.jl
+  studies/src/MovingBlockDamping.jl
+  studies/src/Provenance.jl
+  examples/chang_linear_aeroelastic/
+  test/
+
+lib/AeroBeamsUVLM/
+  Project.toml
+  src/AeroBeamsUVLM.jl
+  src/CouplingFrames.jl
+  src/BeamUVLMCoupling.jl
+  src/StructuralKinematics.jl
+  src/LoadTransfer.jl
+  src/PartitionedCoupling.jl
+  src/CoupledDynamicProblem.jl
+  src/SpinningRotor.jl
+  examples/
+  test/
+
+# Generic additions/changes in the root AeroBeams package:
+src/ExternalResultants.jl
+src/Model.jl
+src/Problem.jl
+src/SystemSolver.jl
+\end{lstlisting}
+
+Create these files as functionality moves, not as an empty framework.
+Case tables and experiment-specific defaults stay in example builders.
+General convergence machinery and moving-block postprocessing move to a
+declared studies environment. Plotting remains optional.
+
+\subsection{A gradual split of the current System}
+
+Initially wrap the current backend \code{System}; do not rewrite every kernel.
+Inventory each field as model data, accepted history, trial data, scratch,
+or output. Then introduce explicit ownership and migrate one group at a time.
+
+The facade and new state must refer to one authoritative circulation/wake
+storage. Keeping two arrays and occasionally copying between them creates a
+second state synchronization problem. Add tests that verify array identities,
+independent runs, and saved-result isolation before changing storage layout.
+
+\section{Before-and-after workflow examples}
+\label{sec:workflow}
+
+\subsection{Current editable case and run entry}
+
+The present workflow exposes case-specific settings and calls the Chang
+driver, which builds the model/workspace, executes, and writes output.
+A representative settings fragment is:
+
+\begin{lstlisting}
+simulation = (
+    freestream_speed_mps = 85.0,
+    azimuth_step_deg = 2.5,
+    end_time_s = 6.0,
+)
+# Existing run_chang(config) handles several run responsibilities.
+\end{lstlisting}
+
+\subsection{Proposed standalone aerodynamic workflow}
+
+\proposed The listing uses abstract geometry inputs already supplied by a
+case builder. These constructors are targets, not existing calls.
+
+\begin{lstlisting}
+import WingPropellerUVLM as UVLM
+
+model = UVLM.create_UVLMModel(; surfaces, rotors, reference)
+solver = UVLM.create_UVLMSolver(; coreRadius, interactionGroups)
+operatingPoint = UVLM.create_OperatingPoint(;
+    airspeed = 85.0,
+    referenceAirspeed = 65.0,
+    referenceRotationRPM = referenceRPM,
+    rotorSpeedPolicy = :constantAdvanceRatio,
+)
+problem = UVLM.create_UVLMDynamicProblem(;
+    model, aeroSolver = solver, operatingPoint,
+    (*@$\Delta t$@*) = timeStep, finalTime = 6.0,
+    trackingTimeSteps = true,
+    trackingFrequency = 1,
+)
+UVLM.solve!(problem)
+results = problem.results
+\end{lstlisting}
+
+The constructor resolves and validates inputs. \code{solve!} mutates the
+problem. Output writing is a separate operation. A retained \code{run_chang}
+wrapper can still perform all three for backward compatibility.
+
+\subsection{Proposed AeroBeams-coupled workflow}
+
+\proposed Structural construction continues to use native AeroBeams calls;
+the bridge owns the additional coupling objects.
+
+\begin{lstlisting}
+import AeroBeams
+import AeroBeamsUVLM as Bridge
+
+structuralModel = AeroBeams.create_Model(; beams, BCs)
+structuralProblem = AeroBeams.create_DynamicProblem(;
+    model = structuralModel,
+    systemSolver = AeroBeams.create_NewtonRaphson(),
+    (*@$\Delta t$@*) = timeStep, finalTime = 6.0,
+)
+mapping = Bridge.create_BeamUVLMCoupling(;
+    structuralModel, aerodynamicModel = model,
+    attachments, frames,
+)
+coupled = Bridge.create_CoupledDynamicProblem(;
+    structuralProblem,
+    aerodynamicModel = model,
+    aerodynamicSolver = solver,
+    operatingPoint,
+    coupling = mapping,
+    couplingSolver = Bridge.create_PartitionedCoupling(;
+        maximumIterations = 10,
+        stateTolerance = 1e-5,
+        loadTolerance = 1e-2,
+    ),
+)
+AeroBeams.solve!(coupled)
+\end{lstlisting}
+
+The bridge would explicitly extend \code{AeroBeams.solve!} for its own wrapper
+type. Merely creating a subtype of AeroBeams \code{Problem} does not activate
+a solver: the existing generic solve dispatch contains exact-type branches.
+Qualified module calls also avoid two ambiguous unqualified \code{solve!}
+exports in user scripts.
+
+\subsection{The requested speed override remains explicit}
+
+The user-selected constant-advance-ratio policy is
+\begin{equation}
+ N_{\mathrm{new}}=N_{\mathrm{ref}}\frac{U_{\mathrm{new}}}{U_{\mathrm{ref}}},
+ \qquad \Omega_{\mathrm{new}}=\frac{2\pi N_{\mathrm{new}}}{60}.
+\end{equation}
+Here $N$ is RPM and $\Omega$ is rad/s. For 65 to 85~m/s, RPM scales by
+$85/65$. At fixed azimuth increment,
+\begin{equation}
+ \Delta t=\frac{\Delta\psi}{|\Omega|},
+\end{equation}
+with $\Delta\psi$ in radians. Thus changing speed also changes the time
+step and wake-age interpretation if azimuth resolution is held fixed.
+Zero spin needs a separately specified physical time step.
+
+The original aerodynamic selection remains the reference record. The
+aeroelastic operating point is recorded separately; it must not inherit an
+unchanged verification seal that claims verification at the new speed.
+
+\section{Motion transfer and conservative load transfer}
+\label{sec:transfer}
+
+\subsection{An explicit frame convention}
+
+Define $R_{UA}$ by
+\begin{equation}
+ v_U=R_{UA}v_A,\qquad R_{UA}^{T}R_{UA}=I,\qquad\det R_{UA}=+1.
+\end{equation}
+Document the frame origins as well as their orientation. Position mapping
+includes reference beam geometry, displacement, section rotation, chord
+offset, attachment offset, and rotor phase. If the reference frame moves,
+include origin velocity and angular transport consistently in velocities
+and wake convection.
+
+Neither flipping a plotted axis nor relabeling the force components is a
+complete coordinate transformation. A rigid rotation test should transform
+both geometry and loads and preserve the physical result.
+
+\subsection{Work conservation as the interface test}
+
+For an aerodynamic vertex-position map $x_a=g(q_s,t)$, define the linearized
+motion transfer $H$ by
+\begin{equation}
+ \delta x_a=H\,\delta q_s.
+\end{equation}
+Its work-conjugate load transfer is
+\begin{equation}
+ Q_s=H^T f_a,\qquad f_a^T\delta x_a=Q_s^T\delta q_s.
+\end{equation}
+The position associated with each force must match the position used in the
+UVLM force formulation. For a moment moved between reference points,
+\begin{equation}
+ m_{\mathrm{new}}=m_{\mathrm{old}}+
+ (r_{\mathrm{old}}-r_{\mathrm{new}})\times f.
+\end{equation}
+
+A force conjugate to a rotation parameter is not automatically the physical
+moment used by the structural residual. The rotational tangent conversion
+must be derived and tested. Total force and total moment conservation are
+necessary checks, but the virtual-work test additionally checks the motion/load
+pairing under deformation.
+
+\subsection{Supported connection scope}
+
+First support tested rigid connections and appropriate free equilibrium
+locations. The external-resultant equation map must account for constrained
+degrees of freedom and reactions. Hinge-side rotational equations require
+additional handling; silently applying a moment to the first matching equation
+is unacceptable. Reject unsupported mappings until their assembly is verified.
+Rebuild maps after topology or equation numbering changes.
+
+\section{Coupled step lifecycle and rollback}
+\label{sec:lifecycle}
+
+\subsection{One physical step can contain many numerical trials}
+
+Let $S_n$ and $A_n$ denote accepted structural and aerodynamic states at time
+$t_n$. Outer coupling iterations search for a consistent pair at
+$t_{n+1}=t_n+\Delta t$. They are not additional physical time steps.
+
+\begin{enumerate}
+\item Capture accepted structural/aerodynamic history and external-load state.
+Prepare the structural step, basis motion, boundary conditions and equivalent
+rates once for this attempted step.
+\item Obtain the current structural trial geometry and velocities.
+Restore accepted aerodynamic history, apply the trial geometry, and evaluate
+global UVLM loads with wake advancement disabled.
+\item Transfer dimensional forces/moments to the structural load buffer.
+Hold these loads fixed in basis A during the inner structural Newton solve.
+\item Evaluate UVLM again at the resulting structural iterate. Check changes
+in state and load, and equilibrium with the updated loads. Inner Newton
+convergence with lagged loads is not sufficient.
+\item Repeat with the configured relaxation until outer criteria pass.
+\item Accept the consistent pair, advance the wake and rotor phase once,
+commit active wake counts, and save accepted outputs.
+\item On failure, restore both disciplines, phase, clocks, load buffers and
+history. Report failure; enable smaller-step retries only after validation.
+\end{enumerate}
+
+The existing \code{advance_uvlm_trial!} helper supports disabling wake
+advancement, but its current default is to advance. The new coupling-facing
+API must make a noncommitting evaluation the safe, explicit operation.
+
+\subsection{Where AeroBeams needs generic additions}
+
+Add a proposed \code{ExternalNodalResultants} container with dimensional
+forces and moments in basis A. Apply its residual contribution after normal
+element and special-node assembly in \code{assemble_system_arrays!}.
+The buffer can initially follow the earlier blueprint's placement on
+\code{Model}, with documented single-run mutable ownership and inclusion in
+the bridge snapshot.
+
+Expose generic prepare, solve, accept, and restore step operations around the
+existing structural machinery. Factor code from the current lifecycle instead
+of copying the whole time integrator into the bridge. Initial-state/rate
+initialization must receive consistent external loads as well.
+
+The current structural snapshot is not a complete coupled transaction. Audit
+time/index values, reference-frame orientation, current and equivalent rates,
+constraint and boundary-condition state, complementary aerodynamic variables,
+solver status, load buffers, and saved histories. A failed step must not leave
+a saved time entry or an advanced rotor phase.
+
+\subsection{Partitioned first; monolithic later}
+
+Frozen loads have no additional UVLM derivative inside the initial inner
+structural Newton solve. Overall consistency is established by the outer
+iteration. Strong added-mass or other difficult regimes may require better
+relaxation or a stronger coupling method; no universal convergence guarantee
+is assumed.
+
+A later monolithic method needs global aerodynamic derivatives, including
+cross-element/surface blocks. Current element-local aerodynamic derivatives
+do not provide them. Validate finite-difference derivatives at fixed accepted
+wake history before adopting analytical or AD-based derivatives. Scalar type
+restrictions and the existing force-derivative limitations must be addressed
+explicitly.
+
+\section{Rotor modeling and analysis capability differences}
+
+Prescribed rotor speed is the first target. Each rotor has its own speed,
+shaft direction, and phase. The requested speed scaling remains a prescribed
+operating policy; it is not a dynamic motor/shaft equation.
+
+Native inertial components can represent rotor mass and nonspinning inertia,
+but relative shaft spin produces additional angular momentum. Schematically,
+\begin{equation}
+ h_{\mathrm{spin}}=J_s\Omega e_s.
+\end{equation}
+Its time derivative contributes to the rotor/support angular-momentum balance.
+The support-reaction sign must be derived from the chosen balance convention
+and tested against the retained Chang small-angle gyroscopic matrix. Avoid
+counting the same rigid-body inertia both in a point inertia and a custom
+rotor component.
+
+The validation sequence is: structural-only beam behavior, zero-spin rotor,
+small-angle gyroscopic behavior, prescribed-spin coupled response, then
+mesh/time/coupling convergence. A physical AeroBeams pylon and the Chang
+two-coordinate modal pylon are different models. Retain both as explicitly
+named alternatives until their intended comparison is established.
+
+Variable-speed rotor dynamics, general hinges, physical mount damping, steady
+trim, and eigen/Floquet analyses are later features. In particular, an
+autonomous eigenproblem about a steady state and stability about a periodic
+rotor state are not interchangeable.
+
+\section{Moving-block damping, studies, and recorded results}
+
+\subsection{Preserve the method selected by the user}
+
+The current moving-block implementation is retained during migration:
+selected positive peaks bound the fitting segment; the reference-sized block
+occupies 25--50\% of that segment; blocks shift one sample; each block has its
+mean removed; a rectangular FFT identifies the dominant non-DC component;
+and a line is fitted to log amplitude versus block-start time:
+\begin{equation}
+ \log A_k\simeq a+\lambda t_k.
+\end{equation}
+
+Move the method into the studies layer through an explicit proposed
+\code{MovingBlockDampingMethod} setting. Retire the temporary entry-local
+wrapper only after the central runner reproduces its behavior. Preserve
+pitch/yaw diagnostics, optional fixed-duration mode, band acceptance,
+minimum peaks, fit quality, and estimator identity.
+
+This is a location/API change, not permission to replace the estimator.
+Offset sensitivity retained from positive-peak screening remains documented.
+A detrended or multimode variant would require a distinct method/version.
+
+\subsection{Frequency resolution and sampling}
+
+For $N_b$ samples at spacing $\Delta t$, FFT bin spacing is
+\begin{equation}
+ \Delta f=\frac{1}{N_b\Delta t}.
+\end{equation}
+A convergence tolerance of 0.1~Hz does not establish that frequency estimates
+are accurate to 0.1~Hz when the block resolution is coarser. Record
+\code{frequencyResolutionHz} and retain the off-bin regression cases.
+Bin spacing is not itself a statistical uncertainty bound.
+
+Moving-block FFT requires uniform sampling. Keep dense lightweight responses
+even if geometry snapshots are saved sparsely. An adaptive accepted time grid
+must not be passed directly into this FFT. Initially restrict this damping
+workflow to fixed-step responses; any later resampling must record and validate
+its interpolation and effects on the estimate.
+
+\subsection{Completion and scientific acceptance}
+
+Result records must separately answer:
+\begin{itemize}
+\item Did the calculation complete the expected discrete time grid?
+\item Did the structural and outer coupling solvers converge?
+\item Is the damping estimate valid for the configured method and checks?
+\item Did each convergence family pass, and did a combined refinement pass?
+\end{itemize}
+
+Structural mesh convergence becomes explicit after decoupling the meshes.
+Wing aerodynamic convergence needs wing force/moment metrics; CT/CQ alone
+cannot establish it, especially with disabled wing--propeller interaction.
+Record requested and accepted grids, termination reason, residual histories,
+units/bases, solver/method identities, and the resolved operating point.
+
+\section{Compatibility, environments, and provenance}
+
+\subsection{Old inputs and new names}
+
+An input adapter translates legacy names once at construction. It validates
+units and conflicts, then supplies one canonical configuration to the solver.
+For example, a legacy degree-valued angle becomes a radian-valued canonical
+angle; this is more than copying a number under a new key.
+
+Reject conflicting old/new aliases instead of silently choosing one. Emit
+deprecation notices once at the public boundary, not in time steps or panel
+loops. Preserve current example paths and useful \code{run_chang} behavior
+through thin wrappers. Remove wrappers only in a documented later release.
+
+\subsection{Reproducible Julia environments}
+
+The UVLM package, studies, plotting workflow, and bridge need declared
+dependencies. The earlier review found that studies/tests used FFTW and Plots
+through the global environment. Successful execution in that environment does
+not establish a clean installation.
+
+Use a dedicated study project, explicit local package development paths where
+appropriate, and tests with \code{LOAD_PATH=["@","@stdlib"]}. Constructors
+and imported modules must not activate a project or start a study as a side
+effect. Executable scripts should guard their entry points.
+
+\subsection{Existing aerodynamic selections cannot be silently resealed}
+
+The current numerical fingerprint includes source paths and contents across
+the backend, Chang implementation, and convergence machinery, plus environment
+information. Moving or renaming source files may invalidate it even when the
+formulas are preserved.
+
+Keep archived selections and seals unchanged. They remain readable for
+historical inspection/postprocessing with their original schema. To create a
+new verified selection under migrated code, rerun or explicitly verify the
+required cases under that source identity. Passing rename-regression tests
+does not authorize replacing the old seal with a new one.
+
+The new provenance design should distinguish aerodynamic, structural,
+coupling, estimator, and output-schema identities with conservative dependency
+manifests. Include indirect dependencies. Source identity must correspond to
+the code actually loaded: fresh processes are the initial policy for verified
+runs after edits. Cache keys must include every relevant input, including
+speed/RPM, excitation, initial state, time grid, and tolerances.
+
+\section{Implementation phases and acceptance gates}
+\label{sec:phases}
+
+The phase identifiers match the existing Markdown roadmap. Each phase ends
+with migrated call sites, tests, documentation, and an explicit support status.
+The first six phases provide the terminology/organization migration; actual
+structural coupling follows.
+
+\subsection{P0: capture the baseline}
+
+Inventory public exports, entry points, configuration keys, output schemas,
+and dependency assumptions. Save resolved current presets and small numerical
+fixtures for rigid wing, propeller, interactions, and the Chang response.
+Record versions and source identities. Retain the already recorded moving-block
+tests as evidence for that method.
+
+\textbf{Acceptance:} current supported workflows can be reproduced in fresh
+processes; inputs and outputs are recorded; limitations are explicit.
+\textbf{Dependency:} none. No renaming should precede a reproducible baseline.
+
+\subsection{P1: isolate environments and unify entry behavior}
+
+Declare study/test dependencies, keep plotting optional, guard executable
+entry points, and centralize the public stage runner. Preserve the recently
+implemented aeroelastic speed override and proportional RPM delegation.
+Including a reusable file should not launch a full convergence study.
+
+\textbf{Acceptance:} isolated environments load successfully; inclusion causes
+no solve/output; all documented aeroelastic run paths resolve the same point.
+\textbf{Dependency:} P0.
+
+\subsection{P2: add a naming and constructor facade}
+
+Implement the canonical types and constructor vocabulary over the existing
+backend. Add legacy-key conversion, validation and deprecation behavior.
+Separate named case builders from generic constructors. Document input,
+derived and mutable fields, units and ownership.
+
+\textbf{Acceptance:} old/new settings resolve identically, conflicts are
+rejected, and baseline numerical fixtures match.
+\textbf{Dependency:} P1.
+
+\subsection{P3: separate model, state, workspace, and problem}
+
+Classify the existing \code{System} storage and introduce the public
+model/state/workspace facade. Implement explicit initialization, trial,
+commit and rollback. Preserve one authoritative storage owner and isolate
+independent runs.
+
+\textbf{Acceptance:} repeated trials are deterministic; A--B--A trials recover
+the same A result; rejected steps leave no history change; duplicate commit
+is rejected; saved results do not alias live workspaces.
+\textbf{Dependency:} P2.
+
+\subsection{P4: reorganize results, damping, and studies}
+
+Introduce structured status/results and history policies. Move generic study
+machinery out of the Chang example. Select moving-block damping through an
+explicit estimator configuration, replacing entry-specific dispatch only
+after equivalence is proven.
+
+\textbf{Acceptance:} current estimator and diagnostic fixtures match;
+incomplete or unconverged runs cannot be accepted as converged studies;
+lightweight responses are available without full geometry history.
+\textbf{Dependency:} P3.
+
+\subsection{P5: version outputs and migrate documentation}
+
+Implement conservative stage-specific identities and schema-versioned readers.
+Update the API/library guide, editable examples, migration dictionary, and
+cache policy. Keep original aerodynamic selections intact.
+
+\textbf{Acceptance:} legacy results remain readable; stale caches are rejected;
+new verified outputs refer to the correct source/environment and input point.
+\textbf{Dependency:} P4. This completes the first recommended approval scope.
+
+\subsection{P6: add generic AeroBeams step and load interfaces}
+
+Implement external dimensional resultants and structural prepare/solve/accept/
+restore operations. Audit initial-state initialization and snapshot coverage.
+Ensure the default behavior without external loads is preserved.
+
+\textbf{Acceptance:} existing structural tests pass; known loads have correct
+signs, scaling and reactions; forced rejection restores all mutated state.
+\textbf{Dependency:} P0 and the transaction contract established in P3.
+
+\subsection{P7: implement the motion/load bridge}
+
+Create the separate bridge package and mapping objects. Implement explicit
+frames, independent meshes, geometry/velocity reconstruction, dimensional load
+transfer, attachment stencils, and supported connection validation.
+
+\textbf{Acceptance:} rigid-motion, resultant force/moment, virtual-work,
+nonmatching-mesh and moving-frame tests pass.
+\textbf{Dependencies:} P5 and P6.
+
+\subsection{P8: couple fixed-step dynamics}
+
+Implement the wrapper problem and outer iteration using frozen inner-solve
+loads. Check the final consistent state/load pair. Support initialization,
+structured failure and exactly one accepted wake commit.
+
+\textbf{Acceptance:} rigid prescribed motion, zero-aerodynamic-load limit,
+repeated trials and a small flexible-wing coupled benchmark pass.
+\textbf{Dependency:} P7.
+
+\subsection{P9: validate the Chang rotor case with AeroBeams}
+
+Build the AeroBeams structural counterpart separately from the retained Chang
+model. Validate mass, static response, modes, attachments, and rotor spin
+reaction before full aeroelastic comparisons. Start with zero physical
+structural damping unless a supported damping component is available.
+
+\textbf{Acceptance:} structural-only correspondence, zero-spin and small-angle
+gyroscopic checks, then coupled mesh/time/iteration convergence.
+\textbf{Dependency:} P8.
+
+\subsection{P10: optimize based on measurements}
+
+Apply history controls, buffer reuse, explicit matrix cache invalidation and
+independent interaction-group solves where supported. Profile compilation,
+warm numerical work, allocation and I/O separately.
+
+\textbf{Acceptance:} fixture loads/states remain equivalent; measured memory
+and warm-run performance justify each change.
+\textbf{Dependencies:} the relevant ownership/coupling phases P3--P9.
+
+\subsection{P11: extend analysis capabilities}
+
+Add adaptive coupling and validated response resampling, steady/trim variants,
+global aerodynamic derivatives, eigen/periodic stability support, broader
+connections, and rotor models only as separate numerical tasks.
+
+\textbf{Acceptance:} each feature has its own benchmark and limitation record;
+unsupported modes are rejected until implemented.
+\textbf{Dependencies:} P8/P9 and the specific feature design.
+
+\subsection{Ordering and review units}
+
+The primary path is
+\begin{equation*}
+ \mathrm{P0}\to\mathrm{P1}\to\mathrm{P2}\to\mathrm{P3}\to
+ \mathrm{P4}\to\mathrm{P5}\to\mathrm{P7}\to\mathrm{P8}\to\mathrm{P9},
+\end{equation*}
+with P6 supplying the structural interface required by P7. Performance work
+begins when the affected ownership contracts are stable. A calendar estimate
+should follow P0 measurements rather than being inferred from the number of
+files to rename.
+
+Each reviewable implementation change should state: the concrete behavior
+before/after, files migrated, numerical invariants preserved, validation run,
+output/provenance impact, and remaining unsupported cases.
+
+\section{File-by-file migration responsibilities}
+
+Paths below are relative to \code{lib/WingPropellerUVLM}, except rows marked
+root. Grouped filenames describe migration targets, not new files already
+created.
+
+\begingroup\small
+\begin{longtable}{@{}L{0.38\linewidth}L{0.54\linewidth}@{}}
+\toprule
+Current area & Planned action\\
+\midrule\endhead
+\code{src/WingPropellerUVLM.jl} & Add public includes/exports incrementally;
+retain package identity and compatibility boundaries.\\
+\code{src/backend/system.jl}, \code{src/UVLMState.jl} & Inventory fields;
+split ownership through a facade; formalize transactions and alias rules.\\
+Backend panel, geometry, circulation, induced, analyses and wake files &
+Adapt first, preserve formulas/chronology, then rename internals if useful.\\
+Backend nearfield, nearfield postprocessing, reference and freestream files &
+Document normalization and physical application points; expose in-place
+dimensional load buffers.\\
+Legacy nearfield, nonlinear, rotor import, farfield, stability and visualization &
+Inventory exports and supported behavior. Retain unported workflows behind
+compatibility interfaces; do not claim new validation.\\
+\code{src/wing_propeller} & Separate generic grid/motion operations from
+tabulated case data; retain ordering, interpolation, twist and spin signs.\\
+\code{examples/.../src/ChangAeroelastic.jl}, configuration and parameters &
+Thin benchmark builder plus input translation; generic construction moves
+to the package.\\
+Chang structural matrices/model & Retain the linear benchmark and add a
+separate native AeroBeams builder in P9.\\
+Chang workspaces, UVLM coupling and simulation & Extract generic storage/loop
+while preserving the Chang-specific kinematic adapter and virtual-work tests.\\
+\code{src/aeroelastic} & Keep generalized-alpha for the benchmark; separate
+excitation from integration and avoid advancing AeroBeams with it.\\
+Chang postprocessing, plots and animation & Structured outcomes, explicit
+writers, optional expensive geometry tracking.\\
+Convergence entries, adapters, selection/options and metrics & Central study
+runner, explicit estimator, legacy input/output readers, conservative provenance.\\
+Root \code{src/Model.jl}, \code{src/Problem.jl},
+\code{src/SystemSolver.jl}, proposed external resultants & Add generic load
+and step hooks; preserve existing uncoupled solver behavior.\\
+Root \code{src/Core.jl} & Audit residual, rotation and scaling contracts;
+change only necessary generic interfaces.\\
+Project files, tests and docs & Declare dependencies; isolate environments;
+update public API and executable examples with each phase.\\
+\bottomrule
+\end{longtable}
+\endgroup
+
+\section{Validation plan and completion criteria}
+
+\begingroup\small
+\begin{longtable}{@{}L{0.24\linewidth}L{0.68\linewidth}@{}}
+\toprule
+Group & Required checks\\
+\midrule\endhead
+Input/API & Old/new aliases; units; unknown/conflicting keys; defaults;
+65-to-85 m/s override with RPM scaling; include without execution.\\
+Environment & UVLM alone, studies, optional plots and bridge load with declared
+dependencies and without the global environment.\\
+Aerodynamic regression & Existing core/panel/force tests; rigid wing, rotor,
+interacting case; circulation, rates, dimensional forces and wake geometry.\\
+State transactions & Repeated trials, A--B--A sequence, failed step, duplicate
+commit, wake capacity, phase rollback and result-array isolation.\\
+Structural integration & Existing AeroBeams suite, known applied force/moment,
+dynamic loads, reactions and supported special-node mappings.\\
+Transfer & Independent meshes, nonzero rotations, offsets, moving frame,
+resultant forces/moments and virtual work.\\
+Coupled limits & Zero aerodynamic loads; prescribed rigid structure; wing
+without propeller; disabled cross-group interaction; zero-spin rotor.\\
+Damping & Reference moving-block comparison; growth/decay; off-bin and
+out-of-band frequencies; offsets/noise/mode switching; sampling and diagnostics.\\
+Study acceptance & Actual grid completion, inner/outer convergence, finite
+state limits, valid metrics, individual and combined refinements.\\
+Provenance & Old seals unchanged; overridden reference recorded correctly;
+changed source, method or inputs prevent invalid cache reuse.\\
+Performance & Warm timings and allocated bytes per major operation; compilation
+and I/O separated; storage growth and run isolation measured.\\
+\bottomrule
+\end{longtable}
+\endgroup
+
+The earlier review recorded 369 existing assertions and 13 additional
+smoke/virtual-work assertions. The subsequent moving-block work recorded
+124 targeted checks. These are historical results from different runs with
+overlapping coverage, not a new summed test total or proof of a future bridge.
+The short 38-step smoke does not validate a six-second damping response.
+
+For pure naming changes, require identical resolved inputs and deterministic
+outputs. Where evaluation order changes, define scaled tolerances from the
+fixtures and show that discrepancies are well below study thresholds.
+Do not relax tests simply to accept a new result. For a structural formulation
+change, compare converged physical observables and modeling assumptions rather
+than requiring bitwise equality with the old integrator.
+
+\section{Efficiency improvements enabled by the structure}
+
+The first efficiency improvement is predictable history storage. Dense
+response samples are inexpensive compared with saving all surface panels and
+wake geometry every step. Make heavy histories opt-in with a stride, while
+preserving the response grid needed for damping.
+
+Next reuse geometry, force, transfer, and snapshot buffers. Cache the retained
+Chang generalized-alpha effective matrix only while its M/C/K, time step and
+integration parameters are unchanged. Gyroscopic terms mean a symmetric
+positive-definite factorization cannot be assumed. AeroBeams retains its own
+Jacobian update policy.
+
+Aerodynamic matrix reuse must respond to geometry, core, interaction and
+relevant flow/time changes. Panel-count equality alone is not a valid cache
+key. Disconnected interaction groups can be solved independently only while
+preserving interactions inside each group, including blades of one rotor.
+
+Measure geometry, AIC assembly/factorization, force calculation, wake
+convection, transfer, structural solve, snapshots, estimator and output
+separately. Process-based case concurrency needs measured memory limits and
+independent output directories. Wake coarsening, fast multipole methods and
+new integration formulas are numerical-method changes outside the initial
+terminology migration.
+
+\section{Risks, decisions, and approval checkpoint}
+\label{sec:approval}
+
+\begin{longtable}{@{}L{0.30\linewidth}L{0.62\linewidth}@{}}
+\toprule
+Main risk & Planned control\\
+\midrule\endhead
+A new name hides changed units or physics & Explicit semantic dictionary,
+constructor conversion tests, and separate formulation phases.\\
+Existing aerodynamic results stop verifying after file moves & Preserve
+archives/seals, version identities, and reverify under migrated source.\\
+Wake or rotor phase advances during repeated trials & Explicit transaction
+operations, single commit token and forced-rejection tests.\\
+Wrong force or moment reaches the beam equations & Dimensional frame-aware
+buffers, scaling/reaction tests and virtual-work verification.\\
+The structural replacement changes the benchmark & Separate structural-only
+calibration and rotor gyroscopic validation before coupled comparisons.\\
+Public APIs become inconsistent during migration & One canonical constructor/
+runner path, boundary adapters and scheduled compatibility retirement.\\
+Scopes grow before a usable result exists & Deliver P0--P5 first and use
+fixed-step, prescribed-spin coupling as the first bridge target.\\
+\bottomrule
+\end{longtable}
+
+\textbf{Recommended approval statement for the first implementation scope:}
+
+\begin{quote}
+Proceed with P0--P5 to introduce AeroBeams-style terminology, constructors,
+problem/state/workspace organization, study/result handling and provenance,
+while retaining the current UVLM numerical backend and Chang benchmark.
+Preserve the moving-block method, speed/RPM policy and legacy readers.
+\end{quote}
+
+The user may instead approve the entire staged roadmap or request revisions
+to names, package boundaries, compatibility duration, or priorities. Approval
+of the document's direction should state whether it covers P0--P5 only or
+also the P6--P9 structural coupling work. Advanced capabilities remain gated
+by their own validation requirements.
+
+No migration implementation is performed as part of this document delivery.
+
+\appendix
+\section{Source basis and relationship to the earlier documents}
+
+The local source is authoritative for the proposed interface. Relevant files
+in the root package are \code{src/Model.jl}, \code{src/Beam.jl},
+\code{src/Element.jl}, \code{src/Problem.jl}, \code{src/SystemSolver.jl},
+\code{src/Core.jl}, \code{src/Utilities.jl}, \code{src/UnitsSystem.jl},
+\code{src/AeroSolver.jl}, and \code{src/AeroSurface.jl}.
+
+Relevant UVLM sources include \code{src/backend/system.jl},
+\code{src/UVLMState.jl}, \code{src/aeroelastic/GeneralizedAlpha.jl},
+the Chang model/simulation/coupling files, and the two convergence entry
+scripts and moving-block module under their current example directory.
+
+The detailed Markdown worklist is
+\code{docs/plans/UVLM_AEROBEAMS_MIGRATION.md}. Historical correctness evidence
+is in \code{docs/reviews/uvlm_aerobeams_2026-09-14/REVIEW.md} and its associated
+smoke/diagnostic files. The existing mathematical bridge blueprint is
+\code{docs/src/wing-propeller-uvlm-coupling.md}; its prototype interfaces require
+review before implementation. This LaTeX proposal explains and retains the
+P0--P11 sequence while expanding the meaning of the principal differences.
+
+The earlier review predates the current moving-block entry and corrected
+nested speed-override delegation. Those changes are treated as existing
+baseline behavior in this proposal; unrelated earlier findings are not
+assumed resolved.
+
+For general project context, see the
+\href{https://github.com/luizpancini/AeroBeams.jl}{official AeroBeams repository}.
+For qualified method extension and module naming, see the
+\href{https://docs.julialang.org/en/v1/manual/modules/}{Julia modules manual}.
+These references supplement the inspected checkout; proposed UVLM constructors
+must not be mistaken for APIs documented upstream.
+
+\section{Compiling and reviewing this document}
+
+This source is self-contained and uses standard LaTeX packages. No Julia
+code in the listings is executed during compilation. No external images,
+bibliography database, or shell escape are required.
+
+With a local LaTeX distribution, run from the source directory:
+\begin{lstlisting}
+pdflatex -interaction=nonstopmode -halt-on-error UVLM_AEROBEAMS_MIGRATION_PROPOSAL.tex
+pdflatex -interaction=nonstopmode -halt-on-error UVLM_AEROBEAMS_MIGRATION_PROPOSAL.tex
+\end{lstlisting}
+The second pass resolves the table of contents and internal references.
+Alternatively use \code{latexmk -pdf}, or upload the single source to Overleaf
+and select pdfLaTeX. The current authoring environment did not provide a
+LaTeX compiler, so PDF compilation and rendered-page inspection were not
+performed here. Static source checks are not a substitute for that review.
+
+\end{document}

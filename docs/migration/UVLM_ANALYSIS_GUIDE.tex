@@ -1,0 +1,1448 @@
+% !TeX program = pdflatex
+% Self-contained: all example listings are embedded; no external figures/files.
+\documentclass[11pt,a4paper]{article}
+\usepackage[T1]{fontenc}
+\usepackage[utf8]{inputenc}
+\usepackage{lmodern}
+\usepackage[margin=24mm,headheight=14pt]{geometry}
+\usepackage{microtype,amsmath,amssymb,array,booktabs,longtable,enumitem}
+\usepackage{xcolor,listings,xurl,hyperref,fancyhdr}
+\definecolor{ink}{HTML}{16324F}
+\hypersetup{colorlinks=true,linkcolor=ink,urlcolor=ink,pdftitle={UVLM Analysis Guide: Implemented Interfaces and Convergence Studies}}
+\newcommand{\code}{\nolinkurl}
+\newcolumntype{L}[1]{>{\raggedright\arraybackslash}p{#1}}
+\setlength{\parindent}{0pt}
+\setlength{\parskip}{.5em}
+\setlength{\emergencystretch}{3em}
+\renewcommand{\arraystretch}{1.2}
+\setlist{leftmargin=*,itemsep=.2em}
+\setcounter{tocdepth}{2}
+\pagestyle{fancy}\fancyhf{}
+\fancyhead[L]{\small UVLM analysis and convergence}\fancyfoot[C]{\thepage}
+\lstset{basicstyle=\ttfamily\scriptsize,breaklines=true,columns=fullflexible,
+ keepspaces=true,showstringspaces=false,frame=single,rulecolor=\color{black!20},
+ backgroundcolor=\color{black!3},tabsize=4,
+ literate={Δ}{{$\Delta$}}1 {Γ}{{$\Gamma$}}1 {≈}{{$\approx$}}1 {–}{{-}}1}
+\begin{document}
+\begin{titlepage}
+\vspace*{22mm}
+{\Large Implemented terminology and organization migration\par}
+\vspace{10mm}
+{\Huge\bfseries UVLM analysis guide\par}
+\vspace{8mm}
+{\Large What each code file does, how data move,\par
+and how to define and run an analysis\par}
+\vspace{15mm}
+\textbf{Delivery date: 15 September 2026.}
+
+This guide describes executable interfaces introduced in the local
+\code{WingPropellerUVLM} and \code{WingPropellerUVLMStudies} packages.
+It includes the aerodynamic and aeroelastic convergence studies, the retained
+Chang linear structural benchmark, and moving-block damping.
+
+The user authorized this terminology and organization migration. The earlier
+LaTeX proposal remains the design roadmap; its illustrative bridge constructors
+are not an implementation reference. This document identifies the interfaces
+that actually exist and explains the remaining architectural work.
+
+\textbf{Structural coupling status.} The retained Chang solver still supplies
+the structural equations in the aeroelastic examples. No native AeroBeams
+\code{DynamicProblem}--UVLM structural bridge is delivered by this interface
+migration. AeroBeams time integration and UVLM wake integration will need the
+motion/load mapping and coupled-step coordination described in the roadmap.
+\vfill
+\textbf{Reading order:} choose an analysis, follow the setup and worked example,
+then use the file descriptions and embedded source listings to inspect details.
+No earlier proposal or external bibliography is required to understand this guide.
+\end{titlepage}
+\tableofcontents\clearpage
+
+\section{What changed and what to choose}
+
+Public construction now follows the AeroBeams pattern: create the physical
+model, create the analysis problem, call a qualified \code{solve!}, and inspect
+results. Public descriptive settings use camelCase. Operation names retain
+snake\_case; mutating operations end in \code{!}. Numerical kernels and archived
+result keys retain their established names behind a compatibility boundary.
+
+\begin{longtable}{@{}L{.25\linewidth}L{.32\linewidth}L{.35\linewidth}@{}}
+\toprule Intended calculation & Implemented entry & Responsibility\\\midrule\endhead
+Steady rigid aerodynamics & \code{create_UVLMSteadyProblem} & Existing steady backend, with full surface interaction.\\
+Unsteady prescribed geometry & \code{create_UVLMDynamicProblem} & Circulation, dimensional loads and a free wake, with prescribed surface grids.\\
+One Chang aeroelastic response & \code{run_chang_linear_aeroelastic.jl} and \code{chang_case.jl} & Retained linear structure, generalized-alpha integration, partitioned UVLM loads.\\
+Aerodynamic convergence & \code{chang_convergence_aerodynamic.jl} & Rigid wing/rotor refinement and verified aerodynamic selection.\\
+Aeroelastic convergence & \code{chang_convergence_aeroelastic.jl} & Response refinement and moving-block pitch/yaw damping from an aerodynamic selection.\\
+Native AeroBeams structure with UVLM & Future bridge, not callable yet & Requires frame-aware kinematics, conservative loads and synchronized step acceptance.\\
+\bottomrule
+\end{longtable}
+
+The generic aerodynamic facade initially supports the corrected Imperial
+dimensional force formulation, a positive fixed core radius and an empty
+initial wake. The studies retain their existing fixed/chord/segment core
+choices and benchmark-specific rotor geometry. A prescribed RPM stored in an
+operating point does not automatically rotate a generic model: its motion
+callback must rotate the appropriate grids.
+
+\section{Package organization and setup}
+\label{sec:setup}
+
+Paths in this guide are relative to the repository root unless stated
+otherwise. Run the shell commands from that root. The aerodynamic library can
+be loaded alone; the studies package adds FFT and plotting dependencies.
+Plotting code is loaded only when requested, although Plots is declared in the
+studies project so enabling it does not depend on the user's global environment.
+
+\begin{lstlisting}
+lib/WingPropellerUVLM/
+  Project.toml
+  src/OperatingPoint.jl
+  src/UVLMModel.jl
+  src/UVLMProblem.jl
+  src/UVLMState.jl                 # existing backend snapshots
+  src/backend/                    # retained numerical kernels
+  src/wing_propeller/              # grid, rotor and motion helpers
+  src/aeroelastic/                 # retained linear time integration
+  studies/Project.toml
+  studies/Manifest.toml
+  studies/setup.jl
+  studies/src/WingPropellerUVLMStudies.jl
+  studies/src/Convergence.jl
+  studies/src/StudySettings.jl
+  studies/src/StudyRunner.jl
+  studies/src/ChangProblem.jl
+  studies/src/Provenance.jl
+  studies/src/MovingBlockDamping.jl
+  studies/test/runtests.jl
+  examples/prescribed_wing.jl
+  examples/chang_linear_aeroelastic/run_chang_linear_aeroelastic.jl
+  examples/chang_linear_aeroelastic/chang_case.jl
+  examples/chang_linear_aeroelastic/studies/convergence/
+    chang_convergence_aerodynamic.jl
+    chang_convergence_aeroelastic.jl
+    src/                          # legacy include forwarding files
+\end{lstlisting}
+
+The files under the old convergence \code{src} directory now forward to the
+shared implementation. The old moving-block file paths also forward. There
+is one maintained implementation of each study component. Existing archived
+study scripts remain accessible; their old algorithms and settings do not
+become newly validated simply because their includes still work.
+
+For a first installation, use Julia with access to its package registry:
+\begin{lstlisting}
+julia --project=lib/WingPropellerUVLM/studies lib/WingPropellerUVLM/studies/setup.jl
+\end{lstlisting}
+The setup script activates the studies project, develops the local aerodynamic
+package and instantiates dependencies. The committed study manifest records
+the Julia 1.11.5 dependency environment used for this delivery and uses a
+relative local package path. Package source files never activate environments.
+
+Start an interactive session with:
+\begin{lstlisting}
+julia --project=lib/WingPropellerUVLM/studies
+\end{lstlisting}
+In that REPL, \code{include} of either convergence entry defines a module
+and functions without running a simulation. Call \code{main()} explicitly when ready. Direct execution of these
+entry files activates the studies project and calls their main function.
+Changing a numerical source file after loading a study requires a fresh Julia
+process before solving; this prevents a newly hashed source tree from being
+attributed to previously loaded numerical code.
+
+\section{Objects and ownership}
+
+\code{UVLMModel} owns copied reference vertex grids, coefficient reference
+quantities, symmetry flags and interaction groups. Treat these arrays as
+read-only after construction. Changing panel counts means constructing a new
+model. Two problems can use the same model because each allocates its own
+backend state and workspace.
+
+\code{OperatingPoint} holds airspeed, density, incidence, sideslip and
+prescribed rotor-speed metadata. \code{UVLMSolver} holds the fixed core radius,
+interaction switch and wake-shedding fraction. The operating point is the
+physical condition; the solver describes the selected aerodynamic algorithm.
+
+\code{UVLMState} contains the accepted backend system, \code{timeNow} and
+\code{stepIndex}. \code{UVLMWorkspace} contains a separate trial system and
+flags indicating whether a trial is open and ready for acceptance. Each
+system still uses the existing backend \code{System} layout. This is a
+transitional facade, not a complete field-by-field backend storage rewrite.
+Deep copies isolate trials and rollback. That choice prioritizes correctness
+and is more expensive than a future reusable snapshot-buffer implementation.
+
+\code{UVLMResults} owns saved arrays. Its circulation and geometry records
+are copied, so subsequent solves cannot overwrite past samples through
+workspace aliases. \code{UVLMDynamicProblem} brings these objects together
+with the time grid, motion callback and history controls.
+
+The Chang facade has a different result contract. Its existing \code{ChangModel}
+stores resolved benchmark settings and matrices; \code{ChangDynamicProblem}
+calls the existing run orchestration and exposes its returned workspace,
+solution and postprocessed results. It adds \code{completed} and
+\code{solverConverged}. Its backend fields and CSV keys retain legacy spelling.
+
+\section{Units, names and compatibility}
+
+\begin{longtable}{@{}L{.30\linewidth}L{.29\linewidth}L{.33\linewidth}@{}}
+\toprule Existing term & New public term & Meaning\\\midrule\endhead
+\code{speed_mps} & \code{airspeed} & m/s; used by operating points and convergence settings.\\
+\code{end_time_s} & \code{finalTime} & Seconds.\\
+\code{maximum_iterations} & \code{maximumIterations} & Outer coupling iteration limit.\\
+\code{state_tolerance}, \code{load_tolerance} & \code{stateTolerance}, \code{loadTolerance} & Same existing residual definitions.\\
+\code{trim_revolutions} & \code{baselineRevolutions} & Startup load preparation, not a deformed structural trim.\\
+\code{wing_span}, \code{wing_chord} & \code{wingSpanPanels}, \code{wingChordPanels} & Study refinement controls.\\
+\code{prop_radial}, \code{prop_chord} & \code{propellerRadialPanels}, \code{propellerChordPanels} & Panels per blade and direction.\\
+\code{spanwise_panels}, \code{chordwise_panels} & \code{nSpanwisePanels}, \code{nChordwisePanels} & Benchmark geometry settings.\\
+\code{azimuth_deg} & \code{azimuthStepDeg} & Study azimuth increment in degrees.\\
+\code{core_radius_m} & \code{coreRadius} & Fixed radius in metres.\\
+\code{make_plots}, \code{dry_run} & \code{makePlots}, \code{dryRun} & Output and execution controls.\\
+\code{minimum_fit_r_squared} & \code{minimumFitRSquared} & Dimensionless fit-quality threshold.\\
+\bottomrule
+\end{longtable}
+
+The generic operating-point fields \code{angleOfAttack} and \code{sideslip}
+are radians. The migrated editable benchmark/study settings retain explicit
+unit suffixes: \code{alphaDeg}, \code{angleOfAttackDeg} and \code{azimuthStepDeg}.
+The single-case legacy key \code{azimuth_step_deg} and study key
+\code{azimuth_deg} share the public spelling \code{azimuthStepDeg}.
+Their separate boundaries preserve the appropriate legacy key: the Chang
+constructor uses \code{legacy_case_settings}, and studies use \code{legacy_settings}.
+Do not strip a \code{Deg} suffix and retain the same number. Other benchmark
+names use systematic camelCase conversion, such as \code{freestreamSpeedMps},
+\code{rotationRpm} and \code{pitchStiffnessNmPerRad}. They are still explicit
+physical inputs. This initial interface uses safe unit-preserving aliases;
+it does not implement every speculative name from the proposal.
+
+\code{canonical_settings} converts a legacy study NamedTuple into public
+settings. \code{legacy_settings} converts a study back for existing runners.
+Duplicate aliases in one input are rejected. Study constructors accept a
+base settings NamedTuple and recursively merge keyword overrides, rejecting
+unknown override keys. Enum values such as \code{:fixed}, \code{:record_fraction}
+and \code{:exact_virtual_work} retain their spelling. Refinement-family symbols
+are translated with the corresponding control names.
+
+\section{Worked example: prescribed wing in the time domain}
+\label{sec:wing}
+
+The complete executable \code{examples/prescribed_wing.jl} is reproduced in
+the appendix. It defines a one-metre-span, one-metre-chord wing with four
+spanwise and two chordwise panels. The reference area, chord and span are
+1 in SI units. Airspeed is 10 m/s and incidence is 3 degrees, explicitly
+converted to radians. The example prescribes a small vertical displacement:
+\begin{equation}
+ z(t)=0.002\sin(2\pi\,2t)\quad\text{metres}.
+\end{equation}
+The callback copies reference grids and adds this displacement. Geometry
+differences between successive time levels supply the backend surface-motion
+terms. The wing is prescribed; no mass or stiffness is inferred from its grids.
+
+\begin{lstlisting}
+import WingPropellerUVLM
+include("lib/WingPropellerUVLM/examples/prescribed_wing.jl")
+problem = PrescribedWingExample.create_problem()
+WingPropellerUVLM.solve!(problem)
+times = problem.results.savedTimeVector
+forces = problem.results.forceOverTime
+moments = problem.results.momentOverTime
+\end{lstlisting}
+The example's \code{main()} is also a complete create-and-solve call.
+This short run demonstrates the interface; it is not a converged aerodynamic
+benchmark or a damping record.
+
+Grid indexing is \code{(coordinate,chordwise vertex,spanwise vertex)}. Thus a
+surface with $n_c$ by $n_s$ panels has shape $(3,n_c+1,n_s+1)$. A model accepts
+a vector of grids, one for each aerodynamic surface. All motion callbacks must
+return the same surface count and topology with finite coordinates.
+
+For a wing followed by four blades of one rotor, a suitable interaction-group
+vector is \code{[1,2,2,2,2]}. With \code{interaction=true}, the global solve
+includes cross-group influence. With \code{interaction=false}, groups are
+isolated aerodynamically, while the four blades in group 2 still interact.
+For a second rotor, assign a third group to all its blades. Symmetry flags are
+specified per surface; a symmetric wing and explicit physical blades use
+\code{[true,false,false,false,false]}. In the Chang aeroelastic analysis,
+disabling aerodynamic cross-group influence does not remove the structural
+wing--propeller connection.
+
+For a stationary wing, omit \code{surfaceMotion}; the default returns the
+reference grids. For a rotating blade, rotate that blade's reference grid about
+its shaft and include the hub offset. Use $\psi(t)=\psi_0+\Omega t$ with the
+chosen spin sign. Setting the operating point's speed alone does not define
+the shaft axis, hub position or blade geometry.
+
+\subsection{Time and wake settings}
+Supply either \code{timeVector} or \code{initialTime}, the Julia keyword
+$\Delta t$, and \code{finalTime}. The latter creates the range
+\code{initialTime:} $\Delta t$ \code{:finalTime}; if the interval is not an
+integer number of steps, the final stored grid coordinate lies below the
+requested bound. Completion means completion of that resolved discrete grid.
+An explicit vector must contain at least two finite, strictly increasing times.
+It may be prescribed nonuniformly, but the moving-block FFT requires uniform
+response samples. No adaptive error controller is introduced here.
+
+\code{maximumWakeRows} is an integer per surface, or one integer applied to
+all surfaces. Capacity is positive; active rows start at zero and increase
+once per accepted step, up to the allocated limit. Retaining ten rows at a
+constant 0.005-s step retains approximately 0.05 s of recent wake history.
+Changing the time step changes that interpretation.
+
+\subsection{History and force interpretation}
+\code{trackingTimeSteps=true} enables saved histories.
+\code{trackingFrequency=1} saves every accepted step; larger values save every
+$k$th step and the final step. The initial empty-wake state is not a solved
+force sample and is not appended to these histories. \code{saveGeometry=true}
+additionally stores surface-panel geometry, with the same stride.
+
+\code{forceOverTime} contains total dimensional vertex forces in N;
+\code{momentOverTime} contains moments in N m about \code{model.reference.r}.
+They use backend coordinates. These totals sum the explicitly modeled
+surfaces. A symmetry image contributes aerodynamic influence but is not a
+second physical surface summed into these arrays. Do not infer a full-wing
+result by doubling arbitrary force or moment components without considering
+reflection signs. Use \code{dimensional_loads(problem)} for individual vertex
+forces and their matching application positions.
+
+\section{A physical step and its numerical trials}
+
+For accepted aerodynamic history $A_n$, an attempted next time step evaluates
+geometry at $t_{n+1}$ and solves
+\begin{equation}
+ A(\mathcal G_{n+1},\mathcal W_n)\Gamma_{n+1}=b(\mathcal G_{n+1},\mathcal W_n,v).
+\end{equation}
+Repeated trials share the accepted history $\mathcal W_n$. They may have
+different proposed surface geometry. Only acceptance convects and sheds the
+wake for the next physical step.
+
+\begin{lstlisting}
+UVLM.begin_time_step!(problem)
+loads = UVLM.evaluate_trial!(problem)
+# Optional further trials at this same physical time:
+# loads = UVLM.evaluate_trial!(problem; surfaces=trialGrids)
+UVLM.commit_time_step!(problem)
+# Or discard the attempted step with UVLM.rollback_time_step!(problem).
+\end{lstlisting}
+Here \code{UVLM} is an imported alias for \code{WingPropellerUVLM}. Opening a
+second step while one is open is an error. Evaluating without opening a step,
+committing without a successful trial, and committing twice are errors.
+Rollback discards trial changes and does not append a result sample.
+
+\code{solve!} repeatedly opens, evaluates and commits until the grid is
+complete. On an evaluation or wake-convection error it rolls back the attempted
+step, stores the error as \code{terminationReason}, and rethrows it. Accepted
+earlier samples remain available. Fix the cause before resuming or construct
+a new problem. A failed calculation must not be presented as a complete result.
+
+This API supplies aerodynamic transactions for future coupling. It does not
+provide a structural trial or a structural residual. The future bridge must
+also snapshot AeroBeams state, map rotations and velocities, transfer loads
+conservatively, converge the structural/aerodynamic pair and accept both together.
+
+\section{Worked example: one Chang aeroelastic analysis}
+
+\code{examples/chang_linear_aeroelastic/chang_case.jl} contains the editable
+single-case defaults. The entry \code{run_chang_linear_aeroelastic.jl} loads
+those settings and applies \code{CHANG_*} environment overrides. When included,
+call \code{run_chang_example()} explicitly.
+The convergence studies define their own settings; editing the single-case
+airspeed does not change a study.
+
+The studies API can also construct a problem from the same defaults, with
+explicit overrides and no environment overrides:
+\begin{lstlisting}
+import WingPropellerUVLMStudies as Studies
+include("lib/WingPropellerUVLM/examples/chang_linear_aeroelastic/chang_case.jl")
+settings = Studies.merge_settings(Studies.canonical_settings(chang_case_defaults()),
+    (; simulation=(; freestreamSpeedMps=85.0, finalTime=6.0),
+       output=(; plotResults=false, animateWake=false)))
+model = Studies.create_ChangModel(settings)
+problem = Studies.create_ChangDynamicProblem(;model)
+Studies.solve!(problem)
+problem.results.completed
+problem.results.solverConverged
+solution = problem.results.solution
+\end{lstlisting}
+
+The example settings are grouped by responsibility:
+\begin{longtable}{@{}L{.20\linewidth}L{.72\linewidth}@{}}
+\toprule Group & Inputs and effect\\\midrule\endhead
+\code{wing} & Root/tip chord, span, symmetry and panel counts. Spanwise panels still determine the retained structural element count.\\
+\code{propeller} & Radius, chord, blade count, radial/chordwise panels, installation fractions, reference RPM/speed and collective offset.\\
+\code{simulation} & Density, freestream speed, angles, azimuth increment, final time, interaction switch, force model and moment projection.\\
+\code{aerodynamic} & Fixed core or factor law, elastic-axis fraction and hub-load arm.\\
+\code{wake} & Wing wake row capacity and rotor retained revolutions, with optional explicit row overrides.\\
+\code{excitation} & Baseline averaging and the pitch impulse's time, duration and magnitude.\\
+\code{integration} & Generalized-alpha numerical dissipation and state/amplitude limits.\\
+\code{coupling} & Outer iterations, residual tolerances and relaxation.\\
+\code{output} & Directory/label, response plots, animation and frame stride.\\
+\code{structural} & Physical damping settings, pylon/rotor modal properties, mass and inertias derived from the configured data.\\
+\bottomrule
+\end{longtable}
+
+The structural equations remain $M\ddot q+C\dot q+Kq=Q$. Generalized-alpha
+advances this linear benchmark; the aerodynamic load still depends on the
+trial geometry and wake. The outer partitioned iterations make the structural
+state and aerodynamic load consistent before wake acceptance.
+\code{rhoInf} controls numerical integration dissipation. It is not a physical
+modal damping ratio. Physical damping inputs remain in the structural group.
+
+\code{solution.displacement_history}, \code{velocity_history} and
+\code{acceleration_history} hold the retained structural coordinates.
+\code{last_step} reports accepted steps; coupling iteration and residual
+arrays describe convergence. The facade preserves the benchmark's existing
+output writer and file schemas. It does not rename Euler coordinates to
+AeroBeams Wiener--Milenkovic parameters or reinterpret the benchmark vector
+as an AeroBeams global state.
+
+Startup baseline averaging subtracts the mean load about the configured
+geometry. It is not a solved deformed equilibrium. For damping interpretation,
+choose a response interval after baseline preparation and excitation, and
+inspect whether periodic rotor forcing or multiple modes dominate that interval.
+
+\section{Aerodynamic convergence: editing and executing}
+\label{sec:aerostudy}
+
+Both existing convergence entry filenames are preserved. Their
+\code{create_study()} functions now return typed study objects. The legacy
+\code{aerodynamic_study()} and \code{aeroelastic_study()} accessors still
+return snake\_case NamedTuples for existing scripts.
+
+\begin{lstlisting}
+import WingPropellerUVLMStudies as Studies
+include("lib/WingPropellerUVLM/examples/chang_linear_aeroelastic/studies/convergence/chang_convergence_aerodynamic.jl")
+base = ChangConvergenceAerodynamic.create_study()
+study = Studies.create_AerodynamicConvergenceStudy(base.settings;
+    dryRun=true, makePlots=false,
+    outputDirectory="output/my_aerodynamic_matrix")
+Studies.solve!(study)
+study.results.directory
+\end{lstlisting}
+
+The first run above writes the case matrix only. Review it before setting
+\code{dryRun=false} for the same settings in a fresh problem. Every enabled
+family needs at least three strictly ordered levels. Panel counts and retained
+wake revolutions increase with refinement; core radius and azimuth increment
+decrease. An azimuth step must divide 360 degrees and be no larger than
+90 degrees. These are validity limits, not recommended accuracy settings.
+
+\code{physical} supplies the rigid geometry and operating condition. Its
+\code{rpm} is the actual RPM at its \code{airspeed}. Changing one through a
+partial override does not silently change the other. To preserve the advance
+ratio, explicitly set $N_{new}=N_{ref}U_{new}/U_{ref}$ when defining this stage.
+The editable defaults show this relationship directly.
+
+\code{nominal} holds the controls used when another family is varied.
+\code{sweeps} holds the level lists and \code{families} chooses which lists
+are active. \code{coreMode=:fixed} interprets \code{core} in metres;
+\code{:chord} interprets it as a fraction of full local chord;
+\code{:segment} interprets it as a fraction of the local span/radial segment.
+These are different regularization laws and must not be compared as if their
+numbers had the same units.
+
+\code{simulatedRevolutions} is the total rigid run length.
+\code{averagedRevolutions} is the end interval for periodic metrics.
+\code{absoluteTolerances}, \code{relativeTolerance} and
+\code{periodicTolerances} test CT/CQ changes and periodic histories.
+\code{reuseExisting} permits reuse only when metadata, source and files match.
+\code{confirmSelection} requests the combined candidate/finer verification
+after individual refinement families pass.
+
+\textbf{Interpretation limit.} Existing aerodynamic acceptance is based on
+propeller CT/CQ, including periodic comparisons. Wing lift is recorded but
+does not currently gate that selection. With disabled aerodynamic interaction,
+CT/CQ cannot establish wing-load convergence. This migration preserves that
+criterion; do not describe the resulting selection as proof of every wing
+force and moment being converged. Adding wing metrics is a separate study-design
+change identified in the roadmap.
+
+\section{Aeroelastic convergence and the selection handoff}
+
+First obtain \code{aerodynamic_selection.toml} from a successful aerodynamic
+stage under the current source identity. A matrix-only run does not create a
+verified selection. The loader checks the selection and its recorded evidence;
+an unverified hand-written file is not an equivalent input.
+
+\begin{lstlisting}
+import WingPropellerUVLMStudies as Studies
+include("lib/WingPropellerUVLM/examples/chang_linear_aeroelastic/studies/convergence/chang_convergence_aeroelastic.jl")
+base = ChangConvergenceAeroelastic.create_study()
+study = Studies.create_AeroelasticConvergenceStudy(base.settings;
+    selectionFile="output/my_aerodynamic_run/aerodynamic_selection.toml",
+    outputDirectory="output/my_aeroelastic_run",
+    airspeed=85.0, dryRun=true, makePlots=false,
+    response=(;finalTime=6.0))
+Studies.solve!(study)
+\end{lstlisting}
+
+Here the top-level \code{airspeed=nothing} would retain the selected operating
+point. A positive override changes only the aeroelastic operating point and
+scales its prescribed rotor RPM by $U_{new}/U_{reference}$. The original
+aerodynamic reference is kept in the result and report. Its seal is not
+relabelled as a verification at the overridden speed.
+
+At fixed azimuth increment $\Delta\psi$ and angular speed $\Omega$,
+$\Delta t=\Delta\psi/|\Omega|$ with radians in this equation. For a positive
+RPM $N$ and a degree-valued study increment, $\Delta t=\Delta\psi_{deg}/(6N)$.
+Changing speed therefore changes physical time resolution even when the
+azimuth resolution is unchanged.
+
+The aeroelastic \code{sweeps} can contain \code{nothing}. The runner then
+constructs three levels starting at the selected aerodynamic control and
+refining it. Explicit lists must also begin at the selected value. The wing
+spanwise family is excluded because this benchmark still ties it to the
+structural element count. Independent aerodynamic and structural meshes are
+future bridge work, not an implemented capability of this retained model.
+
+\code{response} defines the simulation end, baseline averaging and pitch
+excitation. \code{structural}, \code{integration} and \code{coupling} retain
+their meanings from the single-case analysis. \code{damping} selects moving-block
+settings and study comparison tolerances. An aeroelastic dry run still needs a
+valid selection and validates the translated structural configurations.
+
+\section{Moving-block damping and what the reported numbers mean}
+
+The shared \code{MovingBlockDamping.jl} preserves the selected reference
+algorithm: positive peaks bound a fitting segment; block length occupies the
+configured fraction of that segment; blocks shift one sample; each block has
+its mean removed; a rectangular FFT identifies the dominant non-DC component;
+and a line is fitted to log amplitude versus block-start time.
+
+For $x(t)\simeq A_0e^{\lambda t}\sin(2\pi f t+\varphi)$,
+\begin{equation}
+ \log A_k\simeq a+\lambda t_k,\qquad
+ \omega_d=2\pi f,\qquad
+ \zeta=-\lambda/\sqrt{\lambda^2+\omega_d^2}.
+\end{equation}
+Negative growth rate $\lambda$ (s$^{-1}$) means decay; positive means growth.
+$f$ is Hz; $\omega_d$ is rad/s; $\zeta$ is dimensionless. A percentage is
+$100\zeta$. Existing serialized fields such as
+\code{moving_block_lambda_per_s} and \code{damping_ratio_percent} remain
+explicit; the migration does not reinterpret percentages as fractions.
+
+\begin{longtable}{@{}L{.33\linewidth}L{.59\linewidth}@{}}
+\toprule Setting & Effect\\\midrule\endhead
+\code{fitStartS} & Explicit start, or automatic post-excitation start when nothing.\\
+\code{blockSizeMode} & \code{:record_fraction} preserves reference sizing; \code{:duration} requests a fixed-duration window.\\
+\code{blockSize}, \code{sizeRatioLb}, \code{sizeRatioUb} & Reference sample count and permitted lower/upper segment fractions; defaults 512, 0.25, 0.5.\\
+\code{peakFromStart}, \code{peakFromEnd} & Select the positive peaks bounding the fitting segment.\\
+\code{blockDurationS}, \code{blockOverlap} & Used in duration mode; do not control the reference one-sample shift mode.\\
+\code{frequencyBandHz} & Allowed frequency interval for acceptance.\\
+\code{minimumPeaks}, \code{minimumFitRSquared} & Minimum signal/fit evidence.\\
+\code{lambdaTolerancePerS}, \code{frequencyToleranceHz} & Differences allowed between refinement results.\\
+\bottomrule
+\end{longtable}
+
+Uniform response sampling is required. Saving animation frames sparsely does
+not thin the lightweight response CSV used by this estimator. FFT bin spacing
+is $1/(N_b\Delta t)$; a tolerance finer than this spacing does not itself
+establish frequency accuracy. Inspect the raw response, block frequency history,
+log-amplitude fit and fit-quality diagnostics. Positive-peak screening remains
+sensitive to offsets, and a periodically forced or multimode response need not
+yield a free-mode damping ratio merely because a fit is available.
+
+\section{Results, failures, archives and provenance}
+
+\begin{longtable}{@{}L{.37\linewidth}L{.55\linewidth}@{}}
+\toprule File or object & How to use it\\\midrule\endhead
+\code{case_matrix.csv} & Exact requested controls, time increment and wake rows; generated even for dry runs.\\
+\code{study.toml}, \code{report.md} & Study settings, method identity and interpretation.\\
+Rigid case history and metadata & CT/CQ and wing-load histories plus the source/options/file checks used before reuse.\\
+\code{aerodynamic_selection.toml} & Verified handoff following individual and combined aerodynamic checks.\\
+\code{aerodynamic_input.toml} & Aeroelastic stage's selected aerodynamic input and reference record.\\
+\code{resolved_configuration.toml}, \code{run.log} & Actual translated Chang settings and solver trace for one case.\\
+\code{analysis_status.toml} & Exact accepted/expected step counts and coupling completion for an aeroelastic case.\\
+\code{response_history.csv} & Lightweight accepted response used for damping.\\
+\code{damping_fit.toml} & Pitch/yaw fit summaries, estimator identity and validity.\\
+\code{pitch_moving_block.csv}, \code{yaw_moving_block.csv} & Block-start times, log amplitudes, fitted values and tracked frequencies.\\
+\code{study.results} & Existing structured case rows, directory and selected/reference data after solving.\\
+\bottomrule
+\end{longtable}
+
+Finishing a process, converging every physical step, obtaining a valid damping
+fit, and passing a refinement criterion are distinct events. The migrated
+aeroelastic runner checks accepted step count and coupling flags before fitting.
+Cases stopped by limits cannot pass solely because their final sample happens
+to lie close to the requested end time.
+
+\code{Provenance.jl} hashes the aerodynamic source, shared study source, Chang
+source, project/manifest files and Julia version. The identity deliberately
+covers indirect dependencies. The estimator also records its own hash.
+This delivery uses one conservative numerical source identity; independently
+minimal aerodynamic/structural/coupling dependency fingerprints remain future
+work. The version marker for this migration is \code{uvlm-migration-v2}.
+
+File moves change source identity even when numerical formulas do not change.
+Existing selection files and seals are retained untouched. Consequently an
+old selection can fail current-source verification. Use
+\code{Studies.inspect_selection(path)} to read its archived TOML record;
+the returned \code{verifiedForCurrentSource=false} is intentional. Rerun the
+required aerodynamic evidence under the migrated source to obtain a new
+verified selection. Do not edit a hash to force acceptance.
+
+\section{Code-by-code responsibility map}
+\label{sec:files}
+
+The following tables cover the active numerical library, benchmark and study
+files. Each row states where to investigate a behavior or make a future
+change. Paths in the first table are relative to \code{lib/WingPropellerUVLM/src}.
+
+\begin{longtable}{@{}L{.36\linewidth}L{.56\linewidth}@{}}
+\toprule File & Responsibility\\\midrule\endhead
+\code{WingPropellerUVLM.jl} & Includes numerical components and exports both new constructors and compatibility operations.\\
+\code{OperatingPoint.jl} & Validates flow inputs; resolves prescribed or constant-advance-ratio rotor metadata; constructs the backend Freestream.\\
+\code{UVLMModel.jl} & Validates/copied grids and references; defines UVLMSolver; translates the camelCase partitioned constructor to existing solver options.\\
+\code{UVLMProblem.jl} & Defines accepted/trial/results containers, dynamic/steady constructors, trial geometry updates, stepping, rollback and dimensional result recording.\\
+\code{UVLMState.jl} & Existing backend snapshots, restore operations, wake-row bookkeeping and noncommitting trial support used by the retained benchmark.\\
+\code{backend/system.jl} & Backend array allocation and storage layout. Model, history and scratch fields still coexist here behind the new facade.\\
+\code{backend/panel.jl} & Surface and wake panel representations and panel-level geometry operations.\\
+\code{backend/geometry.jl} & Converts grid vertices into panels, collocation/force geometry and associated geometric data.\\
+\code{backend/reference.jl}, \code{freestream.jl} & Reference area/chord/span/density and coordinate-frame/freestream conventions.\\
+\code{backend/induced.jl} & Vortex-segment induced velocities and influence assembly, including finite-core and interaction handling.\\
+\code{backend/circulation.jl} & Boundary-condition right-hand side and circulation-system solution.\\
+\code{backend/analyses.jl} & Steady and unsteady orchestration, one-step propagation and separate wake advancement.\\
+\code{backend/wake.jl} & Wake velocities, convection and shedding. Wake history is chronological numerical state.\\
+\code{backend/nearfield.jl} & Corrected dimensional Imperial segment loads; selected by the new generic facade.\\
+\code{backend/nearfield_postprocessing.jl} & Nodal load assembly, matching application points and coefficient/result reduction.\\
+\code{backend/legacy_nearfield.jl} & Retained alternative force implementation for explicit legacy comparisons.\\
+\code{backend/farfield.jl}, \code{stability.jl} & Existing far-field and stability/postprocessing utilities; no new native coupled eigenproblem is introduced.\\
+\code{backend/nonlinear.jl} & Retained nonlinear aerodynamic routines outside the initial generic facade's supported path.\\
+\code{backend/rotors.jl}, \code{vspgeom.jl} & Existing rotor/import utilities. Generic model construction initially receives already defined vertex grids.\\
+\code{backend/visualization.jl} & Existing aerodynamic geometry/solution visualization export.\\
+\code{wing_propeller/BladeGeometry.jl} & Tabulated/interpolated blade geometry and twist definitions.\\
+\code{wing_propeller/GridUtilities.jl} & Interpolation and wing/propeller grid construction.\\
+\code{wing_propeller/Initialization.jl} & Existing case-oriented combined wing/rotor backend initialization.\\
+\code{wing_propeller/Kinematics.jl} & Updates grid positions and rotor/deformation motion.\\
+\code{aeroelastic/GeneralizedAlpha.jl} & Generalized-alpha parameters/corrector, scaled partitioned residuals and iteration.\\
+\code{aeroelastic/Excitations.jl} & Smooth pulse shape and generalized excitation loads.\\
+\bottomrule
+\end{longtable}
+
+The next table uses paths relative to \code{studies/src}.
+\begin{longtable}{@{}L{.35\linewidth}L{.57\linewidth}@{}}
+\toprule File & Responsibility\\\midrule\endhead
+\code{WingPropellerUVLMStudies.jl} & Package entry, shared module inclusion, public exports and loaded source identity.\\
+\code{StudySettings.jl} & Canonical/legacy key translation, duplicate rejection, recursive overrides, typed study constructors, solve dispatch and archival inspection.\\
+\code{StudyRunner.jl} & Verifies the aerodynamic selection, applies the aeroelastic speed/RPM override, invokes the central moving-block run and writes its operating-point report.\\
+\code{ChangProblem.jl} & Builds the retained Chang model from explicit settings and wraps its run as create/solve/result operations.\\
+\code{Convergence.jl} & Case definitions, ordered sweeps, case reuse/execution, refinement comparisons, plots, tables and study orchestration.\\
+\code{aerodynamic_options.jl} & Existing rigid aerodynamic option definitions, validity checks and per-case metadata/file integrity.\\
+\code{aerodynamic_backend.jl} & Rigid combined wing/rotor calculation and dimensional load reduction.\\
+\code{aerodynamic_selection.jl} & Selects controls, requires combined verification, writes and verifies the handoff evidence.\\
+\code{aeroelastic_adapter.jl} & Converts selected aerodynamic controls to explicit Chang settings, launches cases, checks grid completion and collects fits.\\
+\code{MovingBlockDamping.jl} & Reference moving-block estimator, screening, block FFT, growth/frequency fit and diagnostics.\\
+\code{moving_block_adapter.jl} & Connects the chosen estimator to convergence validation/output; stores its identity and diagnostics.\\
+\code{damping_metrics.jl} & Existing response reader and legacy estimator retained for compatibility and archived workflows. Current typed aeroelastic studies use MovingBlockDamping.\\
+\code{Provenance.jl} & Conservative numerical source identity including indirect study and benchmark dependencies.\\
+\bottomrule
+\end{longtable}
+
+The retained benchmark sources live in
+\code{examples/chang_linear_aeroelastic/src}.
+\begin{longtable}{@{}L{.37\linewidth}L{.55\linewidth}@{}}
+\toprule File & Responsibility\\\midrule\endhead
+\code{ChangAeroelastic.jl} & Assembles the case module, defines ChangModel, builds workspaces and coordinates solving/postprocessing. The new wrapper passes its already built model into this orchestration.\\
+\code{chang_configuration.jl} & Parses/resolves legacy benchmark settings, automatic defaults and units; validates physical/numerical choices. New constructors explicitly disable environment overrides.\\
+\code{chang_model_parameters.jl} & Resolves model dimensions, attachments, rotor speed, time grid, reference quantities and derived parameters.\\
+\code{chang_structural_matrices.jl} & Beam, pylon, mass/inertia and gyroscopic matrix primitives.\\
+\code{chang_structural_model.jl} & Assembles the retained benchmark's constrained M/C/K system and structural metadata.\\
+\code{chang_workspaces.jl} & Allocates combined UVLM/structural working arrays and wake/motion context.\\
+\code{chang_uvlm_coupling.jl} & Trial structural-to-grid motion and aerodynamic generalized loads, including the benchmark's virtual-work moment projection.\\
+\code{chang_simulation.jl} & Accepted time-step loop, baseline preparation, excitation, partitioned iteration, wake commit and failure/limit handling.\\
+\code{chang_postprocessing.jl} & Extracts physical response histories from structural coordinates and writes requested output.\\
+\code{chang_plotting.jl}, \code{chang_animation.jl} & Optional time-history plots and sampled geometry/wake animation.\\
+\code{chang_propeller_trim.jl} & Retained specialized propeller/baseline helper; its name does not turn startup load subtraction into a native AeroBeams trim solution.\\
+\bottomrule
+\end{longtable}
+
+\section{Public function contracts and call paths}
+
+\begin{longtable}{@{}L{.36\linewidth}L{.56\linewidth}@{}}
+\toprule Function & Contract\\\midrule\endhead
+\code{create_OperatingPoint} & Requires positive finite airspeed/density. Prescribed RPM or reference-RPM scaling is resolved once; conflicting policies are rejected.\\
+\code{create_UVLMModel} & Requires finite vertex grids and positive reference quantities; copies input geometry and validates per-surface flags/groups.\\
+\code{create_UVLMSolver} & Requires a positive fixed core and shedding fraction between zero and one.\\
+\code{create_PartitionedCoupling} & Returns the existing validated PartitionedCouplingOptions. Its backend fields retain snake\_case.\\
+\code{create_UVLMDynamicProblem} & Resolves time grid, initializes geometry and empty wake, and allocates independent accepted/trial storage.\\
+\code{begin_time_step!} & Opens the next scheduled interval without advancing accepted history.\\
+\code{evaluate_trial!} & Restores a copy of accepted state, applies trial geometry, solves circulation/loads and returns dimensional forces/positions.\\
+\code{commit_time_step!} & Convects/sheds on a private copy, installs accepted history, updates counts/time and saves requested output.\\
+\code{rollback_time_step!} & Discards trial storage and restores attempted-step flags to accepted time.\\
+\code{create_UVLMSteadyProblem}, \code{solve!} & Wrap the existing full-interaction steady backend; solved backend results are in \code{problem.system}.\\
+\code{create_ChangModel}, \code{create_ChangDynamicProblem} & Resolve explicit benchmark inputs, construct retained structural data and describe one run.\\
+\code{create_AerodynamicConvergenceStudy}, \code{create_AeroelasticConvergenceStudy} & Copy/normalize settings, apply validated overrides and create an unsolved study object.\\
+\code{study_settings}, \code{legacy_settings} & Return copied canonical settings or their compatibility representation.\\
+\code{Studies.solve!} & Runs the selected study/benchmark, records results and preserves existing evidence rules.\\
+\bottomrule
+\end{longtable}
+
+The aerodynamic call path is: entry settings $\to$ typed study $\to$
+Convergence case matrix $\to$ rigid backend $\to$ periodic CT/CQ histories
+$\to$ individual comparisons $\to$ combined verification $\to$ selection.
+
+The aeroelastic path is: verified selection $\to$ optional speed/RPM override
+$\to$ translated Chang configuration $\to$ structural model/workspace
+$\to$ partitioned accepted steps $\to$ complete response history
+$\to$ moving-block pitch/yaw fits $\to$ refinement comparisons.
+
+The generic prescribed-motion path is: grid model + operating point + solver
+$\to$ dynamic problem $\to$ begin/evaluate/commit $\to$ dimensional histories.
+This third path does not call the Chang structural matrices or the convergence
+runner.
+
+\section{Verification and remaining migration work}
+
+Before edits, the existing suite passed 434 assertions. The original numerical
+fingerprint is recorded in \code{docs/migration/baseline.toml}. Migration tests
+compare old one-call propagation to the new trial/commit path for circulation,
+temporal rates, forces and wake geometry, including a mature wake and capacity
+truncation. They check A--B--A trials, failed geometry, rollback, duplicate
+commit, copied results, steady parity, settings translation and dry-run behavior.
+The existing moving-block reference regressions and selection tests are retained.
+
+\textbf{Final result: 508 assertions passed in the declared studies environment
+on Julia 1.11.5.} This comprises the 434 existing checks and 74 additional checks.
+A 38-step Chang response at 85 m/s has exactly matching displacement, velocity
+and coupling-iteration histories through the legacy and new interfaces. A
+deliberately stopped case is rejected before damping acceptance. The lockfile
+was resolved with Julia Pkg and checked against the declared compatibility
+bounds, including Interpolations 0.15.1. These checks validate the migration;
+they do not establish a full six-second damping response or a converged
+production aerodynamic selection.
+
+Run the full library and study suite with:
+\begin{lstlisting}
+julia --project=lib/WingPropellerUVLM/studies lib/WingPropellerUVLM/studies/test/runtests.jl
+\end{lstlisting}
+That runner restricts the package load path to the declared project and Julia
+standard libraries. The core library suite is separated from study/FFT tests
+so the aerodynamic package can also be tested in isolation. Validation results
+and any environment limits are recorded in \code{docs/migration/VALIDATION.md}.
+
+This delivery introduces working facade objects and migrates shared studies.
+It does not claim completion of every item in the P0--P11 roadmap. Remaining
+work includes a deeper backend field-ownership split and buffer optimization,
+fully separated writers for the retained Chang path, minimal stage-specific
+dependency fingerprints, additional wing-load convergence criteria and
+independent structural/aerodynamic meshes. The native AeroBeams bridge,
+external structural load/step hooks, rotor structural correspondence, adaptive
+coupling and eigen/periodic stability remain separate numerical work.
+
+\section{Compiling this self-contained document}
+All listings below are embedded text. They do not execute Julia during LaTeX
+compilation, and no external source files, images or bibliography are required.
+Run twice to resolve the contents and references:
+\begin{lstlisting}
+pdflatex -interaction=nonstopmode -halt-on-error UVLM_ANALYSIS_GUIDE.tex
+pdflatex -interaction=nonstopmode -halt-on-error UVLM_ANALYSIS_GUIDE.tex
+\end{lstlisting}
+The source can also be uploaded alone to Overleaf with pdfLaTeX selected.
+The authoring environment did not provide a LaTeX compiler; rendered PDF
+inspection is therefore not asserted by the source-level checks.
+
+\appendix
+\section{Complete executable entries and facade sources}
+These listings reproduce the delivered code. Comments describe the retained physical conventions; the main text explains how each entry is used. File paths identify the source location, but compilation does not read those files.
+\subsection{\texorpdfstring{\code{prescribed_wing.jl}}{prescribed wing.jl}}
+\code{lib/WingPropellerUVLM/examples/prescribed_wing.jl}
+\begin{lstlisting}
+# Run with --project=lib/WingPropellerUVLM. Including defines the module only.
+module PrescribedWingExample
+import WingPropellerUVLM as UVLM
+
+function create_problem()
+    grid,_=UVLM.wing_to_grid([0.,0.],[0.,1.],[0.,0.],ones(2),zeros(2),zeros(2),4,2)
+    model=UVLM.create_UVLMModel(;surfaces=[grid],
+        reference=UVLM.Reference(1.,1.,1.,zeros(3),10.),name="Prescribed heaving wing")
+    point=UVLM.create_OperatingPoint(;airspeed=10.,density=1.225,angleOfAttack=deg2rad(3.))
+    solver=UVLM.create_UVLMSolver(;coreRadius=.001)
+    function motion(model,t)
+        grids=deepcopy(model.grids)
+        grids[1][3,:,:] .+= .002*sin(2pi*2t)
+        return grids
+    end
+    return UVLM.create_UVLMDynamicProblem(;model,operatingPoint=point,aeroSolver=solver,
+        timeVector=collect(0.:.005:.05),maximumWakeRows=10,surfaceMotion=motion,
+        trackingTimeSteps=true,trackingFrequency=1,saveGeometry=false)
+end
+main()=UVLM.solve!(create_problem())
+end
+if abspath(PROGRAM_FILE)==@__FILE__
+    problem=PrescribedWingExample.main()
+    println("Completed: ",problem.results.completed)
+    println("Last force [N]: ",last(problem.results.forceOverTime))
+end
+
+\end{lstlisting}
+\subsection{\texorpdfstring{\code{chang_convergence_aerodynamic.jl}}{chang convergence aerodynamic.jl}}
+\code{lib/WingPropellerUVLM/examples/chang_linear_aeroelastic/studies/convergence/chang_convergence_aerodynamic.jl}
+\begin{lstlisting}
+# Aerodynamic convergence. Edit camelCase settings in create_study().
+# Including this file defines the entry only. Use the studies project in the REPL.
+if abspath(PROGRAM_FILE) == @__FILE__
+    import Pkg
+    Pkg.activate(normpath(joinpath(@__DIR__,"..","..","..","..","studies")))
+end
+
+module ChangConvergenceAerodynamic
+import WingPropellerUVLMStudies
+const Convergence=WingPropellerUVLMStudies.Convergence
+
+function create_study()
+    airspeed = 65.0
+    trimSpeed = 65.0
+    trimRpm = 1212.0
+    propellerRadius = 1.15
+    muProp = trimSpeed / (trimRpm * 2 * pi / 60.0) / propellerRadius
+    omega = airspeed / propellerRadius / muProp
+    rpm = omega * 60.0 / (2 * pi)
+    physical = (
+        airspeed = airspeed,
+        densityKgpm3 = 1.225,
+        alphaDeg = 3.0,
+        betaDeg = 0.0,
+        wingSpanM = 7.5,
+        wingRootChordM = 1.8,
+        wingTipChordM = 1.8,
+        wingSymmetric = true, # Wing/wake images only. Blades never use symmetry.
+        elasticAxisFraction = 0.30,
+        propellerRadiusM = propellerRadius,
+        propellerChordM = 0.197,
+        blades = 4,
+        attachmentEta = 0.83,
+        pylonLengthM = 5.6 * 0.3048,
+        rpm = rpm, # Actual RPM at airspeed; derived from the constant mu_prop.
+        collectiveOffsetDeg = 0.0,
+        interaction = false,
+        wakeSheddingFraction = 0.1,
+    )
+
+    # Core mode: :fixed (metres), :chord (fraction of full local chord),
+    # or :segment (fraction of the local 3D span/radial vortex edge).
+    coreMode = :fixed
+    nominal = (wingSpanPanels=30, wingChordPanels=10, propellerRadialPanels=10, propellerChordPanels=10,
+        wakeRevolutions=2.0, core=0.001, azimuthStepDeg=5.0)
+
+    # Absolute panel counts per direction (propeller counts are per blade).
+    # Each family varies one parameter; others retain the nominal values.
+    # Use at least three ordered levels for every enabled family.
+    sweeps = (
+        wingSpanPanels = [20, 40, 60],
+        wingChordPanels = [5, 10, 20],
+        propellerRadialPanels = [5, 10, 20],
+        propellerChordPanels = [5, 10, 20],
+        wakeRevolutions = [1.0, 2.0, 3.0],
+        core = [0.01, 0.003, 0.001, 0.0003],
+        azimuthStepDeg = [5.0, 2.5, 1.25],
+    )
+    settings = (;
+        physical, coreMode, nominal, sweeps,
+        families = collect(keys(sweeps)),
+        simulatedRevolutions = 8,
+        averagedRevolutions = 2,
+        absoluteTolerances = (CT=1e-6, CQ=1e-6),
+        relativeTolerance = 0.01,
+        periodicTolerances = (CT=1e-6, CQ=1e-6),
+        dryRun = false, # true writes only the case matrix.
+        makePlots = true,
+        reuseExisting = true,
+        # Publish a selection only after every family AND a combined
+        # candidate/finer verification satisfy the CT/CQ criteria.
+        confirmSelection = true,
+        outputDirectory = normpath(joinpath(@__DIR__,"..","..","output","convergence_aerodynamic")),
+    )
+    return WingPropellerUVLMStudies.create_AerodynamicConvergenceStudy(settings)
+end
+
+# Legacy settings access retains the original schema for existing scripts.
+aerodynamic_study()=WingPropellerUVLMStudies.legacy_settings(create_study())
+main()=WingPropellerUVLMStudies.solve!(create_study()).results
+end
+
+if abspath(PROGRAM_FILE) == @__FILE__
+    ChangConvergenceAerodynamic.main()
+end
+
+\end{lstlisting}
+\subsection{\texorpdfstring{\code{chang_convergence_aeroelastic.jl}}{chang convergence aeroelastic.jl}}
+\code{lib/WingPropellerUVLM/examples/chang_linear_aeroelastic/studies/convergence/chang_convergence_aeroelastic.jl}
+\begin{lstlisting}
+# Aeroelastic convergence. Edit camelCase settings in create_study().
+# Including this file defines the entry only. Use the studies project in the REPL.
+if abspath(PROGRAM_FILE) == @__FILE__
+    import Pkg
+    Pkg.activate(normpath(joinpath(@__DIR__,"..","..","..","..","studies")))
+end
+
+module ChangConvergenceAeroelastic
+import WingPropellerUVLMStudies
+const Convergence=WingPropellerUVLMStudies.Convergence
+const MovingBlockStudy=WingPropellerUVLMStudies.MovingBlockStudy
+const MovingBlockDamping=WingPropellerUVLMStudies.MovingBlockDamping
+operating_selection(selection,s)=WingPropellerUVLMStudies.operating_selection(selection,s)
+run_aeroelastic(s=aeroelastic_study())=WingPropellerUVLMStudies.run_aeroelastic(s)
+
+function create_study()
+    settings = (;
+        selectionFile = normpath(joinpath(@__DIR__,"..","..","output",
+            "convergence_aerodynamic","aerodynamic_selection.toml")),
+        outputDirectory = normpath(joinpath(@__DIR__,"..","..","output","convergence_aeroelastic")),
+        dryRun = false,
+        makePlots = true,
+
+        # nothing: aerodynamic speed. Set e.g. 85.0 for this aeroelastic study only.
+        # RPM scales by new_speed / aerodynamic_speed (constant advance ratio).
+        airspeed = 80,
+
+        # nothing: selected aerodynamic value followed by two finer values.
+        # Supply explicit absolute lists to choose your own refinements.
+        # Lists must start at the selected value and have >=3 ordered levels.
+        # Wing span remains fixed at the selected structural element count.
+        sweeps = (
+            wingChordPanels = nothing,    # e.g. [10, 12, 15] if 10 was selected
+            propellerRadialPanels = nothing,
+            propellerChordPanels = nothing,
+            wakeRevolutions = nothing,
+            core = nothing,
+            azimuthStepDeg = nothing,
+        ),
+        families = [:wingChordPanels,:propellerRadialPanels,:propellerChordPanels,:wakeRevolutions,:core,:azimuthStepDeg],
+
+        response = (
+            finalTime = 6.0,
+            baselineRevolutions = 10.0,
+            baselineAverageRevolutions = 1.0,
+            impulseStartS = nothing, # automatic: after trim_revolutions
+            impulseDurationS = 0.15,
+            impulseMagnitudeNm = 1200.0,
+        ),
+        damping = (
+            fitStartS = nothing, # after pulse + one revolution; at least 0.75 s
+            # moving_block_2.jl: rectangular, mean-removed FFT blocks shifted
+            # one sample; lambda is the slope of log amplitude against time.
+            blockSizeMode = :record_fraction, # or :duration for a fixed window
+            blockSize = 512, # doubled/halved to satisfy the ratios below
+            sizeRatioLb = 0.25,
+            sizeRatioUb = 0.50,
+            peakFromStart = 1,
+            peakFromEnd = 0,
+            blockDurationS = 1.0, # used only with :duration
+            blockOverlap = 0.9,    # used only with :duration
+            frequencyBandHz = (3.0,6.0), # acceptance check on GLOBAL dominant frequency
+            minimumPeaks = 8,
+            minimumFitRSquared = 0.8,
+            lambdaTolerancePerS = 0.01,
+            frequencyToleranceHz = 0.1,
+        ),
+        structural = (
+            propellerDampingRatio = 0.0,
+            stiffnessDampingRatio = 0.0,
+            dampingReferenceFrequencyHz = nothing,
+            pitchFrequencyHz = 7.97,
+            yawFrequencyHz = 7.97,
+            pitchStiffnessNmPerRad = 19220.0,
+            yawStiffnessNmPerRad = 18916.0,
+            twistFrequencyHz = 12.73,
+            twistStiffnessNmPerRad = 16835.0,
+            pylonMassPerLengthKgpm = 0.0506 * 14.5939029372064 / 0.3048,
+            bladeMassKg = 1.44,
+        ),
+        integration = (rhoInf=1.0, stateNormLimit=1e3, propellerAngleLimitDeg=Inf),
+        coupling = (maximumIterations=10,stateTolerance=1e-5,loadTolerance=1e-2,
+            equilibriumTolerance=1e-10,coupledEquilibriumTolerance=1e-4,relaxation=1.0),
+        propellerMomentProjection = :exact_virtual_work,
+        hubLoadArmFactor = 0.5,
+    )
+    return WingPropellerUVLMStudies.create_AeroelasticConvergenceStudy(settings)
+end
+
+# Legacy settings access retains the original schema for existing scripts.
+aeroelastic_study()=WingPropellerUVLMStudies.legacy_settings(create_study())
+main()=WingPropellerUVLMStudies.solve!(create_study()).results
+end
+
+if abspath(PROGRAM_FILE) == @__FILE__
+    ChangConvergenceAeroelastic.main()
+end
+
+\end{lstlisting}
+\subsection{\texorpdfstring{\code{OperatingPoint.jl}}{OperatingPoint.jl}}
+\code{lib/WingPropellerUVLM/src/OperatingPoint.jl}
+\begin{lstlisting}
+"""Resolved SI flow and prescribed rotor operating point. Angles are radians."""
+struct OperatingPoint
+    airspeed::Float64
+    density::Float64
+    angleOfAttack::Float64
+    sideslip::Float64
+    angularSpeed::Float64
+    referenceAirspeed::Float64
+    referenceRotationRPM::Float64
+    rotorSpeedPolicy::Symbol
+end
+
+function create_OperatingPoint(; airspeed, density=1.225, angleOfAttack=0.0,
+    sideslip=0.0, rotationRPM=nothing, referenceAirspeed=airspeed,
+    referenceRotationRPM=nothing, rotorSpeedPolicy=:prescribed)
+    all(x -> x isa Real && !(x isa Bool) && isfinite(x),
+        (airspeed,density,angleOfAttack,sideslip,referenceAirspeed)) ||
+        throw(ArgumentError("Operating point must contain finite real values"))
+    airspeed>0 && density>0 && referenceAirspeed>0 ||
+        throw(ArgumentError("Airspeed, reference airspeed and density must be positive"))
+    rotorSpeedPolicy in (:prescribed,:constantAdvanceRatio) ||
+        throw(ArgumentError("rotorSpeedPolicy must be :prescribed or :constantAdvanceRatio"))
+    if rotorSpeedPolicy==:constantAdvanceRatio
+        isnothing(rotationRPM) || throw(ArgumentError("Specify referenceRotationRPM, not rotationRPM, for proportional scaling"))
+        isnothing(referenceRotationRPM) && throw(ArgumentError("referenceRotationRPM is required"))
+        rpm=referenceRotationRPM*airspeed/referenceAirspeed
+    else
+        isnothing(referenceRotationRPM) || throw(ArgumentError("Use rotationRPM for :prescribed speed"))
+        rpm=something(rotationRPM,0.0)
+        referenceRotationRPM=rpm
+    end
+    all(x -> x isa Real && !(x isa Bool) && isfinite(x),(rpm,referenceRotationRPM)) ||
+        throw(ArgumentError("Rotor speeds must be finite"))
+    return OperatingPoint(airspeed,density,angleOfAttack,sideslip,2pi*rpm/60,
+        referenceAirspeed,referenceRotationRPM,rotorSpeedPolicy)
+end
+freestream(p::OperatingPoint) = Freestream(p.airspeed,p.angleOfAttack,p.sideslip,zeros(3))
+
+
+\end{lstlisting}
+\subsection{\texorpdfstring{\code{UVLMModel.jl}}{UVLMModel.jl}}
+\code{lib/WingPropellerUVLM/src/UVLMModel.jl}
+\begin{lstlisting}
+"""Reference aerodynamic vertex grids and coefficient references; treat as read-only.
+Grids have size (3, nChordwisePanels+1, nSpanwisePanels+1), in metres.
+"""
+struct UVLMModel{G,R}
+    name::String
+    grids::G
+    reference::R
+    symmetric::Vector{Bool}
+    interactionGroups::Vector{Int}
+end
+function create_UVLMModel(; surfaces,reference,name="",symmetric=false,interactionGroups=nothing)
+    isempty(surfaces) && throw(ArgumentError("At least one vertex grid is required"))
+    for g in surfaces
+        ndims(g)==3 && size(g,1)==3 && size(g,2)>=2 && size(g,3)>=2 ||
+            throw(ArgumentError("surfaces must contain (3,nChord+1,nSpan+1) vertex grids"))
+        all(isfinite,g) || throw(ArgumentError("Geometry must be finite"))
+    end
+    reference isa Reference || throw(ArgumentError("reference must be a Reference"))
+    all(x -> isfinite(x) && x>0,(reference.S,reference.c,reference.b,reference.V,reference.rho)) &&
+        all(isfinite,reference.r) || throw(ArgumentError("Invalid reference quantities"))
+    n=length(surfaces)
+    sym=symmetric isa Bool ? fill(symmetric,n) : Bool.(symmetric)
+    ids=isnothing(interactionGroups) ? collect(1:n) : Int.(interactionGroups)
+    length(sym)==length(ids)==n || throw(DimensionMismatch("One symmetry/group entry per surface is required"))
+    return UVLMModel(String(name),[Float64.(g) for g in surfaces],deepcopy(reference),sym,ids)
+end
+
+"""Aerodynamic algorithm controls. AIC assembly remains enabled for moving geometry."""
+struct UVLMSolver
+    coreRadius::Float64
+    interaction::Bool
+    wakeSheddingFraction::Float64
+end
+function create_UVLMSolver(;coreRadius=1e-3,interaction=true,wakeSheddingFraction=.1)
+    isfinite(coreRadius) && coreRadius>0 || throw(ArgumentError("coreRadius must be positive"))
+    isfinite(wakeSheddingFraction) && 0<=wakeSheddingFraction<=1 ||
+        throw(ArgumentError("wakeSheddingFraction must lie in [0,1]"))
+    return UVLMSolver(coreRadius,interaction,wakeSheddingFraction)
+end
+
+"""AeroBeams-style constructor for the existing linear partitioned solver options."""
+function create_PartitionedCoupling(;maximumIterations=10,stateTolerance=1e-5,
+    loadTolerance=1e-2,equilibriumTolerance=1e-10,coupledEquilibriumTolerance=1e-4,
+    relaxation=1.0)
+    options=PartitionedCouplingOptions(;maximum_iterations=maximumIterations,
+        state_tolerance=stateTolerance,load_tolerance=loadTolerance,
+        equilibrium_tolerance=equilibriumTolerance,
+        coupled_equilibrium_tolerance=coupledEquilibriumTolerance,relaxation)
+    validate_partitioned_coupling_options(options)
+    return options
+end
+
+
+\end{lstlisting}
+\subsection{\texorpdfstring{\code{UVLMProblem.jl}}{UVLMProblem.jl}}
+\code{lib/WingPropellerUVLM/src/UVLMProblem.jl}
+\begin{lstlisting}
+"""Accepted aerodynamic state. The backend System remains a transitional storage facade."""
+mutable struct UVLMState{S}
+    system::S
+    timeNow::Float64
+    stepIndex::Int
+end
+"""Private trial System and scratch storage, isolated from the accepted state."""
+mutable struct UVLMWorkspace{S}
+    system::S
+    trialReady::Bool
+    stepOpen::Bool
+    timeEndTimeStep::Float64
+end
+mutable struct UVLMResults
+    completed::Bool
+    terminationReason::String
+    savedTimeVector::Vector{Float64}
+    circulationOverTime::Vector{Vector{Float64}}
+    forceOverTime::Vector{Vector{Float64}}
+    momentOverTime::Vector{Vector{Float64}}
+    surfaceGeometryOverTime::Vector{Any}
+end
+UVLMResults()=UVLMResults(false,"initialized",Float64[],Vector{Float64}[],
+    Vector{Float64}[],Vector{Float64}[],Any[])
+
+mutable struct UVLMDynamicProblem{M,F,S}
+    model::M
+    aeroSolver::UVLMSolver
+    operatingPoint::OperatingPoint
+    timeVector::Vector{Float64}
+    surfaceMotion::F
+    state::UVLMState{S}
+    workspace::UVLMWorkspace{S}
+    trackingTimeSteps::Bool
+    trackingFrequency::Int
+    saveGeometry::Bool
+    results::UVLMResults
+end
+
+function initialize_backend(model,solver,point,maximumWakeRows,grids)
+    length(grids)==length(model.grids) || throw(DimensionMismatch("Surface count changed"))
+    system=System(deepcopy(model.grids);nw=maximumWakeRows)
+    system.reference[]=Reference(model.reference.S,model.reference.c,model.reference.b,
+        model.reference.r,point.airspeed,point.density)
+    system.freestream[]=freestream(point)
+    system.symmetric .= model.symmetric
+    system.surface_id .= model.interactionGroups
+    apply_trial_geometry!(system,grids,solver)
+    copy_surfaces_to_previous!(system,length(system.surfaces))
+    return system
+end
+function apply_trial_geometry!(system,grids,solver)
+    length(grids)==length(system.grids) || throw(DimensionMismatch("Surface count changed"))
+    for i in eachindex(grids)
+        size(grids[i])==size(system.grids[i]) || throw(DimensionMismatch("Grid topology changed"))
+        all(isfinite,grids[i]) || throw(ArgumentError("Nonfinite trial geometry"))
+        system.grids[i] .= grids[i]
+        _,ratio,panels=grid_to_surface_panels(system.grids[i];fcore=(c,ds)->solver.coreRadius)
+        system.ratios[i] .= ratio
+        system.surfaces[i] .= panels
+    end
+    return system
+end
+
+"""Create a fixed-grid or prescribed-motion aerodynamic analysis.
+`surfaceMotion(model,time)` returns all vertex grids at that time, without
+mutating model. No structural equations or automatic rotor motion are inferred.
+Specify either timeVector or initialTime/Δt/finalTime. Initial wake is empty.
+"""
+function create_UVLMDynamicProblem(;model,aeroSolver=create_UVLMSolver(),operatingPoint,
+    initialTime=0.0,Δt=nothing,finalTime=nothing,timeVector=nothing,
+    maximumWakeRows=100,surfaceMotion=(m,t)->m.grids,
+    trackingTimeSteps=true,trackingFrequency=1,saveGeometry=false)
+    trackingFrequency isa Integer && trackingFrequency>0 || throw(ArgumentError("trackingFrequency must be positive"))
+    if isnothing(timeVector)
+        !isnothing(Δt) && !isnothing(finalTime) || throw(ArgumentError("Provide Δt and finalTime, or timeVector"))
+        all(isfinite,(initialTime,Δt,finalTime)) && Δt>0 && finalTime>initialTime ||
+            throw(ArgumentError("Invalid time interval"))
+        times=collect(Float64(initialTime):Float64(Δt):Float64(finalTime))
+    else
+        isnothing(Δt) && isnothing(finalTime) || throw(ArgumentError("timeVector conflicts with Δt/finalTime"))
+        times=Float64.(timeVector)
+    end
+    length(times)>=2 && all(isfinite,times) && all(>(0),diff(times)) ||
+        throw(ArgumentError("At least two finite, increasing time samples are required"))
+    n=length(model.grids)
+    rows=maximumWakeRows isa Integer ? fill(Int(maximumWakeRows),n) : Int.(maximumWakeRows)
+    length(rows)==n && all(>(0),rows) || throw(ArgumentError("Positive wake capacity required for every surface"))
+    sys=initialize_backend(model,aeroSolver,operatingPoint,rows,surfaceMotion(model,first(times)))
+    state=UVLMState(sys,first(times),1)
+    workspace=UVLMWorkspace(deepcopy(sys),false,false,first(times))
+    return UVLMDynamicProblem(model,aeroSolver,operatingPoint,times,surfaceMotion,
+        state,workspace,trackingTimeSteps,trackingFrequency,saveGeometry,UVLMResults())
+end
+
+function begin_time_step!(p::UVLMDynamicProblem)
+    p.workspace.stepOpen && throw(ArgumentError("A time step is already open"))
+    p.state.stepIndex<length(p.timeVector) || throw(ArgumentError("No remaining time steps"))
+    p.workspace.timeEndTimeStep=p.timeVector[p.state.stepIndex+1]
+    p.workspace.stepOpen=true
+    p.workspace.trialReady=false
+    return p
+end
+
+"""Evaluate a trial from the accepted state. This never commits wake history.
+Returns dimensional vertex forces and their matching application points.
+"""
+function evaluate_trial!(p::UVLMDynamicProblem;surfaces=nothing)
+    w=p.workspace
+    w.stepOpen || throw(ArgumentError("Call begin_time_step! first"))
+    w.trialReady=false
+    w.system=deepcopy(p.state.system)
+    sys=w.system
+    copy_surfaces_to_previous!(sys,length(sys.surfaces))
+    grids=isnothing(surfaces) ? p.surfaceMotion(p.model,w.timeEndTimeStep) : surfaces
+    apply_trial_geometry!(sys,grids,p.aeroSolver)
+    propagate_system!(sys,freestream(p.operatingPoint),w.timeEndTimeStep-p.state.timeNow;
+        additional_velocity=nothing,repeated_points=repeated_trailing_edge_points(sys.surfaces),
+        nwake=copy(p.state.system.nwake),eta=p.aeroSolver.wakeSheddingFraction,
+        calculate_influence_matrix=true,near_field_analysis=true,derivatives=false,
+        interaction_id=p.model.interactionGroups,interaction=p.aeroSolver.interaction,advance_wake=false)
+    all(isfinite,sys.Γ) && all(isfinite,sys.dΓdt) || error("Nonfinite aerodynamic trial")
+    loads=dimensional_loads(sys)
+    all(f -> all(v->all(isfinite,v),f),loads.forces) || error("Nonfinite aerodynamic forces")
+    w.trialReady=true
+    return loads
+end
+
+"""Dimensional vertex loads in backend coordinates; positions use the same force geometry."""
+function dimensional_loads(system::System)
+    return (;forces=imperial_nodal_forces(system),positions=imperial_nodal_positions(system))
+end
+dimensional_loads(p::UVLMDynamicProblem)=dimensional_loads(p.state.system)
+
+function save_time_step!(p::UVLMDynamicProblem)
+    loads=dimensional_loads(p)
+    force=zeros(3); moment=zeros(3)
+    for i in eachindex(loads.forces), j in eachindex(loads.forces[i])
+        f=loads.forces[i][j]; r=loads.positions[i][j]-p.model.reference.r
+        force .+= f; moment .+= cross(r,f)
+    end
+    result=p.results
+    push!(result.savedTimeVector,p.state.timeNow)
+    push!(result.circulationOverTime,copy(p.state.system.Γ))
+    push!(result.forceOverTime,force); push!(result.momentOverTime,moment)
+    p.saveGeometry && push!(result.surfaceGeometryOverTime,deepcopy(p.state.system.surfaces))
+    return p
+end
+
+function commit_time_step!(p::UVLMDynamicProblem)
+    w=p.workspace
+    w.stepOpen && w.trialReady || throw(ArgumentError("A successful uncommitted trial is required"))
+    # Commit on a private copy: a wake-convection failure leaves the trial retryable.
+    sys=deepcopy(w.system)
+    rows=copy(p.state.system.nwake)
+    advance_wake!(sys,freestream(p.operatingPoint),w.timeEndTimeStep-p.state.timeNow;
+        nwake=rows,interaction_id=p.model.interactionGroups,interaction=p.aeroSolver.interaction)
+    commit_wake_rows!(rows,size.(sys.wakes,1)); sys.nwake .= rows
+    p.state.system=sys
+    p.state.timeNow=w.timeEndTimeStep; p.state.stepIndex+=1
+    w.stepOpen=false; w.trialReady=false
+    if p.trackingTimeSteps && (mod(p.state.stepIndex-1,p.trackingFrequency)==0 || p.state.stepIndex==length(p.timeVector))
+        save_time_step!(p)
+    end
+    p.results.completed=p.state.stepIndex==length(p.timeVector)
+    p.results.terminationReason=p.results.completed ? "completed" : "running"
+    return p
+end
+function rollback_time_step!(p::UVLMDynamicProblem)
+    p.workspace.system=deepcopy(p.state.system)
+    p.workspace.stepOpen=false; p.workspace.trialReady=false
+    p.workspace.timeEndTimeStep=p.state.timeNow
+    return p
+end
+function solve!(p::UVLMDynamicProblem)
+    p.workspace.stepOpen && throw(ArgumentError("Finish or roll back the open trial before solve!"))
+    try
+        while p.state.stepIndex<length(p.timeVector)
+            begin_time_step!(p); evaluate_trial!(p); commit_time_step!(p)
+        end
+    catch e
+        rollback_time_step!(p)
+        p.results.terminationReason=sprint(showerror,e)
+        rethrow()
+    end
+    return p
+end
+
+mutable struct UVLMSteadyProblem{M}
+    model::M
+    aeroSolver::UVLMSolver
+    operatingPoint::OperatingPoint
+    system::Union{Nothing,System}
+end
+function create_UVLMSteadyProblem(;model,aeroSolver=create_UVLMSolver(),operatingPoint)
+    aeroSolver.interaction || throw(ArgumentError("Steady facade currently requires full interaction"))
+    return UVLMSteadyProblem(model,aeroSolver,operatingPoint,nothing)
+end
+function solve!(p::UVLMSteadyProblem)
+    m=p.model; op=p.operatingPoint
+    ref=Reference(m.reference.S,m.reference.c,m.reference.b,m.reference.r,op.airspeed,op.density)
+    p.system=steady_analysis(deepcopy(m.grids),ref,freestream(op);symmetric=m.symmetric,
+        surface_id=m.interactionGroups,fcore=(c,ds)->p.aeroSolver.coreRadius,derivatives=false)
+    return p
+end
+
+\end{lstlisting}
+\subsection{\texorpdfstring{\code{StudySettings.jl}}{StudySettings.jl}}
+\code{lib/WingPropellerUVLM/studies/src/StudySettings.jl}
+\begin{lstlisting}
+# Public settings use camelCase; the backend and existing file schemas retain
+# their established names/units. This is the single translation boundary.
+const SETTING_NAMES=Dict(
+    :speed_mps=>:airspeed, :end_time_s=>:finalTime,
+    :trim_revolutions=>:baselineRevolutions,
+    :trim_average_revolutions=>:baselineAverageRevolutions,
+    :spanwise_panels=>:nSpanwisePanels, :chordwise_panels=>:nChordwisePanels,
+    :radial_panels=>:nRadialPanels, :core_radius_m=>:coreRadius,
+    :wing_span=>:wingSpanPanels, :wing_chord=>:wingChordPanels,
+    :prop_radial=>:propellerRadialPanels, :prop_chord=>:propellerChordPanels,
+    :azimuth_deg=>:azimuthStepDeg)
+const LEGACY_NAMES=Dict(v=>k for (k,v) in SETTING_NAMES)
+function canonical_key(k::Symbol)
+    haskey(SETTING_NAMES,k) && return SETTING_NAMES[k]
+    parts=split(string(k),'_')
+    return Symbol(first(parts)*join(uppercasefirst.(parts[2:end])))
+end
+function legacy_key(k::Symbol)
+    haskey(LEGACY_NAMES,k) && return LEGACY_NAMES[k]
+    k in (:CT,:CQ) && return k
+    separated=replace(string(k),r"([A-Z])([A-Z][a-z])"=>s"\1_\2")
+    return Symbol(lowercase(replace(separated,r"([a-z0-9])([A-Z])"=>s"\1_\2")))
+end
+function translate_settings(x::NamedTuple,keyfn)
+    pairsOut=Pair{Symbol,Any}[]
+    seen=Set{Symbol}()
+    for (key,value) in pairs(x)
+        mapped=keyfn(key)
+        mapped in seen && throw(ArgumentError("Duplicate aliases for $mapped"))
+        push!(seen,mapped)
+        converted=key==:families ? keyfn.(value) : translate_settings(value,keyfn)
+        push!(pairsOut,mapped=>converted)
+    end
+    return (;pairsOut...)
+end
+translate_settings(x,keyfn)=deepcopy(x)
+canonical_settings(x::NamedTuple)=translate_settings(x,canonical_key)
+legacy_settings(x::NamedTuple)=translate_settings(x,legacy_key)
+function merge_settings(base::NamedTuple,overrides::NamedTuple)
+    unknown=setdiff(keys(overrides),keys(base))
+    isempty(unknown) || throw(ArgumentError("Unknown settings: $unknown"))
+    return (; (k=>(hasproperty(overrides,k) ?
+        (v isa NamedTuple && overrides[k] isa NamedTuple ? merge_settings(v,overrides[k]) : deepcopy(overrides[k])) : deepcopy(v))
+        for (k,v) in pairs(base))...)
+end
+
+abstract type ConvergenceStudy end
+mutable struct AerodynamicConvergenceStudy{S} <: ConvergenceStudy
+    settings::S
+    results::Union{Nothing,NamedTuple}
+end
+mutable struct AeroelasticConvergenceStudy{S} <: ConvergenceStudy
+    settings::S
+    results::Union{Nothing,NamedTuple}
+end
+study_settings(s::ConvergenceStudy)=deepcopy(s.settings)
+legacy_settings(s::ConvergenceStudy)=legacy_settings(s.settings)
+
+function create_AerodynamicConvergenceStudy(settings::NamedTuple;kwargs...)
+    resolved=merge_settings(canonical_settings(settings),canonical_settings((;kwargs...)))
+    Convergence.validate_aerodynamic(legacy_settings(resolved))
+    return AerodynamicConvergenceStudy(resolved,nothing)
+end
+create_AerodynamicConvergenceStudy(;kwargs...)=create_AerodynamicConvergenceStudy((;kwargs...))
+function create_AeroelasticConvergenceStudy(settings::NamedTuple;kwargs...)
+    resolved=merge_settings(canonical_settings(settings),canonical_settings((;kwargs...)))
+    legacy=legacy_settings(resolved)
+    hasproperty(legacy,:selection_file) || throw(ArgumentError("selectionFile is required"))
+    MovingBlockDamping.moving_block_metrics(Float64[],Float64[];moving_block_options(legacy.damping)...)
+    return AeroelasticConvergenceStudy(resolved,nothing)
+end
+create_AeroelasticConvergenceStudy(;kwargs...)=create_AeroelasticConvergenceStudy((;kwargs...))
+
+function check_loaded_source()
+    Convergence.SOURCE()==LOADED_SOURCE || error("Numerical source changed after this module was loaded; start a fresh Julia process")
+end
+function solve!(s::AerodynamicConvergenceStudy)
+    check_loaded_source()
+    settings=legacy_settings(s)
+    settings.make_plots && (@eval using Plots)
+    s.results=Base.invokelatest(Convergence.run_aerodynamic,settings)
+    return s
+end
+function solve!(s::AeroelasticConvergenceStudy)
+    check_loaded_source()
+    settings=legacy_settings(s)
+    settings.make_plots && (@eval using Plots)
+    s.results=run_aeroelastic(settings)
+    return s
+end
+
+"""Read an archived selection without asserting current numerical verification.
+The returned record cannot be used as a verified selection by solve!.
+"""
+function inspect_selection(path)
+    payload=Convergence.TOML.parsefile(path)
+    return (;verifiedForCurrentSource=false,record=payload)
+end
+
+\end{lstlisting}
+\subsection{\texorpdfstring{\code{ChangProblem.jl}}{ChangProblem.jl}}
+\code{lib/WingPropellerUVLM/studies/src/ChangProblem.jl}
+\begin{lstlisting}
+"""Build the existing Chang benchmark from explicit camelCase or legacy settings.
+No CHANG_* environment overrides are applied by this constructor.
+"""
+function create_ChangModel(settings::NamedTuple)
+    Convergence.load_model()
+    moduleRef=Convergence.Model.ChangAeroelastic
+    config=Base.invokelatest(moduleRef.load_chang_configuration,legacy_case_settings(settings);env=Dict{String,String}())
+    return Base.invokelatest(moduleRef.build_chang_model,config)
+end
+legacy_case_settings(settings::NamedTuple)=translate_settings(settings,
+    key -> key==:azimuthStepDeg ? :azimuth_step_deg : legacy_key(key))
+mutable struct ChangDynamicProblem{M}
+    model::M
+    results::Union{Nothing,NamedTuple}
+end
+create_ChangDynamicProblem(;model)=ChangDynamicProblem(model,nothing)
+function solve!(p::ChangDynamicProblem)
+    check_loaded_source()
+    p.results===nothing || throw(ArgumentError("Create a fresh ChangDynamicProblem for another run"))
+    m=Convergence.Model.ChangAeroelastic
+    Base.invokelatest(m.load_chang_visualization,p.model.config.output)
+    run=Base.invokelatest(m.run_chang_case,p.model.config;model=p.model)
+    completed=run.solution.last_step==length(p.model.parameters.dt)
+    solverConverged=completed && all(run.solution.coupling_converged)
+    p.results=merge(run,(;completed,solverConverged))
+    return p
+end
+
+\end{lstlisting}
+\subsection{\texorpdfstring{\code{StudyRunner.jl}}{StudyRunner.jl}}
+\code{lib/WingPropellerUVLM/studies/src/StudyRunner.jl}
+\begin{lstlisting}
+function operating_selection(selection,s)
+    speed=get(s,:speed_mps,nothing)
+    isnothing(speed) && return selection
+    speed isa Real && !(speed isa Bool) && isfinite(speed) && speed>0 ||
+        throw(ArgumentError("Aeroelastic speed_mps must be finite and positive, or nothing"))
+    p=selection.physical
+    rpm=p.rpm*(speed/p.speed_mps)
+    isfinite(rpm) && rpm>0 || throw(ArgumentError("Scaled aeroelastic RPM must be finite and positive"))
+    # The verification seal belongs to the original operating point only.
+    return (;physical=merge(p,(;speed_mps=Float64(speed),rpm)),
+        core_mode=selection.core_mode,selected=selection.selected,
+        aerodynamic_reference=selection)
+end
+
+"""Run damping convergence with an optional speed override after verifying the source selection."""
+function run_aeroelastic(s)
+    check_loaded_source()
+    reference=Convergence.load_selection(s.selection_file)
+    selection=operating_selection(reference,s)
+    println("Aeroelastic operating point: $(selection.physical.speed_mps) m/s, $(selection.physical.rpm) RPM")
+    Convergence.load_model()
+    result=Base.invokelatest(Convergence.run_aeroelastic_loaded,MovingBlockStudy(s),selection)
+    description="Aerodynamic reference: $(reference.physical.speed_mps) m/s, $(reference.physical.rpm) RPM.\n\nAeroelastic operating point: $(selection.physical.speed_mps) m/s, $(selection.physical.rpm) RPM.\n\n"
+    if selection.physical.speed_mps!=reference.physical.speed_mps
+        description*="The aerodynamic selection was verified at the reference speed; this study checks aeroelastic sensitivity at the overridden speed with proportional RPM.\n\n"
+    end
+    open(joinpath(result.directory,"report.md"),"a") do io
+        print(io,"\n",description)
+    end
+    return merge(result,(;aerodynamic_reference=reference))
+end
+
+\end{lstlisting}
+
+\end{document}
