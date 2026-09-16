@@ -21,6 +21,7 @@ function model_defaults(p,mode,c,s,directory)
         aerodynamic=(core_radius_m=f.radius,segment_core_factor=f.segment,chord_core_factor=f.chord,
             elastic_axis_fraction=p.elastic_axis_fraction,hub_load_arm_factor=s.hub_load_arm_factor),
         wake=(maximum_rows_wing=ceil(Int,c.wake_revolutions*360/c.azimuth_deg),wing_rows_per_chord_panel=10,
+            retained_revolutions_propeller=c.wake_revolutions,
             maximum_rows_propeller=ceil(Int,c.wake_revolutions*360/c.azimuth_deg)),
         excitation=(trim_revolutions=s.response.trim_revolutions,trim_average_revolutions=s.response.trim_average_revolutions,
             impulse_start_s=s.response.impulse_start_s,impulse_duration_s=s.response.impulse_duration_s,

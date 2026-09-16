@@ -62,7 +62,7 @@ function chang_excitation_options(config, parameters)
     )
 end
 
-"""Build generalized-alpha/coupling parameters and physical convergence scales."""
+"""Build independent structural-integration/coupling options and residual scales."""
 function chang_integration_options(config, structural, parameters)
     scales = build_chang_coupling_scales(
         structural;
@@ -74,9 +74,30 @@ function chang_integration_options(config, structural, parameters)
         wing_node_count = parameters.nnodes,
         dofs_per_node = parameters.ndof,
     )
+    time_integrator = validate_structural_time_integrator(
+        config.integration.time_integrator,
+    )
+    coupling_scheme = validate_aeroelastic_coupling_scheme(config.coupling.scheme)
+    newmark_beta = newmark_beta_parameters(config.integration.newmark_alpha)
+    generalized_alpha = generalized_alpha_parameters(config.integration.rho_inf)
+    structural_parameters = time_integrator == :newmark_beta ?
+        newmark_beta : generalized_alpha
+    coupling = PartitionedCouplingOptions(
+        maximum_iterations = config.coupling.maximum_iterations,
+        state_tolerance = config.coupling.state_tolerance,
+        load_tolerance = config.coupling.load_tolerance,
+        equilibrium_tolerance = config.coupling.equilibrium_tolerance,
+        coupled_equilibrium_tolerance = config.coupling.coupled_equilibrium_tolerance,
+        relaxation = config.coupling.relaxation,
+    )
     return (;
-        generalized_alpha = generalized_alpha_parameters(config.integration.rho_inf),
-        coupling = PartitionedCouplingOptions(; config.coupling...),
+        time_integrator,
+        coupling_scheme,
+        structural_parameters,
+        newmark_beta,
+        generalized_alpha,
+        coupling,
+        coupling_verbose = config.coupling.verbose,
         state_scale = scales.state,
         load_scale = scales.load,
         state_norm_limit = config.integration.state_norm_limit,
@@ -86,19 +107,28 @@ end
 
 """Print the numerical choices that govern the coupled response."""
 function report_chang_solver_options(excitation, integration)
-    parameters = integration.generalized_alpha
     coupling = integration.coupling
-    println(
-        "Partitioned generalized-alpha: rho_inf=$(parameters.rho_inf), " *
-        "alpha_m=$(parameters.alpha_m), alpha_f=$(parameters.alpha_f), " *
-        "gamma=$(parameters.gamma), beta=$(parameters.beta)",
-    )
+    if integration.time_integrator == :newmark_beta
+        parameters = integration.newmark_beta
+        println(
+            "Structural integrator: Newmark-beta, alpha=$(parameters.alpha), " *
+            "gamma=$(parameters.gamma), beta=$(parameters.beta)",
+        )
+    else
+        parameters = integration.generalized_alpha
+        println(
+            "Structural integrator: generalized-alpha, rho_inf=$(parameters.rho_inf), " *
+            "alpha_m=$(parameters.alpha_m), alpha_f=$(parameters.alpha_f), " *
+            "gamma=$(parameters.gamma), beta=$(parameters.beta)",
+        )
+    end
+    println("Aeroelastic coupling: $(integration.coupling_scheme)")
     println(
         "Coupling correction: max_iter=$(coupling.maximum_iterations), " *
         "tol_u=$(coupling.state_tolerance), tol_f=$(coupling.load_tolerance), " *
         "tol_linear=$(coupling.equilibrium_tolerance), " *
         "tol_coupled=$(coupling.coupled_equilibrium_tolerance), " *
-        "relaxation=$(coupling.relaxation)",
+        "relaxation=$(coupling.relaxation), verbose=$(integration.coupling_verbose)",
     )
     println(
         "Trim baseline: average $(excitation.trim_average_revolutions) revolution(s), " *
@@ -146,17 +176,26 @@ function report_and_validate_structural_model(
     return diagnostics
 end
 
-"""Allocate displacement, velocity, and acceleration at every output time."""
-function initialize_structural_history(structural, number_of_states::Int)
+"""Allocate the structural history and enforce equilibrium at the initial state."""
+function initialize_structural_history(
+    structural,
+    number_of_states::Int;
+    initial_aerodynamic_load = nothing,
+    initial_external_load = nothing,
+)
     displacement = Vector{Vector{Float64}}(undef, number_of_states)
     velocity = similar(displacement)
     acceleration = similar(displacement)
 
     displacement[1] = zeros(structural.ndof_free)
     velocity[1] = zeros(structural.ndof_free)
+    initial_force = zeros(structural.ndof_free)
+    !isnothing(initial_aerodynamic_load) && (initial_force .+= initial_aerodynamic_load)
+    !isnothing(initial_external_load) && (initial_force .+= initial_external_load)
     acceleration[1] = isempty(structural.M) ? zeros(structural.ndof_free) :
         structural.M \ (
-            -structural.C * velocity[1] - structural.K * displacement[1]
+            initial_force .- structural.C * velocity[1] .-
+            structural.K * displacement[1]
         )
     return (; displacement, velocity, acceleration)
 end
@@ -275,9 +314,11 @@ end
 """
     solve_chang_aeroelastic!(system, structural; kwargs...)
 
-March the coupled generalized-alpha/UVLM problem. Every aerodynamic trial is
-evaluated from the same beginning-of-step snapshot. A failed coupled step is
-restored and rejected; a converged step advances the free wake exactly once.
+March the selected structural integrator and UVLM coupling scheme. Implicit
+trials are evaluated from the same beginning-of-step snapshot. Loose coupling
+evaluates one target-time aerodynamic load with the structural state lagged at
+`t_n`. A failed step is restored and rejected; every accepted step advances the
+free wake exactly once.
 """
 function solve_chang_aeroelastic!(
     system,
@@ -291,6 +332,9 @@ function solve_chang_aeroelastic!(
     integration,
     animation,
 )
+    # This is a perturbation formulation: before the trim baseline and pulse,
+    # both structural right-hand-side components are zero. The initializer
+    # solves M*a0 = F0 - C*v0 - K*u0 rather than assuming acceleration is zero.
     history = initialize_structural_history(structural, length(time))
     displacement = history.displacement
     velocity = history.velocity
@@ -357,39 +401,77 @@ function solve_chang_aeroelastic!(
             impulse_was_reported = true
         end
 
-        # Converge the structural state and UVLM load while holding the wake fixed.
+        # The coupling scheme changes only the exchange sequence. Both paths
+        # use the same target-time geometry/load operator, structural equation,
+        # aerodynamic snapshot, and single accepted wake commit.
         full_aerodynamic_load = zeros(structural.ndof_free)
-        step_solution = partitioned_generalized_alpha_step(
-            structural.M,
-            structural.C,
-            structural.K,
-            displacement[step],
-            velocity[step],
-            acceleration[step],
-            accepted_perturbation_load,
-            external_load_np1,
-            external_load_n,
-            time_step,
-            integration.generalized_alpha,
-            state_guess -> begin
-                full_aerodynamic_load .= aerodynamic_load(
-                    aerodynamic_snapshot,
-                    state_guess,
-                    step,
-                )
-                return have_trim_load ? full_aerodynamic_load .- trim_load :
-                    zeros(structural.ndof_free)
-            end;
-            options = integration.coupling,
-            require_load_convergence = have_trim_load,
-            state_scale = integration.state_scale,
-            load_scale = integration.load_scale,
-        )
+        load_for_state = state_guess -> begin
+            full_aerodynamic_load .= aerodynamic_load(
+                aerodynamic_snapshot,
+                state_guess,
+                step,
+            )
+            return have_trim_load ? full_aerodynamic_load .- trim_load :
+                zeros(structural.ndof_free)
+        end
+        step_solution = if integration.coupling_scheme == :loose_explicit
+            # One UVLM evaluation at target time/rotor azimuth t[n+1], using
+            # the known structural state U[n]. Thus the structural forcing is
+            # F_aero,n+1^explicit(U[n]), with no additional one-step delay.
+            explicit_load = load_for_state(displacement[step])
+            loose_explicit_aeroelastic_step(
+                integration.time_integrator,
+                structural.M,
+                structural.C,
+                structural.K,
+                displacement[step],
+                velocity[step],
+                acceleration[step],
+                explicit_load,
+                accepted_perturbation_load,
+                external_load_np1,
+                external_load_n,
+                time_step,
+                integration.structural_parameters;
+                options = integration.coupling,
+                load_scale = integration.load_scale,
+            )
+        elseif integration.coupling_scheme == :implicit_predictor_corrector
+            diagnostic = integration.coupling_verbose ? values -> println(
+                "  step=$step, t=$(time[step + 1]) s, coupling_iter=$(values.iteration), " *
+                "state_res=$(values.state_residual), load_res=$(values.load_residual), " *
+                "coupled_eq_res=$(values.coupled_equilibrium_residual)",
+            ) : nothing
+            partitioned_aeroelastic_step(
+                integration.time_integrator,
+                structural.M,
+                structural.C,
+                structural.K,
+                displacement[step],
+                velocity[step],
+                acceleration[step],
+                accepted_perturbation_load,
+                external_load_np1,
+                external_load_n,
+                time_step,
+                integration.structural_parameters,
+                load_for_state;
+                options = integration.coupling,
+                require_load_convergence = have_trim_load,
+                state_scale = integration.state_scale,
+                load_scale = integration.load_scale,
+                diagnostic,
+            )
+        else
+            # Configuration validation should make this unreachable, but keep
+            # the time marcher safe for programmatically constructed options.
+            error("Unknown aeroelastic coupling scheme: $(integration.coupling_scheme)")
+        end
 
         if !step_solution.converged
             restore_uvlm!(system, aerodynamic_snapshot)
             error(
-                "Partitioned coupling failed at step $step " *
+                "$(integration.coupling_scheme) coupling failed at step $step " *
                 "(t=$(time[step + 1]) s) after $(step_solution.iterations) iterations: " *
                 "state_res=$(step_solution.state_residual), " *
                 "load_res=$(step_solution.load_residual), " *
@@ -452,9 +534,11 @@ function solve_chang_aeroelastic!(
             )
         end
 
+        coupling_description = integration.coupling_scheme == :loose_explicit ?
+            "1 explicit exchange" : "$(step_solution.iterations) implicit iterations"
         println(
             "Step $step/$(length(time_steps)) (t=$(round(accepted_time, digits = 4)) s): " *
-            "$(step_solution.iterations) iterations, " *
+            "$coupling_description, " *
             "state_res=$(round(step_solution.state_residual, sigdigits = 4)), " *
             "load_res=$(round(step_solution.load_residual, sigdigits = 4)), " *
             "coupled_eq_res=$(round(step_solution.coupled_equilibrium_residual, sigdigits = 4)), " *
@@ -512,6 +596,8 @@ function solve_chang_aeroelastic!(
     end
 
     return (;
+        time_integrator = integration.time_integrator,
+        coupling_scheme = integration.coupling_scheme,
         displacement_history = displacement,
         velocity_history = velocity,
         acceleration_history = acceleration,

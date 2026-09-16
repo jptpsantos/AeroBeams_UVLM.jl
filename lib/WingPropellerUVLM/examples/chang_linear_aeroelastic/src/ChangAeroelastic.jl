@@ -8,8 +8,10 @@ using WingPropellerUVLM:
     grid_to_surface_panels, generate_panel_grid_and_interpolate, linear_interpolate_1d,
     copy_surfaces_to_previous!, propagate_system!, advance_wake!, snapshot_uvlm, restore_uvlm!,
     near_field_forces!, legacy_imperial_segment_forces!, imperial_nodal_forces, imperial_nodal_positions,
-    generalized_alpha_parameters, PartitionedCouplingOptions,
-    partitioned_generalized_alpha_step, smooth_hann_pulse_load
+    generalized_alpha_parameters, newmark_beta_parameters,
+    validate_structural_time_integrator, validate_aeroelastic_coupling_scheme,
+    structural_integration_parameters, PartitionedCouplingOptions,
+    loose_explicit_aeroelastic_step, partitioned_aeroelastic_step, smooth_hann_pulse_load
 
 export chang_case_defaults, load_chang_configuration, ChangModel,
        build_chang_model, build_chang_workspace, run_chang,

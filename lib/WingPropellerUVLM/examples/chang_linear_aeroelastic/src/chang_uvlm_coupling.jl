@@ -424,7 +424,7 @@ function assemble_structural_aero_load!(model, workspace, kinematics;
         end
 
         if print_loads
-            println("\n--- Step $step Propeller P$(propeller_index) (partitioned GA) ---")
+            println("\n--- Step $step Propeller P$(propeller_index) aerodynamic loads ---")
             println("  total_force_A            = $total_force")
             println("  total_moment_about_hub_A = $total_moment_about_hub")
             println("  total_moment_modal_A     = $modal_moment")

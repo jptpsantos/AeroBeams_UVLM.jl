@@ -115,7 +115,10 @@ named tuple contains the displacement, velocity, acceleration, and normalized
 effective-equilibrium residual at `n + 1`.
 """
 function generalized_alpha_corrector(M, C, K, u_n, v_n, a_n,
-    force_np1, force_n, external_np1, external_n, dt::Real, parameters)
+    force_np1, force_n, external_np1, external_n, dt::Real, parameters;
+    effective_stiffness = nothing,
+    effective_factorization = nothing,
+)
 
     dt > 0 || throw(ArgumentError("The generalized-alpha time step must be positive"))
     beta = parameters.beta
@@ -135,15 +138,19 @@ function generalized_alpha_corrector(M, C, K, u_n, v_n, a_n,
     force_alpha = (1.0 - alpha_f) .* (force_np1 .+ external_np1) .+
         alpha_f .* (force_n .+ external_n)
 
-    effective_stiffness = (1.0 - alpha_m) .* a0 .* M .+
-        (1.0 - alpha_f) .* velocity_coefficient .* C .+
-        (1.0 - alpha_f) .* K
+    if isnothing(effective_stiffness)
+        effective_stiffness = (1.0 - alpha_m) .* a0 .* M .+
+            (1.0 - alpha_f) .* velocity_coefficient .* C .+
+            (1.0 - alpha_f) .* K
+    end
     right_hand_side = force_alpha .-
         M * ((1.0 - alpha_m) .* constant_acceleration .+ alpha_m .* a_n) .-
         C * ((1.0 - alpha_f) .* constant_velocity .+ alpha_f .* v_n) .-
         K * (alpha_f .* u_n)
 
-    displacement = effective_stiffness \ right_hand_side
+    effective_solver = isnothing(effective_factorization) ?
+        effective_stiffness : effective_factorization
+    displacement = effective_solver \ right_hand_side
     equilibrium_residual = norm(effective_stiffness * displacement .- right_hand_side) /
         max(norm(right_hand_side), 1.0)
     kinematics = generalized_alpha_kinematics(displacement, u_n, v_n, a_n, dt, parameters)

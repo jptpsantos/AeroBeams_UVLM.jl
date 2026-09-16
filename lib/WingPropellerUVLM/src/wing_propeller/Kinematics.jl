@@ -6,6 +6,7 @@ using LinearAlgebra
 using StaticArrays
 using FLOWMath
 
+"""Store the accepted geometry used by UVLM to calculate surface velocities."""
 function copy_surfaces_to_previous!(system, nsurf::Int)
     for i = 1:nsurf
         system.previous_surfaces[i] .= system.surfaces[i]
@@ -13,6 +14,7 @@ function copy_surfaces_to_previous!(system, nsurf::Int)
     return nothing
 end
 
+"""Map the reduced Bohnisch wing coordinates to aerodynamic translations and rotations."""
 function wing_kinematics_from_free_state(q_W_free, ndof::Int, nnodes::Int)
     h_down_S = vcat(0.0, q_W_free[1:ndof:end])
     slope_x_S = vcat(0.0, q_W_free[2:ndof:end])
@@ -38,6 +40,7 @@ function wing_kinematics_from_free_state(q_W_free, ndof::Int, nnodes::Int)
     )
 end
 
+"""Place the undeformed propeller grids at their initial global pivots."""
 function initialize_propeller_grids!(grids_prop_initial_global, grids_prop_ref,
     T_pivot_global_init, hub_center_prop_A, Nb_prop::Int)
 
@@ -61,6 +64,7 @@ function initialize_propeller_grids!(grids_prop_initial_global, grids_prop_ref,
     return grids_prop_initial_global
 end
 
+"""Apply attachment deformation, pylon whirl, and prescribed spin at `t_next`."""
 function update_propeller_grids!(grids_prop_current, T_pivot_A_current, grids_prop_ref,
     q_P_free, prop_attach_nodes, ea_x_aero, attach_node_y,
     u_z_A, theta_x_A, theta_y_A, theta_z_A,
@@ -72,11 +76,14 @@ function update_propeller_grids!(grids_prop_current, T_pivot_A_current, grids_pr
         prop_pitch_A = q_P_free[2*(ip-1)+1]
         prop_yaw_A = -q_P_free[2*(ip-1)+2]
 
+        # Wing motion carries the propeller pivot and its local rotation axes.
         R_A_node = RotationMatrix(theta_z_A[pos], 3) * RotationMatrix(theta_x_A[pos], 1) * RotationMatrix(theta_y_A[pos], 2)
         T_elastic_axis_A = SVector(ea_x_aero[ip], attach_node_y[ip], u_z_A[pos])
         T_pivot_A = T_elastic_axis_A + R_A_node * prop_pivot_offset_from_ea_A
         T_pivot_A_current[ip] = T_pivot_A
 
+        # Rotor azimuth is evaluated from physical time, so repeated coupling
+        # trials at the same t[n+1] do not advance it more than once.
         R_whirl_A = RotationMatrix(prop_pitch_A, 2) * RotationMatrix(prop_yaw_A, 3)
         R_spin_A = RotationMatrix(-Omega_prop * t_next, 1)
 
@@ -97,6 +104,7 @@ function update_propeller_grids!(grids_prop_current, T_pivot_A_current, grids_pr
     return grids_prop_current
 end
 
+"""Convert deformed grids to panels and replace only the System surface geometry."""
 function update_system_surfaces!(system, grid_wing, grids_prop_current,
     ratio_wing, Npropellers::Int, Nb_prop::Int;
     fcore = (c, ds) -> 1e-3)
@@ -117,4 +125,3 @@ function update_system_surfaces!(system, grid_wing, grids_prop_current,
 
     return current_surface_wing, current_surfaces_prop
 end
-

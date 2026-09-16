@@ -316,6 +316,108 @@ include(joinpath(
         )
     end
 
+    @testset "Independent structural integrator and coupling choices" begin
+        newmark = newmark_beta_parameters()
+        @test newmark.alpha == 0.05
+        @test newmark.gamma == 0.55
+        @test newmark.beta == 0.275625
+        @test newmark_beta_coefficients(0.02, newmark).a7 ≈ 0.011
+        @test_throws ErrorException validate_structural_time_integrator(:unknown)
+        @test_throws ErrorException validate_aeroelastic_coupling_scheme(:unknown)
+
+        M = reshape([1.5], 1, 1)
+        C = reshape([0.1], 1, 1)
+        K = reshape([2.0], 1, 1)
+        displacement_n = [0.01]
+        velocity_n = [-0.02]
+        acceleration_n = [0.03]
+        load_n = [0.04]
+        external_n = [0.01]
+        external_np1 = [0.015]
+        dt = 0.02
+        options = PartitionedCouplingOptions(
+            maximum_iterations = 30,
+            state_tolerance = 1.0e-10,
+            load_tolerance = 1.0e-10,
+            equilibrium_tolerance = 1.0e-12,
+            coupled_equilibrium_tolerance = 1.0e-10,
+            relaxation = 1.0,
+        )
+
+        for method in STRUCTURAL_TIME_INTEGRATORS
+            parameters = structural_integration_parameters(
+                method;
+                newmark_alpha = 0.05,
+                generalized_alpha_rho_infinity = 0.8,
+            )
+            original_state = (
+                copy(displacement_n), copy(velocity_n), copy(acceleration_n),
+            )
+
+            # Loose coupling performs one aerodynamic evaluation outside the
+            # structural solve and has no aero-structural subiterations.
+            aerodynamic_evaluations = Ref(0)
+            explicit_load = let
+                aerodynamic_evaluations[] += 1
+                [0.05 + 0.1 * only(displacement_n)]
+            end
+            explicit_step = loose_explicit_aeroelastic_step(
+                method, M, C, K,
+                displacement_n, velocity_n, acceleration_n,
+                explicit_load, load_n, external_np1, external_n, dt, parameters;
+                options, load_scale = [1.0],
+            )
+            @test aerodynamic_evaluations[] == 1
+            @test explicit_step.iterations == 1
+            @test explicit_step.converged
+            @test explicit_step.coupled_equilibrium_residual <=
+                options.coupled_equilibrium_tolerance
+            @test all(isfinite, explicit_step.displacement)
+
+            # Implicit coupling calls the same load law repeatedly at trial
+            # n+1 states until that state and its load form a fixed point.
+            aerodynamic_evaluations[] = 0
+            last_trial_state = Ref(NaN)
+            implicit_step = partitioned_aeroelastic_step(
+                method, M, C, K,
+                displacement_n, velocity_n, acceleration_n,
+                load_n, external_np1, external_n, dt, parameters,
+                state -> begin
+                    aerodynamic_evaluations[] += 1
+                    last_trial_state[] = only(state)
+                    return [0.05 + 0.1 * only(state)]
+                end;
+                options,
+                state_scale = [0.1],
+                load_scale = [1.0],
+            )
+            @test aerodynamic_evaluations[] == implicit_step.iterations
+            @test implicit_step.iterations > 1
+            @test implicit_step.converged
+            @test only(implicit_step.displacement) == last_trial_state[]
+            @test implicit_step.trial_load ≈ 0.05 .+ 0.1 .* implicit_step.displacement
+            @test implicit_step.coupled_equilibrium_residual <=
+                options.coupled_equilibrium_tolerance
+            @test all(isfinite, implicit_step.displacement)
+
+            # Coupling iterations must not overwrite the accepted n state.
+            @test displacement_n == original_state[1]
+            @test velocity_n == original_state[2]
+            @test acceleration_n == original_state[3]
+        end
+
+        # The coefficients are rebuilt from the actual step size.
+        correction_short = newmark_beta_corrector(
+            M, C, K, displacement_n, velocity_n, acceleration_n,
+            [0.05], external_np1, 0.01, newmark,
+        )
+        correction_long = newmark_beta_corrector(
+            M, C, K, displacement_n, velocity_n, acceleration_n,
+            [0.05], external_np1, 0.03, newmark,
+        )
+        @test correction_short.displacement != correction_long.displacement
+    end
+
     @testset "Chang point-mass parallel-axis correction" begin
         mass = 2.0
         center_of_mass_inertia = Matrix(Diagonal([100.0, 110.0, 120.0]))

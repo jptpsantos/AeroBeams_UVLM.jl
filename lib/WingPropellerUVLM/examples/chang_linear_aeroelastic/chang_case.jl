@@ -43,7 +43,7 @@ function chang_case_defaults()
         angle_of_attack_deg = 3.0,
         sideslip_deg = 0.0,
 
-        azimuth_step_deg = 2.5,    # Rotor angle advanced per time step.
+        azimuth_step_deg = 5,    # Rotor angle advanced per time step.
         end_time_s = 3.0,          # Total requested simulation duration.
 
         # true: include wing–propeller and propeller–propeller aerodynamic influence.
@@ -71,7 +71,7 @@ function chang_case_defaults()
         # radius = max(segment_core_factor * Δs, chord_core_factor * c).
         # Δs is the local span/radial edge length; c is the full local chord.
         segment_core_factor = 0.0,
-        chord_core_factor = 5*0.001,#1e-2,
+        chord_core_factor = 5*0.002,#1e-2,
 
         elastic_axis_fraction = 0.30,      # Chord fraction measured from the leading edge.
         hub_load_arm_factor = 0.5,         # Modal load arm divided by pylon length.
@@ -85,7 +85,7 @@ function chang_case_defaults()
         wing_rows_per_chord_panel = 10,    # Automatic count = this * active chordwise panels.
         # Propeller wake: rows = ceil(revolutions * 360 / azimuth_step_deg).
         # This keeps the retained wake duration fixed when the azimuth step changes.
-        retained_revolutions_propeller = 0.5,
+        retained_revolutions_propeller = 1.0,
         # Set an integer here only to override the revolution-based count directly.
         maximum_rows_propeller = nothing,
     )
@@ -101,6 +101,11 @@ function chang_case_defaults()
 
     # 7. Time integration and stop limits
     integration = (
+        # Structural time integrator: :newmark_beta or :generalized_alpha.
+        time_integrator = :newmark_beta,
+        # Reference Newmark parameter: gamma = 0.5 + alpha and
+        # beta = 0.25 * (gamma + 0.5)^2.
+        newmark_alpha = 0.05,
         # Generalized-alpha high-frequency spectral radius, between 0 and 1.
         # 1 = no algorithmic damping; smaller values increase numerical damping.
         rho_inf = 1.0,
@@ -111,12 +116,16 @@ function chang_case_defaults()
 
     # 8. Iterations coupling the aerodynamic loads and structural motion
     coupling = (
+        # :loose_explicit or :implicit_predictor_corrector, independent of
+        # the structural time integrator selected above.
+        scheme = :loose_explicit, #implicit_predictor_corrector,
         maximum_iterations = 10,
         state_tolerance = 1.0e-5,               # Scaled change in displacement.
         load_tolerance = 1.0e-2,                # Scaled change in aerodynamic load.
         equilibrium_tolerance = 1.0e-10,        # Structural linear-solve residual.
         coupled_equilibrium_tolerance = 1.0e-4, # Equilibrium with the updated aero load.
         relaxation = 1.0,                      # 1 = full update; smaller values under-relax.
+        verbose = false,                       # Print every implicit subiteration.
     )
 
     # 9. Files, plots, and wake animation

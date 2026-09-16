@@ -18,6 +18,8 @@ function write_chang_results(solution;
     density, visualization, output_directory, output_label,
 )
     results = write_chang_results(;
+        time_integrator = solution.time_integrator,
+        coupling_scheme = solution.coupling_scheme,
         displacement_history = solution.displacement_history,
         time, time_steps,
         last_step = solution.last_step,
@@ -66,6 +68,8 @@ end
 
 """Write the Chang response history, validation summary, and optional plot."""
 function write_chang_results(;
+    time_integrator::Symbol,
+    coupling_scheme::Symbol,
     displacement_history,
     time,
     time_steps,
@@ -178,6 +182,8 @@ function write_chang_results(;
     open(summary_path, "w") do stream
         println(stream, "Chang linear aeroelastic / UVLM validation")
         println(stream, "source_case = run_chang_linear_aeroelastic.jl")
+        println(stream, "time_integrator = $time_integrator")
+        println(stream, "coupling_scheme = $coupling_scheme")
         println(stream, "air_density_kg_m3 = $density")
         println(stream, "freestream_speed_m_s = $freestream_speed")
         println(stream, "number_of_propellers = $number_of_propellers")
@@ -225,6 +231,8 @@ function write_chang_results(;
     end
 
     return (;
+        time_integrator,
+        coupling_scheme,
         validation_passed,
         history_path,
         summary_path,

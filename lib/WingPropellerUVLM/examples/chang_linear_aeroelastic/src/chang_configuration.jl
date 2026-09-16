@@ -134,17 +134,21 @@ function load_chang_configuration(defaults = chang_case_defaults(); env = ENV)
         impulse_start_s = environment_number(Float64, "CHANG_IMPULSE_START_S", start; env),
     ))
     integration = environment_overrides(defaults.integration, (
+        time_integrator = (Symbol, "CHANG_TIME_INTEGRATOR"),
+        newmark_alpha = (Float64, "CHANG_NEWMARK_ALPHA"),
         rho_inf = (Float64, "CHANG_GA_RHO_INF"),
         state_norm_limit = (Float64, "CHANG_STATE_ABORT_NORM"),
         propeller_angle_limit_deg = (Float64, "CHANG_PROP_ANGLE_ABORT_DEG"),
     ), env)
     coupling = environment_overrides(defaults.coupling, (
+        scheme = (Symbol, "CHANG_COUPLING_SCHEME"),
         maximum_iterations = (Int, "CHANG_COUPLING_MAX_ITER"),
         state_tolerance = (Float64, "CHANG_COUPLING_TOL_U"),
         load_tolerance = (Float64, "CHANG_COUPLING_TOL_F"),
         equilibrium_tolerance = (Float64, "CHANG_COUPLING_TOL_EQ"),
         coupled_equilibrium_tolerance = (Float64, "CHANG_COUPLING_TOL_COUPLED_EQ"),
         relaxation = (Float64, "CHANG_COUPLING_RELAXATION"),
+        verbose = (Bool, "CHANG_COUPLING_VERBOSE"),
     ), env)
     directory = isabspath(defaults.output.directory) ? defaults.output.directory :
         joinpath(@__DIR__, "..", defaults.output.directory)
@@ -241,7 +245,17 @@ function validate_configuration(config)
     isfinite(config.excitation.impulse_magnitude_nm) || error("Impulse magnitude must be finite")
     config.integration.state_norm_limit > 0 || error("State limit must be positive")
     config.integration.propeller_angle_limit_deg > 0 || error("Propeller-angle limit must be positive")
+    validate_structural_time_integrator(config.integration.time_integrator)
+    newmark_beta_parameters(config.integration.newmark_alpha)
     generalized_alpha_parameters(config.integration.rho_inf)
-    PartitionedCouplingOptions(; config.coupling...)
+    validate_aeroelastic_coupling_scheme(config.coupling.scheme)
+    PartitionedCouplingOptions(
+        maximum_iterations = config.coupling.maximum_iterations,
+        state_tolerance = config.coupling.state_tolerance,
+        load_tolerance = config.coupling.load_tolerance,
+        equilibrium_tolerance = config.coupling.equilibrium_tolerance,
+        coupled_equilibrium_tolerance = config.coupling.coupled_equilibrium_tolerance,
+        relaxation = config.coupling.relaxation,
+    )
     return nothing
 end

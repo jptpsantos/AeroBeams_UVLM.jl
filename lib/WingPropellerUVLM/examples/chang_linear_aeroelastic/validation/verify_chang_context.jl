@@ -23,7 +23,9 @@ BLAS.set_num_threads(1)
         "CHANG_FCORE_SEGMENT_FACTOR" => "0.02", "CHANG_FCORE_CHORD_FACTOR" => "0.03",
         "CHANG_WAKE_ROWS_PROPELLER" => "8", "CHANG_TRIM_REVOLUTIONS" => "0.5",
         "CHANG_TRIM_AVERAGE_REVOLUTIONS" => "0.25",
-        "CHANG_GA_RHO_INF" => "0.8", "CHANG_COUPLING_TOL_U" => "2e-6",
+        "CHANG_TIME_INTEGRATOR" => "generalized_alpha", "CHANG_NEWMARK_ALPHA" => "0.08",
+        "CHANG_GA_RHO_INF" => "0.8", "CHANG_COUPLING_SCHEME" => "loose_explicit",
+        "CHANG_COUPLING_TOL_U" => "2e-6", "CHANG_COUPLING_VERBOSE" => "true",
         "CHANG_COUPLING_MAX_ITER" => "12", "CHANG_ANIMATION_FPS" => "20",
     )
     first_config = load_chang_configuration(defaults; env = environment)
@@ -40,7 +42,8 @@ BLAS.set_num_threads(1)
     @test first_config.wake.maximum_rows_propeller == 8
     revolution_wake = load_chang_configuration(defaults;
         env = Dict("CHANG_WAKE_REVOLUTIONS" => "1.5"))
-    @test revolution_wake.wake.maximum_rows_propeller == 216
+    @test revolution_wake.wake.maximum_rows_propeller ==
+        ceil(Int, 1.5 * 360 / defaults.simulation.azimuth_step_deg)
     @test first_config.output.animation_fps == 20
     @test first_config.structural.damping_reference_frequency_hz == defaults.structural.pitch_frequency_hz
 
@@ -56,6 +59,10 @@ BLAS.set_num_threads(1)
     first_workspace = build_chang_workspace(first_model)
     integration = chang_integration_options(first_model.config, first_model.structural, first_model.parameters)
     excitation = chang_excitation_options(first_model.config, first_model.parameters)
+    @test integration.time_integrator == :generalized_alpha
+    @test integration.coupling_scheme == :loose_explicit
+    @test integration.coupling_verbose
+    @test integration.newmark_beta.alpha == 0.08
     @test integration.generalized_alpha.rho_inf == 0.8
     @test integration.coupling.state_tolerance == 2e-6
     @test integration.coupling.maximum_iterations == 12
@@ -107,4 +114,11 @@ BLAS.set_num_threads(1)
     @test_throws ErrorException load_chang_configuration(; env = Dict("CHANG_GA_RHO_INF" => "bad"))
     @test_throws ErrorException load_chang_configuration(; env = Dict("CHANG_INTERACTION" => "maybe"))
     @test_throws ErrorException load_chang_configuration(; env = Dict("CHANG_SPEED_MPS" => "0"))
+    default_config = load_chang_configuration(; env = Dict{String,String}())
+    @test default_config.integration.time_integrator == :newmark_beta
+    @test default_config.coupling.scheme == defaults.coupling.scheme
+    @test_throws ErrorException load_chang_configuration(;
+        env = Dict("CHANG_TIME_INTEGRATOR" => "unknown"))
+    @test_throws ErrorException load_chang_configuration(;
+        env = Dict("CHANG_COUPLING_SCHEME" => "unknown"))
 end

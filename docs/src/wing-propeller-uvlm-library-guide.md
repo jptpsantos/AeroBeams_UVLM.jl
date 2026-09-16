@@ -11,8 +11,9 @@ wing--propeller unsteady vortex-lattice model. It provides:
 - Imperial College C++ UVLM-compatible near-field forces;
 - nodal aerodynamic forces and positions for structural coupling;
 - rollback-safe aerodynamic trial steps; and
-- a reusable partitioned generalized-alpha integrator for the current linear
-  Chang validation model.
+- reusable Newmark-beta and generalized-alpha structural integrators, with
+  independent loose-explicit and implicit predictor-corrector coupling for the
+  current linear Chang validation model.
 
 The package is located at `lib/WingPropellerUVLM`. It is deliberately separate
 from the `AeroBeams` module because a UVLM is one global aerodynamic system:
@@ -238,7 +239,8 @@ The driver:
    and load-transfer buffers;
 6. defines a smooth pitch perturbation and a periodic trim-load averaging
    window; and
-7. creates generalized-alpha and fixed-point coupling options.
+7. creates the independently selected structural-integrator and coupling
+   options.
 
 `solution.displacement_history[it]`, `solution.velocity_history[it]`, and
 `solution.acceleration_history[it]` are the accepted structural state at
@@ -260,7 +262,7 @@ history from which every `t[n+1]` coupling trial must start.
 
 ### 7.3 The structural--aerodynamic callback
 
-`partitioned_generalized_alpha_step` receives an anonymous callback. Its core
+`partitioned_aeroelastic_step` receives an anonymous callback. Its core
 operation is:
 
 ```julia
@@ -331,7 +333,7 @@ For each propeller, it:
 
 The returned vector has exactly the same ordering as the structural state.
 
-### 7.6 Generalized-alpha fixed-point iteration
+### 7.6 Structural integration and coupling choices
 
 For a second-order system
 
@@ -339,8 +341,27 @@ For a second-order system
 M\ddot{q} + C\dot{q} + Kq = F_\mathrm{aero} + F_\mathrm{external},
 ```
 
-the parameters are computed from the requested high-frequency spectral radius
-`rho_inf`:
+the default Newmark-beta parameters are
+
+```math
+\alpha_\mathrm{nb}=0.05,\quad
+\gamma=0.5+\alpha_\mathrm{nb}=0.55,\quad
+\beta=\frac14(\gamma+0.5)^2=0.275625.
+```
+
+For each actual `dt[it]`, the implementation forms the standard coefficients
+`a0` through `a7`, solves
+
+```math
+K_\mathrm{eff}=K+a_0M+a_1C,
+```
+
+and recovers acceleration and velocity from the accepted displacement. The
+effective matrix is factored once per physical step and reused during implicit
+subiterations.
+
+The preserved generalized-alpha alternative computes its parameters from the
+requested high-frequency spectral radius `rho_inf`:
 
 ```math
 \alpha_m=\frac{2\rho_\infty-1}{\rho_\infty+1},\quad
@@ -349,7 +370,14 @@ the parameters are computed from the requested high-frequency spectral radius
 \beta=\frac14(1-\alpha_m+\alpha_f)^2.
 ```
 
-For each outer iteration, `partitioned_generalized_alpha_step`:
+The integration choice is independent of coupling. `:loose_explicit` evaluates
+the aerodynamic callback once at target time and propeller azimuth `t[n+1]`,
+using the known structural state `q[n]`, and then performs one structural solve.
+Thus its load is `F_aero,n+1^explicit(q[n])`; it does not add another time-step
+delay and it performs no subiterations.
+
+For each outer iteration, `partitioned_aeroelastic_step` with
+`:implicit_predictor_corrector`:
 
 1. evaluates aerodynamic load at the current displacement guess;
 2. solves one linear generalized-alpha structural corrector with that load;
@@ -370,12 +398,13 @@ the residuals. This avoids comparing unlike units in one raw vector norm.
 
 The returned displacement is the last state evaluated by the aerodynamic
 callback. Its velocity and acceleration are recomputed from that displacement
-using the generalized-alpha/Newmark kinematic relations. Consequently the
+using the selected method's kinematic relations. Consequently the
 returned structural state and the UVLM state left in `system` are a consistent
 fixed-point pair.
 
-If convergence fails, the solver restores `aerodynamic_snapshot` and terminates without
-committing the step.
+If convergence fails, the solver restores `aerodynamic_snapshot` and terminates
+without committing the step. Optional per-iteration residual output is enabled
+with `coupling.verbose=true` or `CHANG_COUPLING_VERBOSE=true`.
 
 ### 7.7 Trim baseline and perturbation load
 
@@ -399,8 +428,9 @@ not a static structural trim to a deformed equilibrium.
 
 ### 7.8 Accepting the step
 
-On convergence, the driver stores the structural state and load, calls
-`advance_wake!` exactly once with the accepted aerodynamic state, and then
+On an accepted explicit step or converged implicit step, the driver stores the
+structural state and load, calls `advance_wake!` exactly once with the accepted
+aerodynamic state, and then
 increases `iwake` by one row per surface up to the allocated maximum. It does
 not call `propagate_system!` again. At the beginning of the next loop, the
 accepted `system.surfaces` become `previous_surfaces`, so panel-motion velocity
@@ -443,6 +473,7 @@ reassembling these arrays in an input file.
 | `src/WingPropellerUVLM.jl` | Declares the module, loads dependencies and source files in dependency order, and defines the exported public API. |
 | `src/UVLMState.jl` | Transactional `UVLMSnapshot`, `snapshot_uvlm`, `restore_uvlm!`, `advance_uvlm_trial!`, and `commit_wake_rows!`. |
 | `src/aeroelastic/GeneralizedAlpha.jl` | Generalized-alpha parameters, kinematics, structural corrector, coupled equilibrium residual, options, validation, and fixed-point step. |
+| `src/aeroelastic/StructuralTimeIntegration.jl` | Newmark-beta equations, integrator/coupling validation, shared structural dispatch, loose-explicit exchange, and integrator-independent implicit predictor-corrector iteration. |
 | `src/aeroelastic/Excitations.jl` | Smooth Hann pulse scalar and generalized-load-vector helpers. |
 
 ### 9.2 Modified VortexLattice backend
@@ -496,11 +527,11 @@ reassembling these arrays in an input file.
 | `examples/chang_linear_aeroelastic/src/chang_postprocessing.jl` | CSV/summary output, validation flags, history extraction, and optional plotting. |
 | `examples/chang_linear_aeroelastic/src/chang_animation.jl` | Opt-in accepted-state recorder and 3-D GIF renderer. |
 | `examples/chang_linear_aeroelastic/studies/` | Trim, airspeed, and two-stage convergence entry points. |
-| `examples/chang_linear_aeroelastic/validation/` | Structural, virtual-work, force-model, damping, and inertia-remap checks. |
+| `examples/chang_linear_aeroelastic/validation/` | Structural, virtual-work, force-model, damping, inertia-remap, and four-combination solver checks. |
 
 `Project.toml` defines package dependencies and compatibility. `test/runtests.jl`
-contains package, force, snapshot/rollback, generalized-alpha, structural, and
-example regression tests. `PROVENANCE.md`, `LICENSE`, and
+contains package, force, snapshot/rollback, both structural integrators,
+coupling choices, structural, and example regression tests. `PROVENANCE.md`, `LICENSE`, and
 `THIRD_PARTY_NOTICES.md` record the origin and licensing of imported code.
 
 ## 10. Public API reference

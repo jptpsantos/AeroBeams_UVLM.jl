@@ -38,6 +38,7 @@ mutable struct UVLMDynamicProblem{M,F,S}
 end
 
 function initialize_backend(model,solver,point,maximumWakeRows,grids)
+    # Allocate one aerodynamic System and initialize it at the accepted t_0 geometry.
     length(grids)==length(model.grids) || throw(DimensionMismatch("Surface count changed"))
     system=System(deepcopy(model.grids);nw=maximumWakeRows)
     system.reference[]=Reference(model.reference.S,model.reference.c,model.reference.b,
@@ -96,6 +97,7 @@ end
 function begin_time_step!(p::UVLMDynamicProblem)
     p.workspace.stepOpen && throw(ArgumentError("A time step is already open"))
     p.state.stepIndex<length(p.timeVector) || throw(ArgumentError("No remaining time steps"))
+    # Open one n -> n+1 transaction without changing the accepted state at n.
     p.workspace.timeEndTimeStep=p.timeVector[p.state.stepIndex+1]
     p.workspace.stepOpen=true
     p.workspace.trialReady=false
@@ -109,11 +111,14 @@ function evaluate_trial!(p::UVLMDynamicProblem;surfaces=nothing)
     w=p.workspace
     w.stepOpen || throw(ArgumentError("Call begin_time_step! first"))
     w.trialReady=false
+    # Every trial starts from the same accepted circulation, geometry, and wake.
     w.system=deepcopy(p.state.system)
     sys=w.system
+    # UVLM uses the accepted and trial surfaces to obtain the surface velocity.
     copy_surfaces_to_previous!(sys,length(sys.surfaces))
     grids=isnothing(surfaces) ? p.surfaceMotion(p.model,w.timeEndTimeStep) : surfaces
     apply_trial_geometry!(sys,grids,p.aeroSolver)
+    # Solve circulation and loads, but leave wake convection for commit_time_step!.
     propagate_system!(sys,freestream(p.operatingPoint),w.timeEndTimeStep-p.state.timeNow;
         additional_velocity=nothing,repeated_points=repeated_trailing_edge_points(sys.surfaces),
         nwake=copy(p.state.system.nwake),eta=p.aeroSolver.wakeSheddingFraction,
@@ -152,6 +157,7 @@ function commit_time_step!(p::UVLMDynamicProblem)
     w.stepOpen && w.trialReady || throw(ArgumentError("A successful uncommitted trial is required"))
     # Commit on a private copy: a wake-convection failure leaves the trial retryable.
     sys=deepcopy(w.system)
+    # A successful trial becomes physical only after its wake is advanced once.
     rows=copy(p.state.system.nwake)
     advance_wake!(sys,freestream(p.operatingPoint),w.timeEndTimeStep-p.state.timeNow;
         nwake=rows,interaction_id=p.model.interactionGroups,interaction=p.aeroSolver.interaction)

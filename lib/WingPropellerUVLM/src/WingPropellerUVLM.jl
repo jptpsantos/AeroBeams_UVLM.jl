@@ -36,6 +36,7 @@ include("wing_propeller/Kinematics.jl")
 include("wing_propeller/Initialization.jl")
 include("UVLMState.jl")
 include("aeroelastic/GeneralizedAlpha.jl")
+include("aeroelastic/StructuralTimeIntegration.jl")
 include("aeroelastic/Excitations.jl")
 include("OperatingPoint.jl")
 include("UVLMModel.jl")
@@ -96,6 +97,13 @@ export advance_uvlm_trial!, commit_wake_rows!
 export generalized_alpha_parameters, generalized_alpha_kinematics
 export generalized_alpha_corrector, generalized_alpha_equilibrium_residual
 export PartitionedCouplingOptions, partitioned_generalized_alpha_step
+export STRUCTURAL_TIME_INTEGRATORS, AEROELASTIC_COUPLING_SCHEMES
+export validate_structural_time_integrator, validate_aeroelastic_coupling_scheme
+export newmark_beta_parameters, newmark_beta_coefficients, newmark_beta_kinematics
+export newmark_beta_corrector, newmark_beta_equilibrium_residual
+export structural_integration_parameters, structural_predictor, structural_corrector
+export structural_equilibrium_residual, loose_explicit_aeroelastic_step
+export partitioned_aeroelastic_step
 export smooth_hann_pulse, smooth_hann_pulse_load
 
 end # module

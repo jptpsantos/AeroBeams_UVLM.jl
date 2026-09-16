@@ -16,9 +16,14 @@ from two files: edit `chang_case.jl`, then run `run_chang_linear_aeroelastic.jl`
 | `validation/` | Focused structural, load-transfer, and damping checks |
 | `output/` | Generated results; everything except `.gitignore` is ignored |
 
+The [complete technical code walkthrough](TECHNICAL_CODE_WALKTHROUGH.md)
+traces every active model-building, UVLM, load-transfer, integration, coupling,
+wake, mutation, and output stage, including exact time levels and verification
+findings.
+
 The [library and coupling guide](../../../../docs/src/wing-propeller-uvlm-library-guide.md)
 documents the coordinate systems, accepted-state UVLM transaction, structural
-load transfer, and generalized-alpha coupling in detail.
+load transfer, and partitioned coupling in detail.
 
 ## How to read the main script
 
@@ -40,10 +45,22 @@ which allocates fresh aerodynamic storage. The geometry and load-transfer
 functions receive `model` and `workspace` explicitly. Loading the module
 defines functions; it does not construct or run a case.
 
-Within each time step, the solver converges motion and loads with the wake
-fixed, then advances the accepted wake once. Numerical integration remains in
-`src/chang_simulation.jl`. Tabulated Chang mass and stiffness distributions
-remain reference data in `src/chang_model_parameters.jl`.
+The structural integrator and coupling strategy are independent. The defaults
+are `:newmark_beta` and one-exchange `:loose_explicit`; generalized-alpha and
+`:implicit_predictor_corrector` coupling remain selectable. During implicit
+subiterations the solver restores one beginning-of-step UVLM snapshot and
+keeps the wake fixed, then advances the accepted wake exactly once. Numerical
+integration remains in `src/chang_simulation.jl`. Tabulated Chang mass and
+stiffness distributions remain reference data in
+`src/chang_model_parameters.jl`.
+
+Loose coupling evaluates one aerodynamic trial at target time `t[n+1]` and
+the target propeller azimuth, but with the known structural state `U[n]`. That
+load advances the selected structural integrator to `n+1`; there are no
+aero-structural subiterations. Implicit coupling predicts an `n+1` structural
+state, restores the same aerodynamic snapshot before every correction, and
+accepts only a self-consistent state/load pair. In both modes wake convection,
+wake shedding, and active-row advancement happen once per physical step.
 
 ### Use the API or run multiple cases
 
@@ -85,7 +102,7 @@ From the repository root:
 julia --threads=auto lib/WingPropellerUVLM/examples/chang_linear_aeroelastic/run_chang_linear_aeroelastic.jl
 ```
 
-The default case uses a 20-by-10 wing grid, a 7-by-7 grid per propeller blade,
+The default case uses a 30-by-10 wing grid, a 10-by-10 grid per propeller blade,
 85 m/s, and the corrected Imperial near-field loads. It writes a CSV history,
 a text summary, and (by default) a PNG under `output/`. Wake animation is off
 by default because retained geometry and GIF files can be large.
@@ -115,7 +132,7 @@ Edit the plain values in the numbered groups in `chang_case.jl`:
 | `aerodynamic` | Fixed core radius or core factors, elastic axis, and modal load arm |
 | `wake` | Retained wake row counts |
 | `excitation` | Trim revolutions, averaging window, and pitch impulse |
-| `integration` | Generalized-alpha damping and stop limits |
+| `integration` | Structural integrator, Newmark/generalized-alpha parameters, and stop limits |
 | `coupling` | Iteration limit, convergence tolerances, and relaxation |
 | `output` | Directory, filename label, plots, and animation |
 | `structural` | Damping, pylon properties, and rotor mass/inertia inputs |
@@ -184,19 +201,23 @@ takes precedence over the corresponding setting in the file:
 
 | Variable | Case default | Meaning |
 |:--|--:|:--|
-| `CHANG_WING_SPAN_PANELS` | `20` | Wing spanwise panels and beam elements |
+| `CHANG_WING_SPAN_PANELS` | `30` | Wing spanwise panels and beam elements |
 | `CHANG_WING_CHORD_PANELS` | `10` | Wing chordwise panels |
-| `CHANG_PROP_RADIAL_PANELS` | `7` | Radial panels per blade |
-| `CHANG_PROP_CHORD_PANELS` | `7` | Chordwise panels per blade |
-| `CHANG_ROTATION_RPM` | `1212.0` | RPM at the trim reference speed |
+| `CHANG_PROP_RADIAL_PANELS` | `10` | Radial panels per blade |
+| `CHANG_PROP_CHORD_PANELS` | `10` | Chordwise panels per blade |
+| `CHANG_ROTATION_RPM` | `1217.6962` | RPM at the trim reference speed |
 | `CHANG_TRIM_SPEED_MPS` | `65` | RPM reference speed |
 | `CHANG_SPEED_MPS` | `85` | Aeroelastic flow speed |
 | `CHANG_AOA_DEG` | `3` | Angle of attack |
 | `CHANG_AZIMUTH_STEP_DEG` | `5` | Rotor increment and aerodynamic time step |
-| `CHANG_END_TIME_S` | `5` | Requested duration |
+| `CHANG_END_TIME_S` | `3` | Requested duration |
 | `CHANG_INTERACTION` | `false` | Wing--propeller aerodynamic interaction |
 | `CHANG_NEAR_FIELD_FORCE_MODEL` | `imperial` | `imperial` or `legacy_imperial_segments` |
 | `CHANG_PROP_MOMENT_PROJECTION` | `exact_virtual_work` | Exact or fixed-axis modal projection |
+| `CHANG_TIME_INTEGRATOR` | `newmark_beta` | `newmark_beta` or `generalized_alpha` |
+| `CHANG_NEWMARK_ALPHA` | `0.05` | Newmark damping parameter (`gamma=0.5+alpha`) |
+| `CHANG_COUPLING_SCHEME` | `loose_explicit` | One exchange or `implicit_predictor_corrector` iterations |
+| `CHANG_COUPLING_VERBOSE` | `false` | Print residuals for every implicit subiteration |
 | `CHANG_CORE_RADIUS_M` | See `chang_case.jl` | Fixed radius in metres; `nothing` selects core factors |
 | `CHANG_PLOT_RESULTS` | `true` | Write/display the response PNG |
 | `CHANG_ANIMATE_WAKE` | `false` | Record accepted states and write a GIF |
@@ -216,7 +237,10 @@ For example, the following edits can all be made in `chang_case.jl`:
 core_radius_m = 0.002,                 # aerodynamic: fixed 2 mm radius
 maximum_rows_wing = 120,                # wake
 maximum_rows_propeller = 144,           # wake
+time_integrator = :newmark_beta,         # integration
+newmark_alpha = 0.05,                    # integration
 rho_inf = 0.8,                          # integration
+scheme = :implicit_predictor_corrector,  # coupling
 state_tolerance = 1.0e-6,               # coupling
 maximum_iterations = 20,                # coupling
 ```
@@ -233,10 +257,11 @@ active rotor speed. Set a time in seconds for an explicit start. Output
 `label = nothing` derives the filename label from the selected force model.
 
 Existing numerical overrides such as `CHANG_FCORE_SEGMENT_FACTOR`,
-`CHANG_WAKE_ROWS_WING`, `CHANG_GA_RHO_INF`, and `CHANG_COUPLING_TOL_U` still take
-precedence over file settings. Independent trim/convergence study grids and
-validation-specific inputs remain in their study scripts; the groups above
-configure the primary aeroelastic runner.
+`CHANG_WAKE_ROWS_WING`, `CHANG_TIME_INTEGRATOR`, `CHANG_GA_RHO_INF`,
+`CHANG_COUPLING_SCHEME`, and `CHANG_COUPLING_TOL_U` take precedence over file
+settings. Independent trim/convergence study grids and validation-specific
+inputs remain in their study scripts; the groups above configure the primary
+aeroelastic runner.
 
 ## Studies
 
@@ -265,6 +290,13 @@ scripts and reference notes are preserved under `studies/convergence/archive/`.
 Run `validation/verify_chang_context.jl` to check configuration isolation,
 automatic settings, and interleaved aerodynamic trials with different models
 in one Julia session.
+
+Run `validation/verify_chang_solver_combinations.jl` for reduced end-to-end
+checks of all four integrator/coupling combinations, one wake-row commit per
+accepted physical step, finite histories, implicit subiterations, and a
+coarse/half-step loose-versus-implicit history diagnostic. The latter is not a
+damping or formal time-convergence study because changing azimuth step also
+changes wake and trim sampling.
 
 Run the structural modal and matrix checks with:
 
