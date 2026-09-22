@@ -1,5 +1,5 @@
 # ==============================================================================
-# Kinematics helpers for the Bohnisch wing-propeller coupled system.
+# Kinematics helpers for the general wing-propeller coupled system.
 # ==============================================================================
 
 using LinearAlgebra
@@ -42,13 +42,13 @@ end
 
 """Place the undeformed propeller grids at their initial global pivots."""
 function initialize_propeller_grids!(grids_prop_initial_global, grids_prop_ref,
-    T_pivot_global_init, hub_center_prop_A, Nb_prop::Int)
+    T_pivot_global_init, hub_center_prop_A, blade_counts_prop)
 
     R_whirl_init = RotationMatrix(0.0, 2) * RotationMatrix(0.0, 3)
     R_spin_init = I(3)
 
     for ip in eachindex(grids_prop_ref)
-        for k in 1:Nb_prop
+        for k in eachindex(grids_prop_ref[ip])
             grid_ref_k = grids_prop_ref[ip][k]
             grid_global_k = grids_prop_initial_global[ip][k]
             for i in 1:size(grid_ref_k, 2), j in 1:size(grid_ref_k, 3)
@@ -69,7 +69,7 @@ function update_propeller_grids!(grids_prop_current, T_pivot_A_current, grids_pr
     q_P_free, prop_attach_nodes, ea_x_aero, attach_node_y,
     u_z_A, theta_x_A, theta_y_A, theta_z_A,
     prop_pivot_offset_from_ea_A, hub_center_prop_A,
-    Omega_prop, t_next, Npropellers::Int, Nb_prop::Int)
+    Omega_prop, t_next, Npropellers::Int, blade_counts_prop)
 
     for ip in 1:Npropellers
         pos = prop_attach_nodes[ip]
@@ -85,9 +85,10 @@ function update_propeller_grids!(grids_prop_current, T_pivot_A_current, grids_pr
         # Rotor azimuth is evaluated from physical time, so repeated coupling
         # trials at the same t[n+1] do not advance it more than once.
         R_whirl_A = RotationMatrix(prop_pitch_A, 2) * RotationMatrix(prop_yaw_A, 3)
-        R_spin_A = RotationMatrix(-Omega_prop * t_next, 1)
+        omega = Omega_prop isa Number ? Omega_prop : Omega_prop[ip]
+        R_spin_A = RotationMatrix(-omega * t_next, 1)
 
-        for k in 1:Nb_prop
+        for k in eachindex(grids_prop_ref[ip])
             grid_ref_blade = grids_prop_ref[ip][k]
             current_grid_blade = grids_prop_current[ip][k]
             for i in 1:size(grid_ref_blade, 2), j in 1:size(grid_ref_blade, 3)
@@ -106,14 +107,14 @@ end
 
 """Convert deformed grids to panels and replace only the System surface geometry."""
 function update_system_surfaces!(system, grid_wing, grids_prop_current,
-    ratio_wing, Npropellers::Int, Nb_prop::Int;
+    ratio_wing, Npropellers::Int, blade_counts_prop;
     fcore = (c, ds) -> 1e-3)
 
     _, _, current_surface_wing = grid_to_surface_panels(grid_wing; ratios=ratio_wing, fcore=fcore)
     current_surfaces_prop = Vector{typeof(current_surface_wing)}()
 
     for ip in 1:Npropellers
-        for k in 1:Nb_prop
+        for k in eachindex(grids_prop_current[ip])
             push!(current_surfaces_prop, grid_to_surface_panels(grids_prop_current[ip][k]; fcore=fcore)[3])
         end
     end

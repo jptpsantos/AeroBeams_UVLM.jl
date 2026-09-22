@@ -403,27 +403,10 @@ function build_chang_model_parameters(config)
     prop_attach_nodes = [clamp(round(Int, Lp / le) + 1, 1, nnodes) for Lp in propeller_span_positions]
     ndof_P = 2 * Npropellers
 
-    # Work-conjugate attachment interpolation. The nearest-node indices are kept
-    # for compatibility with UVLM allocation utilities, while the structural
-    # matrices, propeller kinematics, and load transfer use these exact brackets.
-    prop_attachment_node_pairs = Tuple{Int,Int}[]
-    prop_attachment_weights = Tuple{Float64,Float64}[]
-    for position in propeller_span_positions
-        right_node = clamp(searchsortedfirst(span_nodes, position), 2, nnodes)
-        left_node = right_node - 1
-        fraction = (position - span_nodes[left_node]) /
-            (span_nodes[right_node] - span_nodes[left_node])
-        push!(prop_attachment_node_pairs, (left_node, right_node))
-        push!(prop_attachment_weights, (1 - fraction, fraction))
-    end
-
     for ip in 1:Npropellers
-        left_node, right_node = prop_attachment_node_pairs[ip]
-        left_weight, right_weight = prop_attachment_weights[ip]
         println(
             "Propeller P$(ip) at η=$(propeller_eta[ip]), y=$(propeller_span_positions[ip]) m; " *
-            "structural nodes=($left_node,$right_node), " *
-            "weights=($(round(left_weight, digits=6)),$(round(right_weight, digits=6)))",
+            "structural node=$(prop_attach_nodes[ip])",
         )
     end
     structural_pivot_prop = SVector(0.0, 0.0, 0.0)
@@ -472,7 +455,7 @@ function build_chang_model_parameters(config)
         blade_twists_prop, L_pylon, mP_prop, Inθ_prop, Inψ_prop,
         Ix_prop, SθP_prop, SψP_prop, SαP_prop, SγP_prop,
         IθαP_prop, IψγP_prop, IαP_prop, IγP_prop, propeller_span_positions,
-        Npropellers, prop_attach_nodes, ndof_P, prop_attachment_node_pairs, prop_attachment_weights,
+        Npropellers, prop_attach_nodes, ndof_P,
         t, dt, INTERACTION_ON, alpha, fs,
         Sref, cref, ref,
     )

@@ -1,13 +1,13 @@
 # Case-level construction and diagnostics for the Chang structural model.
 # The numerical element/mass routines remain in `chang_structural_matrices.jl`.
 
-isdefined(@__MODULE__, :assemble_chang_structural_matrices) ||
+isdefined(@__MODULE__, :assemble_structural_matrices) ||
     include(joinpath(@__DIR__, "chang_structural_matrices.jl"))
 
-function assemble_chang_structural_model(parameters;
+function assemble_structural_model(parameters;
     inertia_reference::Symbol = :center_of_mass,
 )
-    matrices = assemble_chang_structural_matrices(
+    matrices = assemble_structural_matrices(
         Ne = parameters.Ne,
         le = parameters.le,
         ndof = parameters.ndof,
@@ -36,8 +36,6 @@ function assemble_chang_structural_model(parameters;
         ndof_P = parameters.ndof_P,
         Npropellers = parameters.Npropellers,
         prop_attach_nodes = parameters.prop_attach_nodes,
-        prop_attachment_node_pairs = parameters.prop_attachment_node_pairs,
-        prop_attachment_weights = parameters.prop_attachment_weights,
         Inθ_prop = parameters.Inθ_prop,
         Inψ_prop = parameters.Inψ_prop,
         Kθ_prop = parameters.Kθ_prop,
@@ -60,6 +58,9 @@ function assemble_chang_structural_model(parameters;
     )
     return merge(matrices, (; dofs_per_node = parameters.ndof))
 end
+
+assemble_chang_structural_model(parameters; kwargs...) =
+    assemble_structural_model(parameters; kwargs...)
 
 """
     chang_wing_modal_frequencies(structural; number_of_modes=6)

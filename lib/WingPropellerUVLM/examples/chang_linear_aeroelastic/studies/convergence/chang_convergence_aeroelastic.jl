@@ -84,7 +84,6 @@ function create_study()
             stateTolerance=1e-5,loadTolerance=1e-2,equilibriumTolerance=1e-10,
             coupledEquilibriumTolerance=1e-4,relaxation=1.0,verbose=false),
         propellerMomentProjection = :exact_virtual_work,
-        hubLoadArmFactor = 0.5,
     )
     return WingPropellerUVLMStudies.create_AeroelasticConvergenceStudy(settings)
 end

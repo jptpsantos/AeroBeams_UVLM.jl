@@ -1,8 +1,9 @@
 # Aerodynamic convergence. Edit camelCase settings in create_study().
 # Including this file defines the entry only. Use the studies project in the REPL.
-if abspath(PROGRAM_FILE) == @__FILE__
+studiesProject = normpath(joinpath(@__DIR__,"..","..","..","..","studies"))
+if Base.find_package("WingPropellerUVLMStudies") === nothing
     import Pkg
-    Pkg.activate(normpath(joinpath(@__DIR__,"..","..","..","..","studies")))
+    Pkg.activate(studiesProject)
 end
 
 module ChangConvergenceAerodynamic
@@ -54,7 +55,7 @@ function create_study()
         propellerChordPanels = [5, 10, 20],
         wakeRevolutions = [1.0, 2.0, 3.0],
         core = [0.01, 0.003, 0.001, 0.0003],
-        azimuthStepDeg = [5.0, 2.5, 1.25],
+        azimuthStepDeg = [10.0, 5.0, 2.5],
     )
     settings = (;
         physical, coreMode, nominal, sweeps,
@@ -80,6 +81,6 @@ aerodynamic_study()=WingPropellerUVLMStudies.legacy_settings(create_study())
 main()=WingPropellerUVLMStudies.solve!(create_study()).results
 end
 
-if abspath(PROGRAM_FILE) == @__FILE__
+
     ChangConvergenceAerodynamic.main()
-end
+

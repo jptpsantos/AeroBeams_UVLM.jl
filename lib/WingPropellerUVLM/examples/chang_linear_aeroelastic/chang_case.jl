@@ -13,8 +13,8 @@ function chang_case_defaults()
         symmetric = true,         # Wing + wing-wake images across y=0 (X-Z plane).
                                   # false: model only this side. Blades are never mirrored.
 
-        spanwise_panels = 30,      # Also sets the number of structural beam elements.
-        chordwise_panels = 10,
+        spanwise_panels = 20,      # Also sets the number of structural beam elements.
+        chordwise_panels = 5,
     )
 
     # 2. Propeller geometry, mesh, and installation
@@ -23,33 +23,33 @@ function chang_case_defaults()
         chord_m = 0.197,           # Constant blade chord.
         blades = 4,
 
-        radial_panels = 10,         # Panels along each blade.
-        chordwise_panels = 10,      # Panels across each blade chord.
+        radial_panels = 5,         # Panels along each blade.
+        chordwise_panels = 5,      # Panels across each blade chord.
 
         # RPM is specified at trim_speed_mps. The solver scales RPM with airspeed
         # to keep the advance ratio fixed.
-        rotation_rpm = 1217.6962,
+        rotation_rpm = 1208, 
         trim_speed_mps = 65.0,
 
         # One entry per propeller: 0 = wing root, 1 = wing tip.
-        attachment_eta = [0.83],
+        attachment_eta = [0.42, 0.83],
         collective_pitch_offset_deg = 0.0, # Added to the Chang blade-angle distribution.
     )
 
     # 3. Flow, time stepping, and coupling
     simulation = (
         air_density_kgpm3 = 1.225,
-        freestream_speed_mps = 85.0,
+        freestream_speed_mps = 75.0,
         angle_of_attack_deg = 3.0,
         sideslip_deg = 0.0,
 
-        azimuth_step_deg = 5,    # Rotor angle advanced per time step.
-        end_time_s = 3.0,          # Total requested simulation duration.
+        azimuth_step_deg = 2.5,    # Rotor angle advanced per time step.
+        end_time_s = 2.0,          # Total requested simulation duration.
 
         # true: include wing–propeller and propeller–propeller aerodynamic influence.
         # false: isolate those groups; blades within each propeller still interact.
         # Structural wing–propeller coupling remains active in both modes.
-        interaction_on = false,
+        interaction_on = true,
 
         # Aerodynamic loads: :imperial (corrected) or :legacy_imperial_segments.
         near_field_force_model = :imperial,
@@ -57,7 +57,7 @@ function chang_case_defaults()
         # Propeller pitch/yaw moments: :exact_virtual_work or :fixed_aero_axes.
         propeller_moment_projection = :exact_virtual_work,
 
-        impulse_propeller_indices = [1],   # Propellers receiving the pitch impulse.
+        impulse_propeller_indices = [1, 2],   # Propellers receiving the pitch impulse.
     )
 
     # 4. Aerodynamic finite core and load geometry
@@ -65,16 +65,15 @@ function chang_case_defaults()
         # Fixed radius in metres for wing, blades, and shed wakes.
         # Examples: 1e-3 = 1 mm; 1e-6 = 1 micrometre.
         # Set nothing to use the factor-based rule below.
-        core_radius_m = nothing,#0.1*0.197,
+        core_radius_m = 0.1*7.5,
 
         # Used only when core_radius_m = nothing:
         # radius = max(segment_core_factor * Δs, chord_core_factor * c).
         # Δs is the local span/radial edge length; c is the full local chord.
-        segment_core_factor = 0.0,
-        chord_core_factor = 5*0.002,#1e-2,
+        segment_core_factor = 0.0,#1e-1,
+        chord_core_factor = 0.0,#1e-1,
 
         elastic_axis_fraction = 0.30,      # Chord fraction measured from the leading edge.
-        hub_load_arm_factor = 0.5,         # Modal load arm divided by pylon length.
     )
 
     # 5. Retained wake length
@@ -82,10 +81,10 @@ function chang_case_defaults()
         # One wake row is shed per time step: retained wake age ≈ rows * Δt.
         # Wing: use an integer for a fixed row count, or nothing for automatic sizing.
         maximum_rows_wing = nothing,
-        wing_rows_per_chord_panel = 10,    # Automatic count = this * active chordwise panels.
+        wing_rows_per_chord_panel = 5,    # Automatic count = this * active chordwise panels.
         # Propeller wake: rows = ceil(revolutions * 360 / azimuth_step_deg).
         # This keeps the retained wake duration fixed when the azimuth step changes.
-        retained_revolutions_propeller = 1.0,
+        retained_revolutions_propeller = 0.5,
         # Set an integer here only to override the revolution-based count directly.
         maximum_rows_propeller = nothing,
     )

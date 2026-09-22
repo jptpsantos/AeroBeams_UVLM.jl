@@ -28,7 +28,7 @@ using WingPropellerUVLM:
     grid_to_surface_panels,
     imperial_nodal_forces,
     imperial_nodal_positions,
-    initialize_bohnisch_uvlm_system,
+    initialize_wing_propeller_uvlm_system,
     near_field_forces!,
     propagate_system!,
     update_propeller_grids!,
@@ -124,9 +124,11 @@ function simulate_coupled_aerodynamics(options; verbose = true)
         deg2rad(options.sideslip_deg),
         SVector(0.0, 0.0, 0.0),
     )
-    hub_center = SVector(-options.pylon_length_m, 0.0, 0.0)
+    # The aerodynamic hub is the selected attachment node. Pylon inertia and
+    # flexibility belong in the structural model, not in a second hub origin.
+    hub_center = SVector(0.0, 0.0, 0.0)
 
-    uvlm = initialize_bohnisch_uvlm_system(
+    uvlm = initialize_wing_propeller_uvlm_system(
         xle = [0.0, xle_tip],
         yle = [0.0, span],
         zle = [0.0, 0.0],
@@ -147,7 +149,6 @@ function simulate_coupled_aerodynamics(options; verbose = true)
         Npropellers = 1,
         span_nodes = span_nodes,
         prop_attach_nodes = [propeller_attach_node],
-        propeller_span_positions = [propeller_span_position],
         chord = chord_distribution,
         xle_distribution = xle_distribution,
         ref = reference,

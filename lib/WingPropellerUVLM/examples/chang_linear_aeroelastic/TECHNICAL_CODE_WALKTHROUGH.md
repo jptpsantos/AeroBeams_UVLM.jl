@@ -338,9 +338,9 @@ This is why the mapping needs the current `theta_x_A` and `theta_z_A`.
 - The reference rotor axis is aerodynamic `x_A`.
 - Blade 1 is constructed with radial direction initially along `+y_A`; `z_A` completes the disk-plane basis. Other blades are rotations about `x_A`.
 - The blade chord at each radius is placed by the Chang twist table; the stored angle is `twist_deg - 90 deg + collective_offset`.
-- The pivot is on the deformed wing elastic axis at the exact configured span position.
-- `physical_hub_center_A=(-L_pylon,0,0)` is the physical rotor-center offset from that pivot.
-- `load_center_A=(-hub_load_arm_factor*L_pylon,0,0)` defines the modal generalized-force lever arm.
+- The pivot is on the deformed wing elastic axis at the selected structural node.
+- The aerodynamic hub, modal pivot, and structural attachment are the same point.
+- Pylon/nacelle offsets are represented by structural first moments and cross inertias, not by a second aerodynamic origin.
 - Propeller pitch is positive about the wing-rotated `+y_A` axis.
 - Structural propeller yaw is positive about structural down, hence the aerodynamic yaw angle is its negative and its work-conjugate axis is `-R_W R_y(pitch)e_z`.
 - Prescribed spin is `R_x(-Omega*t)`. Azimuth is computed from absolute target time; no mutable azimuth counter exists.
@@ -535,19 +535,12 @@ F_P=\sum_a F_a,\qquad
 M_{hub}=\sum_a(r_a-r_{hub})\times F_a.
 \]
 
-It then constructs two moments:
-
-\[
-M_{modal}=M_{hub}+(r_{load}-r_{pivot})\times F_P,
-\]
-
-\[
-M_{wing}=M_{hub}+(r_{hub}-r_{pivot})\times F_P.
-\]
-
-`M_modal` is projected onto the instantaneous pitch/yaw axes (or fixed aerodynamic axes if requested) to produce the two propeller generalized loads. `M_wing` plus the total force forms the wrench applied to the wing attachment. That wrench is projected into structural coordinates and distributed to the bracketing nodes with the same interpolation weights.
-
-The distinction between physical hub and modal load point is deliberate in the code. The `hub_load_arm_factor` is therefore a physical modeling parameter, not merely a postprocessing choice.
+Because hub, modal pivot, and structural attachment are colocated, both modal
+and wing coordinates receive the physical UVLM moment `M_hub` about that shared
+point. No additional `r x F` is added. The modal moment is projected onto the
+instantaneous pitch/yaw axes (or fixed aerodynamic axes if requested), while
+the complete wrench is projected into structural coordinates and applied only
+to the selected attachment node.
 
 ## 10. Initial conditions, aerodynamic startup, trim, and perturbation
 
@@ -859,18 +852,18 @@ The summary records model choices, completion/finite/convergence status and resp
 - Initial acceleration is computed from equilibrium rather than assumed independently.
 - The structural and aerodynamic basis conversion is applied consistently to translations and forces.
 - Wing and propeller moment arms use positions paired with the dimensional vortex-vertex forces.
-- Attachment kinematics and load distribution use the same interpolation weights; the dedicated structural verification reports zero attachment virtual-work error.
-- The package test suite passes 167/167 tests.
+- Propeller attachment kinematics and load transfer use the same single node; the dedicated structural verification reports zero attachment virtual-work error.
+- The complete package suite passes 388 assertions across its test summaries.
 - The four integrator/coupling smoke combinations and their refined Newmark cases pass 31/31 checks.
 - The structural verification passes with positive reduced `M`/`K`, symmetry errors near machine precision, conservative total spatial inertia, and first reference modes within the reported comparison errors.
-- The finite-difference load-transfer audit covers reference, uniform-rotation, and nonuniform-rotation states; its maximum scaled virtual-work discrepancy was approximately `5.0e-8`.
+- The finite-difference load-transfer audit covers reference, uniform-rotation, and nonuniform-rotation states; its maximum scaled virtual-work discrepancy was approximately `9.25e-8`.
 
 ### Potential concerns or modeling assumptions
 
 1. **Linear structure with finite-rotation aerodynamic geometry.** This is a mixed model, not a geometrically nonlinear beam. Establish a response-amplitude range where it remains valid.
 2. **Rigid-reference aerodynamic trim.** The mean load is subtracted while the structure stays at zero; no static aeroelastic equilibrium is found. This should match the intended perturbation experiment.
 3. **Root inertia relocation.** Moving the clamped-root control-volume block to the first free node preserves totals but changes local inertia distribution. Retain the current modal comparison as a regression check.
-4. **Modal load center.** `hub_load_arm_factor` changes propeller modal generalized moments, whereas the wing sees the physical hub arm. This must reflect the intended assumed pylon mode.
+4. **Direct-node station resolution.** A requested continuous span fraction is rounded to a structural node in the Chang compatibility input. Refine or place the structural nodes explicitly when the exact installation station matters.
 5. **Trim mean endpoint.** Sampling both ends of a nominal periodic window can duplicate a phase when the interval is exactly an integer revolution. The effect is small for many samples but can be removed with a half-open window or phase-aware average.
 6. **Newmark input range.** The code checks only finite `alpha` and positive `gamma,beta`. The stated unconditional-stability family also assumes `alpha>=0`; negative values currently pass if the derived coefficients remain positive.
 7. **`system.grids` is not kept current by the Chang adapter.** The active solve uses `system.surfaces`, so this does not affect propagation, but generic inspection of `system.grids` can see stale/uninitialized data.

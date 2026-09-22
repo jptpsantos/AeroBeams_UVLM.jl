@@ -147,7 +147,7 @@ function chang_distributed_beam_element_stiffness_matrix(
     return 0.5 .* (K .+ K')
 end
 
-function assemble_chang_structural_matrices(;
+function assemble_structural_matrices(;
     Ne, le, ndof, NDOF, nnodes,
     EIy_vec, EIz_vec, EIzy_vec, GJ_vec, EA_vec,
     span_nodes = nothing,
@@ -158,8 +158,6 @@ function assemble_chang_structural_matrices(;
     cg_x_node_vec, cg_y_node_vec, cg_z_node_vec,
     spatial_inertia_blocks = nothing,
     ndof_P, Npropellers, prop_attach_nodes,
-    prop_attachment_node_pairs = nothing,
-    prop_attachment_weights = nothing,
     Inθ_prop, Inψ_prop, Kθ_prop, Kψ_prop, ξ_prop,
     stiffness_damping_ratio, stiffness_damping_reference_omega,
     Ix_prop, Ω,
@@ -252,22 +250,6 @@ function assemble_chang_structural_matrices(;
 
     attach_dofs_all = Vector{UnitRange{Int}}(undef, Npropellers)
     attachment_operators = Vector{Matrix{Float64}}(undef, Npropellers)
-    use_interpolated_attachment =
-        !isnothing(prop_attachment_node_pairs) || !isnothing(prop_attachment_weights)
-    if use_interpolated_attachment
-        isnothing(prop_attachment_node_pairs) && error(
-            "prop_attachment_node_pairs and prop_attachment_weights must be provided together",
-        )
-        isnothing(prop_attachment_weights) && error(
-            "prop_attachment_node_pairs and prop_attachment_weights must be provided together",
-        )
-        length(prop_attachment_node_pairs) == Npropellers || throw(DimensionMismatch(
-            "prop_attachment_node_pairs must contain Npropellers entries",
-        ))
-        length(prop_attachment_weights) == Npropellers || throw(DimensionMismatch(
-            "prop_attachment_weights must contain Npropellers entries",
-        ))
-    end
 
     for ip in 1:Npropellers
         pos = prop_attach_nodes[ip]
@@ -275,27 +257,12 @@ function assemble_chang_structural_matrices(;
         node_dofs = (ndof * (pos - 1) + 1):(ndof * pos)
         attach_dofs_all[ip] = node_dofs
 
+        # Direct single-node structural attachment. The propeller/nacelle is
+        # attached to the physical wing node selected by the case definition; no
+        # neighboring-node interpolation weights are used in the assembled
+        # structural matrices.
         attachment_operator = zeros(6, NDOF)
-        if use_interpolated_attachment
-            left_node, right_node = prop_attachment_node_pairs[ip]
-            left_weight, right_weight = prop_attachment_weights[ip]
-            1 <= left_node <= nnodes || throw(ArgumentError(
-                "Left attachment node $left_node is outside the wing mesh",
-            ))
-            1 <= right_node <= nnodes || throw(ArgumentError(
-                "Right attachment node $right_node is outside the wing mesh",
-            ))
-            isapprox(left_weight + right_weight, 1.0; atol = 1e-12) ||
-                throw(ArgumentError("Attachment weights must sum to one"))
-            left_dofs = (ndof * (left_node - 1) + 1):(ndof * left_node)
-            right_dofs = (ndof * (right_node - 1) + 1):(ndof * right_node)
-            attachment_operator[:, left_dofs] .+=
-                left_weight .* Matrix{Float64}(I, 6, 6)
-            attachment_operator[:, right_dofs] .+=
-                right_weight .* Matrix{Float64}(I, 6, 6)
-        else
-            attachment_operator[:, node_dofs] .= Matrix{Float64}(I, 6, 6)
-        end
+        attachment_operator[:, node_dofs] .= Matrix{Float64}(I, 6, 6)
         attachment_operators[ip] = attachment_operator
 
         Ms_P[prop_dofs, prop_dofs] .= Ms_p_local

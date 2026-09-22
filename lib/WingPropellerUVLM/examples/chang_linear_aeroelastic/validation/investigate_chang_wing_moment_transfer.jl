@@ -66,13 +66,10 @@ function projection_correction(kinematics)
         pivot = T_pivot_A_current[p]
         moment = sum(cross(positions[s][j] - pivot, forces[s][j])
             for s in prop_surface_indices[p] for j in eachindex(forces[s]))
-        left, right = prop_attachment_node_pairs[p]
-        wl, wr = prop_attachment_weights[p]
-        tx = wl * kinematics.theta_x_A[left] + wr * kinematics.theta_x_A[right]
-        tz = wl * kinematics.theta_z_A[left] + wr * kinematics.theta_z_A[right]
-        for (node, weight) in ((left, wl), (right, wr))
-            accumulate!(delta_prop, old_prop, node, moment, tx, tz, weight)
-        end
+        node = prop_attach_nodes[p]
+        tx = kinematics.theta_x_A[node]
+        tz = kinematics.theta_z_A[node]
+        accumulate!(delta_prop, old_prop, node, moment, tx, tz, 1.0)
     end
     return (; delta_wing, delta_prop, old_wing, old_prop)
 end
@@ -85,8 +82,8 @@ function investigation_state(angle; pattern=:uniform, propeller_motion=true)
     for node in 2:nnodes
         offset = ndof * (node - 2)
         if pattern == :nonuniform
-            # Different rotations at neighboring nodes exercise the attachment
-            # interpolation chain rule. Root translations/rotations stay zero.
+            # Different rotations at neighboring nodes exercise direct-node
+            # attachment without any interpolation. Root motion stays zero.
             eta = span_nodes[node] / span_length
             state[offset+1:offset+3] .= (0.001eta, -0.002eta^2, 0.003sin(pi*eta/2))
             state[offset+4:offset+6] .= deg2rad(angle) .* (

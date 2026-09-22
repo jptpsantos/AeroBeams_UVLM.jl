@@ -72,7 +72,7 @@ end
 create_AeroelasticConvergenceStudy(;kwargs...)=create_AeroelasticConvergenceStudy((;kwargs...))
 
 function check_loaded_source()
-    Convergence.SOURCE()==LOADED_SOURCE || error("Numerical source changed after this module was loaded; start a fresh Julia process")
+    Convergence.SOURCE()==LOADED_SOURCE[] || error("Numerical source changed after this module was loaded; start a fresh Julia process")
 end
 function solve!(s::AerodynamicConvergenceStudy)
     check_loaded_source()

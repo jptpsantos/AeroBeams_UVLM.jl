@@ -4,7 +4,7 @@ using LinearAlgebra
 using StaticArrays
 using WingPropellerUVLM:
     Uniform, Freestream, Reference, RotationMatrix,
-    initialize_bohnisch_uvlm_system, get_nodal_properties_chang,
+    initialize_wing_propeller_uvlm_system, get_nodal_properties_chang,
     grid_to_surface_panels, generate_panel_grid_and_interpolate, linear_interpolate_1d,
     copy_surfaces_to_previous!, propagate_system!, advance_wake!, snapshot_uvlm, restore_uvlm!,
     near_field_forces!, legacy_imperial_segment_forces!, imperial_nodal_forces, imperial_nodal_positions,
@@ -12,10 +12,12 @@ using WingPropellerUVLM:
     validate_structural_time_integrator, validate_aeroelastic_coupling_scheme,
     structural_integration_parameters, PartitionedCouplingOptions,
     loose_explicit_aeroelastic_step, partitioned_aeroelastic_step, smooth_hann_pulse_load
+using WingPropellerUVLM: colocated_hub_wrench, add_direct_node_wrench!
 
 export chang_case_defaults, load_chang_configuration, ChangModel,
        build_chang_model, build_chang_workspace, run_chang,
-       update_aero_geometry_for_state!, assemble_structural_aero_load!, aero_load_for_state!
+    assemble_structural_model, update_aero_geometry_for_state!,
+    assemble_structural_aero_load!, aero_load_for_state!
 
 # Includes define functions only. A case is constructed explicitly below.
 # Read the interactive case only when defaults are requested. Callers passing
@@ -51,7 +53,7 @@ function build_chang_model(config)
     config = deepcopy(config)
     validate_configuration(config)
     parameters = build_chang_model_parameters(config)
-    structural = assemble_chang_structural_model(parameters)
+    structural = assemble_structural_model(parameters)
     aerodynamic_options = chang_aerodynamic_options(config)
     force_function = config.simulation.near_field_force_model == :legacy_imperial_segments ?
         legacy_imperial_segment_forces! : near_field_forces!

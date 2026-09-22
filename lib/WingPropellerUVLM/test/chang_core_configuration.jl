@@ -67,7 +67,9 @@ include(joinpath(EXAMPLE, "src", "chang_propeller_trim.jl"))
         workspace = build_chang_workspace(model)
         @test model.parameters.symmetric_wing == (ns == 2)
         @test !model.parameters.mirror_wing
-        @test workspace.system.symmetric == vcat(ns == 2,fill(false,defaults.propeller.blades))
+        blade_surface_count = defaults.propeller.blades *
+            length(refined.propeller.attachment_eta)
+        @test workspace.system.symmetric == vcat(ns == 2, fill(false, blade_surface_count))
         @test size(workspace.system.surfaces[1]) == (2,2ns)
         cores_match() = all(s -> all(p -> p.core_size == radius, s), workspace.system.surfaces)
         @test cores_match()
@@ -90,7 +92,7 @@ include(joinpath(EXAMPLE, "src", "chang_propeller_trim.jl"))
         end
         q = fill(1e-5, model.structural.ndof_free)
         update_aero_geometry_for_state!(model, workspace, q, model.parameters.dt[1])
-        @test workspace.system.symmetric == vcat(ns == 2,fill(false,defaults.propeller.blades))
+        @test workspace.system.symmetric == vcat(ns == 2, fill(false, blade_surface_count))
         @test cores_match()
 
         # Shed from every component, then convect a wake panel.
@@ -119,5 +121,46 @@ include(joinpath(EXAMPLE, "src", "chang_propeller_trim.jl"))
     @test_throws ErrorException validate_chang_windmilling_options(
         ChangWindmillingTrimOptions(vortex_core_span_fraction = 0, vortex_core_chord_fraction = 0))
     @test chang_trim_finite_core(ChangWindmillingTrimOptions())(0.197, 0.1) == 0.05
+end
+
+@testset "Direct propeller attachment to a single wing node" begin
+    defaults = chang_case_defaults()
+    env = Dict(
+        "CHANG_WING_SPAN_PANELS" => "8",
+        "CHANG_WING_CHORD_PANELS" => "3",
+        "CHANG_PROP_RADIAL_PANELS" => "4",
+        "CHANG_PROP_CHORD_PANELS" => "2",
+        "CHANG_END_TIME_S" => "0.001",
+        "CHANG_PLOT_RESULTS" => "false",
+        "CHANG_ANIMATE_WAKE" => "false",
+    )
+    config = load_chang_configuration(defaults; env = env)
+    model = build_chang_model(config)
+    structural = ChangAeroelastic.assemble_structural_model(model.parameters)
+
+    node = model.parameters.prop_attach_nodes[1]
+    target = collect((6 * (node - 1) + 1):(6 * node))
+    all_dofs = collect(1:size(structural.attachment_operators[1], 2))
+    inactive = setdiff(all_dofs, target)
+
+    @test maximum(abs.(structural.attachment_operators[1][:, inactive])) == 0.0
+    @test maximum(abs.(structural.attachment_operators[1][:, target])) > 0.0
+
+    workspace = build_chang_workspace(model)
+    @test workspace.attach_node_y[1] == model.parameters.span_nodes[node]
+    state = zeros(structural.ndof_free)
+    free_node_start = 6 * (node - 2)
+    state[free_node_start + 1] = 0.03
+    state[free_node_start + 2] = -0.02
+    state[free_node_start + 3] = 0.01
+    update_aero_geometry_for_state!(model, workspace, state, 0.0)
+    expected_node_position = SVector(
+        workspace.ea_x_aero[1] - 0.02,
+        model.parameters.span_nodes[node] + 0.03,
+        -0.01,
+    )
+    @test workspace.T_pivot_A_current[1] ≈ expected_node_position
+    @test workspace.T_hub_A_current[1] == workspace.T_pivot_A_current[1]
+    @test workspace.T_load_A_current[1] == workspace.T_pivot_A_current[1]
 end
 end

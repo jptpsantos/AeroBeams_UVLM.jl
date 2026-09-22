@@ -46,7 +46,7 @@ function initialize_chang_uvlm(parameters;
     maximum_wake_rows_wing,
     maximum_wake_rows_propeller,
 )
-    return initialize_bohnisch_uvlm_system(
+    return initialize_wing_propeller_uvlm_system(
         xle = parameters.xle,
         yle = parameters.yle,
         zle = parameters.zle,
@@ -67,7 +67,6 @@ function initialize_chang_uvlm(parameters;
         Npropellers = parameters.Npropellers,
         span_nodes = parameters.span_nodes,
         prop_attach_nodes = parameters.prop_attach_nodes,
-        propeller_span_positions = parameters.propeller_span_positions,
         chord = parameters.chord,
         xle_distribution = parameters.xle_distribution,
         ref = parameters.ref,
@@ -102,8 +101,7 @@ the wake.
 
 function update_aero_geometry_for_state!(model, workspace, q_free::AbstractVector, time_np1::Real)
     (; ndof, span_length, chord, xle_distribution, ns_wing, nc_wing,
-       Npropellers, prop_attachment_node_pairs, prop_attachment_weights, Ω,
-       Nb_prop) = model.parameters
+       Npropellers, prop_attach_nodes, Ω, Nb_prop) = model.parameters
     ndof_wing_free = model.structural.ndof_wing_free
     (; system, ea_x_aero, attach_node_y, T_pivot_A_current, pitch_axis_A_current,
        yaw_axis_A_current, T_hub_A_current, T_load_A_current, grids_prop_ref,
@@ -153,25 +151,21 @@ function update_aero_geometry_for_state!(model, workspace, q_free::AbstractVecto
     )
 
     # Propeller motion is composed in this order: prescribed rotor spin,
-    # pylon pitch/yaw, then the interpolated attachment rotation/translation.
+    # pylon pitch/yaw, then the selected attachment-node rotation/translation.
     for propeller_index in 1:Npropellers
-        left_node, right_node = prop_attachment_node_pairs[propeller_index]
-        left_weight, right_weight = prop_attachment_weights[propeller_index]
+        attach_node = prop_attach_nodes[propeller_index]
         pitch_aero = q_propeller_free[2 * (propeller_index - 1) + 1]
         yaw_aero = -q_propeller_free[2 * (propeller_index - 1) + 2]
 
-        u_x_attachment = left_weight * u_x_aero[left_node] +
-            right_weight * u_x_aero[right_node]
-        u_y_attachment = left_weight * u_y_aero[left_node] +
-            right_weight * u_y_aero[right_node]
-        u_z_attachment = left_weight * u_z_aero[left_node] +
-            right_weight * u_z_aero[right_node]
-        theta_x_attachment = left_weight * theta_x_aero[left_node] +
-            right_weight * theta_x_aero[right_node]
-        theta_y_attachment = left_weight * theta_y_aero[left_node] +
-            right_weight * theta_y_aero[right_node]
-        theta_z_attachment = left_weight * theta_z_aero[left_node] +
-            right_weight * theta_z_aero[right_node]
+        # Direct attachment: the aerodynamic hub is colocated with the selected
+        # structural node. No interpolation weights are used to split the propeller
+        # motion between adjacent beam nodes.
+        u_x_attachment = u_x_aero[attach_node]
+        u_y_attachment = u_y_aero[attach_node]
+        u_z_attachment = u_z_aero[attach_node]
+        theta_x_attachment = theta_x_aero[attach_node]
+        theta_y_attachment = theta_y_aero[attach_node]
+        theta_z_attachment = theta_z_aero[attach_node]
 
         pivot = SVector(
             ea_x_aero[propeller_index] + u_x_attachment,
@@ -197,10 +191,11 @@ function update_aero_geometry_for_state!(model, workspace, q_free::AbstractVecto
         yaw_axis_A_current[propeller_index] = -wing_rotation * pitch_rotation *
             SVector(0.0, 0.0, 1.0)
 
-        T_hub_A_current[propeller_index] = pivot + wing_rotation *
-            (hub_center_prop_A + (whirl_rotation * hub_center_load_A - hub_center_load_A))
-        T_load_A_current[propeller_index] = pivot + wing_rotation *
-            (whirl_rotation * hub_center_load_A)
+        # Aerodynamic hub, modal pivot, and structural attachment are colocated.
+        # The UVLM backend still receives an explicit origin, but that origin is
+        # computed solely from the current state of the selected wing node.
+        T_hub_A_current[propeller_index] = pivot
+        T_load_A_current[propeller_index] = pivot
 
         for blade_index in 1:Nb_prop
             reference_grid = grids_prop_ref[propeller_index][blade_index]
@@ -278,9 +273,9 @@ end
 Transfer the dimensional UVLM vertex forces to the Chang free-DOF
 ordering. Wing forces are summed chordwise and moments are formed about the
 deformed elastic axis and projected onto the instantaneous wing rotation axes.
-Blade forces are reduced to propeller hub/pivot wrenches. Their wing moments
-are projected at the interpolated attachment angles before distribution over
-the two attachment nodes; modal moments use the selected pitch/yaw projection.
+Blade forces are reduced to propeller hub wrenches and transferred directly to
+the same structural attachment node. Modal moments use the selected pitch/yaw
+projection.
 
 Returns one generalized-load vector ordered exactly like the reduced
 structural state used by `M`, `C`, and `K`.
@@ -289,8 +284,7 @@ function assemble_structural_aero_load!(model, workspace, kinematics;
     step::Int = 0, print_loads::Bool = false)
 
     (; nnodes, ndof, NDOF, ndof_P, chord, xle_distribution, span_nodes,
-       nc_wing, ns_wing, Npropellers, Nb_prop, prop_attachment_node_pairs,
-       prop_attachment_weights) = model.parameters
+    nc_wing, ns_wing, Npropellers, Nb_prop, prop_attach_nodes) = model.parameters
     (; free_dofs, ndof_wing_free) = model.structural
     (; system, TF, nodal_forces_wing, nodal_moments_wing, EA_nodes_wing,
        nodal_forces_prop, prop_surface_indices, T_pivot_A_current,
@@ -353,11 +347,10 @@ function assemble_structural_aero_load!(model, workspace, kinematics;
     # and moment, then apply them to both the pylon modal and wing attachment
     # coordinates without discarding the appropriate lever arms.
     for propeller_index in 1:Npropellers
+        attach_node = prop_attach_nodes[propeller_index]
         total_force = zero_vector
         total_moment_about_hub = zero_vector
-        pivot = T_pivot_A_current[propeller_index]
         hub = T_hub_A_current[propeller_index]
-        modal_load_point = T_load_A_current[propeller_index]
 
         for blade_index in 1:Nb_prop
             surface_index = prop_surface_indices[propeller_index][blade_index]
@@ -373,8 +366,16 @@ function assemble_structural_aero_load!(model, workspace, kinematics;
             end
         end
 
-        modal_moment = total_moment_about_hub + cross(modal_load_point - pivot, total_force)
-        wing_moment = total_moment_about_hub + cross(hub - pivot, total_force)
+        # The UVLM resultant moment is already about the colocated hub/node.
+        # Retain that physical moment without an artificial hub-to-node r x F.
+        hub_wrench = colocated_hub_wrench(
+            total_force,
+            total_moment_about_hub,
+            hub,
+            T_pivot_A_current[propeller_index],
+        )
+        modal_moment = hub_wrench.moment
+        wing_moment = hub_wrench.moment
 
         if projection == :exact_virtual_work
             pitch_axis = kinematics.propeller_pitch_axes_A[propeller_index]
@@ -389,16 +390,11 @@ function assemble_structural_aero_load!(model, workspace, kinematics;
             propeller_loads[2 * (propeller_index - 1) + 2] = -modal_moment[3]
         end
 
-        # The geometry interpolates Euler angles before rotating the propeller.
-        # Apply that same chain rule: project at the attachment, then multiply
-        # by the nodal weights. Individual node axes would be inconsistent when
-        # the neighboring rotations differ.
-        left_node, right_node = prop_attachment_node_pairs[propeller_index]
-        left_weight, right_weight = prop_attachment_weights[propeller_index]
-        theta_x_attachment = left_weight * kinematics.theta_x_A[left_node] +
-            right_weight * kinematics.theta_x_A[right_node]
-        theta_z_attachment = left_weight * kinematics.theta_z_A[left_node] +
-            right_weight * kinematics.theta_z_A[right_node]
+        # The propeller aerodynamic load is transferred directly to the single
+        # structural attachment node without introducing an artificial
+        # neighboring-node lever arm.
+        theta_x_attachment = kinematics.theta_x_A[attach_node]
+        theta_z_attachment = kinematics.theta_z_A[attach_node]
         generalized_wing_moment = chang_wing_generalized_moment(
             wing_moment,
             theta_x_attachment,
@@ -412,16 +408,8 @@ function assemble_structural_aero_load!(model, workspace, kinematics;
             generalized_wing_moment[2],
             generalized_wing_moment[3],
         )
-        for (node, weight) in (
-            (left_node, left_weight),
-            (right_node, right_weight),
-        )
-            node_offset = ndof * (node - 1)
-            for local_dof in 1:ndof
-                wing_loads[node_offset + local_dof] +=
-                    weight * structural_wrench[local_dof]
-            end
-        end
+        add_direct_node_wrench!(wing_loads, structural_wrench, attach_node;
+            dofs_per_node = ndof)
 
         if print_loads
             println("\n--- Step $step Propeller P$(propeller_index) aerodynamic loads ---")

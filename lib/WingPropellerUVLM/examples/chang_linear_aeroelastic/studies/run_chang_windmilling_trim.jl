@@ -18,9 +18,9 @@ env_int(name, default) = parse(Int, get(ENV, name, string(default)))
 env_symbol(name, default) = Symbol(lowercase(strip(get(ENV, name, string(default)))))
 
 options = ChangWindmillingTrimOptions(
-    flow_speed_mps = env_float("CHANG_TRIM_SPEED_MPS", config.propeller.trim_speed_mps),
+    flow_speed_mps = env_float("CHANG_TRIM_SPEED_MPS",65.0),
     air_density_kgpm3 = env_float("CHANG_TRIM_AIR_DENSITY", 1.225),
-    angle_of_attack_deg = env_float("CHANG_TRIM_ALPHA_DEG", config.simulation.angle_of_attack_deg),
+    angle_of_attack_deg = env_float("CHANG_TRIM_ALPHA_DEG", 3.0),
     sideslip_deg = env_float("CHANG_TRIM_BETA_DEG", config.simulation.sideslip_deg),
     propeller_radius_m = config.propeller.radius_m,
     propeller_chord_m = config.propeller.chord_m,
@@ -29,16 +29,16 @@ options = ChangWindmillingTrimOptions(
     chordwise_panels = env_int("CHANG_TRIM_CHORDWISE_PANELS", 10), #config.propeller.chordwise_panels
     # Zero uses the Chang twist distribution without changing its blade angle.
     collective_pitch_offset_deg = env_float("CHANG_TRIM_COLLECTIVE_OFFSET_DEG", 0.0),
-    azimuth_step_deg = env_float("CHANG_TRIM_AZIMUTH_STEP_DEG", config.simulation.azimuth_step_deg),
+    azimuth_step_deg = env_float("CHANG_TRIM_AZIMUTH_STEP_DEG", 2.5),
     simulated_revolutions = env_int("CHANG_TRIM_SIMULATED_REVOLUTIONS", 4),
     averaged_revolutions = env_int("CHANG_TRIM_AVERAGED_REVOLUTIONS", 1),
-    retained_wake_revolutions = env_int("CHANG_TRIM_RETAINED_WAKE_REVOLUTIONS", 3),
+    retained_wake_revolutions = env_int("CHANG_TRIM_RETAINED_WAKE_REVOLUTIONS", 1),
     wake_relaxation = env_float("CHANG_TRIM_WAKE_RELAXATION", 0.1),
     core_radius_m = ChangAeroelastic.environment_optional_number(
-        Float64, "CHANG_TRIM_CORE_RADIUS_M", config.aerodynamic.core_radius_m,
+        Float64, "CHANG_TRIM_CORE_RADIUS_M", 0.001,
     ),
-    vortex_core_span_fraction = env_float("CHANG_TRIM_FCORE_SPAN_FACTOR", 0.5),
-    vortex_core_chord_fraction = env_float("CHANG_TRIM_FCORE_CHORD_FACTOR", 0.3),
+    vortex_core_span_fraction = env_float("CHANG_TRIM_FCORE_SPAN_FACTOR", 0.0),
+    vortex_core_chord_fraction = env_float("CHANG_TRIM_FCORE_CHORD_FACTOR", 0.001),
     near_field_force_model = env_symbol(
         "CHANG_TRIM_NEAR_FIELD_FORCE_MODEL",
         config.simulation.near_field_force_model,

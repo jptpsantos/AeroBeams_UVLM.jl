@@ -21,7 +21,7 @@ structural = model.structural
 (; ndof_wing_free) = structural
 (;
    span_length, nnodes, ndof, chord, xle_distribution,
-   span_nodes, Npropellers, prop_attachment_node_pairs, prop_attachment_weights, t
+   span_nodes, Npropellers, prop_attach_nodes, t
 ) = model.parameters
 (; system, surface_interaction_id, T_pivot_A_current, prop_surface_indices) = workspace
 elastic_axis_fraction = model.aerodynamic_options.elastic_axis_fraction
@@ -70,11 +70,10 @@ function virtual_work_load(index; state = base_state, step = 1.0e-7)
     return work
 end
 
-left_attachment_node, right_attachment_node = prop_attachment_node_pairs[1]
+attachment_node = prop_attach_nodes[1]
 indices = Tuple{String,Int}[]
 for node in 2:nnodes
-    prefix = node == left_attachment_node ? "left_attachment" :
-        node == right_attachment_node ? "right_attachment" : "wing_node_$node"
+    prefix = node == attachment_node ? "attachment" : "wing_node_$node"
     attachment_start = ndof * (node - 2)
     append!(indices, [
         ("$(prefix)_span_translation", attachment_start + 1),
@@ -123,8 +122,7 @@ end
 
 println("\nChang aerodynamic load-transfer virtual-work audit")
 println("propeller_moment_projection = $(model.config.simulation.propeller_moment_projection)")
-println("attachment_nodes = $(prop_attachment_node_pairs[1])")
-println("attachment_weights = $(prop_attachment_weights[1])")
+println("attachment_node = $attachment_node")
 println(
     "audit_propeller_angles_deg = " *
     "($(rad2deg(base_state[ndof_wing_free + 1])), " *
@@ -135,7 +133,7 @@ errors = reference_audit.errors
 maximum_error = reference_audit.maximum_checked_error
 
 # Frozen forces isolate load transfer from the circulation solver. Exercise
-# both a uniform rotation and the interpolation chain rule at attachments.
+# both uniform and nonuniform rotations at the directly attached node.
 for pattern in (:uniform, :nonuniform)
     trial_state = copy(base_state)
     for node in 2:nnodes

@@ -35,6 +35,7 @@ include("wing_propeller/GridUtilities.jl")
 include("wing_propeller/Kinematics.jl")
 include("wing_propeller/Initialization.jl")
 include("UVLMState.jl")
+include("aeroelastic/WingPropellerStructure.jl")
 include("aeroelastic/GeneralizedAlpha.jl")
 include("aeroelastic/StructuralTimeIntegration.jl")
 include("aeroelastic/Excitations.jl")
@@ -88,7 +89,17 @@ export copy_surfaces_to_previous!
 export wing_kinematics_from_free_state
 export initialize_propeller_grids!, update_propeller_grids!
 export update_system_surfaces!
+export initialize_wing_propeller_uvlm_system
 export initialize_bohnisch_uvlm_system
+
+export WING_DOFS_PER_NODE, wing_node_dofs, attachment_node_from_span_fraction
+export spanwise_property_value
+export colocated_hub_wrench, add_direct_node_wrench!
+export full_beam_aerodynamic_kinematics, direct_propeller_hub_positions
+export beam_strain_displacement_matrix, beam_constitutive_matrix
+export general_beam_element_stiffness, nodal_spatial_inertia
+export consistent_distributed_element_mass, propeller_angular_speed
+export assemble_wing_propeller_structure, structural_natural_frequencies
 
 export UVLMSnapshot
 export snapshot_uvlm, restore_uvlm!

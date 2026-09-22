@@ -6,7 +6,11 @@ include("moving_block_adapter.jl")
 include("StudySettings.jl")
 include("StudyRunner.jl")
 include("ChangProblem.jl")
-const LOADED_SOURCE=Convergence.SOURCE()
+const LOADED_SOURCE=Ref{String}("")
+
+function __init__()
+	LOADED_SOURCE[]=Convergence.SOURCE()
+end
 
 export AerodynamicConvergenceStudy, AeroelasticConvergenceStudy
 export create_AerodynamicConvergenceStudy, create_AeroelasticConvergenceStudy

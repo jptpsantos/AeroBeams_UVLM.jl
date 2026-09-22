@@ -22,8 +22,8 @@ legacy_structural = assemble_chang_structural_model(parameters; inertia_referenc
    cg_y_orig_nodes, cg_z_orig_nodes, m_node_vec, mass_moment_x_node, mass_moment_y_node,
    mass_moment_z_node, Ixx_beam_orig, Iyy_beam_orig, Izz_beam_orig, Ixy_beam_orig,
    Ixz_beam_orig, Iyz_beam_orig, Ixx_beam_node, Iyy_beam_node, Izz_beam_node,
-   Ixy_beam_node, Ixz_beam_node, Iyz_beam_node, propeller_span_positions, prop_attachment_node_pairs,
-   prop_attachment_weights
+   Ixy_beam_node, Ixz_beam_node, Iyz_beam_node, propeller_span_positions,
+   prop_attach_nodes
 ) = parameters
 diagnostics = chang_structural_diagnostics(structural)
 legacy_diagnostics = chang_structural_diagnostics(legacy_structural)
@@ -125,20 +125,15 @@ println("  maximum conserved-total error: $maximum_conservation_error")
 # A maps the complete wing-coordinate vector to the exact attachment motion.
 # Its transpose is therefore the only load map that preserves virtual work.
 attachment_operator = structural.attachment_operators[1]
-attachment_position_from_weights = sum(
-    weight * span_nodes[node]
-    for (node, weight) in zip(
-        prop_attachment_node_pairs[1],
-        prop_attachment_weights[1],
-    )
-)
+attachment_position = span_nodes[prop_attach_nodes[1]]
 trial_wing_state = collect(range(-0.2, 0.3; length = NDOF))
 trial_attachment_wrench = collect(range(1.0, 2.0; length = ndof))
 attachment_virtual_work_error = abs(
     dot(attachment_operator * trial_wing_state, trial_attachment_wrench) -
     dot(trial_wing_state, attachment_operator' * trial_attachment_wrench),
 )
-println("  attachment position from weights (m): $attachment_position_from_weights")
+println("  requested propeller station (m): $(propeller_span_positions[1])")
+println("  direct attachment-node station (m): $attachment_position")
 println("  attachment virtual-work error: $attachment_virtual_work_error")
 
 @assert structural.inertia_reference == :center_of_mass
@@ -153,8 +148,8 @@ println("  attachment virtual-work error: $attachment_virtual_work_error")
     for (remapped, workbook) in conserved_quantity_pairs
 )
 @assert isapprox(
-    attachment_position_from_weights,
-    propeller_span_positions[1];
+    attachment_position,
+    span_nodes[prop_attach_nodes[1]];
     atol = 1.0e-12,
     rtol = 0.0,
 )
