@@ -14,7 +14,7 @@ function chang_case_defaults()
                                   # false: model only this side. Blades are never mirrored.
 
         spanwise_panels = 20,      # Also sets the number of structural beam elements.
-        chordwise_panels = 5,
+        chordwise_panels = 10,
     )
 
     # 2. Propeller geometry, mesh, and installation
@@ -65,13 +65,13 @@ function chang_case_defaults()
         # Fixed radius in metres for wing, blades, and shed wakes.
         # Examples: 1e-3 = 1 mm; 1e-6 = 1 micrometre.
         # Set nothing to use the factor-based rule below.
-        core_radius_m = 0.1*7.5,
+        core_radius_m = nothing,#0.1*7.5,
 
         # Used only when core_radius_m = nothing:
         # radius = max(segment_core_factor * Δs, chord_core_factor * c).
         # Δs is the local span/radial edge length; c is the full local chord.
-        segment_core_factor = 0.0,#1e-1,
-        chord_core_factor = 0.0,#1e-1,
+        segment_core_factor = 1e-3,
+        chord_core_factor = 1e-3,
 
         elastic_axis_fraction = 0.30,      # Chord fraction measured from the leading edge.
     )
