@@ -160,7 +160,18 @@ end
         -0.01,
     )
     @test workspace.T_pivot_A_current[1] ≈ expected_node_position
-    @test workspace.T_hub_A_current[1] == workspace.T_pivot_A_current[1]
-    @test workspace.T_load_A_current[1] == workspace.T_pivot_A_current[1]
+    expected_hub_position = expected_node_position +
+        SVector(-model.parameters.L_pylon, 0.0, 0.0)
+    expected_load_position = expected_node_position + SVector(
+        -config.aerodynamic.hub_load_arm_factor * model.parameters.L_pylon,
+        0.0,
+        0.0,
+    )
+    @test workspace.T_hub_A_current[1] ≈ expected_hub_position
+    @test workspace.T_load_A_current[1] ≈ expected_load_position
+    @test SVector{3}(workspace.grids_prop_current[1][1][:, 1, 1]) ≈
+        expected_hub_position
+    @test norm(workspace.T_hub_A_current[1] - workspace.T_pivot_A_current[1]) ≈
+        model.parameters.L_pylon
 end
 end

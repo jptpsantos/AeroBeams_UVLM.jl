@@ -56,6 +56,13 @@ newton_display_iterations = false
 newton_always_update_jacobian = false
 progress_frequency = 100
 
+# Strong coupling controls for the UVLM branch of the comparison
+coupling_maximum_iterations = 20
+coupling_relaxation = 0.3
+coupling_geometry_tolerance = 1e-5
+coupling_load_tolerance = 1e-3
+coupling_display_iterations = false
+
 output_directory = joinpath(@__DIR__, "output", "aero_comparison")
 
 # Numerical agreement between the two curves is a model comparison, not a
@@ -187,6 +194,11 @@ function run_aero_comparison()
         perturbation_amplitude, perturbation_duration,
         animation_frames=2,
         progress_frequency,
+        coupling_maximum_iterations,
+        coupling_relaxation,
+        coupling_geometry_tolerance,
+        coupling_load_tolerance,
+        coupling_display_iterations,
     )
 
     println("\n=== 2/2: AeroBeams Indicial strip aerodynamics ===")

@@ -93,6 +93,7 @@ function load_chang_configuration(defaults = chang_case_defaults(); env = ENV)
     aerodynamic = environment_overrides(defaults.aerodynamic, (
         segment_core_factor = (Float64, "CHANG_FCORE_SEGMENT_FACTOR"),
         chord_core_factor = (Float64, "CHANG_FCORE_CHORD_FACTOR"),
+        hub_load_arm_factor = (Float64, "CHANG_HUB_LOAD_ARM_FACTOR"),
     ), env)
     aerodynamic = merge(aerodynamic, (;
         core_radius_m = environment_optional_number(
@@ -232,6 +233,8 @@ function validate_configuration(config)
         isfinite(aero.core_radius_m) && aero.core_radius_m > 0 ||
             error("core_radius_m must be finite and positive, or nothing to use core factors")
     end
+    isfinite(aero.hub_load_arm_factor) && aero.hub_load_arm_factor >= 0 ||
+        error("Hub load-arm factor must be finite and nonnegative")
     config.wake.maximum_rows_wing >= 0 || error("Wing wake rows must be nonnegative")
     config.wake.maximum_rows_propeller >= 0 || error("Propeller wake rows must be nonnegative")
     isfinite(config.wake.retained_revolutions_propeller) &&

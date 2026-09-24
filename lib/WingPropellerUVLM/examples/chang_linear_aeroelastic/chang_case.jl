@@ -14,7 +14,7 @@ function chang_case_defaults()
                                   # false: model only this side. Blades are never mirrored.
 
         spanwise_panels = 20,      # Also sets the number of structural beam elements.
-        chordwise_panels = 10,
+        chordwise_panels = 5,
     )
 
     # 2. Propeller geometry, mesh, and installation
@@ -28,7 +28,7 @@ function chang_case_defaults()
 
         # RPM is specified at trim_speed_mps. The solver scales RPM with airspeed
         # to keep the advance ratio fixed.
-        rotation_rpm = 1208, 
+        rotation_rpm = 1217.0,
         trim_speed_mps = 65.0,
 
         # One entry per propeller: 0 = wing root, 1 = wing tip.
@@ -44,7 +44,7 @@ function chang_case_defaults()
         sideslip_deg = 0.0,
 
         azimuth_step_deg = 2.5,    # Rotor angle advanced per time step.
-        end_time_s = 2.0,          # Total requested simulation duration.
+        end_time_s = 5.0,          # Total requested simulation duration.
 
         # true: include wing–propeller and propeller–propeller aerodynamic influence.
         # false: isolate those groups; blades within each propeller still interact.
@@ -65,15 +65,18 @@ function chang_case_defaults()
         # Fixed radius in metres for wing, blades, and shed wakes.
         # Examples: 1e-3 = 1 mm; 1e-6 = 1 micrometre.
         # Set nothing to use the factor-based rule below.
-        core_radius_m = nothing,#0.1*7.5,
+        core_radius_m = nothing, #0.1*0.197,
 
         # Used only when core_radius_m = nothing:
         # radius = max(segment_core_factor * Δs, chord_core_factor * c).
         # Δs is the local span/radial edge length; c is the full local chord.
-        segment_core_factor = 1e-3,
-        chord_core_factor = 1e-3,
+        segment_core_factor = 1e-2,
+        chord_core_factor = 1e-2,
 
         elastic_axis_fraction = 0.30,      # Chord fraction measured from the leading edge.
+        # Effective arm of the pylon pitch/yaw assumed mode. The physical rotor
+        # hub remains one full pylon length from the elastic-axis pivot.
+        hub_load_arm_factor = 0.5,
     )
 
     # 5. Retained wake length

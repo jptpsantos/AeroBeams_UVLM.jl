@@ -339,8 +339,9 @@ This is why the mapping needs the current `theta_x_A` and `theta_z_A`.
 - Blade 1 is constructed with radial direction initially along `+y_A`; `z_A` completes the disk-plane basis. Other blades are rotations about `x_A`.
 - The blade chord at each radius is placed by the Chang twist table; the stored angle is `twist_deg - 90 deg + collective_offset`.
 - The pivot is on the deformed wing elastic axis at the selected structural node.
-- The aerodynamic hub, modal pivot, and structural attachment are the same point.
-- Pylon/nacelle offsets are represented by structural first moments and cross inertias, not by a second aerodynamic origin.
+- The physical rotor hub is one pylon length from that pivot along `-x_A`.
+- The modal load point uses `hub_load_arm_factor * pylon_length`; the default Chang assumed-mode factor is `0.5`.
+- Pylon/nacelle offsets are represented consistently in both the aerodynamic geometry/load map and the structural first moments and cross inertias.
 - Propeller pitch is positive about the wing-rotated `+y_A` axis.
 - Structural propeller yaw is positive about structural down, hence the aerodynamic yaw angle is its negative and its work-conjugate axis is `-R_W R_y(pitch)e_z`.
 - Prescribed spin is `R_x(-Omega*t)`. Azimuth is computed from absolute target time; no mutable azimuth counter exists.
@@ -535,12 +536,22 @@ F_P=\sum_a F_a,\qquad
 M_{hub}=\sum_a(r_a-r_{hub})\times F_a.
 \]
 
-Because hub, modal pivot, and structural attachment are colocated, both modal
-and wing coordinates receive the physical UVLM moment `M_hub` about that shared
-point. No additional `r x F` is added. The modal moment is projected onto the
-instantaneous pitch/yaw axes (or fixed aerodynamic axes if requested), while
-the complete wrench is projected into structural coordinates and applied only
-to the selected attachment node.
+The physical hub and the elastic-axis pivot are distinct. The modal coordinates
+receive
+
+\[
+M_{modal}=M_{hub}+(r_{load}-r_{pivot})\times F_P,
+\]
+
+while the wing attachment receives the hub wrench translated to the pivot,
+
+\[
+M_{pivot}=M_{hub}+(r_{hub}-r_{pivot})\times F_P.
+\]
+
+The modal moment is projected onto the instantaneous pitch/yaw axes (or fixed
+aerodynamic axes if requested), while the complete pivot wrench is projected
+into structural coordinates and applied only to the selected attachment node.
 
 ## 10. Initial conditions, aerodynamic startup, trim, and perturbation
 

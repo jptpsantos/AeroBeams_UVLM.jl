@@ -191,11 +191,14 @@ function update_aero_geometry_for_state!(model, workspace, q_free::AbstractVecto
         yaw_axis_A_current[propeller_index] = -wing_rotation * pitch_rotation *
             SVector(0.0, 0.0, 1.0)
 
-        # Aerodynamic hub, modal pivot, and structural attachment are colocated.
-        # The UVLM backend still receives an explicit origin, but that origin is
-        # computed solely from the current state of the selected wing node.
-        T_hub_A_current[propeller_index] = pivot
-        T_load_A_current[propeller_index] = pivot
+        # The pylon pivot is the selected elastic-axis node. Keep the physical
+        # hub and assumed-mode load point separate so the rotor disk retains its
+        # full static pylon offset and its pitch/yaw motion is work-conjugate to
+        # the structural modal coordinates.
+        T_hub_A_current[propeller_index] = pivot + wing_rotation *
+            (hub_center_prop_A + (whirl_rotation * hub_center_load_A - hub_center_load_A))
+        T_load_A_current[propeller_index] = pivot + wing_rotation *
+            (whirl_rotation * hub_center_load_A)
 
         for blade_index in 1:Nb_prop
             reference_grid = grids_prop_ref[propeller_index][blade_index]
@@ -366,16 +369,13 @@ function assemble_structural_aero_load!(model, workspace, kinematics;
             end
         end
 
-        # The UVLM resultant moment is already about the colocated hub/node.
-        # Retain that physical moment without an artificial hub-to-node r x F.
-        hub_wrench = colocated_hub_wrench(
-            total_force,
-            total_moment_about_hub,
-            hub,
-            T_pivot_A_current[propeller_index],
-        )
-        modal_moment = hub_wrench.moment
-        wing_moment = hub_wrench.moment
+        pivot = T_pivot_A_current[propeller_index]
+        modal_load_point = T_load_A_current[propeller_index]
+        # Pitch/yaw generalized loads use the assumed-mode load arm. The wing
+        # node receives the same physical wrench translated from hub to pivot.
+        modal_moment = total_moment_about_hub +
+            cross(modal_load_point - pivot, total_force)
+        wing_moment = total_moment_about_hub + cross(hub - pivot, total_force)
 
         if projection == :exact_virtual_work
             pitch_axis = kinematics.propeller_pitch_axes_A[propeller_index]

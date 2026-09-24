@@ -21,8 +21,9 @@ end
 
 """Build the finite-core law and load reference points for one configured case."""
 function chang_aerodynamic_options(config)
-    (; core_radius_m, segment_core_factor, chord_core_factor,
+    (; core_radius_m, segment_core_factor, chord_core_factor, hub_load_arm_factor,
        elastic_axis_fraction) = config.aerodynamic
+    pylon_length = config.structural.pylon_length_m
     finite_core = if isnothing(core_radius_m)
         (chord_length, segment_length) -> max(
             segment_core_factor * segment_length,
@@ -35,12 +36,12 @@ function chang_aerodynamic_options(config)
     end
     return (;
         core_radius_m, segment_core_factor, chord_core_factor, finite_core, elastic_axis_fraction,
-        # The aerodynamic propeller hub and structural attachment are the same
-        # physical wing node. Pylon/nacelle offsets remain represented by the
-        # structural mass first moments and cross inertias, not by a second hub.
+        # The pylon pivot is attached directly to the wing elastic-axis node.
+        # The physical rotor hub is one full pylon length ahead of that pivot;
+        # the modal load point follows the Chang assumed-mode arm.
         propeller_pivot_offset_A = SVector(0.0, 0.0, 0.0),
-        physical_hub_center_A = SVector(0.0, 0.0, 0.0),
-        load_center_A = SVector(0.0, 0.0, 0.0),
+        physical_hub_center_A = SVector(-pylon_length, 0.0, 0.0),
+        load_center_A = SVector(-hub_load_arm_factor * pylon_length, 0.0, 0.0),
         maximum_wake_rows_wing = config.wake.maximum_rows_wing,
         maximum_wake_rows_propeller = config.wake.maximum_rows_propeller,
     )

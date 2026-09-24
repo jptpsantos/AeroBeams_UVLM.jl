@@ -17,6 +17,12 @@ include(joinpath(@__DIR__, "PazyWingUVLMCoupling.jl"))
     @test root_error[3] == 1e-14 # The transfer must not mutate beam outputs.
     @test wingtip_twist_degrees(model) == 0.0
 
+    zero_loads = zeros(6, 2)
+    @test interface_load_residual(zero_loads, zero_loads, 0.1) == 0.0
+    changed_loads = copy(zero_loads)
+    changed_loads[1, 2] = 1.0
+    @test interface_load_residual(changed_loads, zero_loads, 0.1) == 1.0
+
     for symmetric in (true, false)
         aero_model = UVLM.create_UVLMModel(surfaces=[grid], symmetric=symmetric,
             reference=UVLM.Reference(0.55*0.0989, 0.0989, 0.55, zeros(3), 40.0, 1.225))
@@ -68,6 +74,9 @@ if "--dynamic" in ARGS
             (6, 16, length(result.time))
         @test all(isfinite, result.aerodynamic_nodal_load_history)
         @test maximum(abs, result.aerodynamic_nodal_load_history) > 0
+        @test all(result.coupling_iterations[2:end] .>= 2)
+        @test all(result.coupling_geometry_residual[2:end] .<= 1e-5)
+        @test all(result.coupling_load_residual[2:end] .<= 1e-3)
         @test length(result.structural_problem.savedTimeVector) == length(result.time)
         @test all(f -> all(isfinite, f), result.aerodynamic_problem.results.forceOverTime)
     end

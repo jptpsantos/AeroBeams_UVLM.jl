@@ -48,14 +48,13 @@ function save_structural_animation(result;
     force_vector_scale::Real = 1.0)
 
     mkpath(dirname(output_path))
-    number_of_states = length(result.structural_problem.savedTimeVector)
-    stride = max(1, cld(number_of_states, result.animation_frames))
+    stride = result.animation_stride
     problem = result.structural_problem
 
     # The structural model has no AeroBeams aerodynamic loads, because UVLM
     # supplies them. Temporarily attach only the standard Pazy NACA 0018
     # geometry so AeroBeams can draw its usual airfoil surfaces in the GIF.
-    _, _, chord, spar_fraction = AeroBeams.geometrical_properties_Pazy()
+    _, span, chord, spar_fraction = AeroBeams.geometrical_properties_Pazy()
     beam = problem.model.beams[1]
     original_surface = beam.aeroSurface
     original_element_aero = [element.aero for element in problem.model.elements]
@@ -88,20 +87,23 @@ function save_structural_animation(result;
                 bc.Fmax = maximum_force
             end
         end
+        # Match the published AeroBeams PazyWingOMCGust visualization:
+        # physical scale 1, basis A, default camera, no undeformed overlay,
+        # NACA 0018 surfaces at alpha=0.5 and equal semispan-sized axis ranges.
         AeroBeams.plot_dynamic_deformation(
             problem;
             refBasis = "A",
             plotFrequency = stride,
-            plotUndeformed = true,
+            plotUndeformed = false,
             plotBCs = show_force_vectors,
             plotDistLoads = false,
             plotAeroSurf = true,
-            surfα = 0.55,
-            view = (35, 20),
+            surfα = 0.5,
+            view = nothing,
             scale = deformation_scale,
             loadsSizeScaler = force_vector_scale,
-            # Equal 0.64 m ranges avoid geometric distortion between axes.
-            plotLimits = ([-0.32, 0.32], [-0.32, 0.32], [-0.04, 0.60]),
+            plotLimits = ([-span/2, span/2], [-span/2, span/2], [0.0, span]),
+            DPI = 300,
             fps = fps,
             save = true,
             savePath = path_for_aerobeams(output_path),
@@ -209,6 +211,12 @@ function save_wake_animation(result;
     mkpath(dirname(output_path))
     Plots.gr()
     animation = Plots.Animation()
+    structural_frame_times = result.structural_problem.savedTimeVector[
+        1:result.animation_stride:end]
+    length(structural_frame_times) == length(result.animation_time) ||
+        error("Structural and wake animations contain different frame counts")
+    all(isapprox.(structural_frame_times, result.animation_time)) ||
+        error("Structural and wake animation times are not synchronized")
     limits = animation_limits(result)
     maximum_force = maximum_aerodynamic_force(result)
     _, span, _, _ = AeroBeams.geometrical_properties_Pazy()
@@ -237,7 +245,7 @@ function save_wake_animation(result;
             ylabel = "\$x_2\$ [m]",
             zlabel = "\$x_3\$ [m]",
             title = "Time = $rounded_time s\nScale = 1.0×",
-            camera = (35, 20),
+            camera = (45, 45),
             aspect_ratio = :equal,
             dpi = 300,
             grid = true,

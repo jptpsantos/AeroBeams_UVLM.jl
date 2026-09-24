@@ -35,8 +35,8 @@ The pre-implementation findings are preserved separately in
 | same | root removal assumed the first six coordinates and every other coordinate was free | constraints are generated from configured wing node/local-DOF lists; appended propeller DOFs remain independent of mesh size |
 | `chang_uvlm_coupling.jl`, initialization | requested continuous span station could override the selected structural node | the selected `attachment_node` is authoritative; the optional legacy station may only equal the node station |
 | same, deformation | propeller attachment was historically interpolated between adjacent nodes | all translation and rotation are now read from one selected node |
-| same, load transfer | a hub-to-pivot offset added an extra `r x F` | hub, pivot, and attachment are colocated; the physical UVLM moment about the hub is retained directly |
-| `chang_simulation.jl` and configuration | `hub_load_arm_factor`, pylon-derived hub center, and modal load center represented separate points | the unused load-arm option was removed; the aerodynamic origin is the structural node; physical pylon effects remain in structural first moments/inertias |
+| same, load transfer | hub and pivot were treated as candidates for colocation | the attachment node is the pivot; the Chang hub remains one pylon length away and its wrench is translated back to the pivot |
+| `chang_simulation.jl` and configuration | `hub_load_arm_factor`, pylon-derived hub center, and modal load center represented separate points | these Chang-specific physical points remain separate; removing them during generalization was a regression |
 | `Initialization.jl` | function name was Bohnisch-specific, propellers were geometrically identical, and an independent aerodynamic station was allowed | `initialize_wing_propeller_uvlm_system` is neutral and accepts independent per-propeller radius, chord, blade count, twist, panel counts, and wake limits |
 | integration/coupling driver | the Chang example owned the only complete time-marching path | `run_time_domain_analysis` and `run_uvlm_time_domain_analysis` operate only on a physical case and common `M,C,K` |
 | validation scripts | several scripts still expected node-pair/weight fields | direct-node assertions and virtual-work checks now use only `prop_attach_nodes` |
@@ -232,6 +232,12 @@ Blade vertex forces are first reduced to a physical force and moment about the
 hub. `colocated_hub_wrench` asserts that hub and attachment coordinates are
 equal. The force and the already physical UVLM hub moment are then applied to
 the selected structural node. No extra `cross(hub-attachment, force)` exists.
+
+That colocation rule applies to cases whose physical input places the hub at the
+attachment. It does not apply to Chang: its attachment node is the elastic-axis
+pivot and its rotor hub is displaced by the pylon length. The Chang adapter
+therefore translates the hub wrench to the pivot and retains its separate
+assumed-mode load point.
 
 The Chang finite-difference virtual-work audit checked every free coordinate
 for reference, uniform-rotation, and nonuniform-rotation states. Its maximum

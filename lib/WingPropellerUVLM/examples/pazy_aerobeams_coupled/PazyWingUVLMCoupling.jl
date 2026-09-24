@@ -20,7 +20,11 @@ function run_pazy_wing_uvlm(; airspeed, density, angle_of_attack, sideslip,
     newton_maximum_iterations, newton_absolute_tolerance,
     newton_relative_tolerance, newton_display_iterations,
     newton_always_update_jacobian, perturbation_amplitude,
-    perturbation_duration, animation_frames, progress_frequency)
+    perturbation_duration, animation_frames, progress_frequency,
+    animation_time_step=nothing,
+    coupling_maximum_iterations=20, coupling_relaxation=0.3,
+    coupling_geometry_tolerance=1e-5, coupling_load_tolerance=1e-3,
+    coupling_display_iterations=false)
 
     @assert airspeed > 0 && density > 0 && duration > 0
     @assert chordwise_panels > 0 && spanwise_panels > 0 && maximum_wake_rows > 0
@@ -28,7 +32,11 @@ function run_pazy_wing_uvlm(; airspeed, density, angle_of_attack, sideslip,
     @assert 0 < initial_airspeed_fraction <= 1
     @assert 0 <= airspeed_ramp_duration <= settling_time
     @assert animation_frames >= 2
+    @assert isnothing(animation_time_step) || animation_time_step > 0
     @assert progress_frequency >= 1
+    @assert coupling_maximum_iterations >= 2
+    @assert 0 < coupling_relaxation <= 1
+    @assert coupling_geometry_tolerance > 0 && coupling_load_tolerance > 0
     @assert !symmetric_wing || iszero(sideslip) "Nonzero sideslip requires symmetric_wing=false"
     # The UVLM constructor checks the radius, shedding fraction and save frequency.
     aero_solver = UVLM.create_UVLMSolver(
@@ -113,35 +121,24 @@ function run_pazy_wing_uvlm(; airspeed, density, angle_of_attack, sideslip,
         maximumWakeRows=maximum_wake_rows, trackingTimeSteps=save_uvlm_history,
         trackingFrequency=uvlm_save_frequency)
 
-    # Save the tip motion at every step and a few wing/wake animation frames.
-    # Half of the frames are assigned to the initial wake growth (up to the
-    # retained-row limit); the remainder follows the rest of the simulation.
-    # A uniform frame stride would miss this short startup for long runs.
+    # Save the tip motion at every step and uniformly spaced wing/wake frames.
+    # This is the same stride used by AeroBeams' structural animation, so frame
+    # k in both GIFs represents the same physical time and deformation.
     tip_out_of_plane = zeros(length(time))
     tip_twist_degrees = zeros(length(time))
     airspeed_history = zeros(length(time))
     aerodynamic_nodal_load_history = zeros(6, n_elements + 1, length(time))
+    coupling_iterations_history = zeros(Int, length(time))
+    coupling_geometry_residual_history = zeros(length(time))
+    coupling_load_residual_history = zeros(length(time))
     airspeed_history[1] = initial_airspeed
     surface_history, wake_history, animation_time = Any[], Any[], Float64[]
     save_wing_frame!(aerodynamic, surface_history, wake_history, animation_time)
-    number_of_animation_frames = min(animation_frames, n_steps + 1)
-    wake_fill_step = min(maximum_wake_rows, n_steps)
-    if wake_fill_step == n_steps
-        animation_steps = round.(Int,
-            range(0, n_steps; length=number_of_animation_frames))
-    else
-        early_frame_count = min(wake_fill_step + 1,
-            cld(number_of_animation_frames, 2))
-        late_frame_count = min(number_of_animation_frames - early_frame_count,
-            n_steps - wake_fill_step)
-        early_frame_count = number_of_animation_frames - late_frame_count
-        early_steps = early_frame_count == 1 ? [0] : round.(Int,
-            range(0, wake_fill_step; length=early_frame_count))
-        late_steps = late_frame_count == 1 ? [n_steps] : round.(Int,
-            range(wake_fill_step + 1, n_steps; length=late_frame_count))
-        animation_steps = vcat(early_steps, late_steps)
-    end
-    animation_steps = Set(animation_steps)
+    animation_stride = isnothing(animation_time_step) ?
+        max(1, cld(n_steps + 1, animation_frames)) :
+        max(1, round(Int, animation_time_step / dt))
+    actual_animation_time_step = animation_stride * dt
+    animation_steps = Set(0:animation_stride:n_steps)
     println("UVLM mesh: $chordwise_panels x $spanwise_panels panels")
     println("dt = $dt s; final time = $(last(time)) s; steps = $n_steps")
     println("Wake capacity: $maximum_wake_rows rows, nominal length = " *
@@ -149,8 +146,14 @@ function run_pazy_wing_uvlm(; airspeed, density, angle_of_attack, sideslip,
     println("Retained wake age at capacity = $(maximum_wake_rows*dt) s")
     println("Airspeed ramp: $initial_airspeed -> $airspeed m/s over " *
         "$airspeed_ramp_duration s; tip pulse starts at $settling_time s")
+    println("Strong coupling: maximum $coupling_maximum_iterations iterations, " *
+        "relaxation = $coupling_relaxation")
+    println("Animation sampling interval = $actual_animation_time_step s")
 
-    # 4. Coupling loop: aerodynamic loads -> beam motion -> new wing and wake.
+    # 4. Strong partitioned coupling loop. At each physical time step, UVLM
+    # and AeroBeams are iterated to a common interface geometry and load. UVLM
+    # trials always restart from the accepted wake at time n. The wake is
+    # advanced exactly once, after the coupled iteration has converged.
     for i in 2:length(time)
         AeroBeams.update_time_variables!(structure, i)
         AeroBeams.update_basis_A_orientation!(structure)
@@ -170,34 +173,109 @@ function run_pazy_wing_uvlm(; airspeed, density, angle_of_attack, sideslip,
         aerodynamic.state.system.reference[] = UVLM.Reference(
             span*chord, chord, span, zeros(3), current_airspeed, density)
 
-        # Extrapolate the wing's last motion to the new time. Reusing grid here
-        # would tell UVLM that the wing velocity is zero at every structural step.
-        predicted_grid = 2 .* grid .- previous_grid
-        predicted_positions = 2 .* positions .- previous_positions
-        UVLM.begin_time_step!(aerodynamic)
-        loads = UVLM.evaluate_trial!(aerodynamic; surfaces=[predicted_grid])
-        nodal_loads .= beam_loads(loads, predicted_positions, weights)
-        aerodynamic_nodal_load_history[:, :, i] .= nodal_loads
+        # The extrapolated geometry is the first n+1 interface guess. Reusing
+        # the accepted grid would incorrectly impose zero wing velocity on the
+        # first UVLM trial.
+        grid_guess = 2 .* grid .- previous_grid
+        positions_guess = 2 .* positions .- previous_positions
 
-        # After the settling interval, apply a short, smooth tip force [N].
+        # The external pulse is constant throughout all coupling iterations at
+        # this physical time. It is not part of the aerodynamic load residual.
         phase = (time[i] - settling_time) / perturbation_duration
-        if 0 < phase < 1
-            nodal_loads[1, end] += perturbation_amplitude * sin(2pi*phase) * sinpi(phase)^2
-        end
+        tip_force = 0 < phase < 1 ?
+            perturbation_amplitude * sin(2pi*phase) * sinpi(phase)^2 : 0.0
 
-        # Advance the nonlinear structure with these nodal forces and moments.
-        for bc in model.BCs
-            AeroBeams.update_BC_data!(bc, time[i])
-        end
+        # The equivalent rates contain the accepted structural state at time n
+        # and must be formed only once. Every inner solve is for the same n+1.
         AeroBeams.get_equivalent_states_rates!(structure)
-        AeroBeams.solve_time_step!(structure)
-        structure.systemSolver.convergedFinalSolution || error("AeroBeams failed at t=$(time[i])")
+        UVLM.begin_time_step!(aerodynamic)
 
-        # Update the aerodynamic geometry, recompute circulation, shed one wake row.
-        previous_grid, previous_positions = grid, positions
-        grid, positions = wing_geometry(model, chord, spar_fraction, chordwise_panels, weights)
-        UVLM.evaluate_trial!(aerodynamic; surfaces=[grid])
-        UVLM.commit_time_step!(aerodynamic)
+        previous_aerodynamic_loads = nothing
+        accepted_aerodynamic_loads = nothing
+        candidate_grid, candidate_positions = grid_guess, positions_guess
+        geometry_residual = Inf
+        load_residual = Inf
+        coupling_iterations = 0
+        coupling_converged = false
+
+        try
+            for coupling_iteration in 1:coupling_maximum_iterations
+                coupling_iterations = coupling_iteration
+
+                # Aerodynamic trial at the current relaxed interface guess.
+                loads = UVLM.evaluate_trial!(aerodynamic; surfaces=[grid_guess])
+                aerodynamic_loads = beam_loads(loads, positions_guess, weights)
+
+                # Apply aerodynamic loads and the prescribed pulse, then solve
+                # the full nonlinear AeroBeams step with its Newton iterations.
+                nodal_loads .= aerodynamic_loads
+                nodal_loads[1, end] += tip_force
+                for bc in model.BCs
+                    AeroBeams.update_BC_data!(bc, time[i])
+                end
+                AeroBeams.solve_time_step!(structure)
+                structure.systemSolver.convergedFinalSolution ||
+                    error("AeroBeams failed at t=$(time[i]), coupling iteration $coupling_iteration")
+
+                candidate_grid, candidate_positions = wing_geometry(
+                    model, chord, spar_fraction, chordwise_panels, weights)
+                geometry_residual = maximum(abs, candidate_grid .- grid_guess) / chord
+                load_residual = isnothing(previous_aerodynamic_loads) ? Inf :
+                    interface_load_residual(
+                        aerodynamic_loads, previous_aerodynamic_loads, chord)
+
+                coupling_display_iterations && println(
+                    "  FSI $coupling_iteration: r_geometry=$(geometry_residual), " *
+                    "r_load=$(load_residual)")
+
+                if geometry_residual <= coupling_geometry_tolerance &&
+                    load_residual <= coupling_load_tolerance
+                    # Make the uncommitted UVLM trial exactly match the accepted
+                    # structural geometry. This still does not advance the wake.
+                    final_loads = UVLM.evaluate_trial!(
+                        aerodynamic; surfaces=[candidate_grid])
+                    final_aerodynamic_loads = beam_loads(
+                        final_loads, candidate_positions, weights)
+                    final_load_residual = interface_load_residual(
+                        final_aerodynamic_loads, aerodynamic_loads, chord)
+                    if final_load_residual <= coupling_load_tolerance
+                        accepted_aerodynamic_loads = final_aerodynamic_loads
+                        load_residual = max(load_residual, final_load_residual)
+                        coupling_converged = true
+                        break
+                    end
+                    load_residual = max(load_residual, final_load_residual)
+                end
+
+                previous_aerodynamic_loads = copy(aerodynamic_loads)
+                grid_guess .= (1 - coupling_relaxation) .* grid_guess .+
+                    coupling_relaxation .* candidate_grid
+                positions_guess .= (1 - coupling_relaxation) .* positions_guess .+
+                    coupling_relaxation .* candidate_positions
+            end
+
+            coupling_converged || error(
+                "Strong coupling failed at t=$(time[i]) after " *
+                "$coupling_iterations iterations: r_geometry=$geometry_residual, " *
+                "r_load=$load_residual")
+
+            # Leave the load BCs consistent with the accepted aerodynamic trial.
+            nodal_loads .= accepted_aerodynamic_loads
+            aerodynamic_nodal_load_history[:, :, i] .= accepted_aerodynamic_loads
+            nodal_loads[1, end] += tip_force
+
+            # Accept the structural geometry and advance the wake exactly once.
+            previous_grid, previous_positions = grid, positions
+            grid, positions = candidate_grid, candidate_positions
+            UVLM.commit_time_step!(aerodynamic)
+        catch
+            UVLM.rollback_time_step!(aerodynamic)
+            rethrow()
+        end
+
+        coupling_iterations_history[i] = coupling_iterations
+        coupling_geometry_residual_history[i] = geometry_residual
+        coupling_load_residual_history[i] = load_residual
 
         AeroBeams.save_time_step_data!(structure, time[i])
         tip_out_of_plane[i] = -model.elements[end].nodalStates.u_n2[1]
@@ -209,7 +287,10 @@ function run_pazy_wing_uvlm(; airspeed, density, angle_of_attack, sideslip,
             percent = round(100 * (i-1) / n_steps; digits=1)
             println("Step $(i-1)/$n_steps ($percent%), " *
                 "t=$(round(time[i]; digits=4)) s, " *
-                "U=$(round(current_airspeed; digits=3)) m/s, NR=converged")
+                "U=$(round(current_airspeed; digits=3)) m/s, " *
+                "FSI=$coupling_iterations, " *
+                "r_x=$(round(geometry_residual; sigdigits=3)), " *
+                "r_F=$(round(load_residual; sigdigits=3))")
         end
     end
 
@@ -219,8 +300,33 @@ function run_pazy_wing_uvlm(; airspeed, density, angle_of_attack, sideslip,
         tip_bending_displacement=tip_out_of_plane,
         tip_twist_degrees=tip_twist_degrees,
         aerodynamic_nodal_load_history=aerodynamic_nodal_load_history,
+        coupling_iterations=coupling_iterations_history,
+        coupling_geometry_residual=coupling_geometry_residual_history,
+        coupling_load_residual=coupling_load_residual_history,
         aerodynamic_surface_history=surface_history, wake_history=wake_history,
-        animation_time=animation_time, animation_frames=animation_frames)
+        animation_time=animation_time, animation_frames=animation_frames,
+        animation_stride=animation_stride,
+        animation_time_step=actual_animation_time_step)
+end
+
+# Relative interface-load change. Forces and moments are normalized separately;
+# moments use force*chord as their minimum physical scale.
+function interface_load_residual(current, previous, chord)
+    force_scale = max(
+        maximum(abs, current[1:3, :]),
+        maximum(abs, previous[1:3, :]),
+        1.0,
+    )
+    moment_scale = max(
+        maximum(abs, current[4:6, :]),
+        maximum(abs, previous[4:6, :]),
+        force_scale * chord,
+    )
+    force_residual = maximum(abs, current[1:3, :] .- previous[1:3, :]) /
+        force_scale
+    moment_residual = maximum(abs, current[4:6, :] .- previous[4:6, :]) /
+        moment_scale
+    return max(force_residual, moment_residual)
 end
 
 # Same wingtip-twist definition used by the AeroBeams Pazy examples: rotate

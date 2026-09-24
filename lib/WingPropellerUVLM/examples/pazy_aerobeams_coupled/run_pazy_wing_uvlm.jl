@@ -40,13 +40,21 @@ uvlm_save_frequency = 1               # save every N accepted steps (final step 
 
 # AeroBeams Newton-Raphson controls
 newton_maximum_iterations = 50
-newton_absolute_tolerance = 1e-8
-newton_relative_tolerance = 1e-8
+newton_absolute_tolerance = 1e-5
+newton_relative_tolerance = 1e-5
 newton_display_iterations = true       # print i, load factor and convergence errors
 newton_always_update_jacobian = true
 
+# Strong UVLM-AeroBeams coupling at every physical timestep. The geometry and
+# aerodynamic loads must both converge before the wake is advanced.
+coupling_maximum_iterations = 20
+coupling_relaxation = 0.3              # smaller is more robust but slower
+coupling_geometry_tolerance = 1e-5     # max interface-coordinate change / chord
+coupling_load_tolerance = 1e-3         # relative nodal force/moment change
+coupling_display_iterations = false    # true: print every inner FSI iteration
+
 # Time: dt is calculated as chord / (chordwise_panels * airspeed).
-duration = 1.5                        # total simulated time, approximately [s]
+duration = 2.0                        # total simulated time, approximately [s]
 settling_time = 1.0                   # time at which the tip pulse starts [s]
 perturbation_amplitude = 0.0         # tip-force multiplier [N]
 perturbation_duration = 0.1          # pulse duration [s]
@@ -55,8 +63,9 @@ progress_frequency = 1                # 1: print every step; 100: every 100 step
 # Animation output (independent of UVLM force-history storage)
 generate_animations = false
 generate_time_history_plot = true
-animation_frames = 150
-animation_fps = 30
+animation_time_step = 0.01              # simulated seconds between frames, as in Pazy gust
+animation_frames = 150                  # fallback maximum if animation_time_step=nothing
+animation_fps = 30                      # same requested FPS as the AeroBeams example
 show_force_vectors = true               # green UVLM force arrows in both GIFs
 force_vector_scale = 1.0                # 1.0: largest arrow is about span/10
 output_directory = joinpath(@__DIR__, "output")
@@ -73,7 +82,10 @@ result = run_pazy_wing_uvlm(;
     newton_relative_tolerance, newton_display_iterations,
     newton_always_update_jacobian,
     perturbation_amplitude, perturbation_duration, animation_frames,
-    progress_frequency)
+    progress_frequency, animation_time_step,
+    coupling_maximum_iterations, coupling_relaxation,
+    coupling_geometry_tolerance, coupling_load_tolerance,
+    coupling_display_iterations)
 if generate_animations
     animations = save_animations(
         result;
@@ -91,6 +103,7 @@ if generate_time_history_plot
 end
 println("Final tip displacement [m]: ", last(result.tip_out_of_plane))
 println("Final tip twist [deg]: ", last(result.tip_twist_degrees))
+println("Maximum FSI iterations in one step: ", maximum(result.coupling_iterations))
 # Applied startup sweep: result.airspeed_history
 # Aerodynamic histories: result.aerodynamic_problem.results
 # Fields: savedTimeVector, circulationOverTime, forceOverTime, momentOverTime.

@@ -12,7 +12,7 @@ using WingPropellerUVLM:
     validate_structural_time_integrator, validate_aeroelastic_coupling_scheme,
     structural_integration_parameters, PartitionedCouplingOptions,
     loose_explicit_aeroelastic_step, partitioned_aeroelastic_step, smooth_hann_pulse_load
-using WingPropellerUVLM: colocated_hub_wrench, add_direct_node_wrench!
+using WingPropellerUVLM: add_direct_node_wrench!
 
 export chang_case_defaults, load_chang_configuration, ChangModel,
        build_chang_model, build_chang_workspace, run_chang,

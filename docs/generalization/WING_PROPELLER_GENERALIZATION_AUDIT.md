@@ -155,12 +155,12 @@ For the default 20-element Chang case, the inspected state is:
 | 2 | 6.225 | 18 | 6.375 |
 
 Consequently, direct structural attachment is only partially implemented: the
-UVLM hub/pivot can remain off-node. In addition, the current aerodynamic model
-sets the hub center one pylon length ahead of the structural pivot and adds
-`cross(hub-pivot,F)` to the wing moment. Under the requested colocated mapping,
-the attachment point, aerodynamic hub, and load-transfer point are the same
-point; the extra hub-to-pivot term must be zero. The physical UVLM moment about
-the hub remains and must not be discarded.
+UVLM pivot can remain off-node. The original conclusion below that direct-node
+attachment also required the aerodynamic hub to be colocated was incorrect.
+For the Chang case, the selected node is the pylon pivot on the elastic axis;
+the rotor hub remains one pylon length away. Its physical hub wrench must
+therefore include `cross(hub-pivot,F)` when transferred to the wing node. This
+distinction was restored after the generalization regression was identified.
 
 Wing surface loads are a separate path. Chordwise panel forces are still
 reduced at each aerodynamic span station and mapped to beam-node loads. That
