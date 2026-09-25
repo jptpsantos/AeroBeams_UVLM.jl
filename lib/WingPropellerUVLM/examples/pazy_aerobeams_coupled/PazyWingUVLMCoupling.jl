@@ -9,8 +9,11 @@ end
 import AeroBeams
 import WingPropellerUVLM as UVLM
 
-# Convert AeroBeams axes to UVLM axes: (x, y, z) -> (y, z, x).
-const A_TO_UVLM = [0.0 1.0 0.0; 0.0 0.0 1.0; 1.0 0.0 0.0]
+# Convert AeroBeams axes to the UVLM right-handed body axes:
+#   UVLM +x (downstream) = AeroBeams -y
+#   UVLM +y (right span) = AeroBeams +z
+#   UVLM +z (up)         = AeroBeams -x
+const A_TO_UVLM = [0.0 -1.0 0.0; 0.0 0.0 1.0; -1.0 0.0 0.0]
 
 function run_pazy_wing_uvlm(; airspeed, density, angle_of_attack, sideslip,
     initial_airspeed_fraction, airspeed_ramp_duration,
@@ -60,15 +63,15 @@ function run_pazy_wing_uvlm(; airspeed, density, angle_of_attack, sideslip,
         types=["u1A", "u2A", "u3A", "p1A", "p2A", "p3A"], values=zeros(6))
 
     # Each column contains [Fx, Fy, Fz, Mx, My, Mz] at one beam node.
-    # AeroBeams reads this array through the load functions at every step.
+    # Copy these values into the active model's BCs before every structural solve.
+    # Numeric BCs remain valid if Newton restores a deep copy of the model.
     nodal_loads = zeros(6, n_elements + 1)
     boundary_conditions = [root_clamp]
     for node in 1:n_elements+1
-        load_functions = [t -> nodal_loads[k, node] for k in 1:6]
         push!(boundary_conditions, AeroBeams.create_BC(
             name="UVLM loads $node", beam=beam, node=node,
             types=["F1A", "F2A", "F3A", "M1A", "M2A", "M3A"],
-            values=load_functions))
+            values=zeros(6)))
     end
     model = AeroBeams.create_Model(
         name="Pazy with UVLM", beams=[beam], BCs=boundary_conditions,
@@ -105,8 +108,9 @@ function run_pazy_wing_uvlm(; airspeed, density, angle_of_attack, sideslip,
         weights[j, left] = 1 - fraction
         weights[j, left+1] = fraction
     end
-    grid, positions = wing_geometry(model, chord, spar_fraction, chordwise_panels, weights)
-    previous_grid, previous_positions = copy(grid), copy(positions)
+    grid, _, vortex_offsets = wing_geometry(
+        structure.model, chord, spar_fraction, chordwise_panels, weights)
+    previous_grid, previous_offsets = copy(grid), copy(vortex_offsets)
     initial_airspeed = airspeed * initial_airspeed_fraction
     reference = UVLM.Reference(span*chord, chord, span, zeros(3), airspeed, density)
     aerodynamic_model = UVLM.create_UVLMModel(
@@ -177,7 +181,7 @@ function run_pazy_wing_uvlm(; airspeed, density, angle_of_attack, sideslip,
         # the accepted grid would incorrectly impose zero wing velocity on the
         # first UVLM trial.
         grid_guess = 2 .* grid .- previous_grid
-        positions_guess = 2 .* positions .- previous_positions
+        offsets_guess = 2 .* vortex_offsets .- previous_offsets
 
         # The external pulse is constant throughout all coupling iterations at
         # this physical time. It is not part of the aerodynamic load residual.
@@ -192,7 +196,7 @@ function run_pazy_wing_uvlm(; airspeed, density, angle_of_attack, sideslip,
 
         previous_aerodynamic_loads = nothing
         accepted_aerodynamic_loads = nothing
-        candidate_grid, candidate_positions = grid_guess, positions_guess
+        candidate_grid, candidate_offsets = grid_guess, offsets_guess
         geometry_residual = Inf
         load_residual = Inf
         coupling_iterations = 0
@@ -204,21 +208,21 @@ function run_pazy_wing_uvlm(; airspeed, density, angle_of_attack, sideslip,
 
                 # Aerodynamic trial at the current relaxed interface guess.
                 loads = UVLM.evaluate_trial!(aerodynamic; surfaces=[grid_guess])
-                aerodynamic_loads = beam_loads(loads, positions_guess, weights)
+                aerodynamic_loads = beam_loads(loads, offsets_guess, weights)
 
                 # Apply aerodynamic loads and the prescribed pulse, then solve
                 # the full nonlinear AeroBeams step with its Newton iterations.
                 nodal_loads .= aerodynamic_loads
                 nodal_loads[1, end] += tip_force
-                for bc in model.BCs
-                    AeroBeams.update_BC_data!(bc, time[i])
-                end
+                apply_pazy_nodal_loads!(structure, nodal_loads, time[i])
                 AeroBeams.solve_time_step!(structure)
                 structure.systemSolver.convergedFinalSolution ||
                     error("AeroBeams failed at t=$(time[i]), coupling iteration $coupling_iteration")
 
-                candidate_grid, candidate_positions = wing_geometry(
-                    model, chord, spar_fraction, chordwise_panels, weights)
+                # Newton may replace structure.model during a retry. Always
+                # read the active model, not the original construction reference.
+                candidate_grid, _, candidate_offsets = wing_geometry(
+                    structure.model, chord, spar_fraction, chordwise_panels, weights)
                 geometry_residual = maximum(abs, candidate_grid .- grid_guess) / chord
                 load_residual = isnothing(previous_aerodynamic_loads) ? Inf :
                     interface_load_residual(
@@ -235,7 +239,7 @@ function run_pazy_wing_uvlm(; airspeed, density, angle_of_attack, sideslip,
                     final_loads = UVLM.evaluate_trial!(
                         aerodynamic; surfaces=[candidate_grid])
                     final_aerodynamic_loads = beam_loads(
-                        final_loads, candidate_positions, weights)
+                        final_loads, candidate_offsets, weights)
                     final_load_residual = interface_load_residual(
                         final_aerodynamic_loads, aerodynamic_loads, chord)
                     if final_load_residual <= coupling_load_tolerance
@@ -250,8 +254,9 @@ function run_pazy_wing_uvlm(; airspeed, density, angle_of_attack, sideslip,
                 previous_aerodynamic_loads = copy(aerodynamic_loads)
                 grid_guess .= (1 - coupling_relaxation) .* grid_guess .+
                     coupling_relaxation .* candidate_grid
-                positions_guess .= (1 - coupling_relaxation) .* positions_guess .+
-                    coupling_relaxation .* candidate_positions
+                # Keep the moment arms consistent with the relaxed trial grid.
+                offsets_guess .= (1 - coupling_relaxation) .* offsets_guess .+
+                    coupling_relaxation .* candidate_offsets
             end
 
             coupling_converged || error(
@@ -263,10 +268,11 @@ function run_pazy_wing_uvlm(; airspeed, density, angle_of_attack, sideslip,
             nodal_loads .= accepted_aerodynamic_loads
             aerodynamic_nodal_load_history[:, :, i] .= accepted_aerodynamic_loads
             nodal_loads[1, end] += tip_force
+            apply_pazy_nodal_loads!(structure, nodal_loads, time[i])
 
             # Accept the structural geometry and advance the wake exactly once.
-            previous_grid, previous_positions = grid, positions
-            grid, positions = candidate_grid, candidate_positions
+            previous_grid, previous_offsets = grid, vortex_offsets
+            grid, vortex_offsets = candidate_grid, candidate_offsets
             UVLM.commit_time_step!(aerodynamic)
         catch
             UVLM.rollback_time_step!(aerodynamic)
@@ -278,8 +284,8 @@ function run_pazy_wing_uvlm(; airspeed, density, angle_of_attack, sideslip,
         coupling_load_residual_history[i] = load_residual
 
         AeroBeams.save_time_step_data!(structure, time[i])
-        tip_out_of_plane[i] = -model.elements[end].nodalStates.u_n2[1]
-        tip_twist_degrees[i] = wingtip_twist_degrees(model)
+        tip_out_of_plane[i] = -structure.model.elements[end].nodalStates.u_n2[1]
+        tip_twist_degrees[i] = wingtip_twist_degrees(structure.model)
         if (i-1) in animation_steps
             save_wing_frame!(aerodynamic, surface_history, wake_history, animation_time)
         end
@@ -307,6 +313,22 @@ function run_pazy_wing_uvlm(; airspeed, density, angle_of_attack, sideslip,
         animation_time=animation_time, animation_frames=animation_frames,
         animation_stride=animation_stride,
         animation_time_step=actual_animation_time_step)
+end
+
+# This example's BC order is: root clamp, then one six-component load per node.
+# Updating numeric values on the ACTIVE model avoids copied closure/load arrays
+# after a Newton retry. update_BC_data! also refreshes AeroBeams' cached values.
+function apply_pazy_nodal_loads!(problem, nodal_loads, time)
+    @assert size(nodal_loads, 1) == 6
+    @assert length(problem.model.BCs) == size(nodal_loads, 2) + 1
+    for node in axes(nodal_loads, 2)
+        bc = problem.model.BCs[node+1]
+        bc.values .= nodal_loads[:, node]
+    end
+    for bc in problem.model.BCs
+        AeroBeams.update_BC_data!(bc, time)
+    end
+    return nothing
 end
 
 # Relative interface-load change. Forces and moments are normalized separately;
@@ -339,10 +361,13 @@ function wingtip_twist_degrees(model)
 end
 
 # Beam deformation -> aerodynamic grid. The chord rotates with each beam node.
+# Also return the beam-node-to-vortex-vertex offsets in AeroBeams axes, so the
+# reverse load transfer uses the same motion mapping (preserving virtual work).
 function wing_geometry(model, chord, spar_fraction, chordwise_panels, weights)
     n_nodes = length(model.elements) + 1
     positions = zeros(3, n_nodes)
     beam_grid = zeros(3, chordwise_panels + 1, n_nodes)
+    vortex_offsets = zeros(3, chordwise_panels + 1, n_nodes)
     for node in 1:n_nodes
         if node == 1
             element = model.elements[1]
@@ -359,30 +384,44 @@ function wing_geometry(model, chord, spar_fraction, chordwise_panels, weights)
             reference_rotation = element.R0_n2
         end
         R, _ = AeroBeams.rotation_tensor_WM(rotation)
+        # AeroBeams +local-y points forward, from the spar toward the leading
+        # edge. UVLM chord fractions instead increase from leading to trailing.
+        chord_direction = R * reference_rotation * [0.0; 1.0; 0.0]
         for k in 1:chordwise_panels+1
-            offset = reference_rotation * [0.0; 1.0; 0.0] *
-                (((k-1) / chordwise_panels - spar_fraction) * chord)
-            beam_grid[:, k, node] = A_TO_UVLM * (positions[:, node] + R * offset)
+            chord_fraction = (k-1) / chordwise_panels
+            offset = chord_direction *
+                ((spar_fraction - chord_fraction) * chord)
+            beam_grid[:, k, node] = A_TO_UVLM * (positions[:, node] + offset)
+            # UVLM places each vortex row 1/4 panel aft of its grid row,
+            # except the last row, which stays at the physical trailing edge.
+            vortex_fraction = k <= chordwise_panels ?
+                (k-1+0.25) / chordwise_panels : 1.0
+            vortex_offsets[:, k, node] = chord_direction *
+                ((spar_fraction - vortex_fraction) * chord)
         end
     end
     grid = zeros(3, chordwise_panels + 1, size(weights, 1))
     for j in axes(weights, 1), node in axes(weights, 2)
         grid[:, :, j] .+= weights[j, node] .* beam_grid[:, :, node]
     end
-    return grid, positions
+    return grid, positions, vortex_offsets
 end
 
-# Aerodynamic forces -> beam nodal forces and moments (moment = arm x force).
-function beam_loads(loads, positions, weights)
-    nodal_loads = zeros(6, size(positions, 2))
-    forces, points = loads.forces[1], loads.positions[1]
+# Reverse of wing_geometry: x_a = sum(weight * (node_position + node_offset)).
+# F_node = sum(weight * F_a); M_node = sum(weight * node_offset x F_a).
+# Using the interpolated aero point minus the beam position instead would add
+# spurious spanwise lever arms and would not preserve virtual work.
+function beam_loads(loads, vortex_offsets, weights)
+    nodal_loads = zeros(6, size(weights, 2))
+    forces = loads.forces[1]
+    @assert size(vortex_offsets) == (3, size(forces, 1), size(weights, 2))
+    @assert size(forces, 2) == size(weights, 1)
     for j in axes(forces, 2), k in axes(forces, 1)
         force = A_TO_UVLM' * forces[k, j]
-        point = A_TO_UVLM' * points[k, j]
         for node in axes(weights, 2)
             weight = weights[j, node]
             nodal_loads[1:3, node] .+= weight .* force
-            nodal_loads[4:6, node] .+= weight .* cross(point - positions[:, node], force)
+            nodal_loads[4:6, node] .+= weight .* cross(vortex_offsets[:, k, node], force)
         end
     end
     return nodal_loads

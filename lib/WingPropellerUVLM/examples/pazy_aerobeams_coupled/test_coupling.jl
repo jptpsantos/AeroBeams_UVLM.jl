@@ -11,9 +11,12 @@ include(joinpath(@__DIR__, "PazyWingUVLMCoupling.jl"))
         R0_n1=R0, R0_n2=R0, nodalStates=node_states)
     model = (elements=[element],)
     weights = hcat(1 .- collect(0:15)./15, collect(0:15)./15)
-    grid, positions = wing_geometry(model, 0.0989, 0.44096, 4, weights)
+    chord, spar = 0.0989, 0.44096
+    grid, positions, _ = wing_geometry(model, chord, spar, 4, weights)
     @test all(iszero, grid[2, :, 1])
     @test positions[:, 1] == zeros(3)
+    @test A_TO_UVLM' * grid[:, 1, 1] ≈ [0.0, spar*chord, 0.0]
+    @test A_TO_UVLM' * grid[:, end, 1] ≈ [0.0, -(1-spar)*chord, 0.0]
     @test root_error[3] == 1e-14 # The transfer must not mutate beam outputs.
     @test wingtip_twist_degrees(model) == 0.0
 

@@ -1,0 +1,2 @@
+Static aeroelastic equilibrium reached
+Time in the convergence history is cumulative aerodynamic settling time, not physical wing motion.

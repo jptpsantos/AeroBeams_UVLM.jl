@@ -1,6 +1,5 @@
 # Included after PazyWingUVLMCoupling.jl; uses its AeroBeams and UVLM imports.
 const Plots = AeroBeams.Plots
-const UVLM_TO_AEROBEAMS = transpose(A_TO_UVLM)
 
 const DEFAULT_OUTPUT_DIRECTORY = joinpath(@__DIR__, "output")
 
@@ -87,23 +86,22 @@ function save_structural_animation(result;
                 bc.Fmax = maximum_force
             end
         end
-        # Match the published AeroBeams PazyWingOMCGust visualization:
-        # physical scale 1, basis A, default camera, no undeformed overlay,
-        # NACA 0018 surfaces at alpha=0.5 and equal semispan-sized axis ranges.
+        # Use the earlier oblique view. The default AeroBeams camera sees this
+        # particular wing nearly edge-on, hiding most of its deformation.
         AeroBeams.plot_dynamic_deformation(
             problem;
             refBasis = "A",
             plotFrequency = stride,
-            plotUndeformed = false,
+            plotUndeformed = true,
             plotBCs = show_force_vectors,
             plotDistLoads = false,
             plotAeroSurf = true,
-            surfα = 0.5,
-            view = nothing,
+            surfα = 0.55,
+            view = (35, 20),
             scale = deformation_scale,
             loadsSizeScaler = force_vector_scale,
-            plotLimits = ([-span/2, span/2], [-span/2, span/2], [0.0, span]),
-            DPI = 300,
+            # Equal 0.64 m ranges avoid geometric distortion between axes.
+            plotLimits = ([-0.32, 0.32], [-0.32, 0.32], [-0.04, 0.60]),
             fps = fps,
             save = true,
             savePath = path_for_aerobeams(output_path),
@@ -163,15 +161,7 @@ function lattice_lines(positions::AbstractMatrix)
     return x, y, z
 end
 
-function aerobeams_positions(uvlm_positions::AbstractMatrix)
-    positions = Matrix{Vector{Float64}}(undef, size(uvlm_positions))
-    for index in eachindex(uvlm_positions)
-        positions[index] = UVLM_TO_AEROBEAMS * uvlm_positions[index]
-    end
-    return positions
-end
-
-function animation_limits(result)
+function animation_limits(result, frame; extra_padding=0.0)
     minimum_point = fill(Inf, 3)
     maximum_point = fill(-Inf, 3)
     function include!(positions)
@@ -180,20 +170,19 @@ function animation_limits(result)
             maximum_point[component] = max(maximum_point[component], point[component])
         end
     end
-    for frame in eachindex(result.animation_time)
-        surface_positions = UVLM.imperial_nodal_positions(
-            result.aerodynamic_surface_history[frame][1])
-        include!(aerobeams_positions(surface_positions))
-        wake = result.wake_history[frame][1]
-        if size(wake, 1) > 0
-            include!(aerobeams_positions(wake_vertex_positions(wake)))
-        end
+    surface_positions = UVLM.imperial_nodal_positions(
+        result.aerodynamic_surface_history[frame][1])
+    include!(surface_positions)
+    wake = result.wake_history[frame][1]
+    if size(wake, 1) > 0
+        include!(wake_vertex_positions(wake))
     end
 
-    # One fixed cube follows the AeroBeams animation style, prevents zooming
-    # between frames, and gives all axes exactly the same metres-per-unit scale.
+    # Fit the cube to the wake that exists in this frame. This shows the wing
+    # clearly while the wake starts shedding, then zooms out as the wake grows.
+    # A cube keeps the same metres-per-unit scale on all three axes.
     span = maximum(maximum_point - minimum_point)
-    padding = max(0.04 * span, 0.005)
+    padding = max(0.04 * span, 0.005) + extra_padding
     half_width = span / 2 + padding
     center = (minimum_point + maximum_point) / 2
     return ntuple(3) do component
@@ -206,7 +195,8 @@ function save_wake_animation(result;
     output_path::String = joinpath(DEFAULT_OUTPUT_DIRECTORY, "pazy_uvlm_wake.gif"),
     fps::Int = 30,
     show_force_vectors::Bool = true,
-    force_vector_scale::Real = 1.0)
+    force_vector_scale::Real = 1.0,
+    camera = (45, 30))
 
     mkpath(dirname(output_path))
     Plots.gr()
@@ -217,56 +207,62 @@ function save_wake_animation(result;
         error("Structural and wake animations contain different frame counts")
     all(isapprox.(structural_frame_times, result.animation_time)) ||
         error("Structural and wake animation times are not synchronized")
-    limits = animation_limits(result)
     maximum_force = maximum_aerodynamic_force(result)
     _, span, _, _ = AeroBeams.geometrical_properties_Pazy()
-    if show_force_vectors && maximum_force > 0
-        arrow_margin = force_vector_scale * span / 10
-        limits = ntuple(3) do component
-            (limits[component][1] - arrow_margin,
-                limits[component][2] + arrow_margin)
-        end
-    end
+    arrow_margin = show_force_vectors && maximum_force > 0 ?
+        force_vector_scale * span / 10 : 0.0
     for frame in eachindex(result.animation_time)
-        surface_positions = aerobeams_positions(
-            UVLM.imperial_nodal_positions(result.aerodynamic_surface_history[frame][1]))
+        limits = animation_limits(result, frame; extra_padding=arrow_margin)
+        # Plot in conventional aerodynamic axes. The UVLM data already use
+        # x=downstream, y=span and z=up; converting back to AeroBeams axes here
+        # would put the span on the plot's vertical axis and make the wake look
+        # like a wall.
+        surface_positions = UVLM.imperial_nodal_positions(
+            result.aerodynamic_surface_history[frame][1])
         wake = result.wake_history[frame][1]
         sx, sy, sz = lattice_lines(surface_positions)
         rounded_time = round(result.animation_time[frame]; sigdigits=2)
         figure = Plots.plot3d(
             sx, sy, sz;
             color = :blue,
-            linewidth = 1,
+            linewidth = 2,
             label = false,
             xlims = limits[1],
             ylims = limits[2],
             zlims = limits[3],
-            xlabel = "\$x_1\$ [m]",
-            ylabel = "\$x_2\$ [m]",
-            zlabel = "\$x_3\$ [m]",
-            title = "Time = $rounded_time s\nScale = 1.0×",
-            camera = (45, 45),
+            xlabel = "Downstream [m]",
+            ylabel = "Span [m]",
+            zlabel = "Up [m]",
+            title = "Time = $rounded_time s",
+            titlefontsize = 14,
+            guidefontsize = 10,
+            tickfontsize = 8,
+            camera = camera,
             aspect_ratio = :equal,
-            dpi = 300,
+            size = (900, 700),
+            dpi = 120,
             grid = true,
             axis = true,
             legend = false,
             widen = false,
         )
         if size(wake, 1) > 0
-            wake_positions = aerobeams_positions(wake_vertex_positions(wake))
+            wake_positions = wake_vertex_positions(wake)
             wx, wy, wz = lattice_lines(wake_positions)
             Plots.plot3d!(
                 figure, wx, wy, wz;
                 color = :gray45,
-                linewidth = 1,
+                linewidth = 0.8,
                 label = false,
             )
         end
         if show_force_vectors && maximum_force > 0
             time_index = force_history_index(result, result.animation_time[frame])
-            positions = beam_node_positions(result, time_index)
-            forces = result.aerodynamic_nodal_load_history[1:3, :, time_index]
+            # Beam positions and transferred forces are stored in AeroBeams A
+            # axes. Rotate both into the same aerodynamic view axes as the wake.
+            positions = A_TO_UVLM * beam_node_positions(result, time_index)
+            forces = A_TO_UVLM *
+                result.aerodynamic_nodal_load_history[1:3, :, time_index]
             vectors = (force_vector_scale * span / (10 * maximum_force)) .* forces
             origins = positions .- vectors
             Plots.quiver!(
@@ -274,7 +270,7 @@ function save_wake_animation(result;
                 vec(origins[1, :]), vec(origins[2, :]), vec(origins[3, :]);
                 quiver = (vec(vectors[1, :]), vec(vectors[2, :]), vec(vectors[3, :])),
                 color = :green,
-                linewidth = 1,
+                linewidth = 2,
                 quiverhead = 0.5,
                 label = false,
             )
@@ -288,7 +284,7 @@ end
 
 function save_animations(result; output_directory::String = DEFAULT_OUTPUT_DIRECTORY,
     fps::Int = 30, show_force_vectors::Bool = true,
-    force_vector_scale::Real = 1.0)
+    force_vector_scale::Real = 1.0, wake_camera = (45, 30))
 
     structural = save_structural_animation(
         result;
@@ -303,6 +299,7 @@ function save_animations(result; output_directory::String = DEFAULT_OUTPUT_DIREC
         fps = fps,
         show_force_vectors = show_force_vectors,
         force_vector_scale = force_vector_scale,
+        camera = wake_camera,
     )
     return (; structural, wake)
 end

@@ -3,9 +3,9 @@ include(joinpath(@__DIR__, "PazyWingUVLMCoupling.jl"))
 include(joinpath(@__DIR__, "PazyWingUVLMVisualization.jl"))
 
 # Flight conditions
-airspeed = 55.0                       # m/s
+airspeed = 50.0                       # m/s
 density = 1.225                       # kg/m^3
-angle_of_attack = deg2rad(2.0)
+angle_of_attack = deg2rad(3.0)
 sideslip = deg2rad(0.0)               # use symmetric_wing=false for nonzero sideslip
 
 # Smooth startup: ramp from 5% to 100% airspeed, then hold before the tip pulse.
@@ -14,7 +14,7 @@ initial_airspeed_fraction = 1.0
 airspeed_ramp_duration = 0.0           # seconds; must not exceed settling_time
 
 # UVLM mesh (independent of the 15-element AeroBeams mesh)
-chordwise_panels = 4
+chordwise_panels = 5
 spanwise_panels = 15
 symmetric_wing = true                 # mirror wing and wake across UVLM y=0
                                      # false: isolated cantilever, without its image
@@ -39,22 +39,22 @@ save_uvlm_history = true
 uvlm_save_frequency = 1               # save every N accepted steps (final step always saved)
 
 # AeroBeams Newton-Raphson controls
-newton_maximum_iterations = 50
-newton_absolute_tolerance = 1e-5
-newton_relative_tolerance = 1e-5
+newton_maximum_iterations = 20
+newton_absolute_tolerance = 1e-6
+newton_relative_tolerance = 1e-6
 newton_display_iterations = true       # print i, load factor and convergence errors
 newton_always_update_jacobian = true
 
 # Strong UVLM-AeroBeams coupling at every physical timestep. The geometry and
 # aerodynamic loads must both converge before the wake is advanced.
 coupling_maximum_iterations = 20
-coupling_relaxation = 0.3              # smaller is more robust but slower
+coupling_relaxation = 0.5              # smaller is more robust but slower
 coupling_geometry_tolerance = 1e-5     # max interface-coordinate change / chord
-coupling_load_tolerance = 1e-3         # relative nodal force/moment change
+coupling_load_tolerance = 1e-5         # relative nodal force/moment change
 coupling_display_iterations = false    # true: print every inner FSI iteration
 
 # Time: dt is calculated as chord / (chordwise_panels * airspeed).
-duration = 2.0                        # total simulated time, approximately [s]
+duration = 5.0                        # total simulated time, approximately [s]
 settling_time = 1.0                   # time at which the tip pulse starts [s]
 perturbation_amplitude = 0.0         # tip-force multiplier [N]
 perturbation_duration = 0.1          # pulse duration [s]
@@ -66,6 +66,7 @@ generate_time_history_plot = true
 animation_time_step = 0.01              # simulated seconds between frames, as in Pazy gust
 animation_frames = 150                  # fallback maximum if animation_time_step=nothing
 animation_fps = 30                      # same requested FPS as the AeroBeams example
+wake_camera = (45, 30)                  # high oblique view: (azimuth, elevation) [deg]
 show_force_vectors = true               # green UVLM force arrows in both GIFs
 force_vector_scale = 1.0                # 1.0: largest arrow is about span/10
 output_directory = joinpath(@__DIR__, "output")
@@ -91,6 +92,7 @@ if generate_animations
         result;
         output_directory,
         fps=animation_fps,
+        wake_camera,
         show_force_vectors,
         force_vector_scale,
     )
