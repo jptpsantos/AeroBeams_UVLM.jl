@@ -55,7 +55,8 @@ iteration limit and tolerances are also defined in the runner.
 `PazyWingUVLMCoupling.jl` contains one main function, read from top to bottom:
 
 1. Create the original 15-element nonlinear Pazy beam and clamp its root.
-2. Set `dt = chord / (chordwise_panels * airspeed)`.
+2. Set `dt = time_step_chords * chord / airspeed`, independently of the UVLM
+   mesh. The main runner uses Ribeiro's baseline `time_step_chords = 0.25`.
 3. Create the independent UVLM mesh and its interpolation weights.
 4. March both solvers forward in the same time loop.
 

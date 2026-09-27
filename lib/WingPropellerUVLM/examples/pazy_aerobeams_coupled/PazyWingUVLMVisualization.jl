@@ -43,7 +43,8 @@ function save_structural_animation(result;
     output_path::String = joinpath(DEFAULT_OUTPUT_DIRECTORY, "pazy_structure.gif"),
     fps::Int = 30,
     deformation_scale::Real = 1.0,
-    show_force_vectors::Bool = true,
+    show_force_vectors::Bool = false,
+    show_moment_vectors::Bool = false,
     force_vector_scale::Real = 1.0)
 
     mkpath(dirname(output_path))
@@ -57,11 +58,12 @@ function save_structural_animation(result;
     beam = problem.model.beams[1]
     original_surface = beam.aeroSurface
     original_element_aero = [element.aero for element in problem.model.elements]
-    force_bcs = problem.model.BCs[2:end]
-    original_force_bcs = [(
+    original_bcs = problem.model.BCs
+    load_bcs = original_bcs[2:end]
+    original_load_bcs = [(
         types=bc.types, values=bc.values, toBeTrimmed=bc.toBeTrimmed,
         Fmax=bc.Fmax, Mmax=bc.Mmax,
-    ) for bc in force_bcs]
+    ) for bc in load_bcs]
     display_surface = AeroBeams.create_AeroSurface(
         airfoil=deepcopy(AeroBeams.NACA0018), c=chord, normSparPos=spar_fraction)
     try
@@ -72,47 +74,70 @@ function save_structural_animation(result;
                 element.x1, element.x1_norm,
                 element.x1_n1_norm, element.x1_n2_norm)
         end
-        if show_force_vectors
-            maximum_force = max(maximum_aerodynamic_force(result), eps(Float64))
-            for (node, bc) in enumerate(force_bcs)
-                bc.types = ["F1A", "F2A", "F3A"]
+
+        # Match AeroBeams' Pazy aerodynamic-load display: show only lift F1A
+        # and torsion M3A. The beam nodes lie on the elastic axis, so the
+        # circular M3A arrows are drawn about that axis.
+        if show_force_vectors || show_moment_vectors
+            components = Int[]
+            types = String[]
+            if show_force_vectors
+                push!(components, 1)
+                push!(types, "F1A")
+            end
+            if show_moment_vectors
+                push!(components, 6)
+                push!(types, "M3A")
+            end
+            history = result.aerodynamic_nodal_load_history
+            maximum_lift = max(maximum(abs, @view history[1, :, :]), eps(Float64))
+            maximum_torsion = max(maximum(abs, @view history[6, :, :]), eps(Float64))
+            for (node, bc) in enumerate(load_bcs)
+                bc.types = copy(types)
                 bc.values = [let component=component, node=node
                     time -> result.aerodynamic_nodal_load_history[
                         component, node, force_history_index(result, time)]
-                end for component in 1:3]
-                bc.toBeTrimmed = falses(3)
-                # One reference value makes arrow lengths comparable between
-                # every node and every frame.
-                bc.Fmax = maximum_force
+                end for component in components]
+                bc.toBeTrimmed = falses(length(components))
+                # Global references make glyph sizes comparable between all
+                # nodes and all frames.
+                bc.Fmax = maximum_lift
+                bc.Mmax = maximum_torsion
             end
         end
-        # Use the earlier oblique view. The default AeroBeams camera sees this
-        # particular wing nearly edge-on, hiding most of its deformation.
+
+        # Do not pass the root clamp to AeroBeams' BC renderer. The structural
+        # solution is unchanged; this only suppresses its six orange/red clamp
+        # symbols in the animation.
+        problem.model.BCs = load_bcs
+
+        # Match test/plotGenerators/PazyWingOMCGustPlotGenerator.jl: basis A,
+        # physical deformation scale, 0.01 s frame spacing (set by the run
+        # file), default camera/surface style, and the Pazy semispan limits.
         AeroBeams.plot_dynamic_deformation(
             problem;
             refBasis = "A",
             plotFrequency = stride,
-            plotUndeformed = true,
-            plotBCs = show_force_vectors,
+            plotUndeformed = false,
+            plotBCs = show_force_vectors || show_moment_vectors,
             plotDistLoads = false,
             plotAeroSurf = true,
-            surfα = 0.55,
-            view = (35, 20),
+            surfα = 0.5,
             scale = deformation_scale,
             loadsSizeScaler = force_vector_scale,
-            # Equal 0.64 m ranges avoid geometric distortion between axes.
-            plotLimits = ([-0.32, 0.32], [-0.32, 0.32], [-0.04, 0.60]),
+            plotLimits = ([-span/2, span/2], [-span/2, span/2], [0.0, span]),
             fps = fps,
             save = true,
             savePath = path_for_aerobeams(output_path),
             displayProgress = true,
         )
     finally
+        problem.model.BCs = original_bcs
         beam.aeroSurface = original_surface
         for (element, original_aero) in zip(problem.model.elements, original_element_aero)
             element.aero = original_aero
         end
-        for (bc, original) in zip(force_bcs, original_force_bcs)
+        for (bc, original) in zip(load_bcs, original_load_bcs)
             bc.types = original.types
             bc.values = original.values
             bc.toBeTrimmed = original.toBeTrimmed
@@ -161,7 +186,7 @@ function lattice_lines(positions::AbstractMatrix)
     return x, y, z
 end
 
-function animation_limits(result, frame; extra_padding=0.0)
+function animation_limits(result; extra_padding=0.0)
     minimum_point = fill(Inf, 3)
     maximum_point = fill(-Inf, 3)
     function include!(positions)
@@ -170,17 +195,21 @@ function animation_limits(result, frame; extra_padding=0.0)
             maximum_point[component] = max(maximum_point[component], point[component])
         end
     end
-    surface_positions = UVLM.imperial_nodal_positions(
-        result.aerodynamic_surface_history[frame][1])
-    include!(surface_positions)
-    wake = result.wake_history[frame][1]
-    if size(wake, 1) > 0
-        include!(wake_vertex_positions(wake))
+    # Include every saved frame once, then reuse these limits throughout the
+    # GIF. This prevents the axes and apparent camera position from moving as
+    # the initially empty wake grows.
+    for frame in eachindex(result.animation_time)
+        surface_positions = UVLM.imperial_nodal_positions(
+            result.aerodynamic_surface_history[frame][1])
+        include!(surface_positions)
+        wake = result.wake_history[frame][1]
+        if size(wake, 1) > 0
+            include!(wake_vertex_positions(wake))
+        end
     end
 
-    # Fit the cube to the wake that exists in this frame. This shows the wing
-    # clearly while the wake starts shedding, then zooms out as the wake grows.
-    # A cube keeps the same metres-per-unit scale on all three axes.
+    # A fixed cube keeps the same limits and metres-per-unit scale on all three
+    # axes for every animation frame.
     span = maximum(maximum_point - minimum_point)
     padding = max(0.04 * span, 0.005) + extra_padding
     half_width = span / 2 + padding
@@ -194,7 +223,7 @@ end
 function save_wake_animation(result;
     output_path::String = joinpath(DEFAULT_OUTPUT_DIRECTORY, "pazy_uvlm_wake.gif"),
     fps::Int = 30,
-    show_force_vectors::Bool = true,
+    show_force_vectors::Bool = false,
     force_vector_scale::Real = 1.0,
     camera = (45, 30))
 
@@ -211,8 +240,8 @@ function save_wake_animation(result;
     _, span, _, _ = AeroBeams.geometrical_properties_Pazy()
     arrow_margin = show_force_vectors && maximum_force > 0 ?
         force_vector_scale * span / 10 : 0.0
+    limits = animation_limits(result; extra_padding=arrow_margin)
     for frame in eachindex(result.animation_time)
-        limits = animation_limits(result, frame; extra_padding=arrow_margin)
         # Plot in conventional aerodynamic axes. The UVLM data already use
         # x=downstream, y=span and z=up; converting back to AeroBeams axes here
         # would put the span on the plot's vertical axis and make the wake look
@@ -283,19 +312,22 @@ function save_wake_animation(result;
 end
 
 function save_animations(result; output_directory::String = DEFAULT_OUTPUT_DIRECTORY,
-    fps::Int = 30, show_force_vectors::Bool = true,
+    case_label::String = "pazy_response",
+    fps::Int = 30, show_force_vectors::Bool = false,
+    show_moment_vectors::Bool = false,
     force_vector_scale::Real = 1.0, wake_camera = (45, 30))
 
     structural = save_structural_animation(
         result;
-        output_path = joinpath(output_directory, "pazy_structure.gif"),
+        output_path = joinpath(output_directory, "$(case_label)_structure.gif"),
         fps = fps,
         show_force_vectors = show_force_vectors,
+        show_moment_vectors = show_moment_vectors,
         force_vector_scale = force_vector_scale,
     )
     wake = save_wake_animation(
         result;
-        output_path = joinpath(output_directory, "pazy_uvlm_wake.gif"),
+        output_path = joinpath(output_directory, "$(case_label)_uvlm_wake.gif"),
         fps = fps,
         show_force_vectors = show_force_vectors,
         force_vector_scale = force_vector_scale,

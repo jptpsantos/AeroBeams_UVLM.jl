@@ -1,0 +1,18 @@
+AeroBeams failed at t=2.8893635000000004, loose coupling pass
+Stacktrace:
+ [1] error(s::String)
+   @ Base .\error.jl:35
+ [2] audit_run(; airspeed::Float64, density::Float64, angle_of_attack::Float64, sideslip::Float64, initial_airspeed_fraction::Float64, airspeed_ramp_duration::Float64, duration::Float64, settling_time::Float64, chordwise_panels::Int64, spanwise_panels::Int64, symmetric_wing::Bool, maximum_wake_rows::Int64, core_radius::Float64, wake_shedding_fraction::Float64, aerodynamic_interaction::Bool, save_uvlm_history::Bool, uvlm_save_frequency::Int64, newton_maximum_iterations::Int64, newton_absolute_tolerance::Float64, newton_relative_tolerance::Float64, newton_display_iterations::Bool, newton_always_update_jacobian::Bool, perturbation_amplitude::Float64, perturbation_duration::Float64, animation_frames::Int64, progress_frequency::Int64, time_step_chords::Float64, animation_time_step::Float64, coupling_scheme::Symbol, coupling_maximum_iterations::Int64, coupling_relaxation::Float64, coupling_geometry_tolerance::Float64, coupling_load_tolerance::Float64, coupling_display_iterations::Bool)
+   @ Main C:\Users\Acer\Documents\João Tavares\Doutorado EESC\Models\AeroBeams_UVLM.jl\lib\WingPropellerUVLM\examples\pazy_aerobeams_coupled\PazyWingUVLMCoupling.jl:231
+ [3] audit_run
+   @ C:\Users\Acer\Documents\João Tavares\Doutorado EESC\Models\AeroBeams_UVLM.jl\lib\WingPropellerUVLM\examples\pazy_aerobeams_coupled\PazyWingUVLMCoupling.jl:18 [inlined]
+ [4] main()
+   @ Main C:\Users\Acer\Documents\João Tavares\Doutorado EESC\Models\AeroBeams_UVLM.jl\lib\WingPropellerUVLM\examples\pazy_aerobeams_coupled\audit_pazy_failure.jl:135
+ [5] top-level scope
+   @ C:\Users\Acer\Documents\João Tavares\Doutorado EESC\Models\AeroBeams_UVLM.jl\lib\WingPropellerUVLM\examples\pazy_aerobeams_coupled\audit_pazy_failure.jl:151
+ [6] include(mod::Module, _path::String)
+   @ Base .\Base.jl:557
+ [7] exec_options(opts::Base.JLOptions)
+   @ Base .\client.jl:323
+ [8] _start()
+   @ Base .\client.jl:531

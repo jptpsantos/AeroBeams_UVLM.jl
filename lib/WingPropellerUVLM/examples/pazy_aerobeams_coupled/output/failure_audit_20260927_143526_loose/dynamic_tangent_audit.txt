@@ -1,0 +1,72 @@
+Failing physical time: 2.8893635000000004
+Maximum element rotation-parameter norm: 0.3020083643256878
+Direction 1 h=1.0e-5 original error=0.057525858502418446 corrected error=6.535900816373266e-11
+Direction 1 h=1.0e-6 original error=0.05752585838032951 corrected error=5.082580899837492e-10
+Direction 1 h=1.0e-7 original error=0.057525858625159916 corrected error=7.183866731409913e-9
+Direction 2 h=1.0e-5 original error=0.11395989278459565 corrected error=1.0309123911194998e-10
+Direction 2 h=1.0e-6 original error=0.11395989315378927 corrected error=1.3129879120903731e-9
+Direction 2 h=1.0e-7 original error=0.11395989497840332 corrected error=1.1513685349695971e-8
+Direction 3 h=1.0e-5 original error=0.022537744841051713 corrected error=5.0891244910806374e-11
+Direction 3 h=1.0e-6 original error=0.022537744615911792 corrected error=6.097386086138892e-10
+Direction 3 h=1.0e-7 original error=0.02253774334044896 corrected error=7.4311791594342485e-9
+Newton with fresh tangent, chain-rule correction=false backtracking=false
+  iteration=0 reassembled residual=67490.9572950132
+  iteration=1 reassembled residual=17673.109851399353
+  iteration=2 reassembled residual=16760.3799785131
+  iteration=3 reassembled residual=63457.01174072824
+  iteration=4 reassembled residual=62711.34583793034
+  iteration=5 reassembled residual=63223.114112557865
+  iteration=6 reassembled residual=13169.02404246479
+  iteration=7 reassembled residual=7856.5931292588275
+  iteration=8 reassembled residual=2130.6720399970827
+  iteration=9 reassembled residual=709.9061911844227
+  iteration=10 reassembled residual=80.76213167848596
+  iteration=11 reassembled residual=26.609533395269114
+  iteration=12 reassembled residual=1.3131381868840724
+  iteration=13 reassembled residual=0.9550597206714793
+  iteration=14 reassembled residual=0.05769887473456648
+  iteration=15 reassembled residual=0.032211203437256725
+  iteration=16 reassembled residual=0.003476485294798139
+  iteration=17 reassembled residual=0.0009879822382765258
+  iteration=18 reassembled residual=0.00017381641940662792
+  iteration=19 reassembled residual=2.6760234655570526e-5
+  iteration=20 reassembled residual=7.559825722472902e-6
+Newton with fresh tangent, chain-rule correction=true backtracking=false
+  iteration=0 reassembled residual=67490.9572950132
+  iteration=1 reassembled residual=17580.60812284059
+  iteration=2 reassembled residual=49775.55092011475
+  iteration=3 reassembled residual=18117.568998294268
+  iteration=4 reassembled residual=7036.313471521593
+  iteration=5 reassembled residual=13396.565220656506
+  iteration=6 reassembled residual=6342.894103336654
+  iteration=7 reassembled residual=138343.47873344293
+  iteration=8 reassembled residual=370603.64436579915
+  iteration=9 reassembled residual=5.707208300722879e8
+  iteration=10 reassembled residual=3.385522926466752e9
+  iteration=11 reassembled residual=1.2571859422664049e11
+  iteration=12 reassembled residual=7.017987471370969e11
+  iteration=13 reassembled residual=1.4483203316327862e14
+  iteration=14 reassembled residual=1.322152124875563e15
+  iteration=15 reassembled residual=8.84679393651244e16
+  iteration=16 reassembled residual=8.395493272082693e17
+  iteration=17 reassembled residual=2.0283781274838423e21
+  iteration=18 reassembled residual=3.7608358865644225e22
+  iteration=19 reassembled residual=7.412063620402664e23
+  iteration=20 reassembled residual=2.3755380192952494e30
+Newton with fresh tangent, chain-rule correction=true backtracking=true
+  iteration=0 reassembled residual=67490.9572950132
+    accepted Newton fraction=1.0
+  iteration=1 reassembled residual=17580.60812284059
+    accepted Newton fraction=0.5
+  iteration=2 reassembled residual=11146.771866499197
+    accepted Newton fraction=1.0
+  iteration=3 reassembled residual=9301.276607087888
+    accepted Newton fraction=0.5
+  iteration=4 reassembled residual=5974.331213422187
+    accepted Newton fraction=0.5
+  iteration=5 reassembled residual=3948.648919006436
+    accepted Newton fraction=0.0078125
+  iteration=6 reassembled residual=3938.297657049381
+    accepted Newton fraction=7.62939453125e-6
+  iteration=7 reassembled residual=3938.2831740018664
+    backtracking failed to reduce residual

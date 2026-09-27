@@ -1,0 +1,3 @@
+Completed 6067 dry steps to 3.0001315 s.
+Free-vibration energy range: (0.000630132483650051, 0.0006301344229224831) J
+Final / initial free-vibration energy: 1.0000002685970426

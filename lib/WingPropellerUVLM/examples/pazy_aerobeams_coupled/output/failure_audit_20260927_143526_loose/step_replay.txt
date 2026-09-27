@@ -1,0 +1,25 @@
+Replaying t=2.8893635000000004, dt=0.0004945000000002864
+Max nodal force=13.831684422887072, max nodal moment=0.5068338809943265
+NR algorithm stuck, stopping...
+original: converged=false, initial residual=67490.9572950132, final reassembled residual=3.2061266228978723e7
+fresh Jacobian: converged=true, initial residual=67490.9572950132, final reassembled residual=0.0009879822382765258
+zero applied loads: converged=true, initial residual=67491.83672902707, final reassembled residual=0.0031165361951443265
+Jacobian condition estimate (2-norm)=4.219976914008239e12
+Jacobian DOF_u h=1.0e-5 relative directional error=1.3125517066757131e-12
+Jacobian DOF_u h=1.0e-6 relative directional error=1.7476173078752107e-11
+Jacobian DOF_u h=1.0e-7 relative directional error=9.840374807624998e-11
+Jacobian DOF_p h=1.0e-5 relative directional error=0.057525858502418446
+Jacobian DOF_p h=1.0e-6 relative directional error=0.05752585838032951
+Jacobian DOF_p h=1.0e-7 relative directional error=0.057525858625159916
+Jacobian DOF_V h=1.0e-5 relative directional error=8.572482199723216e-9
+Jacobian DOF_V h=1.0e-6 relative directional error=7.605709048424686e-8
+Jacobian DOF_V h=1.0e-7 relative directional error=7.258657272891149e-7
+Jacobian DOF_Ω h=1.0e-5 relative directional error=4.804461500755956e-7
+Jacobian DOF_Ω h=1.0e-6 relative directional error=6.369859148798849e-6
+Jacobian DOF_Ω h=1.0e-7 relative directional error=3.965184743487207e-5
+Jacobian DOF_F h=1.0e-5 relative directional error=6.143038406633596e-7
+Jacobian DOF_F h=1.0e-6 relative directional error=4.072904614363869e-6
+Jacobian DOF_F h=1.0e-7 relative directional error=3.96652997148269e-5
+Jacobian DOF_M h=1.0e-5 relative directional error=1.1279781301233305e-8
+Jacobian DOF_M h=1.0e-6 relative directional error=1.2809688801180817e-7
+Jacobian DOF_M h=1.0e-7 relative directional error=1.6407526751710858e-6

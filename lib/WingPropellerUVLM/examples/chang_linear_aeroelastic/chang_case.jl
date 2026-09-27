@@ -39,7 +39,7 @@ function chang_case_defaults()
     # 3. Flow, time stepping, and coupling
     simulation = (
         air_density_kgpm3 = 1.225,
-        freestream_speed_mps = 75.0,
+        freestream_speed_mps = 60.0,
         angle_of_attack_deg = 3.0,
         sideslip_deg = 0.0,
 
@@ -70,8 +70,8 @@ function chang_case_defaults()
         # Used only when core_radius_m = nothing:
         # radius = max(segment_core_factor * Δs, chord_core_factor * c).
         # Δs is the local span/radial edge length; c is the full local chord.
-        segment_core_factor = 1.5e-2,
-        chord_core_factor = 1.5e-2,
+        segment_core_factor = 2e-2,
+        chord_core_factor = 2e-2,
 
         elastic_axis_fraction = 0.30,      # Chord fraction measured from the leading edge.
         # Effective arm of the pylon pitch/yaw assumed mode. The physical rotor

@@ -24,20 +24,24 @@ function run_pazy_wing_uvlm(; airspeed, density, angle_of_attack, sideslip,
     newton_relative_tolerance, newton_display_iterations,
     newton_always_update_jacobian, perturbation_amplitude,
     perturbation_duration, animation_frames, progress_frequency,
+    time_step_chords=1 / chordwise_panels,
     animation_time_step=nothing,
+    coupling_scheme=:strong,
     coupling_maximum_iterations=20, coupling_relaxation=0.3,
     coupling_geometry_tolerance=1e-5, coupling_load_tolerance=1e-3,
     coupling_display_iterations=false)
 
     @assert airspeed > 0 && density > 0 && duration > 0
     @assert chordwise_panels > 0 && spanwise_panels > 0 && maximum_wake_rows > 0
+    @assert isfinite(time_step_chords) && time_step_chords > 0
     @assert 0 <= settling_time < duration && perturbation_duration > 0
     @assert 0 < initial_airspeed_fraction <= 1
     @assert 0 <= airspeed_ramp_duration <= settling_time
     @assert animation_frames >= 2
     @assert isnothing(animation_time_step) || animation_time_step > 0
     @assert progress_frequency >= 1
-    @assert coupling_maximum_iterations >= 2
+    @assert coupling_scheme in (:loose, :strong) "Choose :loose or :strong coupling"
+    @assert coupling_scheme == :loose || coupling_maximum_iterations >= 2
     @assert 0 < coupling_relaxation <= 1
     @assert coupling_geometry_tolerance > 0 && coupling_load_tolerance > 0
     @assert !symmetric_wing || iszero(sideslip) "Nonzero sideslip requires symmetric_wing=false"
@@ -78,8 +82,9 @@ function run_pazy_wing_uvlm(; airspeed, density, angle_of_attack, sideslip,
         gravityVector=zeros(3), v_A=t -> zeros(3),
         units=AeroBeams.create_UnitsSystem(frequency="Hz"))
 
-    # 2. Choose dt so U*dt = chord / number of chordwise panels.
-    dt = chord / (chordwise_panels * airspeed)
+    # 2. Choose the physical timestep independently of the aerodynamic mesh.
+    # The nondimensional step is U*dt/chord = time_step_chords.
+    dt = time_step_chords * chord / airspeed
     n_steps = round(Int, duration / dt)
     @assert n_steps >= 1 "Duration must include at least one timestep"
     time = collect(0:n_steps) .* dt
@@ -144,20 +149,26 @@ function run_pazy_wing_uvlm(; airspeed, density, angle_of_attack, sideslip,
     actual_animation_time_step = animation_stride * dt
     animation_steps = Set(0:animation_stride:n_steps)
     println("UVLM mesh: $chordwise_panels x $spanwise_panels panels")
-    println("dt = $dt s; final time = $(last(time)) s; steps = $n_steps")
+    println("dt = $dt s (U*dt/chord = $time_step_chords); " *
+        "final time = $(last(time)) s; steps = $n_steps")
+    nominal_wake_length_chords = maximum_wake_rows * airspeed * dt / chord
     println("Wake capacity: $maximum_wake_rows rows, nominal length = " *
-        "$(maximum_wake_rows/chordwise_panels) chords ($(maximum_wake_rows*airspeed*dt) m)")
+        "$nominal_wake_length_chords chords ($(maximum_wake_rows*airspeed*dt) m)")
     println("Retained wake age at capacity = $(maximum_wake_rows*dt) s")
     println("Airspeed ramp: $initial_airspeed -> $airspeed m/s over " *
         "$airspeed_ramp_duration s; tip pulse starts at $settling_time s")
-    println("Strong coupling: maximum $coupling_maximum_iterations iterations, " *
-        "relaxation = $coupling_relaxation")
+    if coupling_scheme == :strong
+        println("Coupling scheme: strong partitioned, maximum " *
+            "$coupling_maximum_iterations iterations, relaxation = $coupling_relaxation")
+    else
+        println("Coupling scheme: loose (one aerodynamic/structural pass per timestep)")
+    end
     println("Animation sampling interval = $actual_animation_time_step s")
 
-    # 4. Strong partitioned coupling loop. At each physical time step, UVLM
-    # and AeroBeams are iterated to a common interface geometry and load. UVLM
-    # trials always restart from the accepted wake at time n. The wake is
-    # advanced exactly once, after the coupled iteration has converged.
+    # 4. Partitioned coupling loop. Strong coupling iterates UVLM and
+    # AeroBeams to a common interface state. Loose coupling evaluates UVLM once
+    # on the extrapolated n+1 geometry and advances after one structural solve.
+    # In both schemes, the wake advances exactly once per physical timestep.
     for i in 2:length(time)
         AeroBeams.update_time_variables!(structure, i)
         AeroBeams.update_basis_A_orientation!(structure)
@@ -203,66 +214,93 @@ function run_pazy_wing_uvlm(; airspeed, density, angle_of_attack, sideslip,
         coupling_converged = false
 
         try
-            for coupling_iteration in 1:coupling_maximum_iterations
-                coupling_iterations = coupling_iteration
+            if coupling_scheme == :loose
+                coupling_iterations = 1
 
-                # Aerodynamic trial at the current relaxed interface guess.
+                # Explicit staggered pass: evaluate UVLM on the predicted n+1
+                # geometry, then apply those loads in one AeroBeams solve. The
+                # resulting interface mismatch is accepted without iteration.
                 loads = UVLM.evaluate_trial!(aerodynamic; surfaces=[grid_guess])
-                aerodynamic_loads = beam_loads(loads, offsets_guess, weights)
-
-                # Apply aerodynamic loads and the prescribed pulse, then solve
-                # the full nonlinear AeroBeams step with its Newton iterations.
-                nodal_loads .= aerodynamic_loads
+                accepted_aerodynamic_loads = beam_loads(
+                    loads, offsets_guess, weights)
+                nodal_loads .= accepted_aerodynamic_loads
                 nodal_loads[1, end] += tip_force
                 apply_pazy_nodal_loads!(structure, nodal_loads, time[i])
                 AeroBeams.solve_time_step!(structure)
                 structure.systemSolver.convergedFinalSolution ||
-                    error("AeroBeams failed at t=$(time[i]), coupling iteration $coupling_iteration")
+                    error("AeroBeams failed at t=$(time[i]), loose coupling pass")
 
-                # Newton may replace structure.model during a retry. Always
-                # read the active model, not the original construction reference.
                 candidate_grid, _, candidate_offsets = wing_geometry(
                     structure.model, chord, spar_fraction, chordwise_panels, weights)
                 geometry_residual = maximum(abs, candidate_grid .- grid_guess) / chord
-                load_residual = isnothing(previous_aerodynamic_loads) ? Inf :
-                    interface_load_residual(
-                        aerodynamic_loads, previous_aerodynamic_loads, chord)
+                # A load convergence residual requires at least two FSI passes.
+                load_residual = NaN
+                coupling_converged = true
 
                 coupling_display_iterations && println(
-                    "  FSI $coupling_iteration: r_geometry=$(geometry_residual), " *
-                    "r_load=$(load_residual)")
+                    "  Loose FSI pass: r_geometry=$(geometry_residual), r_load=not applicable")
+            else
+                for coupling_iteration in 1:coupling_maximum_iterations
+                    coupling_iterations = coupling_iteration
 
-                if geometry_residual <= coupling_geometry_tolerance &&
-                    load_residual <= coupling_load_tolerance
-                    # Make the uncommitted UVLM trial exactly match the accepted
-                    # structural geometry. This still does not advance the wake.
-                    final_loads = UVLM.evaluate_trial!(
-                        aerodynamic; surfaces=[candidate_grid])
-                    final_aerodynamic_loads = beam_loads(
-                        final_loads, candidate_offsets, weights)
-                    final_load_residual = interface_load_residual(
-                        final_aerodynamic_loads, aerodynamic_loads, chord)
-                    if final_load_residual <= coupling_load_tolerance
-                        accepted_aerodynamic_loads = final_aerodynamic_loads
+                    # Aerodynamic trial at the current relaxed interface guess.
+                    loads = UVLM.evaluate_trial!(aerodynamic; surfaces=[grid_guess])
+                    aerodynamic_loads = beam_loads(loads, offsets_guess, weights)
+
+                    # Apply aerodynamic loads and the prescribed pulse, then solve
+                    # the full nonlinear AeroBeams step with its Newton iterations.
+                    nodal_loads .= aerodynamic_loads
+                    nodal_loads[1, end] += tip_force
+                    apply_pazy_nodal_loads!(structure, nodal_loads, time[i])
+                    AeroBeams.solve_time_step!(structure)
+                    structure.systemSolver.convergedFinalSolution ||
+                        error("AeroBeams failed at t=$(time[i]), coupling iteration $coupling_iteration")
+
+                    # Newton may replace structure.model during a retry. Always
+                    # read the active model, not the original construction reference.
+                    candidate_grid, _, candidate_offsets = wing_geometry(
+                        structure.model, chord, spar_fraction, chordwise_panels, weights)
+                    geometry_residual = maximum(abs, candidate_grid .- grid_guess) / chord
+                    load_residual = isnothing(previous_aerodynamic_loads) ? Inf :
+                        interface_load_residual(
+                            aerodynamic_loads, previous_aerodynamic_loads, chord)
+
+                    coupling_display_iterations && println(
+                        "  FSI $coupling_iteration: r_geometry=$(geometry_residual), " *
+                        "r_load=$(load_residual)")
+
+                    if geometry_residual <= coupling_geometry_tolerance &&
+                        load_residual <= coupling_load_tolerance
+                        # Make the uncommitted UVLM trial exactly match the accepted
+                        # structural geometry. This still does not advance the wake.
+                        final_loads = UVLM.evaluate_trial!(
+                            aerodynamic; surfaces=[candidate_grid])
+                        final_aerodynamic_loads = beam_loads(
+                            final_loads, candidate_offsets, weights)
+                        final_load_residual = interface_load_residual(
+                            final_aerodynamic_loads, aerodynamic_loads, chord)
+                        if final_load_residual <= coupling_load_tolerance
+                            accepted_aerodynamic_loads = final_aerodynamic_loads
+                            load_residual = max(load_residual, final_load_residual)
+                            coupling_converged = true
+                            break
+                        end
                         load_residual = max(load_residual, final_load_residual)
-                        coupling_converged = true
-                        break
                     end
-                    load_residual = max(load_residual, final_load_residual)
+
+                    previous_aerodynamic_loads = copy(aerodynamic_loads)
+                    grid_guess .= (1 - coupling_relaxation) .* grid_guess .+
+                        coupling_relaxation .* candidate_grid
+                    # Keep the moment arms consistent with the relaxed trial grid.
+                    offsets_guess .= (1 - coupling_relaxation) .* offsets_guess .+
+                        coupling_relaxation .* candidate_offsets
                 end
 
-                previous_aerodynamic_loads = copy(aerodynamic_loads)
-                grid_guess .= (1 - coupling_relaxation) .* grid_guess .+
-                    coupling_relaxation .* candidate_grid
-                # Keep the moment arms consistent with the relaxed trial grid.
-                offsets_guess .= (1 - coupling_relaxation) .* offsets_guess .+
-                    coupling_relaxation .* candidate_offsets
+                coupling_converged || error(
+                    "Strong coupling failed at t=$(time[i]) after " *
+                    "$coupling_iterations iterations: r_geometry=$geometry_residual, " *
+                    "r_load=$load_residual")
             end
-
-            coupling_converged || error(
-                "Strong coupling failed at t=$(time[i]) after " *
-                "$coupling_iterations iterations: r_geometry=$geometry_residual, " *
-                "r_load=$load_residual")
 
             # Leave the load BCs consistent with the accepted aerodynamic trial.
             nodal_loads .= accepted_aerodynamic_loads
@@ -291,17 +329,21 @@ function run_pazy_wing_uvlm(; airspeed, density, angle_of_attack, sideslip,
         end
         if (i-1) % progress_frequency == 0 || i == length(time)
             percent = round(100 * (i-1) / n_steps; digits=1)
+            load_residual_text = isfinite(load_residual) ?
+                string(round(load_residual; sigdigits=3)) : "n/a"
             println("Step $(i-1)/$n_steps ($percent%), " *
                 "t=$(round(time[i]; digits=4)) s, " *
                 "U=$(round(current_airspeed; digits=3)) m/s, " *
                 "FSI=$coupling_iterations, " *
                 "r_x=$(round(geometry_residual; sigdigits=3)), " *
-                "r_F=$(round(load_residual; sigdigits=3))")
+                "r_F=$load_residual_text")
         end
     end
 
     return (structural_problem=structure, aerodynamic_problem=aerodynamic,
-        time=time, dt=dt, airspeed_history=airspeed_history,
+        coupling_scheme=coupling_scheme,
+        time=time, dt=dt, time_step_chords=time_step_chords,
+        airspeed_history=airspeed_history,
         tip_out_of_plane=tip_out_of_plane,
         tip_bending_displacement=tip_out_of_plane,
         tip_twist_degrees=tip_twist_degrees,
