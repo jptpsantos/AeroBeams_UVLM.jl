@@ -45,21 +45,21 @@ uvlm_save_frequency = 1               # save every N accepted steps (final step 
 
 # AeroBeams Newton-Raphson controls
 newton_maximum_iterations = 20
-newton_absolute_tolerance = 1e-6
-newton_relative_tolerance = 1e-6
+newton_absolute_tolerance = 1e-5
+newton_relative_tolerance = 1e-5
 newton_display_iterations = true       # print i, load factor and convergence errors
-newton_always_update_jacobian = false
+newton_always_update_jacobian = true
 
 # Coupling scheme: :strong iterates geometry and loads to convergence;
 # :loose performs one explicit UVLM -> AeroBeams pass per physical timestep.
-coupling_scheme = :loose              # choose :strong or :loose
+coupling_scheme = :strong              # choose :strong or :loose
 coupling_maximum_iterations = 20        # used only by :strong
 coupling_relaxation = 0.5              # :strong geometry relaxation
-coupling_geometry_tolerance = 1e-5     # max interface-coordinate change / chord
-coupling_load_tolerance = 1e-5         # relative nodal force/moment change
+coupling_geometry_tolerance = 1e-4     # max interface-coordinate change / chord
+coupling_load_tolerance = 1e-4         # relative nodal force/moment change
 coupling_display_iterations = false    # true: print every inner FSI iteration
 
-duration = 6.0                        # total simulated time, approximately [s]
+duration = 5.0                        # total simulated time, approximately [s]
 settling_time = 1.0                   # time at which the tip pulse starts [s]
 perturbation_amplitude = 0.0         # tip-force multiplier [N]
 perturbation_duration = 0.1          # pulse duration [s]
@@ -72,20 +72,10 @@ animation_time_step = 0.01              # simulated seconds between frames, as i
 animation_frames = 150                  # fallback maximum if animation_time_step=nothing
 animation_fps = 30                      # same requested FPS as the AeroBeams example
 wake_camera = (45, 30)                  # high oblique view: (azimuth, elevation) [deg]
-show_force_vectors = false              # do not draw aerodynamic-force arrows
-show_moment_vectors = false             # do not draw torsional-moment symbols
+show_force_vectors = false              # F1A lift arrows (wake GIF keeps full force vectors)
+show_moment_vectors = false              # M3A torsional arrows about the elastic axis
 force_vector_scale = 1.0                # AeroBeams size multiplier for both load symbols
 output_directory = joinpath(@__DIR__, "output")
-
-# Use the flight condition in every output filename. Decimal points are written
-# as "p" and minus signs as "m", so all labels remain filename-friendly.
-function label_number(value)
-    text = string(round(value; digits=3))
-    endswith(text, ".0") && (text = text[1:end-2])
-    return replace(text, "-" => "m", "." => "p")
-end
-response_label = "pazy_response_aoa$(label_number(rad2deg(angle_of_attack)))_" *
-    "V$(label_number(airspeed))"
 
 # Solve, then generate the AeroBeams deformation and UVLM wake GIFs.
 result = run_pazy_wing_uvlm(;
@@ -109,7 +99,6 @@ if generate_animations
     animations = save_animations(
         result;
         output_directory,
-        case_label=response_label,
         fps=animation_fps,
         wake_camera,
         show_force_vectors,
@@ -120,7 +109,7 @@ end
 if generate_time_history_plot
     tip_time_history_plot = save_tip_time_histories(
         result;
-        output_path=joinpath(output_directory, "$(response_label)_time_histories.png"),
+        output_path=joinpath(output_directory, "pazy_tip_time_histories.png"),
     )
 end
 println("Final tip displacement [m]: ", last(result.tip_out_of_plane))

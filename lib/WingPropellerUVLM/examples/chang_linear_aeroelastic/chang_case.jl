@@ -32,7 +32,7 @@ function chang_case_defaults()
         trim_speed_mps = 65.0,
 
         # One entry per propeller: 0 = wing root, 1 = wing tip.
-        attachment_eta = [0.42, 0.83],
+        attachment_eta = [0.83],
         collective_pitch_offset_deg = 0.0, # Added to the Chang blade-angle distribution.
     )
 
@@ -57,7 +57,7 @@ function chang_case_defaults()
         # Propeller pitch/yaw moments: :exact_virtual_work or :fixed_aero_axes.
         propeller_moment_projection = :exact_virtual_work,
 
-        impulse_propeller_indices = [1, 2],   # Propellers receiving the pitch impulse.
+        impulse_propeller_indices = [1],   # Propellers receiving the pitch impulse.
     )
 
     # 4. Aerodynamic finite core and load geometry
@@ -70,8 +70,8 @@ function chang_case_defaults()
         # Used only when core_radius_m = nothing:
         # radius = max(segment_core_factor * Δs, chord_core_factor * c).
         # Δs is the local span/radial edge length; c is the full local chord.
-        segment_core_factor = 2e-2,
-        chord_core_factor = 2e-2,
+        segment_core_factor = 3e-2,
+        chord_core_factor = 3e-2,
 
         elastic_axis_fraction = 0.30,      # Chord fraction measured from the leading edge.
         # Effective arm of the pylon pitch/yaw assumed mode. The physical rotor
