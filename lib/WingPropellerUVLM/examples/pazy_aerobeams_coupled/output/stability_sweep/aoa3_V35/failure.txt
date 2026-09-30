@@ -1,0 +1,1 @@
+SystemError: opening file "c:\\Users\\Acer\\Documents\\João Tavares\\Doutorado EESC\\Models\\AeroBeams_UVLM.jl\\lib\\WingPropellerUVLM\\examples\\pazy_aerobeams_coupled\\output\\stability_sweep\\aoa3_V35\\response.csv": Permission denied

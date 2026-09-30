@@ -14,7 +14,7 @@ function chang_case_defaults()
                                   # false: model only this side. Blades are never mirrored.
 
         spanwise_panels = 20,      # Also sets the number of structural beam elements.
-        chordwise_panels = 5,
+        chordwise_panels = 10,
     )
 
     # 2. Propeller geometry, mesh, and installation
@@ -28,11 +28,11 @@ function chang_case_defaults()
 
         # RPM is specified at trim_speed_mps. The solver scales RPM with airspeed
         # to keep the advance ratio fixed.
-        rotation_rpm = 1217.0,
-        trim_speed_mps = 65.0,
+        rotation_rpm = 1232.63301527,
+        trim_speed_mps = 60.0,
 
         # One entry per propeller: 0 = wing root, 1 = wing tip.
-        attachment_eta = [0.83],
+        attachment_eta = [0.42, 0.83],
         collective_pitch_offset_deg = 0.0, # Added to the Chang blade-angle distribution.
     )
 
@@ -49,7 +49,7 @@ function chang_case_defaults()
         # true: include wing–propeller and propeller–propeller aerodynamic influence.
         # false: isolate those groups; blades within each propeller still interact.
         # Structural wing–propeller coupling remains active in both modes.
-        interaction_on = true,
+        interaction_on = false,
 
         # Aerodynamic loads: :imperial (corrected) or :legacy_imperial_segments.
         near_field_force_model = :imperial,
@@ -57,7 +57,7 @@ function chang_case_defaults()
         # Propeller pitch/yaw moments: :exact_virtual_work or :fixed_aero_axes.
         propeller_moment_projection = :exact_virtual_work,
 
-        impulse_propeller_indices = [1],   # Propellers receiving the pitch impulse.
+        impulse_propeller_indices = [1, 2],   # Propellers receiving the pitch impulse.
     )
 
     # 4. Aerodynamic finite core and load geometry
@@ -65,12 +65,12 @@ function chang_case_defaults()
         # Fixed radius in metres for wing, blades, and shed wakes.
         # Examples: 1e-3 = 1 mm; 1e-6 = 1 micrometre.
         # Set nothing to use the factor-based rule below.
-        core_radius_m = nothing, #0.1*0.197,
+        core_radius_m = 0.001*0.197,
 
         # Used only when core_radius_m = nothing:
         # radius = max(segment_core_factor * Δs, chord_core_factor * c).
         # Δs is the local span/radial edge length; c is the full local chord.
-        segment_core_factor = 3e-2,
+        segment_core_factor = 1e-2,
         chord_core_factor = 3e-2,
 
         elastic_axis_fraction = 0.30,      # Chord fraction measured from the leading edge.
@@ -87,7 +87,7 @@ function chang_case_defaults()
         wing_rows_per_chord_panel = 10,    # Automatic count = this * active chordwise panels.
         # Propeller wake: rows = ceil(revolutions * 360 / azimuth_step_deg).
         # This keeps the retained wake duration fixed when the azimuth step changes.
-        retained_revolutions_propeller = 0.5,
+        retained_revolutions_propeller = 1.0,
         # Set an integer here only to override the revolution-based count directly.
         maximum_rows_propeller = nothing,
     )

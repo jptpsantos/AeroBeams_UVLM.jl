@@ -3,7 +3,7 @@ include(joinpath(@__DIR__, "PazyWingUVLMCoupling.jl"))
 include(joinpath(@__DIR__, "PazyWingUVLMVisualization.jl"))
 
 # Flight conditions
-airspeed = 47.0                       # m/s
+airspeed = 45.0                       # m/s
 density = 1.225                       # kg/m^3
 angle_of_attack = deg2rad(3.0)
 sideslip = deg2rad(0.0)               # use symmetric_wing=false for nonzero sideslip
@@ -71,7 +71,7 @@ generate_time_history_plot = true
 animation_time_step = 0.01              # simulated seconds between frames, as in Pazy gust
 animation_frames = 150                  # fallback maximum if animation_time_step=nothing
 animation_fps = 30                      # same requested FPS as the AeroBeams example
-structure_backend = :gr                 # AeroBeams' animation-compatible renderer
+structure_backend = :pyplot             # transparent 3D skin (PyPlot is an AeroBeams dependency)
 structure_camera = (45, 45)             # AeroBeams oblique view [azimuth, elevation] in degrees
 structure_surface_alpha = 0.5           # airfoil opacity: smaller = more transparent, 1 = opaque
 structure_axis_linewidth = 2.5          # emphasize the beam elastic axis through the blue wing

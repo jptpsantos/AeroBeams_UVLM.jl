@@ -26,6 +26,7 @@ function run_pazy_wing_uvlm(; airspeed, density, angle_of_attack, sideslip,
     perturbation_duration, animation_frames, progress_frequency,
     time_step_chords=1 / chordwise_panels,
     animation_time_step=nothing,
+    save_animation_history=true,
     coupling_scheme=:strong,
     coupling_maximum_iterations=20, coupling_relaxation=0.3,
     coupling_geometry_tolerance=1e-5, coupling_load_tolerance=1e-3,
@@ -142,12 +143,14 @@ function run_pazy_wing_uvlm(; airspeed, density, angle_of_attack, sideslip,
     coupling_load_residual_history = zeros(length(time))
     airspeed_history[1] = initial_airspeed
     surface_history, wake_history, animation_time = Any[], Any[], Float64[]
-    save_wing_frame!(aerodynamic, surface_history, wake_history, animation_time)
+    if save_animation_history
+        save_wing_frame!(aerodynamic, surface_history, wake_history, animation_time)
+    end
     animation_stride = isnothing(animation_time_step) ?
         max(1, cld(n_steps + 1, animation_frames)) :
         max(1, round(Int, animation_time_step / dt))
     actual_animation_time_step = animation_stride * dt
-    animation_steps = Set(0:animation_stride:n_steps)
+    animation_steps = save_animation_history ? Set(0:animation_stride:n_steps) : Set{Int}()
     println("UVLM mesh: $chordwise_panels x $spanwise_panels panels")
     println("dt = $dt s (U*dt/chord = $time_step_chords); " *
         "final time = $(last(time)) s; steps = $n_steps")
@@ -163,7 +166,11 @@ function run_pazy_wing_uvlm(; airspeed, density, angle_of_attack, sideslip,
     else
         println("Coupling scheme: loose (one aerodynamic/structural pass per timestep)")
     end
-    println("Animation sampling interval = $actual_animation_time_step s")
+    if save_animation_history
+        println("Animation sampling interval = $actual_animation_time_step s")
+    else
+        println("Animation frame capture disabled")
+    end
 
     # 4. Partitioned coupling loop. Strong coupling iterates UVLM and
     # AeroBeams to a common interface state. Loose coupling evaluates UVLM once
@@ -324,7 +331,7 @@ function run_pazy_wing_uvlm(; airspeed, density, angle_of_attack, sideslip,
         AeroBeams.save_time_step_data!(structure, time[i])
         tip_out_of_plane[i] = -structure.model.elements[end].nodalStates.u_n2[1]
         tip_twist_degrees[i] = wingtip_twist_degrees(structure.model)
-        if (i-1) in animation_steps
+        if save_animation_history && (i-1) in animation_steps
             save_wing_frame!(aerodynamic, surface_history, wake_history, animation_time)
         end
         if (i-1) % progress_frequency == 0 || i == length(time)

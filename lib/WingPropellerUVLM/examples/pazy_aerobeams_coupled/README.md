@@ -123,16 +123,48 @@ You can also run `run_pazy_wing_uvlm.jl` directly from the IDE while the
 repository-root project is active. The example adds the local AeroBeams and
 WingPropellerUVLM package directories to Julia's load path itself.
 
-`PazyWingUVLMVisualization.jl` creates `output/pazy_structure.gif` with the
-standard AeroBeams deformation animation and `output/pazy_uvlm_wake.gif` with
-the aerodynamic lattice and wake. The beam animation uses the physical
-deformation scale of 1 and displays the Pazy NACA 0018 airfoil surfaces. These surfaces are added
-only while plotting and do not activate AeroBeams aerodynamic loads. The UVLM
-and wake animations use an equal physical scale on all three axes and fixed
-limits throughout the GIF. With `show_force_vectors=true`, both animations
-show the aerodynamic nodal forces in green. The reference arrow scale is fixed
-over the complete simulation, so their lengths show the actual force variation
-with time; `force_vector_scale` changes only their visual size. It also creates
-`output/pazy_tip_time_histories.png`, containing the out-of-plane bending
-displacement at the structural reference line and the twist angle. The twist
-uses the same rotated-local-chord definition as the AeroBeams Pazy examples.
+The runner adds the flight-condition suffix to all outputs, for example
+`pazy_response_structure_aoa3_V50.gif`, `pazy_response_uvlm_wake_aoa3_V50.gif`,
+and `pazy_tip_time_histories_aoa3_V50.png`, inside `output_directory`.
+
+The structural GIF uses AeroBeams' own deformation renderer, physical scale
+1, transparent blue NACA 0018 surfaces, an emphasized beam elastic axis, and
+the native clamped-root symbols. The run file exposes:
+
+```julia
+structure_backend = :pyplot       # supports translucent 3D surfaces
+structure_camera = (45, 45)       # azimuth, elevation [degrees]
+structure_surface_alpha = 0.5     # opacity: smaller means more transparent
+structure_axis_linewidth = 2.5
+show_clamped_root = true
+```
+
+PyPlot is already an AeroBeams dependency. The wake GIF retains its own GR
+renderer and `wake_camera`. The structural camera and semispan-based axis
+limits are fixed across frames. Airfoil surfaces are attached only while
+plotting; this does not enable AeroBeams aerodynamic loads or alter the
+computed response.
+
+On Windows, the structural renderer temporarily selects sequential NumPy MKL
+to avoid the threaded-library crash observed in the 3D preview test. The
+environment is restored after rendering; Julia's solver BLAS settings are
+not changed. Use a fresh Julia session if PyPlot/NumPy was already initialized
+with a different MKL threading layer.
+
+The clamp display is independent of `show_force_vectors` and
+`show_moment_vectors`, which remain off by default. If enabled, the structural
+GIF shows lift and torsional-moment arrows; the wake GIF shows the full force
+vectors. Arrow normalization is fixed over the simulation.
+
+To regenerate just the structural GIF with an existing in-memory `result`,
+reload `PazyWingUVLMVisualization.jl` and call:
+
+```julia
+save_structural_animation(result;
+    output_path=joinpath(output_directory, "pazy_response_structure_$(case_suffix).gif"),
+    camera=(45,45), surface_alpha=0.5, show_clamped_root=true)
+```
+
+This replaces only that GIF; it does not rerun the simulation. The tip plot
+shows out-of-plane bending at the structural reference line and twist using
+the rotated-local-chord definition of the AeroBeams Pazy examples.

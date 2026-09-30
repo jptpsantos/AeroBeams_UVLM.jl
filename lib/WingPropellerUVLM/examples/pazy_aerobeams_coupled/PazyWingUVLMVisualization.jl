@@ -43,6 +43,11 @@ function save_structural_animation(result;
     output_path::String = joinpath(DEFAULT_OUTPUT_DIRECTORY, "pazy_structure.gif"),
     fps::Int = 30,
     deformation_scale::Real = 1.0,
+    backend::Symbol = :gr,
+    camera = (45, 45),
+    surface_alpha::Real = 0.5,
+    elastic_axis_linewidth::Real = 2.5,
+    show_clamped_root::Bool = true,
     show_force_vectors::Bool = false,
     show_moment_vectors::Bool = false,
     force_vector_scale::Real = 1.0)
@@ -106,31 +111,48 @@ function save_structural_animation(result;
             end
         end
 
-        # Do not pass the root clamp to AeroBeams' BC renderer. The structural
-        # solution is unchanged; this only suppresses its six orange/red clamp
-        # symbols in the animation.
-        problem.model.BCs = load_bcs
+        # Render the clamp independently of the aerodynamic-load arrows.
+        # Selecting only the root BC avoids displaying unrequested loads.
+        problem.model.BCs = show_clamped_root ? original_bcs[1:1] : original_bcs[1:0]
+        if show_force_vectors || show_moment_vectors
+            append!(problem.model.BCs, load_bcs)
+        end
 
         # Match test/plotGenerators/PazyWingOMCGustPlotGenerator.jl: basis A,
         # physical deformation scale, 0.01 s frame spacing (set by the run
-        # file), default camera/surface style, and the Pazy semispan limits.
-        AeroBeams.plot_dynamic_deformation(
-            problem;
-            refBasis = "A",
-            plotFrequency = stride,
-            plotUndeformed = false,
-            plotBCs = show_force_vectors || show_moment_vectors,
-            plotDistLoads = false,
-            plotAeroSurf = true,
-            surfα = 0.5,
-            scale = deformation_scale,
-            loadsSizeScaler = force_vector_scale,
-            plotLimits = ([-span/2, span/2], [-span/2, span/2], [0.0, span]),
-            fps = fps,
-            save = true,
-            savePath = path_for_aerobeams(output_path),
-            displayProgress = true,
-        )
+        # file), transparent blue airfoils, and the Pazy semispan limits.
+        # An explicit view keeps even the initial straight wing in 3D. The
+        # beam centerline is the elastic axis; thicken it behind the airfoil.
+        # NumPy's threaded MKL crashed while drawing 3D frames on Windows.
+        # Use its sequential renderer configuration; restore ENV afterward.
+        # This does not change Julia's structural-solver BLAS thread settings.
+        render_env = backend == :pyplot && Sys.iswindows() ?
+            ("MKL_THREADING_LAYER" => "SEQUENTIAL", "MKL_NUM_THREADS" => "1") : ()
+        withenv(render_env...) do
+            AeroBeams.plot_dynamic_deformation(
+                problem;
+                backendSymbol = backend,
+                refBasis = "A",
+                view = camera,
+                plotFrequency = stride,
+                plotUndeformed = false,
+                plotBCs = show_clamped_root || show_force_vectors || show_moment_vectors,
+                plotDistLoads = false,
+                plotAeroSurf = true,
+                surfα = Float64(surface_alpha),
+                lw = elastic_axis_linewidth,
+                colorDef = :blue,
+                showTimeStamp = true,
+                showScale = true,
+                scale = deformation_scale,
+                loadsSizeScaler = force_vector_scale,
+                plotLimits = ([-span/2, span/2], [-span/2, span/2], [0.0, span]),
+                fps = fps,
+                save = true,
+                savePath = path_for_aerobeams(output_path),
+                displayProgress = true,
+            )
+        end
     finally
         problem.model.BCs = original_bcs
         beam.aeroSurface = original_surface
@@ -313,21 +335,31 @@ end
 
 function save_animations(result; output_directory::String = DEFAULT_OUTPUT_DIRECTORY,
     case_label::String = "pazy_response",
+    case_suffix::String = "",
+    structure_backend::Symbol = :pyplot,
+    structure_camera = (45, 45), structure_surface_alpha::Real = 0.5,
+    structure_axis_linewidth::Real = 2.5, show_clamped_root::Bool = true,
     fps::Int = 30, show_force_vectors::Bool = false,
     show_moment_vectors::Bool = false,
     force_vector_scale::Real = 1.0, wake_camera = (45, 30))
 
+    suffix = isempty(case_suffix) ? "" : "_$(case_suffix)"
     structural = save_structural_animation(
         result;
-        output_path = joinpath(output_directory, "$(case_label)_structure.gif"),
+        output_path = joinpath(output_directory, "$(case_label)_structure$(suffix).gif"),
         fps = fps,
+        backend = structure_backend,
+        camera = structure_camera,
+        surface_alpha = structure_surface_alpha,
+        elastic_axis_linewidth = structure_axis_linewidth,
+        show_clamped_root = show_clamped_root,
         show_force_vectors = show_force_vectors,
         show_moment_vectors = show_moment_vectors,
         force_vector_scale = force_vector_scale,
     )
     wake = save_wake_animation(
         result;
-        output_path = joinpath(output_directory, "$(case_label)_uvlm_wake.gif"),
+        output_path = joinpath(output_directory, "$(case_label)_uvlm_wake$(suffix).gif"),
         fps = fps,
         show_force_vectors = show_force_vectors,
         force_vector_scale = force_vector_scale,
@@ -344,26 +376,39 @@ function save_tip_time_histories(result;
     bending_plot = Plots.plot(
         result.time,
         result.tip_bending_displacement;
-        color = :blue,
-        linewidth = 2,
-        xlabel = "Time [s]",
-        ylabel = "Bending displacement [m]",
-        title = "Pazy wingtip bending",
+        color = :black,
+        linewidth = 4,
+        xlabel = "Time (s)",
+        ylabel = "Tip displacement (m)",
+        tickfontsize = 20,
+        labelfontsize = 24,
+        title = "",
         label = false,
-        grid = true,
+        grid = false,
+        left_margin = 22Plots.mm,
+        bottom_margin = 12Plots.mm,
+        top_margin = 5Plots.mm,
+        right_margin = 5Plots.mm
     )
     twist_plot = Plots.plot(
         result.time,
         result.tip_twist_degrees;
-        color = :red,
-        linewidth = 2,
-        xlabel = "Time [s]",
-        ylabel = "Twist [deg]",
-        title = "Pazy wingtip twist",
+        color = :black,
+        linewidth = 4,
+        xlabel = "Time (s)",
+        ylabel = "Tip twist (deg)",
+        tickfontsize = 20,
+        labelfontsize = 24,
+        title = "",
         label = false,
-        grid = true,
+        grid = false,
+        left_margin = 22Plots.mm,
+        bottom_margin = 12Plots.mm,
+        top_margin = 5Plots.mm,
+        right_margin = 5Plots.mm
     )
-    figure = Plots.plot(bending_plot, twist_plot; layout = (2, 1), size = (900, 700))
+    
+    figure = Plots.plot(bending_plot, twist_plot; layout = (2, 1), size = (1000, 900))
     Plots.savefig(figure, output_path)
     println("Wingtip time histories written to $(abspath(output_path))")
     return abspath(output_path)
