@@ -1,5 +1,5 @@
 module MovingBlockDamping
-using FFTW, Statistics
+using FFTW, Statistics, Plots
 using LinearAlgebra: mul!
 
 export moving_block_damping, moving_block_metrics
@@ -128,10 +128,122 @@ function moving_block_metrics(t::AbstractVector, x::AbstractVector;
         log_amplitude,fitted_log_amplitude=fitted,frequency_hz=frequency))
 end
 
-"""Return `(lambda, frequency_hz, omega_radps)`, as in moving_block_2.jl."""
-function moving_block_damping(t::AbstractVector,x::AbstractVector;kwargs...)
-    result=moving_block_metrics(t,x;kwargs...).summary
-    result.available || throw(ArgumentError(result.reason))
-    return result.moving_block_lambda_per_s,result.frequency_hz,result.omega_radps
+"""
+    moving_block_damping(t, x; kwargs...)
+
+Applies the moving block approach to estimate damping and dominant frequency
+from a given time history.
+
+Returns:
+- `lambda_approx`: exponential growth/decay rate, in 1/s
+- `frequency_approx`: dominant frequency, in Hz
+- `omega_approx`: dominant angular frequency, in rad/s
+"""
+function moving_block_damping(t::AbstractVector, x::AbstractVector;
+                              block_size::Int = 512,
+                              size_ratio_lb::Float64 = 0.25,
+                              size_ratio_ub::Float64 = 0.50,
+                              peak_from_start::Int = 1,
+                              peak_from_end::Int = 0)
+
+    if length(t) != length(x)
+        error("Time vector and signal vector must have the same length.")
+    end
+
+    peak_min = maximum(abs.(x)) / 100.0
+
+    # Local maxima equivalent to Peaks.argmaxima, without an extra dependency.
+    locs_all = [i for i in 2:length(x)-1 if x[i] > x[i-1] && x[i] >= x[i+1]]
+    locs = filter(i -> x[i] >= peak_min, locs_all)
+
+    if length(locs) < (peak_from_start + peak_from_end + 1)
+        error("Not enough peaks found in the signal. Try adjusting peak_from_start/end.")
+    end
+
+    start_idx = locs[peak_from_start]
+    end_idx = locs[end - peak_from_end]
+
+    t_test = t[start_idx:end_idx]
+    x_test = x[start_idx:end_idx]
+
+    sample_size = length(t_test)
+    size_ratio = block_size / sample_size
+
+    while size_ratio < size_ratio_lb
+        block_size *= 2
+        size_ratio = block_size / sample_size
+    end
+
+    while size_ratio > size_ratio_ub
+        block_size = div(block_size, 2)
+        size_ratio = block_size / sample_size
+    end
+
+    n_blocks = sample_size - block_size + 1
+
+    if n_blocks < 1
+        error("Block size is larger than the analyzed signal segment.")
+    end
+
+    dt = mean(diff(t_test))
+    fs = 1.0 / dt
+
+    lnXbar = zeros(Float64, n_blocks)
+    freq_block = zeros(Float64, n_blocks)
+
+    for i in 1:n_blocks
+        x_i = x_test[i : i + block_size - 1]
+
+        # Remove DC offset so the 0 Hz bin does not dominate.
+        x_i = x_i .- mean(x_i)
+
+        X_i = fft(x_i)
+        Xbar_i = abs.(X_i ./ block_size)
+
+        half_idx = div(block_size, 2) + 1
+        Xbar_i = Xbar_i[1:half_idx]
+        Xbar_i[2:end-1] .*= 2.0
+
+        freqs = (0:half_idx-1) .* fs ./ block_size
+
+        # Ignore DC bin when finding dominant oscillation.
+        peak_idx = argmax(Xbar_i[2:end]) + 1
+
+        lnXbar[i] = log(max(Xbar_i[peak_idx], eps()))
+        freq_block[i] = freqs[peak_idx]
+    end
+
+    tau = t_test[1:n_blocks]
+
+    # Degree-one least squares, equivalent to Polynomials.fit(tau, lnXbar, 1).
+    coeff = hcat(ones(n_blocks), tau) \ lnXbar
+    p_fit(time) = coeff[1] + coeff[2] * time
+
+    lambda_approx = coeff[2]
+    frequency_approx = median(freq_block)
+    omega_approx = 2.0 * pi * frequency_approx
+
+    p_test = plot(t_test, x_test,
+                  linestyle=:dash,
+                  linewidth=1,
+                  label="Analyzed Segment",
+                  title="Cut Signal",
+                  xlabel="Time (s)")
+
+    p_fit_plot = plot(tau, lnXbar,
+                      linewidth=1,
+                      label="lnXbar")
+
+    plot!(p_fit_plot, tau, p_fit.(tau),
+          linestyle=:dash,
+          linewidth=1,
+          label="Linear Fit",
+          xlabel="Block start time (s)",
+          ylabel="Log of moving block function (-)",
+          title="Moving Block Fit")
+
+    display(plot(p_test, p_fit_plot, layout=(2, 1), size=(800, 600)))
+
+    return lambda_approx, frequency_approx, omega_approx
 end
 end

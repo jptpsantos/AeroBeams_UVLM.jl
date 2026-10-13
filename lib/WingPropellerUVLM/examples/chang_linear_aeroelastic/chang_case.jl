@@ -24,22 +24,22 @@ function chang_case_defaults()
         blades = 4,
 
         radial_panels = 5,         # Panels along each blade.
-        chordwise_panels = 5,      # Panels across each blade chord.
+        chordwise_panels = 5,  # Panels across each blade chord.
 
         # RPM is specified at trim_speed_mps. The solver scales RPM with airspeed
         # to keep the advance ratio fixed.
-        rotation_rpm = 1232.63301527,
-        trim_speed_mps = 60.0,
+        rotation_rpm = 1333.10988393, #1232.63301527,
+        trim_speed_mps = 65.0,
 
         # One entry per propeller: 0 = wing root, 1 = wing tip.
-        attachment_eta = [0.42, 0.83],
+        attachment_eta = [0.83],
         collective_pitch_offset_deg = 0.0, # Added to the Chang blade-angle distribution.
     )
 
     # 3. Flow, time stepping, and coupling
     simulation = (
         air_density_kgpm3 = 1.225,
-        freestream_speed_mps = 60.0,
+        freestream_speed_mps = 85.0,
         angle_of_attack_deg = 3.0,
         sideslip_deg = 0.0,
 
@@ -57,7 +57,7 @@ function chang_case_defaults()
         # Propeller pitch/yaw moments: :exact_virtual_work or :fixed_aero_axes.
         propeller_moment_projection = :exact_virtual_work,
 
-        impulse_propeller_indices = [1, 2],   # Propellers receiving the pitch impulse.
+        impulse_propeller_indices = [1],   # Propellers receiving the pitch impulse.
     )
 
     # 4. Aerodynamic finite core and load geometry
@@ -65,7 +65,7 @@ function chang_case_defaults()
         # Fixed radius in metres for wing, blades, and shed wakes.
         # Examples: 1e-3 = 1 mm; 1e-6 = 1 micrometre.
         # Set nothing to use the factor-based rule below.
-        core_radius_m = 0.001*0.197,
+        core_radius_m = 0.014*0.197,
 
         # Used only when core_radius_m = nothing:
         # radius = max(segment_core_factor * Δs, chord_core_factor * c).

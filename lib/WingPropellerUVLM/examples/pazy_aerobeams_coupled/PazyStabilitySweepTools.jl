@@ -91,6 +91,18 @@ function plot_sweep_comparison(boundaries, sweep_angles;
         end
     end
 
+    # Show the full speed intervals behind any midpoint-only boundaries.
+    midpoint_rows = [row for row in boundaries if length(row) >= 6 &&
+        row[4] == "bracket_midpoint_unresolved"]
+    for (i,row) in enumerate(midpoint_rows)
+        plot!(p,[row[5],row[6]],[row[1],row[1]];
+            color=uvlm_color,linestyle=:dot,linewidth=line_width,
+            label=i == 1 ? "UVLM speed bracket" : false)
+        scatter!(p,[row[2]],[row[1]];color=uvlm_color,marker=:diamond,
+            markersize=literature_marker_size,markerstrokewidth=marker_stroke_width,
+            label=false)
+    end
+
     # Experimental points and literature curves from the AeroBeams Pazy plot.
     for (speeds,pitch,label,color,marker) in (
         ([49,43,38],[3,5,7],labels.test_onset_up,experimental_colors[1],:rtriangle),

@@ -2,14 +2,14 @@
 let root = normpath(joinpath(@__DIR__, "..", "..", "..", ".."))
     root in LOAD_PATH || pushfirst!(LOAD_PATH, root)
 end
-using Plots, DelimitedFiles, Statistics, ColorSchemes
+using Plots, DelimitedFiles, ColorSchemes
 include(joinpath(@__DIR__, "..", "..", "studies", "src", "MovingBlockDamping.jl"))
 using .MovingBlockDamping: moving_block_metrics
 include(joinpath(@__DIR__, "PazyStabilitySweepTools.jl"))
 
-# Cases to run. Each simulation can take hours.
-pitch_angles_deg = [1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0]
-airspeeds_mps = collect(35.0:5.0:90.0)
+# Run every combination of these pitch angles and airspeeds.
+pitch_angles_deg = [0.0, 1.0, 3.0, 5.0, 7.0]
+airspeeds_mps = collect(30.0:10.0:90.0)
 run_simulations = true                 # false: read the saved response.csv files
 output_directory = joinpath(@__DIR__, "output", "stability_sweep")
 if run_simulations
@@ -21,15 +21,19 @@ density = 1.225
 sideslip = 0.0
 initial_airspeed_fraction = 1.0       # UVLM requires a positive starting speed
 airspeed_ramp_duration = 0.0
-duration = 2.5
-settling_time = 1.0
-perturbation_amplitude = 0.0
+duration = 2.0
+settling_time = 0.2
+perturbation_amplitude = 10.0
 perturbation_duration = 0.1
 
-chordwise_panels = 5
-spanwise_panels = 15
+chordwise_panels = 10
+spanwise_panels = 20
 symmetric_wing = true
+match_wake_panel_chord = false       # true: nominal U*dt = chord/chordwise_panels
 time_step_chords = 0.25
+if match_wake_panel_chord
+    time_step_chords = 1 / chordwise_panels
+end
 wake_length_chords = 5.0
 maximum_wake_rows = ceil(Int, wake_length_chords / time_step_chords)
 core_radius = 1e-3
@@ -54,23 +58,22 @@ animation_time_step = 3.0
 save_animation_history = false       # Skip frame copies during the stability sweep
 progress_frequency = 100
 
-# Moving-block fit interval: (start time, end time) [s].
+# Moving-block damping uses the full wingtip history and the original defaults.
 response_to_fit = :twist             # :twist or :bending
-fit_window_s = (0.3, 2.0)
-block_duration_s = 0.20
-minimum_fit_r_squared = 0.90
+boundary_minimum_fit_r_squared = 0.90 # only for accepting a boundary estimate
 growth_deadband = 0.05                # Treat near-zero growth as unresolved
+midpoint_bracket_angles_deg = [4.0, 6.0] # Saturating responses: use speed-bracket midpoints
 
 @assert response_to_fit in (:twist, :bending)
 @assert all(diff(airspeeds_mps) .> 0) "List speeds in increasing order."
-@assert 0 <= fit_window_s[1] < fit_window_s[2] <= duration "Fit window must lie within the simulation."
-@assert airspeed_ramp_duration <= fit_window_s[1] "Fit must start after the airspeed ramp."
 mkpath(output_directory)
+println("Running $(length(pitch_angles_deg)*length(airspeeds_mps)) angle/speed cases.")
 
 summary_rows = Any[]
 boundary_rows = Any[]
 bracket_rows = Any[]
 growth = fill(NaN, length(pitch_angles_deg), length(airspeeds_mps))
+raw_growth = fill(NaN, size(growth))
 case_status = fill("failed", size(growth))
 
 # Run each case and estimate its damping.
@@ -105,21 +108,16 @@ for (i, angle) in enumerate(pitch_angles_deg), (j, speed) in enumerate(airspeeds
         else
             response = readdlm(joinpath(directory, "response.csv"), ',', Float64; skipstart=1)
         end
-        response[end, 1] >= fit_window_s[2] - (response[2, 1] - response[1, 1]) ||
-            error("Response ends before the fit window; simulate longer or shorten its end time")
-
         column = response_to_fit == :twist ? 4 : 3
-        keep = findall(t -> fit_window_s[1] <= t <= fit_window_s[2], response[:, 1])
-        length(keep) >= 3 || error("Too few samples in the fitting window")
-        all(u -> isapprox(u, speed; rtol=1e-8), response[keep, 2]) ||
-            error("Airspeed is not constant in the fitting window")
-        t, x = response[keep, 1], response[keep, column]
-        fit = moving_block_metrics(t, x .- mean(x);
-            block_duration_s, minimum_fit_r_squared, minimum_peaks=6)
+        all(u -> isapprox(u, speed; rtol=1e-8), response[:, 2]) ||
+            error("Airspeed is not constant in the response")
+        fit = moving_block_metrics(response[:, 1], response[:, column])
         s = fit.summary
+        raw_growth[i, j] = s.growth_rate_per_s
 
         status = "unresolved"
-        if s.valid_for_convergence && abs(s.growth_rate_per_s) > growth_deadband
+        if s.available && s.fit_r_squared >= boundary_minimum_fit_r_squared &&
+           abs(s.growth_rate_per_s) > growth_deadband
             growth[i, j] = s.growth_rate_per_s
             status = growth[i, j] < 0 ? "decaying" : "growing"
         end
@@ -130,7 +128,10 @@ for (i, angle) in enumerate(pitch_angles_deg), (j, speed) in enumerate(airspeeds
         response_plot = plot(response[:, 1], response[:, column];
             label=string(response_to_fit), xlabel="Time [s]",
             ylabel=response_to_fit == :twist ? "Twist [deg]" : "Bending [m]", title=label)
-        vspan!(response_plot, collect(fit_window_s); alpha=0.15, label="Fit window")
+        if s.available
+            vspan!(response_plot, [s.analyzed_start_s, s.analyzed_end_s];
+                alpha=0.15, label="Analyzed segment")
+        end
         diagnostics = fit.diagnostics
         fit_plot = plot(diagnostics.block_start_s, diagnostics.log_amplitude;
             label="Moving blocks", xlabel="Block start [s]", ylabel="Log amplitude")
@@ -142,6 +143,7 @@ for (i, angle) in enumerate(pitch_angles_deg), (j, speed) in enumerate(airspeeds
         err isa InterruptException && rethrow()
         # A solver failure is not evidence of physical instability.
         growth[i, j] = NaN
+        raw_growth[i, j] = NaN
         summary_row = [angle, speed, NaN, NaN, NaN, NaN, "failed"]
         write(joinpath(directory, "failure.txt"), sprint(showerror, err))
         @warn "Case $label failed; continuing" exception=err
@@ -154,6 +156,42 @@ for (i, angle) in enumerate(pitch_angles_deg), (j, speed) in enumerate(airspeeds
         permutedims(hcat(summary_rows...)))
 end
 
+# Provisional hump boundaries use a positive-growth unresolved fit and the
+# neighboring confirmed decaying case. Keep the strict boundaries separately.
+estimated_boundary_rows = Any[]
+for (i, angle) in enumerate(pitch_angles_deg)
+    indices = eachindex(airspeeds_mps)
+    first_positive = findfirst(j -> isfinite(raw_growth[i, j]) &&
+        raw_growth[i, j] > growth_deadband, indices)
+    isnothing(first_positive) && continue
+    onset_left = findlast(j -> j < first_positive && case_status[i, j] == "decaying", indices)
+    offset_right = findfirst(j -> j > first_positive && case_status[i, j] == "decaying", indices)
+    offset_left = isnothing(offset_right) ? nothing :
+        findlast(j -> j < offset_right && raw_growth[i, j] > growth_deadband, indices)
+    for (kind, left, right) in (("onset", onset_left, first_positive),
+                               ("offset", offset_left, offset_right))
+        (isnothing(left) || isnothing(right)) && continue
+        all(s -> s in ("decaying", "growing", "unresolved"), case_status[i, left:right]) || continue
+        u1, u2 = airspeeds_mps[left], airspeeds_mps[right]
+        g1, g2 = raw_growth[i, left], raw_growth[i, right]
+        speed = u1 - g1*(u2-u1)/(g2-g1)
+        quality = any(==("unresolved"), case_status[i, left:right]) ?
+            "provisional_unresolved" : "resolved"
+        if angle in midpoint_bracket_angles_deg && quality == "provisional_unresolved"
+            # The fitted slope mixes initial growth and amplitude saturation.
+            # A midpoint expresses the speed bracket without using that slope.
+            speed = (u1 + u2)/2
+            quality = "bracket_midpoint_unresolved"
+        end
+        push!(estimated_boundary_rows, [angle, speed, kind, quality, u1, u2, g1, g2])
+    end
+end
+estimated_data = isempty(estimated_boundary_rows) ? Matrix{Any}(undef, 0, 8) :
+    permutedims(hcat(estimated_boundary_rows...))
+write_sweep_csv(joinpath(output_directory, "uvlm_boundary_updated.csv"),
+    ["angle_deg", "speed_mps", "boundary", "quality", "lower_speed_mps", "upper_speed_mps",
+     "lower_growth_per_s", "upper_growth_per_s"], estimated_data)
+
 # Interpolate sign changes to estimate onset and restabilization speeds.
 for (i, angle) in enumerate(pitch_angles_deg)
     for crossing in sweep_crossings(airspeeds_mps, growth[i, :])
@@ -164,7 +202,7 @@ for (i, angle) in enumerate(pitch_angles_deg)
     valid = findall(isfinite, growth[i, :])
     for (left, right) in zip(valid[1:end-1], valid[2:end])
         right > left + 1 || continue
-        any(==("failed"), case_status[i, left+1:right-1]) && continue
+        all(==("unresolved"), case_status[i, left+1:right-1]) || continue
         growth[i, left] * growth[i, right] < 0 || continue
         kind = growth[i, left] < 0 ? "onset" : "offset"
         push!(bracket_rows, [angle, airspeeds_mps[left], airspeeds_mps[right], kind])
@@ -186,7 +224,7 @@ literature_colors = (:gold, :brown, :magenta)
 uvlm_color = :red
 uvlm_fill_alpha = 0.25
 comparison_labels = (
-    uvlm_region="AeroBeams time domain",
+    uvlm_region="AeroBeams/UVLM time domain (estimated)",
     aerobeams_onset="AeroBeams eigenvalue onset", aerobeams_offset="",
     test_onset_up="Test onset up", test_offset_up="Test offset up",
     test_onset_down="Test onset down", test_offset_down="Test offset down",
@@ -200,7 +238,7 @@ lw = 2
 ms = 10
 ms2 = 4
 msw = 0
-comparison_plot = plot_sweep_comparison(boundary_rows, pitch_angles_deg;
+comparison_plot = plot_sweep_comparison(estimated_boundary_rows, pitch_angles_deg;
     bracket_rows, aerobeams_color, aerobeams_styles, literature_colors,
     experimental_colors, uvlm_color, uvlm_fill_alpha, labels=comparison_labels,
     line_width=lw, marker_size=ms, literature_marker_size=ms2,

@@ -1,11 +1,13 @@
 # This file can be run directly from the IDE or from either local Julia project.
 include(joinpath(@__DIR__, "PazyWingUVLMCoupling.jl"))
 include(joinpath(@__DIR__, "PazyWingUVLMVisualization.jl"))
+include(joinpath(@__DIR__, "..", "..", "studies", "src", "MovingBlockDamping.jl"))
+using .MovingBlockDamping: moving_block_damping
 
 # Flight conditions
-airspeed = 47.0                       # m/s
+airspeed = 43                       # m/s
 density = 1.225                       # kg/m^3
-angle_of_attack = deg2rad(3.0)
+angle_of_attack = deg2rad(5.0)
 sideslip = deg2rad(0.0)               # use symmetric_wing=false for nonzero sideslip
 
 # Smooth startup: ramp from 5% to 100% airspeed, then hold before the tip pulse.
@@ -20,13 +22,18 @@ symmetric_wing = true                 # mirror wing and wake across UVLM y=0
                                      # false: isolated cantilever, without its image
 
 # Physical timestep: dt = time_step_chords * chord / airspeed.
-# Ribeiro's baseline value is 0.25. This is independent of the UVLM mesh.
+# Matching gives the nominal wake-row length U*dt = chord/chordwise_panels.
+# Otherwise keep the current mesh-independent 0.25-chord timestep.
+match_wake_panel_chord = false
 time_step_chords = 0.25
+if match_wake_panel_chord
+    time_step_chords = 1 / chordwise_panels
+end
 
 # Retained wake length. One row is shed per timestep; old rows are discarded.
 # Since U*dt = time_step_chords*chord, N rows retain approximately
 # N*time_step_chords chord lengths at the target airspeed.
-wake_length_chords = 10.0             # nominal retained length / wing chord
+wake_length_chords = 5.0             # nominal retained length / wing chord
 @assert isfinite(wake_length_chords) && wake_length_chords > 0
 maximum_wake_rows = ceil(Int, wake_length_chords / time_step_chords)
 # To specify the row count directly, replace the expression above with e.g. 80.
@@ -59,15 +66,16 @@ coupling_geometry_tolerance = 1e-4     # max interface-coordinate change / chord
 coupling_load_tolerance = 1e-4         # relative nodal force/moment change
 coupling_display_iterations = false    # true: print every inner FSI iteration
 
-duration = 5.0                        # total simulated time, approximately [s]
+duration = 4.0                        # total simulated time, approximately [s]
 settling_time = 1.0                   # time at which the tip pulse starts [s]
 perturbation_amplitude = 0.0         # tip-force multiplier [N]
 perturbation_duration = 0.1          # pulse duration [s]
 progress_frequency = 1                # 1: print every step; 100: every 100 steps
 
 # Animation output (independent of UVLM force-history storage)
-generate_animations = true
+generate_animations = false
 generate_time_history_plot = true
+analyze_tip_twist = true
 animation_time_step = 0.01              # simulated seconds between frames, as in Pazy gust
 animation_frames = 150                  # fallback maximum if animation_time_step=nothing
 animation_fps = 30                      # same requested FPS as the AeroBeams example
@@ -130,6 +138,18 @@ if generate_time_history_plot
         result;
         output_path=joinpath(output_directory, "pazy_tip_time_histories_$(case_suffix).png"),
     )
+end
+if analyze_tip_twist
+    tip_twist_growth_rate, tip_twist_frequency, tip_twist_omega =
+        moving_block_damping(result.time, result.tip_twist_degrees)
+    println("Wingtip twist moving-block growth rate [1/s]: ", tip_twist_growth_rate)
+    println("Wingtip twist dominant frequency [Hz]: ", tip_twist_frequency)
+    println("Wingtip twist angular frequency [rad/s]: ", tip_twist_omega)
+    println("Wingtip twist damping ratio [%]: ",
+        -100 * tip_twist_growth_rate / hypot(tip_twist_growth_rate, tip_twist_omega))
+    mkpath(output_directory)
+    Plots.savefig(Plots.current(),
+        joinpath(output_directory, "pazy_tip_twist_moving_block_$(case_suffix).png"))
 end
 println("Final tip displacement [m]: ", last(result.tip_out_of_plane))
 println("Final tip twist [deg]: ", last(result.tip_twist_degrees))

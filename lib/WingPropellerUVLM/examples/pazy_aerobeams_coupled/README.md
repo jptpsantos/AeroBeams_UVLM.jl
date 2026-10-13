@@ -5,12 +5,32 @@ file: airspeed, angle of attack, chordwise/spanwise panel counts, wake length,
 duration, tip pulse and animation frame count. Run the whole file to simulate,
 generate both GIFs, and save the wingtip time-history plot.
 
+The wingtip twist time history is `result.tip_twist_degrees`, sampled at
+`result.time`. With `analyze_tip_twist=true`, the runner applies the library's
+moving-block damping function to the full signal with the original block defaults,
+prints the growth rate, frequency and damping ratio, and displays and
+saves `pazy_tip_twist_moving_block_aoa..._V....png`. The supplied
+`moving_block_2.jl` is preserved unchanged in `studies/reference`; its
+callable implementation is `studies/src/MovingBlockDamping.jl`.
+
+After running the single-case script, the direct call in the Julia REPL is:
+
+```julia
+lambda, frequency, omega = moving_block_damping(result.time, result.tip_twist_degrees)
+```
+
+The function returns the same three values and displays the same two-panel
+diagnostic plot as `moving_block_2.jl`.
+
 The runner also exposes the UVLM core radius, wake-shedding fraction, wing
 symmetry, sideslip, interaction flag and aerodynamic-history saving frequency.
-`wake_length_chords = 20.0` retains approximately 20 wing chords of wake:
-the runner calculates `maximum_wake_rows = ceil(Int, wake_length_chords *
-chordwise_panels)`. With four chordwise panels this is 80 rows, or 1.978 m
-nominal length. To use a fixed row count, assign that integer directly to
+`match_wake_panel_chord=true` sets `time_step_chords=1/chordwise_panels`, so the
+nominal streamwise wake-row length `U*dt` equals one bound-panel chord. With
+`false` (the default), the runner keeps `time_step_chords=0.25`. Wake motion
+and induced velocity can change actual panel dimensions. The runner computes
+`maximum_wake_rows = ceil(Int, wake_length_chords/time_step_chords)` to keep the
+requested nominal wake length in either mode. To use a fixed row count, assign
+that integer directly to
 `maximum_wake_rows` in the runner. The wake starts empty, grows until this
 capacity is reached, and then discards its oldest rows.
 
@@ -55,8 +75,8 @@ iteration limit and tolerances are also defined in the runner.
 `PazyWingUVLMCoupling.jl` contains one main function, read from top to bottom:
 
 1. Create the original 15-element nonlinear Pazy beam and clamp its root.
-2. Set `dt = time_step_chords * chord / airspeed`, independently of the UVLM
-   mesh. The main runner uses Ribeiro's baseline `time_step_chords = 0.25`.
+2. Set `dt = time_step_chords * chord / airspeed`. The runner uses 0.25 by
+   default or `1/chordwise_panels` when wake and bound chord lengths are matched.
 3. Create the independent UVLM mesh and its interpolation weights.
 4. March both solvers forward in the same time loop.
 

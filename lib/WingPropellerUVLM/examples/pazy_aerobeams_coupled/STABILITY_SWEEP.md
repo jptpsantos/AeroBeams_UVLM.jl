@@ -2,11 +2,23 @@
 
 Open `run_pazy_stability_sweep.jl` and edit the settings at the top:
 
-- `pitch_angles_deg` and `airspeeds_mps`: angles and increasing speeds to simulate.
+- `pitch_angles_deg` and `airspeeds_mps`: every listed airspeed is run at every
+  listed pitch angle. The reference curves do not select simulation cases.
 - The flight, UVLM and structural settings use the same names as the single-case run.
+- `match_wake_panel_chord=true`: use a nominal wake-row length equal to one
+  chordwise bound panel; `false` keeps `time_step_chords=0.25`.
 - `response_to_fit`: `:twist` or `:bending`.
-- `fit_window_s`: `(start_s, end_s)` for the single damping fit.
-- `block_duration_s` and `minimum_fit_r_squared`: moving-block fit settings.
+- With `response_to_fit=:twist`, the time history is
+  `result.tip_twist_degrees` sampled at `result.time`. The original
+  `moving_block_2.jl` is preserved in `studies/reference`, and its callable
+  method is `studies/src/MovingBlockDamping.jl`.
+- The moving-block calculation uses the full response and the original
+  automatic block-size settings. `boundary_minimum_fit_r_squared` filters
+  unreliable fits when constructing the stability boundary; it does not
+  change the moving-block calculation.
+- `midpoint_bracket_angles_deg`: angles with saturating responses whose
+  unresolved boundaries are shown at the midpoint of their speed brackets.
+  The CSV keeps both bracket endpoints; the midpoint is not a damping root.
 - `run_simulations=false`: read saved histories instead of solving again.
 
 The sweep starts at full airspeed (`initial_airspeed_fraction=1.0`,
@@ -15,8 +27,8 @@ amplitude, the startup response supplies the excitation for the fit.
 
 Run the file from the IDE. It performs four steps:
 
-1. Solve each angle/speed case independently.
-2. Fit the selected window with the existing `moving_block_metrics`.
+1. Solve every listed angle/speed combination independently.
+2. Fit the peak-trimmed full response with `moving_block_metrics`.
 3. Find sign changes in growth rate between adjacent valid speeds.
 4. Shade the UVLM instability region and plot the earlier AeroBeams boundaries
    as lines alongside the experimental and literature data.
@@ -29,16 +41,26 @@ are recorded as an uncertainty bracket in the CSV. The shaded region uses the
 last confirmed growing speed as a conservative edge. Solver failures are never
 bridged.
 
+Set the speed range wide enough to include decaying cases on both sides of the
+flutter region. The AeroBeams, UM/NAST, and SHARPy curves are used only in the
+comparison plot.
+
 ## Output
 
 In `output/stability_sweep`:
 
 - `damping_summary.csv`: growth, damping, frequency, fit quality and status.
-- `uvlm_boundary.csv`: interpolated onset/offset speeds.
+- `uvlm_boundary.csv`: onset/offset speeds from accepted damping fits only.
+- `uvlm_boundary_updated.csv`: estimated onset/offset speeds, including
+  provisional crossings anchored by an unresolved positive-growth fit. Its
+  `quality` and endpoint columns show which estimates need confirmation. In
+  particular, `bracket_midpoint_unresolved` is only a display estimate. The
+  comparison plot uses these estimates when the sweep runs.
 - `uvlm_boundary_brackets.csv`: speed intervals containing an unresolved crossing.
 - `pazy_stability_boundary.png` and `.svg`: the shaded UVLM region, earlier
   AeroBeams third-mode onset/offset lines, UM/NAST and SHARPy curves, and
-  experimental points. Unresolved crossings are not drawn as exact boundaries.
+  experimental points. The legend labels the UVLM region as estimated when it
+  includes unresolved fits.
 - Each `aoa3_V50`-style folder: `response.csv` with both tip histories and airspeed,
   `moving_block.png` with the selected response and fit, or `failure.txt`.
 

@@ -11,7 +11,7 @@ using WingPropellerUVLM
 
 function wing_propeller_case_defaults()
     # 1. Reference configuration
-    configuration = :xu # :xu, :bohnisch, or :chang
+    configuration = :bohnisch # :xu, :bohnisch, or :chang
 
     # 2. Wing structural and aerodynamic discretization
     wing = (;
@@ -33,13 +33,13 @@ function wing_propeller_case_defaults()
         # Chang/Xu: constant advance ratio. `nothing` retains case values.
         rpm = nothing,
         advance_ratio = nothing,
-        beta75_deg = nothing,
+        beta75_deg = 40.0,
     )
 
     # 4. Flow condition and simulation time
     simulation = (;
         # `nothing` retains the corresponding reference-case value.
-        freestream_speed_mps = nothing,
+        freestream_speed_mps = 150.0,
         air_density_kgpm3 = nothing,
         angle_of_attack_deg = nothing,
         sideslip_deg = nothing,
@@ -55,13 +55,13 @@ function wing_propeller_case_defaults()
         # A numeric value selects a fixed radius in metres. `nothing` uses
         # max(segment_core_factor*segment_length, chord_core_factor*chord).
         core_radius_m = nothing,
-        segment_core_factor = 0.025,
-        chord_core_factor = 0.025,
+        segment_core_factor = 0.05,
+        chord_core_factor = 0.02,
     )
 
     # 6. Retained wake length
     wake = (;
-        retained_revolutions = 0.5,
+        retained_revolutions = 1.0,
         maximum_rows_wing = nothing,
         maximum_rows_propeller = nothing,
     )
