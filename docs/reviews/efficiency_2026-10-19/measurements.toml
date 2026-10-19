@@ -1,0 +1,169 @@
+[[operations]]
+median_seconds = 0.0019859
+operation = "AeroBeams model deepcopy, 256 steps"
+median_bytes = 2.311467e6
+minimum_seconds = 0.00172
+[[operations]]
+median_seconds = 0.0092912
+operation = "AeroBeams model deepcopy, 4096 steps"
+median_bytes = 2.4429771e7
+minimum_seconds = 0.0087487
+[[operations]]
+median_seconds = 1.68e-5
+operation = "AeroBeams element rotation variables"
+median_bytes = 34880.0
+minimum_seconds = 1.59e-5
+[[operations]]
+median_seconds = 0.0010446
+operation = "AeroBeams system assembly, 15 elements"
+median_bytes = 1.109648e6
+minimum_seconds = 0.0009749
+[[operations]]
+median_seconds = 3.0e-6
+operation = "Scale whole load history then interpolate, 256 steps"
+median_bytes = 12663.0
+minimum_seconds = 2.9e-6
+[[operations]]
+median_seconds = 1.9e-6
+operation = "Interpolate then scale six values, 256 steps"
+median_bytes = 608.0
+minimum_seconds = 1.8e-6
+[[operations]]
+median_seconds = 7.59e-5
+operation = "Scale whole load history then interpolate, 4096 steps"
+median_bytes = 196967.0
+minimum_seconds = 7.0e-5
+[[operations]]
+median_seconds = 1.9e-6
+operation = "Interpolate then scale six values, 4096 steps"
+median_bytes = 608.0
+minimum_seconds = 1.9e-6
+[[operations]]
+median_seconds = 0.0037683
+operation = "AeroBeams model deepcopy, 256 steps plus 4096 orientation samples"
+median_bytes = 4.496441e6
+minimum_seconds = 0.0035385
+[[operations]]
+median_seconds = 0.0209898
+operation = "UVLM full trial, 200 bound panels, 2 active wake rows"
+median_bytes = 1.457918e6
+minimum_seconds = 0.0198656
+[[operations]]
+median_seconds = 0.0001352
+operation = "UVLM System deepcopy, wake capacity 20 rows"
+median_bytes = 700090.0
+minimum_seconds = 0.000131
+[[operations]]
+median_seconds = 2.58e-5
+operation = "UVLM snapshot allocation"
+median_bytes = 142917.0
+minimum_seconds = 2.34e-5
+[[operations]]
+median_seconds = 3.9e-6
+operation = "UVLM snapshot restore in place"
+median_bytes = 0.0
+minimum_seconds = 3.7e-6
+[[operations]]
+median_seconds = 1.86e-5
+operation = "UVLM apply_trial_geometry!"
+median_bytes = 66012.0
+minimum_seconds = 1.7e-5
+[[operations]]
+median_seconds = 9.3e-6
+operation = "UVLM existing update_surface_panels!"
+median_bytes = 9600.0
+minimum_seconds = 9.2e-6
+[[operations]]
+median_seconds = 0.0053486
+operation = "UVLM full AIC assembly"
+median_bytes = 0.0
+minimum_seconds = 0.0052081
+[[operations]]
+median_seconds = 0.0007592
+operation = "UVLM trailing-edge coefficient update"
+median_bytes = 0.0
+minimum_seconds = 0.0007583
+[[operations]]
+median_seconds = 0.0004564
+operation = "UVLM dense LU and solve, BLAS 6 threads"
+median_bytes = 321767.0
+minimum_seconds = 0.0004461
+[[operations]]
+median_seconds = 0.0003545
+operation = "UVLM dense LU and solve, BLAS 1 threads"
+median_bytes = 321783.0
+minimum_seconds = 0.0003366
+[[operations]]
+median_seconds = 0.0115324
+operation = "UVLM near-field forces"
+median_bytes = 289356.0
+minimum_seconds = 0.0112291
+[[operations]]
+median_seconds = 0.0001306
+operation = "AeroBeams save complete structural step"
+median_bytes = 91104.0
+minimum_seconds = 0.000128
+[[operations]]
+median_seconds = 0.0003963
+operation = "Pazy beam_loads original"
+median_bytes = 1.202064e6
+minimum_seconds = 0.0003925
+[[operations]]
+median_seconds = 3.3e-6
+operation = "Pazy beam_loads stencil prototype"
+median_bytes = 0.0
+minimum_seconds = 3.2e-6
+[[operations]]
+median_seconds = 9.84e-5
+operation = "Pazy wing_geometry original"
+median_bytes = 325685.0
+minimum_seconds = 9.51e-5
+[[operations]]
+median_seconds = 0.0619662
+operation = "UVLM full trial, 200 bound panels, 20 active wake rows"
+median_bytes = 1.45795e6
+minimum_seconds = 0.0587801
+[[operations]]
+median_seconds = 0.0476376
+operation = "UVLM wake velocity evaluation, 20 active rows"
+median_bytes = 104359.0
+minimum_seconds = 0.0453266
+
+[[model_sizes]]
+distributed_load_bytes = 1480320
+steps = 256
+model_bytes = 1778424
+all_load_arrays_zero = true
+[[model_sizes]]
+distributed_load_bytes = 23598720
+steps = 4096
+model_bytes = 23896824
+all_load_arrays_zero = true
+
+[metadata]
+julia_threads = 1
+stencil_load_transfer_max_difference = 0.0
+julia_version = "1.11.5"
+uvlm_system_bytes = 682334
+scope = "isolated operations; no full coupled simulation"
+repetitions = 7
+date = "2026-10-19"
+saved_x_aliases_active_x = true
+blas_threads = 6
+
+    [[metadata.trailing_edge_checks]]
+    symmetric = false
+    maximum_difference = 0.0
+    finite_core = false
+    [[metadata.trailing_edge_checks]]
+    symmetric = false
+    maximum_difference = 0.0
+    finite_core = true
+    [[metadata.trailing_edge_checks]]
+    symmetric = true
+    maximum_difference = 0.0
+    finite_core = false
+    [[metadata.trailing_edge_checks]]
+    symmetric = true
+    maximum_difference = 0.0
+    finite_core = true
