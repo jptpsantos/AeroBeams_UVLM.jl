@@ -5,13 +5,12 @@ include(joinpath(@__DIR__, "..", "..", "studies", "src", "MovingBlockDamping.jl"
 using .MovingBlockDamping: moving_block_damping
 
 # Flight conditions
-airspeed = 43                       # m/s
+airspeed = 75                       # m/s
 density = 1.225                       # kg/m^3
-angle_of_attack = deg2rad(5.0)
+angle_of_attack = deg2rad(0.0)
 sideslip = deg2rad(0.0)               # use symmetric_wing=false for nonzero sideslip
 
 # Smooth startup: ramp from 5% to 100% airspeed, then hold before the tip pulse.
-# A positive initial fraction is required because UVLM does not accept U=0.
 initial_airspeed_fraction = 1.0
 airspeed_ramp_duration = 0.0           # seconds; must not exceed settling_time
 
@@ -66,9 +65,9 @@ coupling_geometry_tolerance = 1e-4     # max interface-coordinate change / chord
 coupling_load_tolerance = 1e-4         # relative nodal force/moment change
 coupling_display_iterations = false    # true: print every inner FSI iteration
 
-duration = 4.0                        # total simulated time, approximately [s]
+duration = 2.0                        # total simulated time, approximately [s]
 settling_time = 1.0                   # time at which the tip pulse starts [s]
-perturbation_amplitude = 0.0         # tip-force multiplier [N]
+perturbation_amplitude = 10.0         # tip-force multiplier [N]
 perturbation_duration = 0.1          # pulse duration [s]
 progress_frequency = 1                # 1: print every step; 100: every 100 steps
 

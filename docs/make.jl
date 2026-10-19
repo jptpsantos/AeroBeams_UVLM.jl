@@ -47,7 +47,8 @@ makedocs(;
         ],
         "Wing--propeller UVLM" => [
         "Library and time-marching guide" => "wing-propeller-uvlm-library-guide.md",
-        "AeroBeams coupling blueprint" => "wing-propeller-uvlm-coupling.md"
+        "AeroBeams coupling blueprint" => "wing-propeller-uvlm-coupling.md",
+        "Pazy UVLM + AeroBeams walkthrough" => "pazy-uvlm-aerobeams-walkthrough.md"
         ],
         "Git workflow in VS Code" => "git-workflow.md",
         "Public API" => "publicAPI.md"
