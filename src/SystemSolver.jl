@@ -87,6 +87,54 @@ end
 export create_NewtonRaphson
 
 
+"""Copy Newton retry state, sharing load tables and output history read only by Newton.
+
+All other model state retains normal deepcopy semantics, including graph aliases
+between beams, elements, BCs and constraints. The shared tables are only replaced
+by precompute_distributed_loads!, outside a nonlinear solve.
+"""
+function checkpoint_model(model::Model)
+    shared = IdDict{Any,Any}(model.R_A_ofTime => model.R_A_ofTime)
+    for element in model.elements, field in DISTRIBUTED_LOAD_TABLES
+        table = getfield(element, field)
+        shared[table] = table
+    end
+    return Base.deepcopy_internal(model, shared)
+end
+
+mutable struct NewtonLinearCache
+    factorization::Union{Nothing,Factorization{Float64}}
+    colptr::Vector{Int}
+    rowval::Vector{Int}
+end
+NewtonLinearCache() = NewtonLinearCache(nothing, Int[], Int[])
+
+# Kept local to one nonlinear solve: no cache can outlive a model/time-step retry.
+function solve_newton_increment!(increment, jacobian, residual, cache, unchanged)
+    if isnothing(cache)
+        ldiv!(increment, lu(jacobian), residual)
+    else
+        if isnothing(cache.factorization)
+            cache.factorization = lu(jacobian)
+        elseif !unchanged
+            same_pattern = cache.colptr == jacobian.colptr && cache.rowval == jacobian.rowval
+            if same_pattern
+                lu!(cache.factorization, jacobian)
+            else
+                cache.factorization = lu(jacobian)
+            end
+        end
+        if !unchanged || isempty(cache.colptr)
+            copy!(cache.colptr, jacobian.colptr)
+            copy!(cache.rowval, jacobian.rowval)
+        end
+        ldiv!(increment, cache.factorization, residual)
+    end
+    increment .*= -1
+    return increment
+end
+
+
 # Solves the nonlinear system of equations at current time step
 function solve_NewtonRaphson!(problem::Problem)
 
@@ -101,16 +149,18 @@ function solve_NewtonRaphson!(problem::Problem)
     ## Load steps
     #---------------------------------------------------------------------------
     loadstep = 0
+    linear_cache = NewtonLinearCache()
     while !convergedFinalSolution   
         @unpack x,residual,σ = problem
         # Update loadstep
         loadstep += 1
         # Initialize iteration count and this loadstep's known states, residual and load factor
         iter = 0
-        xKnown = deepcopy(x)
-        residualKnown = deepcopy(residual)
-        modelKnown = deepcopy(problem.model)
-        loadFactorKnown = loadstep == 1 ? 0.0 : deepcopy(σ)
+        xKnown = copy(x)
+        residualKnown = copy(residual)
+        modelKnown = checkpoint_model(problem.model)
+        loadFactorKnown = loadstep == 1 ? 0.0 : σ
+        linear_cache.factorization = nothing
         ϵ_abs_previous = 1
         # Reset partial convergence flag
         convergedPartialSolution = false
@@ -127,7 +177,7 @@ function solve_NewtonRaphson!(problem::Problem)
             # Assemble system matrices
             assemble_system_arrays!(problem)  
             # Solve the linear system (and get convergence flag)
-            converged = solve_linear_system!(problem)
+            converged = solve_linear_system!(problem; linear_cache)
             if !converged
                 break
             end
@@ -143,7 +193,7 @@ function solve_NewtonRaphson!(problem::Problem)
             convRate = ϵ_abs_previous/ϵ_abs
             @pack! problem.systemSolver = convRate
             # Update previous value of ϵ_abs
-            ϵ_abs_previous = deepcopy(ϵ_abs)
+            ϵ_abs_previous = ϵ_abs
             # Update TF to skip Jacobian update, if applicable
             problem.skipJacobianUpdate = (!alwaysUpdateJacobian && convRate > minConvRateJacUpdate) ? true : false
             # Check convergence norms
@@ -235,7 +285,9 @@ function assemble_system_arrays!(problem::Problem,x::Vector{Float64}=problem.x)
     end
 
     # Reset spring loads' Jacobians
-    reset_spring_loads_jacobians!(problem,specialNodes)
+    if !problem.skipJacobianUpdate
+        reset_spring_loads_jacobians!(problem,specialNodes)
+    end
 
     # Update states of the elements first (for better convergence with relative rotation constraints)
     for element in elements
@@ -282,7 +334,7 @@ end
 
 
 # Solves the linear system of equations at current time step and load factor
-function solve_linear_system!(problem::Problem)
+function solve_linear_system!(problem::Problem; linear_cache=nothing)
 
     @unpack x,Δx,residual,jacobian,getLinearSolution,σ,timeNow = problem
     @unpack systemOrder,nTrimVariables,hasHingeAxisConstraints,hingeAxisConstraints,forceScaling = problem.model
@@ -313,15 +365,15 @@ function solve_linear_system!(problem::Problem)
     # Regular problem    
     else
         try
-            Δx .= -jacobian\residual
+            solve_newton_increment!(Δx, jacobian, residual, linear_cache, problem.skipJacobianUpdate)
         catch
             return false
         end
     end
 
     # Update states array (apply relaxation factor on trim variables)
-    x[1:systemOrder] .+= Δx[1:systemOrder]
-    x[systemOrder+1:systemOrder+nTrimVariables] .+= ρ*Δx[systemOrder+1:systemOrder+nTrimVariables]
+    @views x[1:systemOrder] .+= Δx[1:systemOrder]
+    @views x[systemOrder+1:systemOrder+nTrimVariables] .+= ρ .* Δx[systemOrder+1:systemOrder+nTrimVariables]
 
     # Update hinge constraint data
     for (i,constraint) in enumerate(hingeAxisConstraints)
@@ -432,7 +484,7 @@ function save_load_factor_data!(problem::Problem,σ::Float64,x::Vector{Float64})
     push!(savedσ,σ)
 
     # Add curent system states 
-    push!(xOverσ,x)
+    push!(xOverσ,copy(x))
 
     # Add current elemental states 
     currentElementalStates = Vector{ElementalStates}()

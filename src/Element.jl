@@ -441,14 +441,14 @@ mutable struct Element <: BeamElement
     ff_b_of_ζt::Function
     mf_b_of_ζt::Function
     # Distributed loads' nodal values (over time)
-    f_A::Array{Float64}
-    m_A::Array{Float64}
-    f_b::Array{Float64}
-    m_b::Array{Float64}
-    ff_A::Array{Float64}
-    mf_A::Array{Float64}
-    ff_b::Array{Float64}
-    mf_b::Array{Float64}
+    f_A::Array{Float64,3}
+    m_A::Array{Float64,3}
+    f_b::Array{Float64,3}
+    m_b::Array{Float64,3}
+    ff_A::Array{Float64,3}
+    mf_A::Array{Float64,3}
+    ff_b::Array{Float64,3}
+    mf_b::Array{Float64,3}
     # Total distributed loads' nodal resultants
     f1::Vector{Float64}
     f2::Vector{Float64}

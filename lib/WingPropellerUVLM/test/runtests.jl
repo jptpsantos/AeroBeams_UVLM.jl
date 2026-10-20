@@ -6,6 +6,7 @@ using LinearAlgebra
 include("chang_core_configuration.jl")
 include("general_structural_assembly.jl")
 include("migration_core.jl")
+include("efficiency_regressions.jl")
 
 include(joinpath(
     @__DIR__,

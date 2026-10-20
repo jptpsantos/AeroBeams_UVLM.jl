@@ -10,6 +10,8 @@ is_ci = get(ENV, "CI", "false") == "true" || get(ENV, "GITHUB_ACTIONS", "false")
 SELFatol = is_ci ? 1e-2 : 1e-4
 SELFrtol = is_ci ? 0 : 1e-4
 
+include("efficiencyTests.jl")
+
 include("dynamicAeroelasticTests.jl")
 include("eigenAeroelasticTests.jl")
 include("trimAeroelasticTests.jl")

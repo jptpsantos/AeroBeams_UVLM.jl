@@ -27,6 +27,8 @@ end
 
 function beam_node_positions(result, time_index)
     problem = result.structural_problem
+    isempty(problem.nodalStatesOverTime) && throw(ArgumentError(
+        "Enable save_structural_history when generating structural animations"))
     elements = problem.model.elements
     states = problem.nodalStatesOverTime[time_index]
     positions = zeros(3, length(elements) + 1)
@@ -52,6 +54,11 @@ function save_structural_animation(result;
     show_moment_vectors::Bool = false,
     force_vector_scale::Real = 1.0)
 
+    isempty(result.structural_problem.nodalStatesOverTime) && throw(ArgumentError(
+        "Enable save_structural_history when generating structural animations"))
+    if (show_force_vectors || show_moment_vectors) && isempty(result.aerodynamic_nodal_load_history)
+        throw(ArgumentError("Enable save_aerodynamic_load_history to draw load vectors"))
+    end
     mkpath(dirname(output_path))
     stride = result.animation_stride
     problem = result.structural_problem
@@ -249,16 +256,23 @@ function save_wake_animation(result;
     force_vector_scale::Real = 1.0,
     camera = (45, 30))
 
+    isempty(result.animation_time) && throw(ArgumentError(
+        "Enable save_animation_history when generating wake animations"))
+    structural_times = result.structural_problem.savedTimeVector
+    if !isempty(structural_times)
+        structural_frame_times = structural_times[1:result.animation_stride:end]
+        length(structural_frame_times) == length(result.animation_time) ||
+            error("Structural and wake animations contain different frame counts")
+        all(isapprox.(structural_frame_times, result.animation_time)) ||
+            error("Structural and wake animation times are not synchronized")
+    end
+    if show_force_vectors && (isempty(structural_times) || isempty(result.aerodynamic_nodal_load_history))
+        throw(ArgumentError("Enable save_structural_history and save_aerodynamic_load_history to draw load vectors"))
+    end
     mkpath(dirname(output_path))
     Plots.gr()
     animation = Plots.Animation()
-    structural_frame_times = result.structural_problem.savedTimeVector[
-        1:result.animation_stride:end]
-    length(structural_frame_times) == length(result.animation_time) ||
-        error("Structural and wake animations contain different frame counts")
-    all(isapprox.(structural_frame_times, result.animation_time)) ||
-        error("Structural and wake animation times are not synchronized")
-    maximum_force = maximum_aerodynamic_force(result)
+    maximum_force = show_force_vectors ? maximum_aerodynamic_force(result) : 0.0
     _, span, _, _ = AeroBeams.geometrical_properties_Pazy()
     arrow_margin = show_force_vectors && maximum_force > 0 ?
         force_vector_scale * span / 10 : 0.0

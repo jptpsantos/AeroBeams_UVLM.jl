@@ -1,10 +1,12 @@
 **AeroBeams + UVLM efficiency review — 19 October 2026**
 
+**Implementation update:** The authorized changes, allocation comparisons, verification commands and remaining work are documented in [IMPLEMENTATION.md](IMPLEMENTATION.md). The analysis below and `measurements.toml` describe the source before those changes. Use `measure_implementation.jl` to measure the current source while preserving that baseline.
+
 The strongest immediate opportunities are reducing copies of full structural load histories, storing only requested results, and making coupling transfers use their two-node interpolation support. Within UVLM, the measured aerodynamic work is concentrated in induced velocity for near-field forces and wake downwash. Dense LU is a smaller part of this particular 200-panel case. Optimizing the existing kernels and eliminating repeated work should precede a new solver architecture.
 
 This review follows the computational paths through `src/`, `lib/WingPropellerUVLM/src/`, the Pazy coupling, the general wing/propeller adapter, and their drivers. It also inspects the strip-aerodynamics/AD path and linear structural integrators, which the current Pazy UVLM example does not use. These paths have different priorities. This is not a validation of every physical model or example in the repository.
 
-Production source files were not changed. The accompanying diagnostic script contains an isolated load-transfer prototype and equivalence checks. The user's existing staged `run_pazy_LCO.jl` was left intact.
+Production source files were unchanged during the original review. The accompanying original diagnostic contains an isolated load-transfer prototype and equivalence checks. Subsequent changes are recorded separately in the implementation document. Numerical settings mentioned below refer to the reviewed revision; the implementation preserves the user's newer LCO settings.
 
 **Evidence and reproduction**
 

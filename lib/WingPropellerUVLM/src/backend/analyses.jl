@@ -174,7 +174,11 @@ function steady_analysis!(system, ref, fs;
             wake_finite_core = wake_finite_core,
             wake_shedding_locations = nothing, # shedding location at trailing edge
             trailing_vortices = trailing_vortices,
-            xhat = xhat)
+            xhat = xhat,
+            chord_force_buffers=system.chord_seg_forces,
+            span_force_buffers=system.span_seg_forces,
+            unsteady_force_buffers=system.unsteady_forces,
+            span_velocity_buffers=system.span_force_velocities)
         system.chord_seg_forces .= chord_seg
         system.span_seg_forces .= span_seg
         system.unsteady_forces .= unsteady
@@ -459,182 +463,6 @@ unsteady vortex lattice method system of equations.
 """
 propagate_system!
 
-# moving/deforming surfaces
-#function propagate_system!(system, fs, dt; #system, surfaces, fs, dt
-#    additional_velocity,
-#    repeated_points,
-#    nwake,
-#    eta,
-#    calculate_influence_matrix,
-#    near_field_analysis,
-#    derivatives)
-#
-#    # NOTE: Each step models the transition from `t = t[it]` to `t = [it+1]`
-#    # (e.g. the first step models from `t = 0` to `t = dt`).  Properties are
-#    # assumed to be constant during each time step and resulting transient
-#    # forces/moments are provided at `t[it+1]` (e.g. the properties returned
-#    # for the first step correspond to `t = dt`).
-#
-#    nsurf = length(system.surfaces)
-#
-#    # unpack constant system parameters
-#    ref = system.reference[]
-#    symmetric = system.symmetric
-#    #rotation = system.rotation
-#    surface_id = system.surface_id
-#    wake_finite_core = system.wake_finite_core
-#    trailing_vortices = system.trailing_vortices
-#    xhat = system.xhat[]
-#
-#    # unpack system storage (including state variables)
-#    previous_surfaces = system.previous_surfaces
-#    current_surfaces = system.surfaces
-#    properties = system.properties
-#    dproperties = system.dproperties
-#    wakes = system.wakes
-#    wake_velocities = system.V
-#    wake_shedding_locations = system.wake_shedding_locations
-#    AIC = system.AIC
-#    w = system.w
-#    dw = system.dw
-#    Γ = system.Γ
-#    dΓ = system.dΓ
-#    dΓdt = system.dΓdt
-#    Vcp = system.Vcp
-#    Vh = system.Vh
-#    Vv = system.Vv
-#    Vte = system.Vte
-#
-#    # check if the surfaces are moving
-#    surface_motion = true#!isnothing(surfaces)
-#
-#    # move geometry and calculate velocities for this time step
-#    if surface_motion
-#
-#        # check if grids are used to represent the new surfaces
-#        grid_input = eltype(surfaces) <: AbstractArray{<:Any, 3}
-#        
-#        for isurf = 1:nsurf
-#
-#            # save current surfaces as previous surfaces
-#            #previous_surfaces[isurf] .= current_surfaces[isurf]
-#
-#            ## set new surface shape...
-#            #if grid_input
-#            #    # ...based on grid inputs
-#            #    update_surface_panels!(current_surfaces[isurf], surfaces[isurf]; fcore, ratios = system.ratios[isurf])
-#            #else
-#                # ...based on surface panels
-#            #    current_surfaces[isurf] .= surfaces[isurf]
-#            #end
-#
-#            # calculate surface velocities
-#            get_surface_velocities!(Vcp[isurf], Vh[isurf], Vv[isurf], Vte[isurf],
-#                current_surfaces[isurf], previous_surfaces[isurf], dt)
-#        end
-#    else
-#        # zero out surface motion
-#        for isurf = 1:nsurf
-#            system.Vcp[isurf] .= Ref(SVector(0.0, 0.0, 0.0))
-#            system.Vh[isurf] .= Ref(SVector(0.0, 0.0, 0.0))
-#            system.Vv[isurf] .= Ref(SVector(0.0, 0.0, 0.0))
-#            system.Vte[isurf] .= Ref(SVector(0.0, 0.0, 0.0))
-#        end
-#    end
-#
-#    # update stored freestream parameters for this time step
-#    system.freestream[] = fs
-#
-#    # update number of wake panels for each surface for this time step
-#    system.nwake .= nwake
-#
-#    # update the wake shedding location for this time step
-#    update_wake_shedding_locations!(wakes, wake_shedding_locations,
-#        current_surfaces, ref, fs, dt, additional_velocity, Vte,
-#        nwake, eta)
-#
-#    # calculate/re-calculate AIC matrix (if necessary)
-#    
-#    if surface_motion || calculate_influence_matrix
-#        influence_coefficients!(AIC, current_surfaces;
-#            symmetric = symmetric,
-#            wake_shedding_locations = wake_shedding_locations,
-#            surface_id = surface_id,
-#            trailing_vortices = trailing_vortices,
-#            xhat = xhat)
-#    end
-#
-#    # update the AIC matrix to use the new wake shedding locations
-#    update_trailing_edge_coefficients!(AIC, current_surfaces;
-#        symmetric = symmetric,
-#        wake_shedding_locations = wake_shedding_locations,
-#        trailing_vortices = trailing_vortices)
-#
-#    # calculate RHS
-#    if derivatives
-#        normal_velocity_derivatives!(w, dw, current_surfaces, wakes,
-#            ref, fs; additional_velocity, Vcp, symmetric, nwake,
-#            surface_id, wake_finite_core, trailing_vortices, xhat)
-#    else
-#        normal_velocity!(w, current_surfaces, wakes, ref, fs;
-#            additional_velocity, Vcp, symmetric, nwake, surface_id,
-#            wake_finite_core, trailing_vortices, xhat)
-#    end
-#
-#    # save (negative) previous circulation in dΓdt
-#    dΓdt .= .-Γ
-#
-#    # solve for the new circulation
-#    if derivatives
-#        circulation_derivatives!(Γ, dΓ, AIC, w, dw)
-#    else
-#        circulation!(Γ, AIC, w)
-#    end
-#
-#    # solve for dΓdt using finite difference `dΓdt = (Γ - Γp)/dt`
-#    dΓdt .+= Γ # add newly computed circulation
-#    dΓdt ./= dt # divide by corresponding time step
-#
-#    # compute transient forces on each panel (if necessary)
-#    if near_field_analysis
-#        if derivatives
-#            near_field_forces_derivatives!(properties, dproperties,
-#                current_surfaces, wakes, ref, fs, Γ, dΓ; dΓdt,
-#                additional_velocity, Vh, Vv, symmetric, nwake,
-#                surface_id, wake_finite_core, wake_shedding_locations,
-#                trailing_vortices, xhat)
-#        else
-#            properties, chord_seg, span_seg, unsteady = near_field_forces!(properties, current_surfaces, wakes,
-#                ref, fs, Γ; dΓdt, additional_velocity, Vh, Vv,
-#                symmetric, nwake, surface_id, wake_finite_core,
-#                wake_shedding_locations, trailing_vortices, xhat)
-#
-#            system.chord_seg_forces .= chord_seg
-#            system.span_seg_forces .= span_seg
-#            system.unsteady_forces .= unsteady
-#        end
-#
-#        # save flag indicating that a near-field analysis has been performed
-#        system.near_field_analysis[] = near_field_analysis
-#    end
-#
-#    # save flag indicating that derivatives wrt freestream variables have been obtained
-#    system.derivatives[] = derivatives
-#
-#    # update wake velocities
-#    get_wake_velocities!(wake_velocities, current_surfaces,
-#        wakes, ref, fs, Γ, additional_velocity, Vte, symmetric,
-#        repeated_points, nwake, surface_id, wake_finite_core,
-#        wake_shedding_locations, trailing_vortices, xhat)
-#
-#    # shed additional wake panel (and translate existing wake panels)
-#    shed_wake!(wakes, wake_shedding_locations, wake_velocities,
-#        dt, current_surfaces, Γ, nwake)
-#
-#    return system
-#end
-#
-
 """
     advance_wake!(system, fs, dt; ...)
 
@@ -732,7 +560,7 @@ function propagate_system!(system, fs, dt;
     Vte = system.Vte
 
     # check if the surfaces are moving
-    surface_motion = true
+    surface_motion = any(current_surfaces[i] != previous_surfaces[i] for i in eachindex(current_surfaces))
 
     # move geometry and calculate velocities for this time step
     if surface_motion
@@ -772,17 +600,13 @@ function propagate_system!(system, fs, dt;
             xhat = xhat,
             interaction_id = interaction_id,
             interaction = interaction) # <--- [NEW] Pass flag
+    else
+        # Full assembly already includes these coefficients; update them only
+        # when the caller reuses a fixed-geometry bound-surface matrix.
+        update_trailing_edge_coefficients!(AIC, current_surfaces;
+            symmetric, wake_shedding_locations, surface_id, trailing_vortices,
+            xhat, interaction_id, interaction)
     end
-
-    # update the AIC matrix to use the new wake shedding locations
-    update_trailing_edge_coefficients!(AIC, current_surfaces;
-        symmetric = symmetric,
-        wake_shedding_locations = wake_shedding_locations,
-        surface_id = surface_id,
-        trailing_vortices = trailing_vortices,
-        xhat = xhat,
-        interaction_id = interaction_id,
-        interaction = interaction)
 
     # calculate RHS
     if derivatives
@@ -817,7 +641,13 @@ function propagate_system!(system, fs, dt;
     # compute transient forces on each panel (if necessary)
     if near_field_analysis
         force_buffer_keywords =
-            near_field_force_function === legacy_imperial_segment_forces! ||
+            near_field_force_function === near_field_forces! ?
+            (
+                chord_force_buffers=system.chord_seg_forces,
+                span_force_buffers=system.span_seg_forces,
+                unsteady_force_buffers=system.unsteady_forces,
+                span_velocity_buffers=system.span_force_velocities,
+            ) : near_field_force_function === legacy_imperial_segment_forces! ||
             near_field_force_function === legacy_near_field_forces! ?
             (
                 chord_force_buffers=system.chord_seg_forces,

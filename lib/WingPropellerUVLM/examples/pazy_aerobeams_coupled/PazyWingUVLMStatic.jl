@@ -72,7 +72,8 @@ function run_pazy_wing_uvlm_static(; airspeed, density, angle_of_attack,
     maximum_static_iterations, static_relaxation, geometry_tolerance,
     load_tolerance, consecutive_equilibrium_iterations,
     newton_maximum_iterations, newton_absolute_tolerance,
-    newton_relative_tolerance, newton_display_iterations, progress_frequency)
+    newton_relative_tolerance, newton_display_iterations, progress_frequency,
+    time_step_chords=1 / chordwise_panels)
 
     @assert airspeed > 0 && density > 0
     @assert chordwise_panels >= 1 && spanwise_panels >= 1 && maximum_wake_rows >= 1
@@ -82,6 +83,7 @@ function run_pazy_wing_uvlm_static(; airspeed, density, angle_of_attack,
     @assert maximum_static_iterations >= 1 && 0 < static_relaxation <= 1
     @assert geometry_tolerance > 0 && load_tolerance > 0
     @assert consecutive_equilibrium_iterations >= 1 && progress_frequency >= 1
+    @assert isfinite(time_step_chords) && time_step_chords > 0
 
     # Same skin-on Pazy structural properties as the dynamic example and
     # AeroBeams' Pazy model. Gravity is zero, as in PazyWingPitchRange.jl.
@@ -120,7 +122,7 @@ function run_pazy_wing_uvlm_static(; airspeed, density, angle_of_attack,
         weights[j,left] = 1-fraction
         weights[j,left+1] = fraction
     end
-    dt = chord / (chordwise_panels*airspeed)
+    dt = time_step_chords * chord / airspeed
     @assert maximum_aerodynamic_time >= dt "Aerodynamic time must include at least one step"
     reference = UVLM.Reference(span*chord,chord,span,zeros(3),airspeed,density)
     point = UVLM.create_OperatingPoint(airspeed=airspeed, density=density,

@@ -1,0 +1,9 @@
+Independent simulations; separate coupled static equilibrium and developed wake for each branch.
+Upsweep: 35.0 -> 52.0 m/s in 40.0 s
+Downsweep: 52.0 -> 35.0 m/s in 20.0 s
+Each branch starts at t=0 with zero structural velocities; no preparation hold or state transfer between branches.
+Root incidence [deg]: 5.0
+dt [s]: 0.00047547726030002614; gauge y / z [m]: 0.0 / 0.001125
+First-element midpoint gauge approximation; gravity is zero in the present coupling model.
+Static initialization controls: (maximum_aerodynamic_time = 0.2, minimum_aerodynamic_time = 0.05, aerodynamic_window_time = 0.01, aerodynamic_force_tolerance = 0.0001, aerodynamic_circulation_tolerance = 0.0001, maximum_static_iterations = 100, static_relaxation = 0.3, geometry_tolerance = 1.0e-5, load_tolerance = 0.0001, consecutive_equilibrium_iterations = 2, newton_maximum_iterations = 50, newton_absolute_tolerance = 1.0e-8, newton_relative_tolerance = 1.0e-8, newton_display_iterations = false, progress_frequency = 100)
+upsweep initialization: Static aeroelastic equilibrium reached; converged=true; r_geometry=5.868682951692601e-6; r_load=2.5797397571160784e-5

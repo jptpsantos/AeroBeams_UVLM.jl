@@ -138,13 +138,13 @@ function element_states!(problem::Problem,model::Model,element::Element)
     @unpack DOF_u,DOF_p,DOF_F,DOF_M,DOF_V,DOF_Ω,DOF_χ = element
     @unpack u,p,F,M,V,Ω,χ = element.states
 
-    u .= x[DOF_u]
-    p .= x[DOF_p]
-    F .= x[DOF_F]*forceScaling
-    M .= x[DOF_M]*forceScaling
-    V .= x[DOF_V]
-    Ω .= x[DOF_Ω]
-    χ .= !isempty(DOF_χ) ? x[DOF_χ] : Vector{Float64}()
+    @views u .= x[DOF_u]
+    @views p .= x[DOF_p]
+    @views F .= x[DOF_F] .* forceScaling
+    @views M .= x[DOF_M] .* forceScaling
+    @views V .= x[DOF_V]
+    @views Ω .= x[DOF_Ω]
+    @views χ .= x[DOF_χ]
 
     @pack! element.states = u,p,F,M,V,Ω,χ
 
@@ -167,11 +167,11 @@ function element_states_rates!(problem::Problem,element::Element)
     
     # Current rates
     if !isinf(Δt)
-        udot .= 2/Δt*u - udotEquiv
-        pdot .= 2/Δt*p - pdotEquiv
-        Vdot .= 2/Δt*V - VdotEquiv
-        Ωdot .= 2/Δt*Ω - ΩdotEquiv
-        χdot .= 2/Δt*χ - χdotEquiv
+        udot .= (2/Δt) .* u .- udotEquiv
+        pdot .= (2/Δt) .* p .- pdotEquiv
+        Vdot .= (2/Δt) .* V .- VdotEquiv
+        Ωdot .= (2/Δt) .* Ω .- ΩdotEquiv
+        χdot .= (2/Δt) .* χ .- χdotEquiv
     end
 
     @pack! element.statesRates = udot,pdot,Vdot,Ωdot,χdot
@@ -263,7 +263,8 @@ function gravitational_loads!(model::Model,element::Element,σ::Float64)
         f_g .= σ * Δℓ/2 * μ * R_AT * gravityVector
         m_g .= σ * RR0 * ηtilde * RR0T * f_g
     else
-        f_g,m_g = zeros(3),zeros(3)
+        fill!(f_g, 0)
+        fill!(m_g, 0)
     end
 
     @pack! element = f_g,m_g
@@ -286,7 +287,7 @@ function distributed_external_loads!(problem::Problem,element::Element,σ::Float
     # Add dead forces initially resolved in basis A
     if hasDistributedDeadForcesBasisA
         # Interpolate, if needed
-        f1_A,f2_A = interpolate_distributed_loads(problem,σ*f_A)
+        f1_A,f2_A = interpolate_distributed_loads(problem,f_A,σ)
         # Add
         f1_d .+= f1_A
         f2_d .+= f2_A
@@ -295,7 +296,7 @@ function distributed_external_loads!(problem::Problem,element::Element,σ::Float
     # Add dead moments initially resolved in basis A
     if hasDistributedDeadMomentsBasisA
         # Interpolate, if needed
-        m1_A,m2_A = interpolate_distributed_loads(problem,σ*m_A)
+        m1_A,m2_A = interpolate_distributed_loads(problem,m_A,σ)
         # Add
         m1_d .+= m1_A
         m2_d .+= m2_A
@@ -304,7 +305,7 @@ function distributed_external_loads!(problem::Problem,element::Element,σ::Float
     # Add dead forces initially resolved in basis b
     if hasDistributedDeadForcesBasisb
         # Interpolate, if needed
-        f1_b,f2_b = interpolate_distributed_loads(problem,σ*f_b)
+        f1_b,f2_b = interpolate_distributed_loads(problem,f_b,σ)
         # Add
         f1_d .+= R0 * f1_b
         f2_d .+= R0 * f2_b
@@ -313,7 +314,7 @@ function distributed_external_loads!(problem::Problem,element::Element,σ::Float
     # Add dead moments initially resolved in basis b
     if hasDistributedDeadMomentsBasisb
         # Interpolate, if needed
-        m1_b,m2_b = interpolate_distributed_loads(problem,σ*m_b)
+        m1_b,m2_b = interpolate_distributed_loads(problem,m_b,σ)
         # Add
         m1_d .+= R0 * m1_b
         m2_d .+= R0 * m2_b
@@ -322,7 +323,7 @@ function distributed_external_loads!(problem::Problem,element::Element,σ::Float
     # Add follower forces initially resolved in basis A
     if hasDistributedFollowerForcesBasisA
         # Interpolate, if needed
-        ff1_A,ff2_A = interpolate_distributed_loads(problem,σ*ff_A)
+        ff1_A,ff2_A = interpolate_distributed_loads(problem,ff_A,σ)
         # Add
         f1_d .+= R * ff1_A
         f2_d .+= R * ff2_A
@@ -331,7 +332,7 @@ function distributed_external_loads!(problem::Problem,element::Element,σ::Float
     # Add follower moments initially resolved in basis A
     if hasDistributedFollowerMomentsBasisA
         # Interpolate, if needed
-        mf1_A,mf2_A = interpolate_distributed_loads(problem,σ*mf_A)
+        mf1_A,mf2_A = interpolate_distributed_loads(problem,mf_A,σ)
         # Add
         m1_d .+= R * mf1_A
         m2_d .+= R * mf2_A
@@ -340,7 +341,7 @@ function distributed_external_loads!(problem::Problem,element::Element,σ::Float
     # Add follower forces initially resolved in basis b
     if hasDistributedFollowerForcesBasisb
         # Interpolate, if needed
-        ff1_b,ff2_b = interpolate_distributed_loads(problem,σ*ff_b)
+        ff1_b,ff2_b = interpolate_distributed_loads(problem,ff_b,σ)
         # Add
         f1_d .+= RR0 * ff1_b
         f2_d .+= RR0 * ff2_b
@@ -349,7 +350,7 @@ function distributed_external_loads!(problem::Problem,element::Element,σ::Float
     # Add follower moments initially resolved in basis b
     if hasDistributedFollowerMomentsBasisb
         # Interpolate, if needed
-        mf1_b,mf2_b = interpolate_distributed_loads(problem,σ*mf_b)
+        mf1_b,mf2_b = interpolate_distributed_loads(problem,mf_b,σ)
         # Add
         m1_d .+= RR0 * mf1_b
         m2_d .+= RR0 * mf2_b
@@ -487,12 +488,12 @@ end
 
 
 # Interpolates the loads array at the current time
-function interpolate_distributed_loads(problem::Problem,loadArray::Array{Float64})
+function interpolate_distributed_loads(problem::Problem,loadArray::AbstractArray{<:Real,3},scale::Real=1.0)
 
     # For steady problems, no interpolation is needed
     if !isa(problem,DynamicProblem)
-        v1 = loadArray[1,:,1]
-        v2 = loadArray[2,:,1]
+        @views v1 = scale .* loadArray[1,:,1]
+        @views v2 = scale .* loadArray[2,:,1]
         return v1, v2
     end
 
@@ -505,12 +506,12 @@ function interpolate_distributed_loads(problem::Problem,loadArray::Array{Float64
         timesBeginAndEnd = [timeBeginTimeStep,timeEndTimeStep]
         indicesBeginAndEnd = indexBeginTimeStep:indexEndTimeStep
         # Interpolate
-        v1 = [LinearInterpolations.interpolate(timesBeginAndEnd,loadArray[1,i,indicesBeginAndEnd],timeNow) for i in 1:3]
-        v2 = [LinearInterpolations.interpolate(timesBeginAndEnd,loadArray[2,i,indicesBeginAndEnd],timeNow) for i in 1:3]
+        v1 = [scale * LinearInterpolations.interpolate(timesBeginAndEnd,loadArray[1,i,indicesBeginAndEnd],timeNow) for i in 1:3]
+        v2 = [scale * LinearInterpolations.interpolate(timesBeginAndEnd,loadArray[2,i,indicesBeginAndEnd],timeNow) for i in 1:3]
     else
         # Set values at the begin of the time step
-        v1 = loadArray[1,:,indexBeginTimeStep]
-        v2 = loadArray[2,:,indexBeginTimeStep]
+        @views v1 = scale .* loadArray[1,:,indexBeginTimeStep]
+        @views v2 = scale .* loadArray[2,:,indexBeginTimeStep]
     end
 
     return v1, v2
@@ -1066,11 +1067,11 @@ function element_jacobian!(problem::Problem,model::Model,element::Element)
     # F_u_V
     tmp = Δℓ/2 * ω_tilde_RR0 * I_11
     F_u1_V .= tmp
-    F_u2_V .= copy(tmp)
+    F_u2_V .= tmp
     # F_u_Ω
     tmp = Δℓ/2 * ω_tilde_RR0 * I_12
     F_u1_Ω .= tmp
-    F_u2_Ω .= copy(tmp)
+    F_u2_Ω .= tmp
     
     # --- F_p --- # 
     # F_p_p
@@ -1080,11 +1081,11 @@ function element_jacobian!(problem::Problem,model::Model,element::Element)
     # F_p_V
     tmp = Δℓ/2 * (ω_tilde_RR0*I_21 + RR0*(V_tilde*I_11-tilde(P)))
     F_p1_V .= tmp 
-    F_p2_V .= copy(tmp)
+    F_p2_V .= tmp
     # F_p_Ω
     tmp = Δℓ/2 * (ω_tilde_RR0*I_22 + RR0*V_tilde*I_12)
     F_p1_Ω .= tmp 
-    F_p2_Ω .= copy(tmp) 
+    F_p2_Ω .= tmp
     
     # --- F_V --- #
     # F_V_u
@@ -1096,7 +1097,7 @@ function element_jacobian!(problem::Problem,model::Model,element::Element)
     
     # --- F_Ω --- #
     # F_Ω_p
-    F_Ω_p .= -R0T * mul3(Matrix(R_p1'),Matrix(R_p2'),Matrix(R_p3'),ω)
+    F_Ω_p .= -R0T * mul3(R_p1',R_p2',R_p3',ω)
     # F_Ω_Ω
     F_Ω_Ω .= I3
 

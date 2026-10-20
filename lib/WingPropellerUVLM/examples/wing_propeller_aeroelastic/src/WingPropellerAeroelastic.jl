@@ -188,7 +188,15 @@ function run_time_domain_analysis(
         relaxation = solver_option(solver_options, :coupling_relaxation, 0.5),
     )
 
+    effective_system = nothing
+    previous_time_step = nothing
     for step in eachindex(time_steps)
+        if isnothing(effective_system) || time_steps[step] != previous_time_step
+            effective_system = WingPropellerUVLM.structural_effective_system(
+                solver_options.time_integrator,structural.M,structural.C,structural.K,
+                time_steps[step],parameters)
+            previous_time_step = time_steps[step]
+        end
         begin_step(step, displacement, time[step])
         load_n = isnothing(external_load) ? zeros(structural.ndof_free) :
             external_load(time[step], displacement)
@@ -212,6 +220,7 @@ function run_time_domain_analysis(
                 time_steps[step],
                 parameters;
                 options = coupling,
+                effective_system,
             )
         else
             partitioned_aeroelastic_step(
@@ -229,6 +238,7 @@ function run_time_domain_analysis(
                 parameters,
                 load_at_state;
                 options = coupling,
+                effective_system,
             )
         end
         displacement = solution.displacement

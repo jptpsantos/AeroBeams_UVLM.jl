@@ -74,7 +74,8 @@ function _update_general_uvlm_geometry!(case, structural, uvlm, state, time, fin
         case.wing,
         case.propellers,
         structural,
-        state,
+        state;
+        kinematics=wing_kinematics,
     )
     pitch_axes = Vector{SVector{3,Float64}}(undef, length(case.propellers))
     yaw_axes = similar(pitch_axes)

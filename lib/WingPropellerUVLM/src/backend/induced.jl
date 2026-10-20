@@ -289,59 +289,6 @@ Construct the aerodynamic influence coefficient matrix for multiple surfaces.
  - `xhat`: Direction in which trailing vortices are shed if `trailing_vortices = true`.
     Defaults to [1, 0, 0]
 """
-#function influence_coefficients!(AIC, surfaces::AbstractVector{<:AbstractMatrix};
-#    symmetric = fill(false, length(surfaces)),
-#    surface_id = 1:length(surfaces),
-#    wake_shedding_locations = fill(nothing, length(surfaces)),
-#    trailing_vortices = fill(true, length(surfaces)),
-#    xhat = SVector(1, 0, 0))
-#
-#    # number of surfaces
-#    nsurf = length(surfaces)
-#
-#    # indices for keeping track of where we are in the AIC matrix
-#    iAIC = 0
-#    jAIC = 0
-#
-#    # loop through receving surfaces
-#    for i = 1:nsurf
-#        receiving = surfaces[i]
-#
-#        # extract number of panels on this receiving surface
-#        nr = length(receiving) # number of panels on this receiving surface
-#
-#        # loop through sending surfaces
-#        jAIC = 0
-#        for j = 1:nsurf
-#            sending = surfaces[j]
-#
-#            # extract number of panels on this sending surface
-#            ns = length(sending)
-#
-#            # extract portion of AIC matrix for the two surfaces
-#            vAIC = view(AIC, iAIC+1:iAIC+nr, jAIC+1:jAIC+ns)
-#
-#            # check if it's the same surface
-#            finite_core = surface_id[i] != surface_id[j]
-#            #finite_core = true
-#
-#            # populate entries in the AIC matrix
-#            influence_coefficients!(vAIC, receiving, sending;
-#                finite_core = finite_core,
-#                symmetric = symmetric[j],
-#                wake_shedding_locations = wake_shedding_locations[j],
-#                trailing_vortices = trailing_vortices[j],
-#                xhat = xhat)
-#
-#            # increment position in AIC matrix
-#            jAIC += ns
-#        end
-#        # increment position in AIC matrix
-#        iAIC += nr
-#    end
-#
-#    return AIC
-#end
 
 """
     influence_coefficients!(AIC, surfaces; kwargs...)

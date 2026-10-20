@@ -1,0 +1,130 @@
+[[operations]]
+median_seconds = 0.0014211
+operation = "AeroBeams model deepcopy, 256 steps"
+median_bytes = 821651.0
+minimum_seconds = 0.0011804
+[[operations]]
+median_seconds = 0.0014119
+operation = "AeroBeams Newton checkpoint, 256 steps"
+median_bytes = 811555.0
+minimum_seconds = 0.00137
+[[operations]]
+median_seconds = 0.0027896
+operation = "AeroBeams active-load Newton checkpoint, 256 steps"
+median_bytes = 811523.0
+minimum_seconds = 0.0021164
+[[operations]]
+median_seconds = 0.0013821
+operation = "AeroBeams active-load deepcopy, 256 steps"
+median_bytes = 1.007884e6
+minimum_seconds = 0.0012278
+[[operations]]
+median_seconds = 0.0017094
+operation = "AeroBeams model deepcopy, 4096 steps"
+median_bytes = 821651.0
+minimum_seconds = 0.0014129
+[[operations]]
+median_seconds = 0.002263
+operation = "AeroBeams Newton checkpoint, 4096 steps"
+median_bytes = 811555.0
+minimum_seconds = 0.0016504
+[[operations]]
+median_seconds = 0.0028778
+operation = "AeroBeams active-load Newton checkpoint, 4096 steps"
+median_bytes = 811539.0
+minimum_seconds = 0.0014455
+[[operations]]
+median_seconds = 0.0034295
+operation = "AeroBeams active-load deepcopy, 4096 steps"
+median_bytes = 3.772684e6
+minimum_seconds = 0.0021765
+[[operations]]
+median_seconds = 1.95e-5
+operation = "AeroBeams element rotation variables"
+median_bytes = 34880.0
+minimum_seconds = 1.93e-5
+[[operations]]
+median_seconds = 0.0014217
+operation = "AeroBeams system assembly, 15 elements"
+median_bytes = 1.023968e6
+minimum_seconds = 0.0011976
+[[operations]]
+median_seconds = 4.0e-7
+operation = "Scaled distributed-load interpolation, 256 steps"
+median_bytes = 192.0
+minimum_seconds = 3.0e-7
+[[operations]]
+median_seconds = 4.0e-7
+operation = "Scaled distributed-load interpolation, 4096 steps"
+median_bytes = 192.0
+minimum_seconds = 3.0e-7
+[[operations]]
+median_seconds = 0.0017298
+operation = "AeroBeams Newton checkpoint plus 4096 orientation samples"
+median_bytes = 817555.0
+minimum_seconds = 0.0014293
+[[operations]]
+median_seconds = 0.0002095
+operation = "AeroBeams save complete structural step"
+median_bytes = 92423.0
+minimum_seconds = 0.0001768
+[[operations]]
+median_seconds = 9.1e-6
+operation = "Pazy beam_loads! reusable"
+median_bytes = 0.0
+minimum_seconds = 8.6e-6
+[[operations]]
+median_seconds = 2.28e-5
+operation = "Pazy wing_geometry! reusable"
+median_bytes = 11808.0
+minimum_seconds = 2.09e-5
+[[operations]]
+median_seconds = 0.0270737
+operation = "UVLM full trial, 200 bound panels, 2 active wake rows"
+median_bytes = 666389.0
+minimum_seconds = 0.0231084
+[[operations]]
+median_seconds = 9.13e-5
+operation = "UVLM copy_system! into existing trial"
+median_bytes = 30496.0
+minimum_seconds = 7.43e-5
+[[operations]]
+median_seconds = 7.4e-6
+operation = "UVLM apply_trial_geometry!"
+median_bytes = 208.0
+minimum_seconds = 7.3e-6
+[[operations]]
+median_seconds = 0.0163941
+operation = "UVLM near-field forces with System buffers"
+median_bytes = 267040.0
+minimum_seconds = 0.0144016
+[[operations]]
+median_seconds = 0.0859434
+operation = "UVLM full trial, 200 bound panels, 20 active wake rows"
+median_bytes = 666405.0
+minimum_seconds = 0.0769218
+[[operations]]
+median_seconds = 0.0558853
+operation = "UVLM wake velocity evaluation, 20 active rows"
+median_bytes = 104375.0
+minimum_seconds = 0.0516334
+
+[[model_sizes]]
+distributed_load_bytes = 0
+steps = 256
+model_bytes = 296184
+[[model_sizes]]
+distributed_load_bytes = 0
+steps = 4096
+model_bytes = 296184
+
+[metadata]
+julia_threads = 1
+julia_version = "1.11.5"
+baseline_commit = "0b02c08730d8072ea46383766863bc888e761017"
+uvlm_system_bytes = 687238
+scope = "warmed isolated operations; no full LCO sweep"
+repetitions = 7
+date = "2026-10-19"
+saved_x_aliases_active_x = false
+blas_threads = 6

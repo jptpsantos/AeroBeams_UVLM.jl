@@ -39,7 +39,7 @@ function chang_case_defaults()
     # 3. Flow, time stepping, and coupling
     simulation = (
         air_density_kgpm3 = 1.225,
-        freestream_speed_mps = 80.0,
+        freestream_speed_mps = 81.0,
         angle_of_attack_deg = 3.0,
         sideslip_deg = 0.0,
 

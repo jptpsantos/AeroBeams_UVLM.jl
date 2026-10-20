@@ -45,6 +45,41 @@ function restore_nested_arrays!(destination,source)
     return destination
 end
 
+"""Reset a fixed-topology backend System without replacing its array storage.
+
+The facade uses this for trial reset and a separate commit buffer. Include both
+history and scratch fields so repeated/failed trials retain deepcopy semantics.
+"""
+function copy_system!(destination::System{TF}, source::System{TF}) where TF
+    for field in (:AIC,:w,:Γ,:invert_normals,:reference,:freestream,:symmetric,
+        :nwake,:surface_id,:wake_finite_core,:trailing_vortices,:xhat,
+        :near_field_analysis,:derivatives,:dΓdt)
+        copyto!(getfield(destination,field),getfield(source,field))
+    end
+    for field in (:V,:grids,:ratios,:surfaces,:properties,:wakes,:trefftz,
+        :wake_shedding_locations,:previous_surfaces,:Vcp,:Vh,:Vv,:Vte,
+        :chord_seg_forces,:span_seg_forces,:unsteady_forces,:span_force_velocities)
+        restore_nested_arrays!(getfield(destination,field),getfield(source,field))
+    end
+    for field in (:dw,:dΓ)
+        for (output,input) in zip(getfield(destination,field),getfield(source,field))
+            copyto!(output,input)
+        end
+    end
+    for (output,input) in zip(destination.dproperties,source.dproperties)
+        restore_nested_arrays!(output,input)
+    end
+    # Optional nonlinear section data contains mutable arrays. Ordinary facade
+    # Systems have unassigned sections; populated entries must stay independent.
+    for (output,input) in zip(destination.sections,source.sections)
+        copyto!(output,input)
+        for index in eachindex(input)
+            isassigned(input,index) && (output[index] = deepcopy(input[index]))
+        end
+    end
+    return destination
+end
+
 """
     restore_uvlm!(system::System,snapshot::UVLMSnapshot)
 

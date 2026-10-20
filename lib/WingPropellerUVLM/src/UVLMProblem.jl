@@ -7,10 +7,13 @@ end
 """Private trial System and scratch storage, isolated from the accepted state."""
 mutable struct UVLMWorkspace{S}
     system::S
+    commitSystem::S
     trialReady::Bool
     stepOpen::Bool
     timeEndTimeStep::Float64
 end
+UVLMWorkspace(system,trialReady,stepOpen,timeEndTimeStep) =
+    UVLMWorkspace(system,deepcopy(system),trialReady,stepOpen,timeEndTimeStep)
 mutable struct UVLMResults
     completed::Bool
     terminationReason::String
@@ -56,9 +59,8 @@ function apply_trial_geometry!(system,grids,solver)
         size(grids[i])==size(system.grids[i]) || throw(DimensionMismatch("Grid topology changed"))
         all(isfinite,grids[i]) || throw(ArgumentError("Nonfinite trial geometry"))
         system.grids[i] .= grids[i]
-        _,ratio,panels=grid_to_surface_panels(system.grids[i];fcore=(c,ds)->solver.coreRadius)
-        system.ratios[i] .= ratio
-        system.surfaces[i] .= panels
+        update_surface_panels!(system.surfaces[i],system.grids[i];
+            ratios=system.ratios[i],fcore=(c,ds)->solver.coreRadius)
     end
     return system
 end
@@ -112,7 +114,7 @@ function evaluate_trial!(p::UVLMDynamicProblem;surfaces=nothing)
     w.stepOpen || throw(ArgumentError("Call begin_time_step! first"))
     w.trialReady=false
     # Every trial starts from the same accepted circulation, geometry, and wake.
-    w.system=deepcopy(p.state.system)
+    copy_system!(w.system,p.state.system)
     sys=w.system
     # UVLM uses the accepted and trial surfaces to obtain the surface velocity.
     copy_surfaces_to_previous!(sys,length(sys.surfaces))
@@ -120,8 +122,8 @@ function evaluate_trial!(p::UVLMDynamicProblem;surfaces=nothing)
     apply_trial_geometry!(sys,grids,p.aeroSolver)
     # Solve circulation and loads, but leave wake convection for commit_time_step!.
     propagate_system!(sys,freestream(p.operatingPoint),w.timeEndTimeStep-p.state.timeNow;
-        additional_velocity=nothing,repeated_points=repeated_trailing_edge_points(sys.surfaces),
-        nwake=copy(p.state.system.nwake),eta=p.aeroSolver.wakeSheddingFraction,
+        additional_velocity=nothing,repeated_points=nothing,
+        nwake=sys.nwake,eta=p.aeroSolver.wakeSheddingFraction,
         calculate_influence_matrix=true,near_field_analysis=true,derivatives=false,
         interaction_id=p.model.interactionGroups,interaction=p.aeroSolver.interaction,advance_wake=false)
     all(isfinite,sys.Γ) && all(isfinite,sys.dΓdt) || error("Nonfinite aerodynamic trial")
@@ -155,13 +157,16 @@ end
 function commit_time_step!(p::UVLMDynamicProblem)
     w=p.workspace
     w.stepOpen && w.trialReady || throw(ArgumentError("A successful uncommitted trial is required"))
-    # Commit on a private copy: a wake-convection failure leaves the trial retryable.
-    sys=deepcopy(w.system)
+    # The preallocated commit buffer keeps failures isolated from accepted/trial state.
+    sys=copy_system!(w.commitSystem,w.system)
     # A successful trial becomes physical only after its wake is advanced once.
-    rows=copy(p.state.system.nwake)
+    rows=sys.nwake
     advance_wake!(sys,freestream(p.operatingPoint),w.timeEndTimeStep-p.state.timeNow;
         nwake=rows,interaction_id=p.model.interactionGroups,interaction=p.aeroSolver.interaction)
-    commit_wake_rows!(rows,size.(sys.wakes,1)); sys.nwake .= rows
+    for i in eachindex(rows)
+        rows[i]=min(rows[i]+1,size(sys.wakes[i],1))
+    end
+    w.commitSystem=p.state.system
     p.state.system=sys
     p.state.timeNow=w.timeEndTimeStep; p.state.stepIndex+=1
     w.stepOpen=false; w.trialReady=false
@@ -173,7 +178,7 @@ function commit_time_step!(p::UVLMDynamicProblem)
     return p
 end
 function rollback_time_step!(p::UVLMDynamicProblem)
-    p.workspace.system=deepcopy(p.state.system)
+    copy_system!(p.workspace.system,p.state.system)
     p.workspace.stepOpen=false; p.workspace.trialReady=false
     p.workspace.timeEndTimeStep=p.state.timeNow
     return p

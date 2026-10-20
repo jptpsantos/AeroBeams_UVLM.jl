@@ -83,6 +83,7 @@ Contains pre-allocated storage for internal system variables.
  - `chord_seg_forces`: Chordwise segmented forces for each surface, stored as matrices of 3D vectors
  - `span_seg_forces`: Spanwise segmented forces for each surface, stored as matrices of 3D vectors
  - `unsteady_forces`: Unsteady forces for each surface, stored as matrices of 3D vectors
+ - `span_force_velocities`: Reusable segment velocities for the default near-field force calculation
  - `dΓdt`: Derivative of the circulation strength with respect to non-dimensional time
 """
 struct System{TF}
@@ -120,6 +121,8 @@ struct System{TF}
     chord_seg_forces::Vector{Matrix{SVector{3, TF}}}
     span_seg_forces::Vector{Matrix{SVector{3, TF}}}
     unsteady_forces::Vector{Matrix{SVector{3, TF}}}
+    # Reusable total velocity at the spanwise force segments (not surface motion).
+    span_force_velocities::Vector{Matrix{SVector{3, TF}}}
     dΓdt::Vector{TF}
 end
 
@@ -268,13 +271,14 @@ function System(TF::Type, nc, ns; nw = zero(nc), grids = nothing, ratios = nothi
     chord_seg_forces = [fill((@SVector zeros(TF, 3)), nc[i], ns[i]+1) for i = 1:nsurf]
     span_seg_forces = [fill((@SVector zeros(TF, 3)), nc[i]+1, ns[i]) for i = 1:nsurf]
     unsteady_forces = [fill((@SVector zeros(TF, 3)), nc[i], ns[i]) for i = 1:nsurf]
+    span_force_velocities = [fill((@SVector zeros(TF, 3)), nc[i], ns[i]) for i = 1:nsurf]
     dΓdt = zeros(TF, N)
 
     return System{TF}(AIC, w, Γ, V, grids, ratios, surfaces, invert_normals, sections, 
         properties, wakes, trefftz, reference, freestream, symmetric, nwake, surface_id, 
         wake_finite_core, trailing_vortices, xhat, near_field_analysis, derivatives,
         dw, dΓ, dproperties, wake_shedding_locations, previous_surfaces, Vcp, Vh,
-        Vv, Vte, chord_seg_forces, span_seg_forces, unsteady_forces, dΓdt)
+        Vv, Vte, chord_seg_forces, span_seg_forces, unsteady_forces, span_force_velocities, dΓdt)
 end
 
 """

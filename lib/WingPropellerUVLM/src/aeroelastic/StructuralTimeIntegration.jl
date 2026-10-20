@@ -291,11 +291,13 @@ function loose_explicit_aeroelastic_step(
     parameters;
     options::PartitionedCouplingOptions = PartitionedCouplingOptions(),
     load_scale = nothing,
+    effective_system = nothing,
 )
     validate_partitioned_coupling_options(options)
     correction = structural_corrector(
         method, M, C, K, displacement_n, velocity_n, acceleration_n,
-        force_np1, force_n, external_np1, external_n, dt, parameters,
+        force_np1, force_n, external_np1, external_n, dt, parameters;
+        effective_system,
     )
     coupled_equilibrium_residual = structural_equilibrium_residual(
         method, M, C, K,
@@ -349,12 +351,15 @@ function partitioned_aeroelastic_step(
     state_scale = nothing,
     load_scale = nothing,
     diagnostic = nothing,
+    effective_system = nothing,
 )
     validate_structural_time_integrator(method)
     validate_partitioned_coupling_options(options)
     _validate_residual_scale(state_scale, length(displacement_n), "state_scale")
     _validate_residual_scale(load_scale, length(load_n), "load_scale")
-    effective_system = structural_effective_system(method, M, C, K, dt, parameters)
+    if isnothing(effective_system)
+        effective_system = structural_effective_system(method, M, C, K, dt, parameters)
+    end
 
     # Start the coupling loop with a load-free structural prediction at n+1.
     predictor = structural_predictor(

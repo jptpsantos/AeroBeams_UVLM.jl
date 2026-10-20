@@ -5,6 +5,11 @@ Spacing discretization scheme supertype
 """
 abstract type AbstractSpacing end
 
+grid_chord_length(grid,j) = norm(SVector(
+    grid[1,end,j]-grid[1,1,j],
+    grid[2,end,j]-grid[2,1,j],
+    grid[3,end,j]-grid[3,1,j]))
+
 """
     Uniform()
 
@@ -242,8 +247,8 @@ function grid_to_surface_panels(xyz;
         r4n = SVector(xyz[1,2,j+1], xyz[2,2,j+1], xyz[3,2,j+1]) # bottom right
 
         # also get chord length for setting finite core size
-        cl = norm(xyz[:,end,j] - xyz[:,1,j])
-        cr = norm(xyz[:,end,j+1] - xyz[:,1,j+1])
+        cl = grid_chord_length(xyz,j)
+        cr = grid_chord_length(xyz,j+1)
         c = (cl + cr)/2
 
         for i = 1:nc-1
@@ -799,8 +804,8 @@ function update_surface_panels!(surface, grid;
         r4n = SVector(grid[1,2,j+1], grid[2,2,j+1], grid[3,2,j+1]) # bottom right
 
         # also get chord length for setting finite core size
-        cl = norm(grid[:,end,j] - grid[:,1,j])
-        cr = norm(grid[:,end,j+1] - grid[:,1,j+1])
+        cl = grid_chord_length(grid,j)
+        cr = grid_chord_length(grid,j+1)
         c = (cl + cr)/2
 
         for i = 1:nc-1

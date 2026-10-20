@@ -655,6 +655,21 @@ end
 export solve!
 
 
+# Load tables are read-only during nonlinear solves. Keep this inventory shared
+# by precomputation and Newton checkpoints so unused histories never scale with time.
+const DISTRIBUTED_LOAD_TABLES = (:f_A, :m_A, :f_b, :m_b, :ff_A, :mf_A, :ff_b, :mf_b)
+
+function precompute_nodal_loads(load, active::Bool, element_length, times)
+    active || return zeros(2, 3, 0)
+    values = zeros(2, 3, length(times))
+    for (index, time) in enumerate(times), node in 1:2
+        integrand(ζ) = element_length * load(ζ, time) * (node == 1 ? 1-ζ : ζ)
+        result, _ = quadgk(integrand, 0, 1)
+        values[node, :, index] .= result
+    end
+    return values
+end
+
 # Pre-computes the distributed loads over all elements' nodes, over every time step
 function precompute_distributed_loads!(problem::Problem)
 
@@ -663,14 +678,10 @@ function precompute_distributed_loads!(problem::Problem)
 
     # Unpack time variables for dynamic problem or define dummy ones otherwise
     if typeof(problem) == DynamicProblem
-        @unpack timeVector,sizeOfTime = problem
+        @unpack timeVector = problem
     else
-        sizeOfTime = 1
         timeVector = [0.0]
     end
-
-    # Shape function over element domain
-    ϕ(n,ζ) = ifelse.(n==1, 1-ζ, ζ) 
 
     # Loop over beams
     for beam in model.beams
@@ -679,79 +690,23 @@ function precompute_distributed_loads!(problem::Problem)
             # Unpack
             @unpack Δℓ,f_A_of_ζt,m_A_of_ζt,f_b_of_ζt,m_b_of_ζt,ff_A_of_ζt,mf_A_of_ζt,ff_b_of_ζt,mf_b_of_ζt,hasDistributedDeadForcesBasisA,hasDistributedDeadMomentsBasisA,hasDistributedDeadForcesBasisb,hasDistributedDeadMomentsBasisb,hasDistributedFollowerForcesBasisA,hasDistributedFollowerMomentsBasisA,hasDistributedFollowerForcesBasisb,hasDistributedFollowerMomentsBasisb = element
             # Initialize array of distributed loads on element's nodes over time
-            f_A = zeros(2,3,sizeOfTime)
-            m_A = zeros(2,3,sizeOfTime)
-            f_b = zeros(2,3,sizeOfTime)
-            m_b = zeros(2,3,sizeOfTime)
-            ff_A = zeros(2,3,sizeOfTime)
-            mf_A = zeros(2,3,sizeOfTime)
-            ff_b = zeros(2,3,sizeOfTime)
-            mf_b = zeros(2,3,sizeOfTime)
-            # Loop over element's nodes
-            for node = 1:2
-                # Loop over time
-                for (timeIndex,timeNow) in enumerate(timeVector)
-                    # Define integrands
-                    integrand_f_A(ζ) = Δℓ * f_A_of_ζt(ζ,timeNow) * ϕ(node,ζ)
-                    integrand_m_A(ζ) = Δℓ * m_A_of_ζt(ζ,timeNow) * ϕ(node,ζ)
-                    integrand_f_b(ζ) = Δℓ * f_b_of_ζt(ζ,timeNow) * ϕ(node,ζ)
-                    integrand_m_b(ζ) = Δℓ * m_b_of_ζt(ζ,timeNow) * ϕ(node,ζ)
-                    integrand_ff_A(ζ) = Δℓ * ff_A_of_ζt(ζ,timeNow) * ϕ(node,ζ)
-                    integrand_mf_A(ζ) = Δℓ * mf_A_of_ζt(ζ,timeNow) * ϕ(node,ζ)
-                    integrand_ff_b(ζ) = Δℓ * ff_b_of_ζt(ζ,timeNow) * ϕ(node,ζ)
-                    integrand_mf_b(ζ) = Δℓ * mf_b_of_ζt(ζ,timeNow) * ϕ(node,ζ)
-                    # Integrate nodal load at current time step, if applicable
-                    if beam.hasDistributedDeadForcesBasisA
-                        f_A[node,:,timeIndex], = quadgk(integrand_f_A, 0, 1)
-                    end
-                    if beam.hasDistributedDeadMomentsBasisA
-                        m_A[node,:,timeIndex], = quadgk(integrand_m_A, 0, 1)
-                    end
-                    if beam.hasDistributedDeadForcesBasisb
-                        f_b[node,:,timeIndex], = quadgk(integrand_f_b, 0, 1)
-                    end
-                    if beam.hasDistributedDeadMomentsBasisb
-                        m_b[node,:,timeIndex], = quadgk(integrand_m_b, 0, 1)
-                    end
-                    if beam.hasDistributedFollowerForcesBasisA
-                        ff_A[node,:,timeIndex], = quadgk(integrand_ff_A, 0, 1)
-                    end
-                    if beam.hasDistributedFollowerMomentsBasisA
-                        mf_A[node,:,timeIndex], = quadgk(integrand_mf_A, 0, 1)
-                    end
-                    if beam.hasDistributedFollowerForcesBasisb
-                        ff_b[node,:,timeIndex], = quadgk(integrand_ff_b, 0, 1)
-                    end
-                    if beam.hasDistributedFollowerMomentsBasisb
-                        mf_b[node,:,timeIndex], = quadgk(integrand_mf_b, 0, 1)
-                    end
-                end
-            end
+            f_A = precompute_nodal_loads(f_A_of_ζt, beam.hasDistributedDeadForcesBasisA, Δℓ, timeVector)
+            m_A = precompute_nodal_loads(m_A_of_ζt, beam.hasDistributedDeadMomentsBasisA, Δℓ, timeVector)
+            f_b = precompute_nodal_loads(f_b_of_ζt, beam.hasDistributedDeadForcesBasisb, Δℓ, timeVector)
+            m_b = precompute_nodal_loads(m_b_of_ζt, beam.hasDistributedDeadMomentsBasisb, Δℓ, timeVector)
+            ff_A = precompute_nodal_loads(ff_A_of_ζt, beam.hasDistributedFollowerForcesBasisA, Δℓ, timeVector)
+            mf_A = precompute_nodal_loads(mf_A_of_ζt, beam.hasDistributedFollowerMomentsBasisA, Δℓ, timeVector)
+            ff_b = precompute_nodal_loads(ff_b_of_ζt, beam.hasDistributedFollowerForcesBasisb, Δℓ, timeVector)
+            mf_b = precompute_nodal_loads(mf_b_of_ζt, beam.hasDistributedFollowerMomentsBasisb, Δℓ, timeVector)
             # Update flags for any nonzero loads on the element over time
-            if any(!iszero(f_A))
-                hasDistributedDeadForcesBasisA = true
-            end
-            if any(!iszero(m_A))
-                hasDistributedDeadMomentsBasisA = true
-            end
-            if any(!iszero(f_b))
-                hasDistributedDeadForcesBasisb = true
-            end
-            if any(!iszero(m_b))
-                hasDistributedDeadMomentsBasisb = true
-            end
-            if any(!iszero(ff_A))
-                hasDistributedFollowerForcesBasisA = true
-            end
-            if any(!iszero(mf_A))
-                hasDistributedFollowerMomentsBasisA = true
-            end
-            if any(!iszero(ff_b))
-                hasDistributedFollowerForcesBasisb = true
-            end
-            if any(!iszero(mf_b))
-                hasDistributedFollowerMomentsBasisb = true
-            end
+            hasDistributedDeadForcesBasisA = !iszero(f_A)
+            hasDistributedDeadMomentsBasisA = !iszero(m_A)
+            hasDistributedDeadForcesBasisb = !iszero(f_b)
+            hasDistributedDeadMomentsBasisb = !iszero(m_b)
+            hasDistributedFollowerForcesBasisA = !iszero(ff_A)
+            hasDistributedFollowerMomentsBasisA = !iszero(mf_A)
+            hasDistributedFollowerForcesBasisb = !iszero(ff_b)
+            hasDistributedFollowerMomentsBasisb = !iszero(mf_b)
             # Pack element variables
             @pack! element = f_A,m_A,f_b,m_b,ff_A,mf_A,ff_b,mf_b,hasDistributedDeadForcesBasisA,hasDistributedDeadMomentsBasisA,hasDistributedDeadForcesBasisb,hasDistributedDeadMomentsBasisb,hasDistributedFollowerForcesBasisA,hasDistributedFollowerMomentsBasisA,hasDistributedFollowerForcesBasisb,hasDistributedFollowerMomentsBasisb
         end
@@ -1612,7 +1567,7 @@ function save_time_step_data!(problem::Problem,timeNow::Real)
     push!(savedTimeVector,timeNow)
 
     # Add curent system states 
-    push!(xOverTime,x)
+    push!(xOverTime,copy(x))
 
     # Add current elemental states 
     currentElementalStates = Vector{ElementalStates}()

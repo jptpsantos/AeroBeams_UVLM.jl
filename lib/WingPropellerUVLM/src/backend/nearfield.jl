@@ -177,13 +177,15 @@ trailing-edge treatment mirror `include/postproc.h`.
 function near_field_forces!(props, surfaces, wakes, ref, fs, Γ;
     dΓdt, additional_velocity, Vh, Vv, symmetric, nwake, surface_id,
     wake_finite_core, wake_shedding_locations, trailing_vortices, xhat,
-    interaction_id = surface_id, interaction::Bool = true)
+    interaction_id = surface_id, interaction::Bool = true,
+    chord_force_buffers = nothing, span_force_buffers = nothing,
+    unsteady_force_buffers = nothing, span_velocity_buffers = nothing)
 
     nsurf = length(surfaces)
     TF = eltype(Γ)
-    chord_seg_forces = Vector{Matrix{SVector{3, TF}}}(undef, nsurf)
-    span_seg_forces = Vector{Matrix{SVector{3, TF}}}(undef, nsurf)
-    unsteady_forces = Vector{Matrix{SVector{3, TF}}}(undef, nsurf)
+    chord_seg_forces = isnothing(chord_force_buffers) ? Vector{Matrix{SVector{3, TF}}}(undef, nsurf) : chord_force_buffers
+    span_seg_forces = isnothing(span_force_buffers) ? Vector{Matrix{SVector{3, TF}}}(undef, nsurf) : span_force_buffers
+    unsteady_forces = isnothing(unsteady_force_buffers) ? Vector{Matrix{SVector{3, TF}}}(undef, nsurf) : unsteady_force_buffers
 
     iΓ = 0
     for isurf in eachindex(surfaces)
@@ -191,12 +193,16 @@ function near_field_forces!(props, surfaces, wakes, ref, fs, Γ;
         nc, ns = size(panels)
         linear_indices = LinearIndices(panels)
         Γjulia = reshape(view(Γ, iΓ + 1:iΓ + length(panels)), nc, ns)
-        Γimperial = _to_imperial_circulation.(Γjulia)
-
-        chord_forces = fill(zero(SVector{3, TF}), nc, ns + 1)
-        span_forces = fill(zero(SVector{3, TF}), nc + 1, ns)
-        panel_unsteady = fill(zero(SVector{3, TF}), nc, ns)
-        span_velocities = fill(zero(SVector{3, TF}), nc, ns)
+        chord_forces = isnothing(chord_force_buffers) ? Matrix{SVector{3,TF}}(undef,nc,ns+1) : chord_seg_forces[isurf]
+        span_forces = isnothing(span_force_buffers) ? Matrix{SVector{3,TF}}(undef,nc+1,ns) : span_seg_forces[isurf]
+        panel_unsteady = isnothing(unsteady_force_buffers) ? Matrix{SVector{3,TF}}(undef,nc,ns) : unsteady_forces[isurf]
+        span_velocities = isnothing(span_velocity_buffers) ? Matrix{SVector{3,TF}}(undef,nc,ns) : span_velocity_buffers[isurf]
+        size(chord_forces) == (nc,ns+1) && size(span_forces) == (nc+1,ns) &&
+            size(panel_unsteady) == size(span_velocities) == (nc,ns) ||
+            throw(DimensionMismatch("Near-field workspace does not match surface topology"))
+        # The final spanwise row and absent unsteady loads must not retain a prior trial.
+        fill!(span_forces,zero(SVector{3,TF}))
+        fill!(panel_unsteady,zero(SVector{3,TF}))
 
         # Spanwise segments. As in Imperial's loop, the final chordwise row of
         # spanwise segments is allocated but remains zero.
@@ -212,7 +218,7 @@ function near_field_forces!(props, surfaces, wakes, ref, fs, Γ;
                 wake_finite_core, wake_shedding_locations, trailing_vortices, xhat,
                 interaction_id, interaction)
 
-            delta_gamma = _imperial_spanwise_circulation_jump(Γimperial, i, j)
+            delta_gamma = -_imperial_spanwise_circulation_jump(Γjulia, i, j)
             span_forces[i, j] = imperial_segment_force(
                 velocity, r1, r2, delta_gamma, ref.rho)
             span_velocities[i, j] = velocity
@@ -237,7 +243,7 @@ function near_field_forces!(props, surfaces, wakes, ref, fs, Γ;
                 wake_finite_core, wake_shedding_locations, trailing_vortices, xhat,
                 interaction_id, interaction)
 
-            delta_gamma = _imperial_chordwise_circulation_jump(Γimperial, i, j)
+            delta_gamma = -_imperial_chordwise_circulation_jump(Γjulia, i, j)
             chord_forces[i, j] = imperial_segment_force(
                 velocity, r1, r2, delta_gamma, ref.rho)
         end

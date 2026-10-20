@@ -67,20 +67,20 @@ function full_beam_aerodynamic_kinematics(structural, free_state)
     global_state = zeros(promote_type(Float64, eltype(free_state)), size(structural.M_global, 1))
     global_state[structural.free_dofs] .= free_state
     wing_state = reshape(
-        global_state[1:(WING_DOFS_PER_NODE * structural.node_count)],
+        view(global_state,1:(WING_DOFS_PER_NODE * structural.node_count)),
         WING_DOFS_PER_NODE,
         structural.node_count,
     )
-    propeller_state = global_state[(WING_DOFS_PER_NODE * structural.node_count + 1):end]
+    propeller_state = view(global_state,(WING_DOFS_PER_NODE * structural.node_count + 1):length(global_state))
     return (;
-        u_x = collect(wing_state[2, :]),
-        u_y = collect(wing_state[1, :]),
-        u_z = collect(-wing_state[3, :]),
-        theta_x = collect(wing_state[5, :]),
-        theta_y = collect(wing_state[4, :]),
-        theta_z = collect(-wing_state[6, :]),
-        propeller_pitch = collect(propeller_state[1:2:end]),
-        propeller_yaw = collect(-propeller_state[2:2:end]),
+        u_x = collect(view(wing_state,2,:)),
+        u_y = collect(view(wing_state,1,:)),
+        u_z = -view(wing_state,3,:),
+        theta_x = collect(view(wing_state,5,:)),
+        theta_y = collect(view(wing_state,4,:)),
+        theta_z = -view(wing_state,6,:),
+        propeller_pitch = collect(view(propeller_state,1:2:length(propeller_state))),
+        propeller_yaw = -view(propeller_state,2:2:length(propeller_state)),
     )
 end
 
@@ -89,9 +89,9 @@ function direct_propeller_hub_positions(
     wing,
     propellers,
     structural,
-    free_state,
+    free_state;
+    kinematics=full_beam_aerodynamic_kinematics(structural,free_state),
 )
-    kinematics = full_beam_aerodynamic_kinematics(structural, free_state)
     span_nodes = wing.span_nodes
     geometry = wing.geometry
     span = last(span_nodes) - first(span_nodes)
@@ -578,8 +578,8 @@ function assemble_wing_propeller_structure(wing, propellers, operating_condition
             0.0 0.0 pitch_first_moment pitch_cross_inertia 0.0 0.0;
             -yaw_first_moment 0.0 0.0 0.0 0.0 yaw_cross_inertia
         ]
-        propeller_to_wing_mass[propeller_dofs, :] .+= local_cross_mass * attachment
-        wing_to_propeller_mass[:, propeller_dofs] .+= attachment' * local_cross_mass'
+        propeller_to_wing_mass[propeller_dofs,node_dofs] .+= local_cross_mass
+        wing_to_propeller_mass[node_dofs,propeller_dofs] .+= local_cross_mass'
 
         local_attached_mass = zeros(6, 6)
         local_attached_mass[1, 1] = propeller.mass
@@ -591,7 +591,7 @@ function assemble_wing_propeller_structure(wing, propellers, operating_condition
         local_attached_mass[1, 6] = -wing_yaw_first_moment
         local_attached_mass[6, 1] = -wing_yaw_first_moment
         local_attached_mass[6, 6] = wing_yaw_inertia
-        attached_wing_mass .+= attachment' * local_attached_mass * attachment
+        attached_wing_mass[node_dofs,node_dofs] .+= local_attached_mass
 
         # Propeller gyroscopic pitch-yaw coupling proportional to Ix*Omega.
         local_wing_to_propeller_gyro = [
@@ -602,14 +602,12 @@ function assemble_wing_propeller_structure(wing, propellers, operating_condition
             0.0 0.0;
             -propeller.spin_inertia * omega 0.0
         ]
-        wing_to_propeller_damping[:, propeller_dofs] .+=
-            attachment' * local_wing_to_propeller_gyro
-        propeller_to_wing_damping[propeller_dofs, :] .+=
-            -local_wing_to_propeller_gyro' * attachment
+        wing_to_propeller_damping[node_dofs,propeller_dofs] .+= local_wing_to_propeller_gyro
+        propeller_to_wing_damping[propeller_dofs,node_dofs] .-= local_wing_to_propeller_gyro'
         local_wing_gyro = zeros(6, 6)
         local_wing_gyro[4, 6] = propeller.spin_inertia * omega
         local_wing_gyro[6, 4] = -propeller.spin_inertia * omega
-        wing_damping .+= attachment' * local_wing_gyro * attachment
+        wing_damping[node_dofs,node_dofs] .+= local_wing_gyro
     end
 
     total_dof_count = wing_dof_count + propeller_dof_count

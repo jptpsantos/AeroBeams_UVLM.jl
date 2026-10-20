@@ -95,6 +95,8 @@ function repeat_trial!(aero, grid, count)
 end
 
 function main()
+    isfile(joinpath(@__DIR__,"measurements.toml")) && error(
+        "Preserve the original measurements.toml; run measure_implementation.jl for the current source")
     metadata = Dict{String,Any}("julia_version" => string(VERSION),
         "julia_threads" => Threads.nthreads(), "blas_threads" => BLAS.get_num_threads(),
         "date" => "2026-10-19", "repetitions" => 7,
@@ -255,4 +257,4 @@ function main()
     end
 end
 
-main()
+abspath(PROGRAM_FILE) == (@__FILE__) && main()
