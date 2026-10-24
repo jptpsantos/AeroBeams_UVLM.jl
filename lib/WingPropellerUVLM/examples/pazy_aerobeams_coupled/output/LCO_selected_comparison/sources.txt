@@ -1,0 +1,9 @@
+Instantaneous saved strain versus speed; original sample order; no filtering or rescaling.
+
+Upsweep: C:\Users\Acer\Documents\João Tavares\Doutorado EESC\Models\AeroBeams_UVLM.jl\lib\WingPropellerUVLM\examples\pazy_aerobeams_coupled\output\LCO_independent_sweeps\pazy_linear_LCO_upsweep.csv
+SHA256: b493ebf1514156067c8dfe863edbd3637807d81cd45cf52f18b51636455e4114
+Samples: 84127; time: 0.0 -> 40.0 s; speed: 35.0 -> 52.0 m/s
+
+Downsweep: C:\Users\Acer\Documents\João Tavares\Doutorado EESC\Models\AeroBeams_UVLM.jl\lib\WingPropellerUVLM\examples\pazy_aerobeams_coupled\output\LCO_downsweep_pulse\pazy_linear_LCO_downsweep.csv
+SHA256: 752eda9427f893eb56260b1189c5cd25a8f3c5d1220d2f4c789d07b08ad151bf
+Samples: 21033; time: 0.0 -> 10.0 s; speed: 52.0 -> 35.0 m/s

@@ -1,0 +1,14 @@
+Original SHA256: e1d6264a7859bed953d4e0bc9126ae0c5d006f3a1d7fbc5bda8edc38a9e4a2d2
+Current SHA256: e1d6264a7859bed953d4e0bc9126ae0c5d006f3a1d7fbc5bda8edc38a9e4a2d2
+Rows: 84127
+time_s: exactly_equal=true; max_abs_difference=0; RMS_difference=0
+airspeed_mps: exactly_equal=true; max_abs_difference=0; RMS_difference=0
+root_longitudinal_strain_ue: exactly_equal=true; max_abs_difference=0; RMS_difference=0
+root_axial_strain: exactly_equal=true; max_abs_difference=0; RMS_difference=0
+root_curvature_2_per_m: exactly_equal=true; max_abs_difference=0; RMS_difference=0
+root_curvature_3_per_m: exactly_equal=true; max_abs_difference=0; RMS_difference=0
+tip_out_of_plane_m: exactly_equal=true; max_abs_difference=0; RMS_difference=0
+tip_twist_deg: exactly_equal=true; max_abs_difference=0; RMS_difference=0
+wingtip_aoa_deg: exactly_equal=true; max_abs_difference=0; RMS_difference=0
+tip_force_A1_N: exactly_equal=true; max_abs_difference=0; RMS_difference=0
+Current upsweep force identically zero: true

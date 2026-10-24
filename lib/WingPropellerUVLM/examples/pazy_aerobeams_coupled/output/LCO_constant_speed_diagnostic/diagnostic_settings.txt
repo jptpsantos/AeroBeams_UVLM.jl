@@ -1,0 +1,18 @@
+Constant-speed diagnostic; root incidence [deg]: 5.0
+Speeds [m/s]: (45.0,); requested duration [s]: 5.0
+Baseline dt [s]: 0.00047547726030002614; baseline nominal wake [chords at minimum sweep speed]: 5.0
+Physical pulse: F_A1 = amplitude*sin(2pi*phase)*sinpi(phase)^2, 0<phase<1
+Pulse coefficient [N]: 0.1; start [s]: 0.1; duration [s]: 0.04
+Unforced is zero pulse; same copied equilibrium as baseline.
+Window duration [s]: 0.25; gauge y/z [m]: 0.0 / 0.001125
+Mesh: 10 x 20; gravity zero; first-element midpoint strain.
+Strong coupling: max iterations=20; relaxation=0.5; geometry tolerance=0.0001; load tolerance=0.0001
+Static controls: (maximum_aerodynamic_time = 0.2, minimum_aerodynamic_time = 0.05, aerodynamic_window_time = 0.01, aerodynamic_force_tolerance = 0.0001, aerodynamic_circulation_tolerance = 0.0001, maximum_static_iterations = 100, static_relaxation = 0.3, geometry_tolerance = 1.0e-5, load_tolerance = 0.0001, consecutive_equilibrium_iterations = 2, newton_maximum_iterations = 50, newton_absolute_tolerance = 1.0e-8, newton_relative_tolerance = 1.0e-8, newton_display_iterations = false, progress_frequency = 100)
+U45p0_baseline initialization: Static aeroelastic equilibrium reached; converged=true; r_geometry=7.3173487016008485e-6; r_load=3.255613700379521e-5
+U45p0_baseline completed; actual duration=5.000118869315075 s; wall time=9747.8962523 s; tail log RMS slope=0.23125170841882187 /s
+U45p0_unforced initialization: Static aeroelastic equilibrium reached; converged=true; r_geometry=7.3173487016008485e-6; r_load=3.255613700379521e-5
+U45p0_unforced completed; actual duration=5.000118869315075 s; wall time=5550.7146036 s; tail log RMS slope=1.9638690666385052 /s
+U45p0_half_dt initialization: Static aeroelastic equilibrium reached; converged=true; r_geometry=6.497548156042111e-6; r_load=2.6944446072651752e-5
+U45p0_half_dt completed; actual duration=5.000118869315075 s; wall time=23530.1694286 s; tail log RMS slope=0.29425447985691944 /s
+U45p0_double_wake initialization: Static aeroelastic equilibrium reached; converged=true; r_geometry=5.380998914482086e-6; r_load=2.432835612756104e-5
+U45p0_double_wake completed; actual duration=5.000118869315075 s; wall time=19651.7860603 s; tail log RMS slope=0.0002217009125963898 /s

@@ -154,9 +154,10 @@ include(joinpath(@__DIR__, "PazyLinearLCOSweep.jl"))
 # each initialized from its own coupled static equilibrium and developed wake.
 # Set PAZY_LCO_RUN=false before including to load without running.
 # The earlier staircase sweep remains available as run_pazy_LCO().
+# Run plot_pazy_LCO.jl to replot strain versus speed from saved branch CSVs.
 if get(ENV, "PAZY_LCO_RUN", "true") == "true"
     lco_results = run_pazy_linear_LCO(;
         initial_speed=35.0, peak_speed=52.0,
-        upsweep_duration=40.0, downsweep_duration=20.0,
+        upsweep_duration=20.0, downsweep_duration=10.0,
         angle_of_attack=deg2rad(5.0))
 end

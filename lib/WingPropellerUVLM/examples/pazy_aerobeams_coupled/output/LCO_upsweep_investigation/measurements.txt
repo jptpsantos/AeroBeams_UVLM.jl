@@ -1,0 +1,47 @@
+Original unforced upsweep
+Source: C:\Users\Acer\Documents\João Tavares\Doutorado EESC\Models\AeroBeams_UVLM.jl\lib\WingPropellerUVLM\examples\pazy_aerobeams_coupled\output\LCO_independent_sweeps\pazy_linear_LCO_upsweep.csv
+SHA256: b493ebf1514156067c8dfe863edbd3637807d81cd45cf52f18b51636455e4114
+N=84127; U=35.000 -> 52.000 m/s; T=40.000000 s; dt=0.0004754772603 s; rate=0.425000 m/s^2
+Initial strain=-834.689993 ue; initial tip displacement=0.065332465 m; initial tip twist=0.901115 deg
+No force column in this older CSV; original runner is unforced.
+U=43.0: detrended half range=3.65997575e-05 ue; RMS=1.23044875e-05 ue
+U=45.0: detrended half range=5.8193938e-05 ue; RMS=2.00993792e-05 ue
+U=47.0: detrended half range=0.00595922598 ue; RMS=0.00153651196 ue
+U=48.0: detrended half range=17.8478069 ue; RMS=4.87558655 ue
+U=49.0: detrended half range=741.595653 ue; RMS=451.130954 ue
+U=50.0: detrended half range=496.153822 ue; RMS=253.747734 ue
+U=51.0: detrended half range=14.8254652 ue; RMS=3.79257058 ue
+Largest bin half range=741.595653 ue at U=49.0 m/s, t=32.941302 s
+
+Unforced upsweep in pulse run
+Source: C:\Users\Acer\Documents\João Tavares\Doutorado EESC\Models\AeroBeams_UVLM.jl\lib\WingPropellerUVLM\examples\pazy_aerobeams_coupled\output\LCO_downsweep_pulse\pazy_linear_LCO_upsweep.csv
+SHA256: 5d0f69f3c8139d40f0fd3fdf03ad5cb87631bf9dee520f6cb2df9644d08d3ab2
+N=42065; U=35.000 -> 52.000 m/s; T=20.000000 s; dt=0.000475465956638 s; rate=0.850000 m/s^2
+Initial strain=-897.743782 ue; initial tip displacement=0.070297340 m; initial tip twist=0.840604 deg
+Force min/max=-0.000000000/0.000000000 N; nonzero samples=0
+U=43.0: detrended half range=4.06532708e-05 ue; RMS=1.47085454e-05 ue
+U=45.0: detrended half range=6.22896529e-05 ue; RMS=2.13863308e-05 ue
+U=47.0: detrended half range=8.29253969e-05 ue; RMS=2.89557989e-05 ue
+U=48.0: detrended half range=9.22481012e-05 ue; RMS=3.29066287e-05 ue
+U=49.0: detrended half range=0.000103985119 ue; RMS=3.67439135e-05 ue
+U=50.0: detrended half range=0.000108848395 ue; RMS=4.01018398e-05 ue
+U=51.0: detrended half range=0.000120555949 ue; RMS=4.35009193e-05 ue
+Largest bin half range=0.266727 ue at U=35.5 m/s, t=0.588151 s
+
+Pulsed downsweep
+Source: C:\Users\Acer\Documents\João Tavares\Doutorado EESC\Models\AeroBeams_UVLM.jl\lib\WingPropellerUVLM\examples\pazy_aerobeams_coupled\output\LCO_downsweep_pulse\pazy_linear_LCO_downsweep.csv
+SHA256: 752eda9427f893eb56260b1189c5cd25a8f3c5d1220d2f4c789d07b08ad151bf
+N=21033; U=52.000 -> 35.000 m/s; T=10.000000 s; dt=0.000475465956638 s; rate=-1.700000 m/s^2
+Initial strain=-2247.575285 ue; initial tip displacement=0.173321946 m; initial tip twist=1.905498 deg
+Force min/max=-0.649480747/0.649442122 N; nonzero samples=210
+Sampled pulse interval: t=1.764929631 -> 1.864302016 s, U=48.999620 -> 48.830687 m/s
+U=43.0: detrended half range=798.874595 ue; RMS=531.761827 ue
+U=45.0: detrended half range=327.447886 ue; RMS=187.197164 ue
+U=47.0: detrended half range=18.8247727 ue; RMS=10.0443848 ue
+U=48.0: detrended half range=4.89228112 ue; RMS=2.71339367 ue
+U=49.0: detrended half range=21.7415781 ue; RMS=10.4985738 ue
+U=50.0: detrended half range=0.001940183 ue; RMS=0.000596420351 ue
+U=51.0: detrended half range=0.118874521 ue; RMS=0.0500462127 ue
+Largest bin half range=806.428869 ue at U=42.5 m/s, t=5.588151 s
+
+Window measures describe transient residuals, including trend error/numerical noise at tiny amplitudes; they are not settled LCO amplitudes or eigenvalue estimates.

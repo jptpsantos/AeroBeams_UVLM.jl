@@ -1,0 +1,2 @@
+time_s,airspeed_mps,root_longitudinal_strain_ue,root_axial_strain,root_curvature_2_per_m,root_curvature_3_per_m,tip_out_of_plane_m,tip_twist_deg,wingtip_aoa_deg,maximum_section_velocity_norm,aerodynamic_time_s,aerodynamic_step_index,retained_wake_rows,circulation_norm
+0.006,22.0,-34.67265246509343,-1.3585838546641698e-9,-0.030818927894434463,-5.562918543623987e-7,0.0027818992634123857,0.03152208419838407,0.6044798793292073,0.013636424442531318,0.006,13.0,20.0,0.12825582545187883

@@ -1,0 +1,6 @@
+default: normalized small/large relative L2 mismatch 0.0057676073 percent; max quiet drift 0.031920895 ue
+  Mean coupling iterations quiet/small/large: 2.000000 / 2.000000 / 2.000000
+tight: normalized small/large relative L2 mismatch 8.4468298 percent; max quiet drift 0.031914557 ue
+  Mean coupling iterations quiet/small/large: 2.576996 / 2.603612 / 6.980989
+refined: normalized small/large relative L2 mismatch 0.063452292 percent; max quiet drift 0.031916671 ue
+  Mean coupling iterations quiet/small/large: 8.936312 / 8.960076 / 13.550380

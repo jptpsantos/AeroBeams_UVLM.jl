@@ -32,6 +32,10 @@ keep U*dt/chord at or below `time_step_chords`. No state is reset at speed chang
 Its operating point, mesh, wake capacity and timestep must match the starting
 condition. The beam state and developed UVLM state are copied into a fresh run;
 the supplied equilibrium is preserved. No unloaded startup solve is performed.
+
+`accepted_step_callback(i, time, structure, aerodynamic)` observes each accepted
+dynamic step, after wake commit and response extraction. The callback must not
+modify either problem; it can save scalar histories and phase checkpoints.
 """
 function run_pazy_wing_uvlm(; airspeed, density, angle_of_attack, sideslip,
     initial_airspeed_fraction, airspeed_ramp_duration,
@@ -45,6 +49,7 @@ function run_pazy_wing_uvlm(; airspeed, density, angle_of_attack, sideslip,
     time_step_chords=1 / chordwise_panels,
     airspeed_profile=nothing,
     initial_equilibrium=nothing,
+    accepted_step_callback=nothing,
     animation_time_step=nothing,
     save_animation_history=true,
     save_structural_history=true,
@@ -426,6 +431,9 @@ function run_pazy_wing_uvlm(; airspeed, density, angle_of_attack, sideslip,
         root_axial_strain[i] = root_section.γ[1]
         root_curvature_2[i] = root_section.κ[2]
         root_curvature_3[i] = root_section.κ[3]
+        if !isnothing(accepted_step_callback)
+            accepted_step_callback(i,time[i],structure,aerodynamic)
+        end
         if save_animation_history && (i-1) in animation_steps
             save_wing_frame!(aerodynamic, surface_history, wake_history, animation_time)
         end

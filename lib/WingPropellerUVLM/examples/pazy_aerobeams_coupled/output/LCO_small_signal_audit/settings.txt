@@ -1,0 +1,3 @@
+(airspeed = 45.0, density = 1.225, angle_of_attack = 0.08726646259971647, chordwise_panels = 5, spanwise_panels = 16, symmetric_wing = true, maximum_wake_rows = 18, time_step_chords = 0.21634455726492594, core_radius = 0.001, wake_shedding_fraction = 0.1, aerodynamic_interaction = true, progress_frequency = 500)
+Same copied equilibrium; duration .5 s; pulse .01-.05 s; coefficients 0, 1e-5, .01 N.
+Default FSI tolerances 1e-4, Newton 1e-5; tight FSI 1e-7, Newton 1e-9.

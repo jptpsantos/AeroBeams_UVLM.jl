@@ -1,0 +1,11 @@
+Upsweep source: C:\Users\Acer\Documents\João Tavares\Doutorado EESC\Models\AeroBeams_UVLM.jl\lib\WingPropellerUVLM\examples\pazy_aerobeams_coupled\output\LCO_downsweep_pulse\pazy_linear_LCO_upsweep.csv
+SHA256: e1d6264a7859bed953d4e0bc9126ae0c5d006f3a1d7fbc5bda8edc38a9e4a2d2
+Saved time: 0.0 -> 40.0 s; speed: 35.0 -> 52.0 m/s
+INCLUDED: ramp endpoints and duration match settings.
+
+Downsweep source: C:\Users\Acer\Documents\João Tavares\Doutorado EESC\Models\AeroBeams_UVLM.jl\lib\WingPropellerUVLM\examples\pazy_aerobeams_coupled\output\LCO_downsweep_pulse\pazy_linear_LCO_downsweep.csv
+SHA256: 752eda9427f893eb56260b1189c5cd25a8f3c5d1220d2f4c789d07b08ad151bf
+Saved time: 0.0 -> 10.0 s; speed: 52.0 -> 35.0 m/s
+OMITTED: saved endpoints/duration differ from latest settings.
+
+Endpoint/duration checks prevent use of older ramps; they do not establish mesh or model provenance when those values are absent from a CSV.

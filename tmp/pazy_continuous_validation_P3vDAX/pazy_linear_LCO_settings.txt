@@ -1,0 +1,12 @@
+Continuous simulation: one coupled static initialization, one dynamic integration, no state reset at reversal.
+Upsweep: 20.0 -> 22.0 m/s in 0.006 s
+Downsweep: 22.0 -> 20.0 m/s in 0.003 s
+Root incidence [deg]: 0.5729577951308232
+dt [s]: 0.0005; wake rows: 20; mesh: 2 x 4
+Gauge y/z [m]: 0.0 / 0.001125; no pulse; gravity zero; first-element midpoint strain.
+time_s is global in all CSVs; branch_time_s is local. The turning sample belongs to both exported branches.
+Static controls: (maximum_aerodynamic_time = 0.08, minimum_aerodynamic_time = 0.02, aerodynamic_window_time = 0.006, aerodynamic_force_tolerance = 0.0005, aerodynamic_circulation_tolerance = 0.0005, maximum_static_iterations = 80, static_relaxation = 0.5, geometry_tolerance = 2.0e-6, load_tolerance = 0.0005, consecutive_equilibrium_iterations = 2, newton_maximum_iterations = 50, newton_absolute_tolerance = 1.0e-8, newton_relative_tolerance = 1.0e-8, newton_display_iterations = false, progress_frequency = 10000)
+Initialization: Static aeroelastic equilibrium reached; converged=true; r_geometry=7.591171282882412e-7; r_load=3.5077017267737265e-6
+Upsweep completed at global t=0.006 s. Saved live turnaround state: max velocity=0.013636424442531318; wake rows=20; aerodynamic step=13. Continuing the same integration.
+Continuous sweep completed at t=0.009000000000000001 s; accepted steps=18; final wake rows=20.
+Maximum accepted coupling residuals: geometry=6.073286027591229e-7, load=9.625409109553784e-5.
