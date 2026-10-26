@@ -1,0 +1,5 @@
+airspeed_mps,response,unit,minimum,maximum,mean,amplitude,convergence_status,converged,window_start_s,window_end_s,sample_count,static_equilibrium,label
+40.0,tip_out_of_plane_percent,% semispan,21.0,21.0,21.0,0.0,stationary,true,1.0,2.0,501,21.0,Tip OOP displacement
+40.0,root_strain_ue,microstrain,-1800.0,-1800.0,-1800.0,0.0,stationary,true,1.0,2.0,501,-1800.0,Near-root longitudinal strain
+40.0,tip_twist_deg,deg,1.0,1.0,1.0,0.0,stationary,true,1.0,2.0,501,1.0,Tip twist
+40.0,tip_geometric_incidence_deg,deg,6.0,6.0,6.0,0.0,stationary,true,1.0,2.0,501,6.0,Tip geometric incidence

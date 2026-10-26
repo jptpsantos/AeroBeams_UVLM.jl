@@ -1,0 +1,65 @@
+airspeed_mps,response,unit,kind,time_s,value
+42.0,tip_out_of_plane_percent,% semispan,maximum,1.026,24.462010097821338
+42.0,tip_out_of_plane_percent,% semispan,minimum,1.09,20.734635685021974
+42.0,tip_out_of_plane_percent,% semispan,maximum,1.162,24.336934449196722
+42.0,tip_out_of_plane_percent,% semispan,minimum,1.216,19.849836170283254
+42.0,tip_out_of_plane_percent,% semispan,maximum,1.274,23.81161760366622
+42.0,tip_out_of_plane_percent,% semispan,minimum,1.352,20.222138615469518
+42.0,tip_out_of_plane_percent,% semispan,maximum,1.406,24.592439285445344
+42.0,tip_out_of_plane_percent,% semispan,minimum,1.46,20.402572107154377
+42.0,tip_out_of_plane_percent,% semispan,maximum,1.54,23.99742789284563
+42.0,tip_out_of_plane_percent,% semispan,minimum,1.594,19.807560714554654
+42.0,tip_out_of_plane_percent,% semispan,maximum,1.648,24.177861384530463
+42.0,tip_out_of_plane_percent,% semispan,minimum,1.726,20.58838239633377
+42.0,tip_out_of_plane_percent,% semispan,maximum,1.784,24.55016382971674
+42.0,tip_out_of_plane_percent,% semispan,minimum,1.838,20.063065550803273
+42.0,tip_out_of_plane_percent,% semispan,maximum,1.91,23.66536431497803
+42.0,tip_out_of_plane_percent,% semispan,minimum,1.974,19.937989902178654
+42.0,root_strain_ue,microstrain,maximum,1.026,-1477.5979804357326
+42.0,root_strain_ue,microstrain,minimum,1.09,-2223.072862995605
+42.0,root_strain_ue,microstrain,maximum,1.162,-1502.6131101606552
+42.0,root_strain_ue,microstrain,minimum,1.216,-2400.0327659433487
+42.0,root_strain_ue,microstrain,maximum,1.274,-1607.6764792667557
+42.0,root_strain_ue,microstrain,minimum,1.352,-2325.572276906096
+42.0,root_strain_ue,microstrain,maximum,1.406,-1451.5121429109308
+42.0,root_strain_ue,microstrain,minimum,1.46,-2289.4855785691243
+42.0,root_strain_ue,microstrain,maximum,1.54,-1570.5144214308739
+42.0,root_strain_ue,microstrain,minimum,1.594,-2408.487857089069
+42.0,root_strain_ue,microstrain,maximum,1.648,-1534.427723093907
+42.0,root_strain_ue,microstrain,minimum,1.726,-2252.323520733246
+42.0,root_strain_ue,microstrain,maximum,1.784,-1459.9672340566515
+42.0,root_strain_ue,microstrain,minimum,1.838,-2357.3868898393453
+42.0,root_strain_ue,microstrain,maximum,1.91,-1636.927137004394
+42.0,root_strain_ue,microstrain,minimum,1.974,-2382.4020195642693
+42.0,tip_twist_deg,deg,maximum,1.026,4.850016829702229
+42.0,tip_twist_deg,deg,minimum,1.09,-1.3622738582967102
+42.0,tip_twist_deg,deg,maximum,1.162,4.641557415327873
+42.0,tip_twist_deg,deg,minimum,1.216,-2.8369397161945726
+42.0,tip_twist_deg,deg,maximum,1.274,3.7660293394437026
+42.0,tip_twist_deg,deg,minimum,1.352,-2.2164356408841335
+42.0,tip_twist_deg,deg,maximum,1.406,5.067398809075577
+42.0,tip_twist_deg,deg,minimum,1.46,-1.9157131547427015
+42.0,tip_twist_deg,deg,maximum,1.54,4.075713154742719
+42.0,tip_twist_deg,deg,minimum,1.594,-2.907398809075577
+42.0,tip_twist_deg,deg,maximum,1.648,4.376435640884107
+42.0,tip_twist_deg,deg,minimum,1.726,-1.6060293394437175
+42.0,tip_twist_deg,deg,maximum,1.784,4.9969397161945714
+42.0,tip_twist_deg,deg,minimum,1.838,-2.4815574153278757
+42.0,tip_twist_deg,deg,maximum,1.91,3.522273858296719
+42.0,tip_twist_deg,deg,minimum,1.974,-2.6900168297022446
+42.0,tip_geometric_incidence_deg,deg,maximum,1.026,9.850016829702229
+42.0,tip_geometric_incidence_deg,deg,minimum,1.09,3.63772614170329
+42.0,tip_geometric_incidence_deg,deg,maximum,1.162,9.641557415327874
+42.0,tip_geometric_incidence_deg,deg,minimum,1.216,2.1630602838054274
+42.0,tip_geometric_incidence_deg,deg,maximum,1.274,8.766029339443703
+42.0,tip_geometric_incidence_deg,deg,minimum,1.352,2.7835643591158665
+42.0,tip_geometric_incidence_deg,deg,maximum,1.406,10.067398809075577
+42.0,tip_geometric_incidence_deg,deg,minimum,1.46,3.0842868452572985
+42.0,tip_geometric_incidence_deg,deg,maximum,1.54,9.075713154742719
+42.0,tip_geometric_incidence_deg,deg,minimum,1.594,2.092601190924423
+42.0,tip_geometric_incidence_deg,deg,maximum,1.648,9.376435640884107
+42.0,tip_geometric_incidence_deg,deg,minimum,1.726,3.3939706605562825
+42.0,tip_geometric_incidence_deg,deg,maximum,1.784,9.996939716194571
+42.0,tip_geometric_incidence_deg,deg,minimum,1.838,2.5184425846721243
+42.0,tip_geometric_incidence_deg,deg,maximum,1.91,8.52227385829672
+42.0,tip_geometric_incidence_deg,deg,minimum,1.974,2.3099831702977554

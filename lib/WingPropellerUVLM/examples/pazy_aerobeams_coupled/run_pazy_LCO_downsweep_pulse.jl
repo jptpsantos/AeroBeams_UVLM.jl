@@ -4,16 +4,18 @@ include(joinpath(@__DIR__, "PazyLinearLCOSweep.jl"))
 
 # Set PAZY_LCO_DOWNSWEEP_PULSE_RUN=false before including to load without running.
 if get(ENV, "PAZY_LCO_DOWNSWEEP_PULSE_RUN", "true") == "true"
+    angle_of_attack_deg = 5.0            # set 3.0, 5.0, 7.0, etc.; also sets the output folder
     # Select the analyses to execute independently from plotting.
     run_branches = :both                 # :both, :upsweep, or :downsweep
     plot_only = false                    # true: regenerate strain-versus-speed plot only
     plot_branches = run_branches         # or explicitly :both, :upsweep, :downsweep
     pulse_branches = :downsweep          # :both, :upsweep, :downsweep, or :none
-    # Keep each pulse selection separate from existing results.
+    # Separate pulse selections and angles; each simulation gets a fresh run_NNN folder.
     output_name = pulse_branches == :downsweep ? "LCO_downsweep_pulse" :
         pulse_branches == :both ? "LCO_both_pulses" :
         pulse_branches == :upsweep ? "LCO_upsweep_pulse" : "LCO_no_pulse"
-    output_directory = joinpath(@__DIR__, "output", output_name)
+    output_base_directory = joinpath(@__DIR__, "output", output_name)
+    plot_run_directory = nothing         # plot_only: nothing = latest run at this angle
 
     # Shared UVLM settings for each branch's static initialization and dynamics.
     uvlm_options = (;
@@ -30,11 +32,14 @@ if get(ENV, "PAZY_LCO_DOWNSWEEP_PULSE_RUN", "true") == "true"
 
     sweep_initial_speed = 35.0           # m/s, lower endpoint of both branches
     sweep_peak_speed = 52.0              # m/s, upper endpoint of both branches
-    upsweep_duration = 40.0              # s, independent upsweep
-    downsweep_duration = 20.0            # s, independent downsweep with pulse
+    # Keep these rates fixed across angles; changing endpoints changes duration.
+    upsweep_rate = 0.425                 # m/s^2, positive ascending slope
+    downsweep_rate = 0.85                # m/s^2, magnitude of the descending slope
+    upsweep_duration = pazy_lco_ramp_duration(sweep_initial_speed, sweep_peak_speed, upsweep_rate)
+    downsweep_duration = pazy_lco_ramp_duration(sweep_peak_speed, sweep_initial_speed, downsweep_rate)
 
     # Excite the wing when the descending speed reaches this value.
-    pulse_speed = 49.0                   # m/s, diagnostic trigger
+    pulse_speed = 49.0                   # m/s, diagnostic trigger; keep inside chosen speed range
     pulse_coefficient = 1.0              # N; waveform peak is about 0.6495 times this
     pulse_duration = 0.1                # s; smooth bipolar pulse, zero net impulse
     # Separate ascending trigger; 45 m/s is a diagnostic choice, not a boundary.
@@ -44,6 +49,9 @@ if get(ENV, "PAZY_LCO_DOWNSWEEP_PULSE_RUN", "true") == "true"
     pulse_branches in (:both, :upsweep, :downsweep, :none) ||
         throw(ArgumentError("pulse_branches must be :both, :upsweep, :downsweep, or :none"))
     if plot_only
+        output_directory = isnothing(plot_run_directory) ?
+            pazy_lco_latest_output_directory(output_base_directory, angle_of_attack_deg) :
+            plot_run_directory
         pulse_lco_plot = plot_pazy_LCO(; output_directory, plot_branches)
     else
         run_names = pazy_lco_branch_names(run_branches; option_name="run_branches")
@@ -66,12 +74,13 @@ if get(ENV, "PAZY_LCO_DOWNSWEEP_PULSE_RUN", "true") == "true"
             initial_speed=sweep_initial_speed, peak_speed=sweep_peak_speed,
             downsweep_initial_speed=sweep_peak_speed,
             upsweep_duration, downsweep_duration,
-            angle_of_attack=deg2rad(5.0),
+            angle_of_attack=deg2rad(angle_of_attack_deg),
             upsweep_pulse_amplitude="upsweep" in pulse_names ? upsweep_pulse_coefficient : 0.0,
             upsweep_pulse_start, upsweep_pulse_duration,
             downsweep_pulse_amplitude="downsweep" in pulse_names ? pulse_coefficient : 0.0,
             downsweep_pulse_start=pulse_start,
             downsweep_pulse_duration=pulse_duration,
-            uvlm_options..., run_branches, plot_branches, output_directory)
+            uvlm_options..., run_branches, plot_branches, output_base_directory)
+        output_directory = pulse_lco_results.output_directory
     end
 end

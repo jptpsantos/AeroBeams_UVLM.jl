@@ -1,7 +1,7 @@
 module TimeDomainBifurcation
 
 using DelimitedFiles, Statistics, Distributed, Dates
-export bifurcation_speeds, response_statistics, run_bifurcation, plot_bifurcation
+export bifurcation_speeds, response_statistics, response_local_extrema, run_bifurcation, plot_bifurcation
 
 """Positive inclusive grid; append U_max if dU does not divide the interval."""
 function bifurcation_speeds(U_min, U_max, dU)
@@ -72,6 +72,21 @@ function response_statistics(time, q; transient_time, check_convergence=true,
         window_start_s=time[start], window_end_s=last(time), sample_count=length(tail))
 end
 
+"""Every interior turning point in the final window, with its original sample time.
+
+Flat peaks are included once, at their last sample. Window endpoints and
+monotone/stationary windows do not create artificial local extrema.
+"""
+function response_local_extrema(time, q; transient_time)
+    response_statistics(time, q; transient_time, check_convergence=false)
+    start = searchsortedfirst(time, transient_time)
+    tail = @view q[start:end]
+    maxima, minima = turning_points(tail)
+    points = [(; kind, time_s=time[start+i-1], value=tail[i])
+        for (kind, indices) in (("minimum", minima), ("maximum", maxima)) for i in indices]
+    return sort!(points; by=p -> p.time_s)
+end
+
 const SUMMARY_COLUMNS = ["airspeed_mps", "response", "unit", "minimum", "maximum",
     "mean", "amplitude", "convergence_status", "converged", "window_start_s",
     "window_end_s", "sample_count", "static_equilibrium", "label"]
@@ -88,6 +103,18 @@ function write_summary(path, rows)
     end
 end
 
+const LOCAL_EXTREMA_COLUMNS = ["airspeed_mps", "response", "unit", "kind", "time_s", "value"]
+
+function write_local_extrema(path, rows)
+    open(path, "w") do io
+        writedlm(io, permutedims(LOCAL_EXTREMA_COLUMNS), ',')
+        for r in rows
+            writedlm(io, permutedims(Any[r.airspeed_mps, r.response, r.unit,
+                r.kind, r.time_s, r.value]), ',')
+        end
+    end
+end
+
 function analyze_speed(job, simulate, settings, directory)
     index, speed = job
     # simulate must construct new structural/aerodynamic/wake states on EVERY call.
@@ -96,12 +123,20 @@ function analyze_speed(job, simulate, settings, directory)
     isapprox(first(time), 0; atol=1e-12, rtol=0) &&
         isapprox(last(time), settings.simulation_time; atol=1e-10, rtol=1e-10) ||
         throw(ArgumentError("Each independent simulation must cover [0, simulation_time]"))
+    local_extrema = Any[]
     rows = map(settings.responses) do name
         hasproperty(result.responses, name) || throw(ArgumentError("Response $name unavailable"))
         definition = getproperty(settings.definitions, name)
         statistics = response_statistics(time, getproperty(result.responses, name);
             settings.transient_time, settings.check_convergence, settings.rtol,
             atol=definition.atol, settings.convergence_cycles)
+        if settings.save_local_extrema
+            for point in response_local_extrema(time, getproperty(result.responses, name);
+                settings.transient_time)
+                push!(local_extrema, (; airspeed_mps=speed, response=String(name),
+                    unit=definition.unit, point...))
+            end
+        end
         static_value = hasproperty(result, :static_equilibrium) ?
             get(result.static_equilibrium, name, NaN) : NaN
         (; airspeed_mps=speed, response=String(name), unit=definition.unit,
@@ -110,13 +145,14 @@ function analyze_speed(job, simulate, settings, directory)
     # Unique case files also preserve completed cases if another solve fails.
     prefix = joinpath(directory, "case_$(lpad(index, 4, '0'))")
     write_summary(prefix * "_extrema.csv", rows)
+    settings.save_local_extrema && write_local_extrema(prefix * "_local_extrema.csv", local_extrema)
     if settings.save_time_histories
         open(prefix * "_history.csv", "w") do io
             writedlm(io, permutedims(vcat(["time_s"], String.(settings.responses))), ',')
             writedlm(io, hcat(time, (getproperty(result.responses, n) for n in settings.responses)...), ',')
         end
     end
-    return rows # Release the solver and histories instead of accumulating runs.
+    return (; rows, local_extrema) # Release full histories after extracting peaks.
 end
 
 """Run fresh fixed-speed simulations through `simulate(U)`.
@@ -129,7 +165,7 @@ must see the same absolute output directory. No worker creates plots.
 function run_bifurcation(simulate; U_min, U_max, dU, definitions,
     responses=collect(keys(definitions)), simulation_time=10.0, transient_time=8.0,
     check_convergence=true, rtol=0.02, convergence_cycles=3,
-    save_time_histories=false, plot_results=true, plot_amplitude=true,
+    save_time_histories=false, save_local_extrema=true, plot_results=true, plot_amplitude=true,
     zoom_limits=nothing, worker_ids=Int[], metadata=(;),
     output_directory=joinpath(pwd(), "output", "bifurcation_" * Dates.format(now(), "yyyymmdd_HHMMSSsss")))
     speeds = bifurcation_speeds(U_min, U_max, dU)
@@ -154,7 +190,7 @@ function run_bifurcation(simulate; U_min, U_max, dU, definitions,
     mkpath(directory)
     isempty(readdir(directory)) || throw(ArgumentError("Use an empty output directory to preserve run provenance: $directory"))
     settings = (; responses=selected, definitions, simulation_time, transient_time,
-        check_convergence, rtol, convergence_cycles, save_time_histories)
+        check_convergence, rtol, convergence_cycles, save_time_histories, save_local_extrema)
     open(joinpath(directory, "settings.txt"), "w") do io
         println(io, "Independent constant-speed simulations; no state transfer between speeds.")
         println(io, "Speeds [m/s]: ", speeds)
@@ -164,21 +200,30 @@ function run_bifurcation(simulate; U_min, U_max, dU, definitions,
     end
     jobs = collect(enumerate(speeds))
     rows = Any[]
+    local_extrema = Any[]
     summary_path = joinpath(directory, "bifurcation_summary.csv")
+    local_extrema_path = save_local_extrema ? joinpath(directory, "bifurcation_local_extrema.csv") : nothing
     operation = job -> analyze_speed(job, simulate, settings, directory)
     if isempty(worker_ids)
         for job in jobs
-            append!(rows, operation(job))
+            case = operation(job)
+            append!(rows, case.rows)
+            append!(local_extrema, case.local_extrema)
             write_summary(summary_path, rows)
+            save_local_extrema && write_local_extrema(local_extrema_path, local_extrema)
         end
     else
-        append!(rows, reduce(vcat, pmap(operation, WorkerPool(worker_ids), jobs)))
+        for case in pmap(operation, WorkerPool(worker_ids), jobs)
+            append!(rows, case.rows)
+            append!(local_extrema, case.local_extrema)
+        end
         write_summary(summary_path, rows)
+        save_local_extrema && write_local_extrema(local_extrema_path, local_extrema)
     end
     if plot_results
         plot_bifurcation(summary_path; output_directory=directory, plot_amplitude, zoom_limits)
     end
-    return (; speeds, rows, summary_path, output_directory=directory)
+    return (; speeds, rows, summary_path, local_extrema_path, output_directory=directory)
 end
 
 """Regenerate figures from CSV alone; means are never substituted for static equilibria."""

@@ -55,6 +55,8 @@ end
         @test vec(header)[1:4] == ["airspeed_mps","response","unit","minimum"]
         @test isfile(joinpath(directory,"case_0001_history.csv"))
         @test isfile(joinpath(directory,"case_0002_extrema.csv"))
+        @test isfile(sweep.local_extrema_path)
+        @test isfile(joinpath(directory,"case_0002_local_extrema.csv"))
         paths = plot_bifurcation(sweep.summary_path; zoom_limits=(20.5,21.5))
         @test length(paths) == 3
         @test all(p -> filesize(p)>1000, paths)
@@ -116,6 +118,11 @@ end
                     output_directory=joinpath(directory,"parallel"))
                 @test getproperty.(parallel.rows,:minimum) ≈ getproperty.(sweep.rows,:minimum)
                 @test getproperty.(parallel.rows,:maximum) ≈ getproperty.(sweep.rows,:maximum)
+                serial_peaks = readdlm(sweep.local_extrema_path, ','; skipstart=1)
+                parallel_peaks = readdlm(parallel.local_extrema_path, ','; skipstart=1)
+                @test size(parallel_peaks) == size(serial_peaks)
+                @test parallel_peaks[:,1:4] == serial_peaks[:,1:4]
+                @test Float64.(parallel_peaks[:,5:6]) ≈ Float64.(serial_peaks[:,5:6])
                 @test !isfile(joinpath(parallel.output_directory,"case_0001_history.csv"))
             finally
                 rmprocs(ids)

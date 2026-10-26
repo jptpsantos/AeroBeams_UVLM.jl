@@ -6,9 +6,11 @@ Run from the repository root:
 julia --project=. lib/WingPropellerUVLM/examples/pazy_aerobeams_coupled/run_pazy_bifurcation.jl
 ```
 
-Edit the named tuple at the bottom of that file before a full study. Defaults
-are 35:1:52 m/s, root incidence 5 degrees, 10 s at each fixed speed, statistics
-over `t >= 8 s`, serial execution, and no saved time histories. The exact upper
+Edit the named tuple at the bottom of that file before a full study. The current
+entry point uses 30:0.5:60 m/s, root incidence 5 degrees, 7 s at each fixed speed,
+statistics over `t >= 5 s`, zero pulse, serial execution, and no saved time histories.
+The function defaults use the same 30:0.5:60 m/s grid, 10 s with `t >= 8 s`, and a 0.1 N pulse.
+The exact upper
 endpoint is included even if the speed increment does not divide the interval.
 This is a separate runner; existing ramp and continuous LCO scripts retain
 their behavior. Including the new runner loads functions without executing.
@@ -107,9 +109,15 @@ responses. Extend the run/window and check timestep, mesh and wake sensitivity
 before interpreting a branch as settled. The mean oscillatory response is
 saved separately from the independently calculated static equilibrium.
 
-One overall minimum and maximum per speed describes the response envelope.
-It does not reproduce the multiple local-extremum clouds in the 2024 figure
-or identify Hopf points; those require additional peak/eigenvalue analysis.
+The summary retains one overall minimum and maximum per speed for the response
+envelope. With `save_local_extrema=true` (default), a separate compact CSV saves
+**every local minimum and maximum** within the same final time window, including
+sample time and signed response value. Flat peaks count once, at their last
+sample. Window endpoints do not count as local peaks; strictly stationary or
+monotone windows yield no artificial oscillatory extrema. No smoothing, peak
+threshold, or convergence-based removal is applied. The paper-style plots use
+these local peaks, so modulated responses can produce multiple points per speed.
+Neither extrema extraction nor the convergence diagnostic identifies Hopf points.
 Independent runs sample the attraction basin selected by their initialization
 and pulse. They do not trace both coexisting branches of a hysteresis loop.
 
@@ -126,19 +134,101 @@ accidental mixing with an earlier run.
 - `case_NNNN_extrema.csv`: compact per-speed results, also preserving completed
   cases if a later solve fails. Serial execution updates the combined summary
   after each speed; process execution writes it when all tasks complete.
+- `bifurcation_local_extrema.csv` and `case_NNNN_local_extrema.csv`: every retained
+  local extremum, with columns `airspeed_mps,response,unit,kind,time_s,value`.
+  These do not require full saved time histories. Set `save_local_extrema=false`
+  to disable them.
 - `case_NNNN_history.csv`: selected scalar histories only, when
   `save_time_histories=true`. Full beam/load/lattice/animation histories are
   disabled in the Pazy adapter. One run's scalar arrays are released after
   extraction; complete solver objects are not accumulated across speeds.
 - `bifurcation_RESPONSE.png`, optional `_zoom.png` and `_amplitude.png`.
+- `pazy_bifurcation.png` / `.pdf`: the four-panel paper-style figure, plus
+  `pazy_bifurcation_RESPONSE.png` / `.pdf` for each individual panel.
 
-Regenerate plots from CSV without loading an aeroelastic solver:
+## Four-panel figure matching the supplied style
+
+The 5-degree runner enables `plot_paper=true`. Panels show tip out-of-plane
+displacement (% semispan), near-root longitudinal strain (microstrain), tip twist
+(degrees), and **geometric tip incidence** (root incidence + elastic twist).
+The fourth panel is explicitly labelled geometric incidence: the existing
+UVLM output does not provide the reference figure's effective tip angle of
+attack. It does not include plunge velocity or induced-flow effects.
+
+The figure uses orange for 5 degrees, downward/upward triangles for all local
+minima/maxima, a dashed curve for independently solved static equilibrium,
+serif text, light grids, captions below each panel, and a two-column legend.
+The combined figure is 1100 by 860 pixels at the base plotting size, exported
+at 300 dpi. Plot axes follow the supplied reference exactly:
+
+| Panel | Y range | Y tick step |
+| --- | --- | --- |
+| Tip OOP displacement | 15 to 35 % semispan | 5 |
+| Root longitudinal strain | -5000 to 0 microstrain | 1000 |
+| Tip twist | -15 to 15 degrees | 5 |
+| Geometric tip incidence | -10 to 20 degrees | 5 |
+
+All x axes cover 30 to 60 m/s with ticks every 5 m/s. The simulation grid uses
+0.5 m/s increments (61 independent speeds); the image does not establish a
+simulation increment, timestep, pulse, or transient duration. Those numerical
+settings remain explicit in the runner. Configure the axes with:
+
+```julia
+paper_plot_options=(
+    xlims=(30.0,60.0), xticks=30:5:60,
+    ylims=((15.0,35.0), (-5000.0,0.0), (-15.0,15.0), (-10.0,20.0)),
+    yticks=(15:5:35, -5000:1000:0, -15:5:15, -10:5:20),
+    formats=("png","pdf"), save_panels=true,
+)
+```
+
+The same reference axes apply to CSV-only replotting by default. Fixed axes may
+clip results outside the reference ranges; all raw extrema remain saved in CSV.
+For automatic axes use `xlims=nothing, xticks=:auto,
+ylims=(nothing,nothing,nothing,nothing), yticks=(:auto,:auto,:auto,:auto)`.
+
+All convergence statuses remain in the summary and the existing diagnostic
+plots. The paper-style figure plots raw local extrema without convergence-cross
+overlays; inspect the diagnostic plots/CSV before interpreting a branch.
+Hopf diamonds are drawn only for independently identified, explicitly supplied
+points. The legend includes the reference's Hopf symbol key by default even
+when no points have been supplied; `show_hopf_key=false` hides that unused key.
+Supply actual airspeed and response values rather than treating an
+amplitude threshold as a Hopf detection:
+
+```julia
+plot_pazy_bifurcation(result.summary_path;
+    hopf_points=((angle_of_attack_deg=5.0, airspeed_mps=U_hopf,
+        responses=(tip_out_of_plane_percent=u3_hopf, root_strain_ue=strain_hopf,
+            tip_twist_deg=twist_hopf, tip_geometric_incidence_deg=incidence_hopf)),))
+```
+
+Regenerate the paper-style figures from CSV without loading an aeroelastic solver:
 
 ```powershell
 julia --project=. lib/WingPropellerUVLM/examples/pazy_aerobeams_coupled/plot_pazy_bifurcation.jl path/to/bifurcation_summary.csv
 ```
 
-Programmatically call `plot_bifurcation(result.summary_path;
+The plotter reads root incidence from the run's `settings.txt`. Without that file,
+supply `angle_of_attack_deg=5.0` programmatically. Old results without a local-peak
+CSV still plot, with a warning and legend labels identifying their final-window
+envelopes. Missing geometric incidence can be reconstructed exactly from the
+saved tip twist and root incidence. Missing local peaks cannot be recovered from
+summary statistics alone; rerun the analysis to save them.
+
+Later, overlay other incidences by passing multiple summary paths:
+
+```julia
+include("lib/WingPropellerUVLM/examples/pazy_aerobeams_coupled/plot_pazy_bifurcation.jl")
+plot_pazy_bifurcation([summary_3deg, summary_5deg, summary_7deg];
+    output_directory="tmp/pazy_bifurcation_comparison")
+```
+
+Colors are blue/orange/yellow for 3/5/7 degrees. Individual files and the combined
+figure are exported as PNG and PDF by default; SVG is also supported. Set
+`save_panels=false` to export only the combined figure.
+
+The existing envelope/amplitude plot API remains `plot_bifurcation(result.summary_path;
 zoom_limits=(42.0,47.0), plot_amplitude=true)`. Static curves use only actual
 equilibrium values; unavailable values are NaN and omitted.
 
@@ -197,6 +287,7 @@ scalar extraction. Pazy itself has no propeller DOFs.
 ## Verification and reference scope
 
 ```powershell
+julia --startup-file=no --compiled-modules=existing --project=. lib/WingPropellerUVLM/examples/pazy_aerobeams_coupled/test_pazy_bifurcation_plots.jl --keep-output
 julia --startup-file=no --compiled-modules=existing --project=. lib/WingPropellerUVLM/examples/pazy_aerobeams_coupled/test_pazy_bifurcation.jl --parallel
 julia --startup-file=no --compiled-modules=existing --project=. lib/WingPropellerUVLM/examples/wing_propeller_aeroelastic/validation/test_bifurcation.jl
 ```
@@ -207,6 +298,10 @@ first-speed run after the second speed, and agreement between serial and
 separate-process results. The millisecond physical runs test plumbing and
 initialization, not settled LCO behavior. The full 10-second grid is deliberately
 separate from these checks.
+The CSV-only plotting test also verifies raw peak values/times, plateau handling,
+multiple extrema per speed, stationary header-only peak files, legacy envelopes,
+and combined/individual PNG/PDF exports. Its retained preview is synthetic and
+is saved under `tmp/pazy_bifurcation_style_validation_*`, separate from studies.
 
 The supplied Riso/Cesnik IFASD 2022 preprint, p. 13 and Fig. 11 (p. 15), states
 the 10-second late-extrema procedure and describes static initialization followed
@@ -222,3 +317,44 @@ comparison checks, and all 179 existing `test_pazy_LCO.jl` regression checks
 passed. The generated figures were visually inspected. The parallel comparison
 ran outside the execution sandbox after its worker-pipe startup restriction was
 confirmed with a minimal probe. Full 10-second airspeed grids were not run.
+
+## Revise errors while loading dependencies
+
+Messages such as `Failed to revise PrettyTables`, `invalid redefinition of
+constant PrettyTables.ColumnTable`, or `invalid redefinition of constant
+Adapt.WrappedArray` identify a failure in the interactive session's live reload.
+Later missing-type errors can follow the unsuccessful redefinitions. They do
+not report an aerodynamic or structural convergence failure.
+
+Restart the affected Julia REPL to rebuild its package state. On Julia 1.11,
+Revise cannot replace changed struct definitions in place; see the
+[Revise limitations](https://timholy.github.io/Revise.jl/stable/limitations/).
+The exact trigger may be a package/source/environment change during an existing
+session; the stack trace alone does not establish which change occurred.
+
+For a long study, a fresh terminal process avoids the existing REPL state:
+
+```powershell
+julia --startup-file=no --project=. lib/WingPropellerUVLM/examples/pazy_aerobeams_coupled/run_pazy_bifurcation.jl
+```
+
+VS Code's Julia extension loads Revise automatically when `julia.useRevise`
+is enabled (its default). To disable that automatic loading for new REPLs,
+set `"julia.useRevise": false` in workspace settings, then restart the REPL.
+Changing this setting does not repair a session that already has failed type
+redefinitions. No solver tolerance or aerodynamic parameter adjustment is
+indicated by these messages.
+
+The coupling adapter prepends the local UVLM environment to `LOAD_PATH`. At
+the 24 October check, the root manifest selected PrettyTables 2.4.0 / Adapt
+3.7.2, while the UVLM manifest selected PrettyTables 3.4.8 / Adapt 4.7.0.
+A fresh adapter load used the latter versions and succeeded. This is a reason
+to keep a study in one fresh process rather than reuse a session across
+environment changes; the version difference alone did not reproduce the
+reported Revise failure in an isolated probe.
+
+Read-only verification logs: `tmp/pazy_bifurcation_clean_load.log` records a
+successful guarded entry-point load without Revise; `tmp/pazy_prettytables_clean_load.log`
+records a successful table rendering with the root project's PrettyTables;
+`tmp/pazy_revise_load_path.log` records the successful isolated Revise probe.
+These checks load dependencies without launching the full bifurcation study.

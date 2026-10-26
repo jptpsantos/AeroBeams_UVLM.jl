@@ -11,6 +11,90 @@ directly from the IDE or the repository root:
 julia --project=. lib/WingPropellerUVLM/examples/pazy_aerobeams_coupled/run_pazy_LCO.jl
 ```
 
+## Separate angles and preserve earlier runs
+
+In `run_pazy_LCO_strains.jl` or `run_pazy_LCO_downsweep_pulse.jl`, edit the
+single root-incidence setting near the top:
+
+```julia
+angle_of_attack_deg = 3.0   # change to 7.0 for the other case
+```
+
+The angle sets both the simulation incidence and the output folder. Independent
+strain sweeps now create a fresh numbered run for every execution:
+
+| Root incidence | Example output directory |
+| --- | --- |
+| 3 degrees | `output/LCO_downsweep_pulse/AoA3/run_001` |
+| 5 degrees | `output/LCO_downsweep_pulse/AoA5/run_001` |
+| 7 degrees | `output/LCO_downsweep_pulse/AoA7/run_001` |
+
+In either strain runner, change the initial and peak speeds for each incidence
+while keeping the two rate settings fixed:
+
+```julia
+sweep_initial_speed = 35.0  # m/s; change for the selected angle
+sweep_peak_speed = 52.0     # m/s; change for the selected angle
+upsweep_rate = 0.425        # m/s^2; ascending dU/dt
+downsweep_rate = 0.85       # m/s^2; magnitude of descending dU/dt
+```
+
+Durations are calculated automatically as `T_up = (U_peak-U_initial)/0.425`
+and `T_down = (U_peak-U_initial)/0.85`. Thus the velocity slopes remain
+**+0.425 m/s^2** and **-0.85 m/s^2**, respectively, for every angle. The 35-52 m/s
+reference still takes 40 s up and 20 s down. For example, a 40-61 m/s interval
+takes approximately 49.412 s up and 24.706 s down. The time-axis intercept
+changes with the starting speed; it is the slope that is preserved.
+
+Pulse start times follow the computed durations, so pulses still trigger at
+their configured speeds. Keep each enabled pulse's trigger speed inside the
+chosen interval and leave enough time to complete its pulse. Both actual signed
+ramp rates and the resulting durations are recorded in the run settings.
+
+Repeating 3 degrees creates `AoA3/run_002`, then `run_003`, etc., including
+after a failed or partial run. The pulse selection still sets the parent folder.
+All CSVs, initialization histories, settings and automatic strain figures from
+one execution stay together. The actual directory is printed and returned as
+`pulse_lco_results.output_directory` (also assigned to `output_directory` in
+the runners). Existing flat 5-degree files and the `AoA5` copy are preserved;
+no migration is needed.
+
+With `plot_only=true`, the runners select the newest existing run for the chosen
+angle without allocating a new folder. Set `plot_run_directory` to an exact
+directory to replot an older run. Legacy files directly inside `AoA5` or the
+parent folder are supported when their saved incidence matches the requested
+angle. A request for 3 or 7 degrees cannot fall back to 5-degree data.
+
+For custom `run_pazy_linear_LCO` calls, `angle_of_attack` remains in **radians**.
+Use `output_base_directory` to change the parent while retaining angle/run
+organization. An explicit `output_directory` is used exactly as supplied and
+must be empty; a nonempty directory raises an error before any output is written
+or either static/dynamic solver is called. Independent defaults use
+`output/LCO_independent_sweeps/AoA<degrees>/run_NNN`.
+
+Custom `run_pazy_linear_LCO` calls also derive durations from the rate magnitudes
+by default. Its `upsweep_rate` and `downsweep_rate` keywords use the same values
+shown above. If `downsweep_initial_speed` differs from `peak_speed`, the descending
+duration uses its own speed range. Supplying `upsweep_duration` or
+`downsweep_duration` explicitly overrides that branch's rate-based duration,
+allowing earlier short numerical diagnostics and fixed-duration comparisons.
+
+Spectrograms follow the selected run and are saved in its `spectrograms` folder:
+
+```julia
+include("lib/WingPropellerUVLM/examples/pazy_aerobeams_coupled/plot_pazy_LCO_spectrogram.jl")
+plot_pazy_LCO_spectrogram(; angle_of_attack_deg=3.0, plot_branches=:both)
+plot_pazy_LCO_spectrogram(; angle_of_attack_deg=7.0, plot_branches=:both)
+```
+
+The output-routing regression uses temporary directories and mock solver
+responses to check both entry points, repeat runs, plot-only selection and
+preservation of existing 5-degree results:
+
+```powershell
+julia --project=. lib/WingPropellerUVLM/examples/pazy_aerobeams_coupled/test_pazy_LCO_output.jl
+```
+
 ## Continuous test (separate runner)
 
 Use `run_pazy_continuous_LCO.jl` for the single continuous simulation:
@@ -65,7 +149,7 @@ This comparison uses the continuous test's speed ranges, ramp rates, dt, wake
 capacity, mesh, and convergence controls; its downsweep starts from its own
 static equilibrium. The restored independent runner uses the same 35-52 m/s
 range, with automatic timestep selection, and writes to
-`output/LCO_independent_sweeps`.
+`output/LCO_independent_sweeps/AoA5/run_NNN`.
 
 A short physical regression compares the continuous upsweep against the
 independent upsweep and checks the shared boundary sample, live velocity,
@@ -136,7 +220,7 @@ julia --project=. lib/WingPropellerUVLM/examples/pazy_aerobeams_coupled/run_pazy
 With `pulse_branches=:downsweep`, this runner performs the 35 -> 52 m/s upsweep in 40 s without a pulse,
 then an independently initialized 52 -> 35 m/s downsweep in 20 s with a tip
 pulse triggered at 49 m/s. Edit `pulse_speed`, `pulse_coefficient`, and
-`pulse_duration` in that file. It saves to `output/LCO_downsweep_pulse` and
+`pulse_duration` in that file. It saves under `output/LCO_downsweep_pulse/AoA<degrees>/run_NNN` and
 does not include or execute `run_pazy_LCO.jl`. Set
 `PAZY_LCO_DOWNSWEEP_PULSE_RUN=false` before including it to load without running.
 
@@ -149,11 +233,11 @@ The initial diagnostic values are 45 m/s, 0.1 N and 0.04 s. The descending
 branch retains `pulse_speed`, `pulse_coefficient`, and `pulse_duration`.
 At 40 s ascending duration, the 45 m/s trigger occurs at 23.5294 s.
 
-The output folder follows the pulse selection: `LCO_downsweep_pulse`,
+The output parent folder follows the pulse selection: `LCO_downsweep_pulse`,
 `LCO_both_pulses`, `LCO_upsweep_pulse`, or `LCO_no_pulse`. Use the same selection
-when replotting saved results, or explicitly set `output_directory`.
-Repeating a case in the same directory replaces that case's outputs; use a
-different directory when comparing mesh, duration, or force parameters.
+when replotting saved results, or select an exact run directory. Each simulation
+creates a fresh numbered run within its angle folder, so changes to mesh,
+duration or force parameters do not replace an earlier run.
 
 Pulses provide a controlled initial disturbance, not a correction guaranteeing
 an LCO. Compare identical speed histories, dt, mesh and wake settings first.
@@ -175,6 +259,7 @@ wake capacity/age, and aerodynamic controls are recorded in the settings file.
 At the top of the runner, select simulation and plotting independently:
 
 ```julia
+angle_of_attack_deg = 3.0    # simulation incidence and output angle folder
 run_branches = :both        # :both, :upsweep, or :downsweep
 pulse_branches = :both      # :both, :upsweep, :downsweep, or :none
 plot_only = false       # true: read saved CSVs without running either analysis
@@ -209,9 +294,11 @@ To replot the saved results without rerunning this case:
 
 ```julia
 include("lib/WingPropellerUVLM/examples/pazy_aerobeams_coupled/plot_pazy_LCO.jl")
+directory = pazy_lco_latest_output_directory(
+    joinpath("lib", "WingPropellerUVLM", "examples", "pazy_aerobeams_coupled",
+        "output", "LCO_downsweep_pulse"), 3.0)
 plot_pazy_LCO(; plot_branches=:downsweep,
-    output_directory=joinpath("lib", "WingPropellerUVLM", "examples",
-    "pazy_aerobeams_coupled", "output", "LCO_downsweep_pulse"))
+    output_directory=directory)
 ```
 
 For custom calls, the driver accepts `upsweep_pulse_amplitude` [N],
@@ -231,7 +318,7 @@ pulsed_results = run_pazy_linear_LCO(;
     downsweep_pulse_amplitude=0.1,
     downsweep_pulse_start=pulse_start, # approximately 3.5294 s
     downsweep_pulse_duration=0.04,
-    output_directory=joinpath("lib", "WingPropellerUVLM", "examples",
+    output_base_directory=joinpath("lib", "WingPropellerUVLM", "examples",
         "pazy_aerobeams_coupled", "output", "LCO_downsweep_pulse"))
 ```
 
@@ -271,7 +358,7 @@ The default 10 x 20 UVLM mesh and five nominal chord lengths of wake are retaine
 Static initialization adds computation, but its wake-development time is not
 physical wing-motion time and is not added to either ramp duration.
 
-Outputs in `output/LCO_independent_sweeps`:
+Outputs in each `output/LCO_independent_sweeps/AoA<degrees>/run_NNN`:
 
 - `pazy_linear_LCO_upsweep.csv` and `pazy_linear_LCO_downsweep.csv`: independent
   histories, each starting at time zero, with speed, root strain, raw root axial

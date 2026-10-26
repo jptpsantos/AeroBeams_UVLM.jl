@@ -9,6 +9,14 @@ function pazy_linear_airspeed(t; start_speed, end_speed, duration)
     return start_speed + (end_speed - start_speed) * clamp(t / duration, 0.0, 1.0)
 end
 
+"""Time for a linear ramp at a prescribed positive speed-change magnitude [m/s^2]."""
+function pazy_lco_ramp_duration(start_speed, end_speed, rate)
+    all(isfinite, (start_speed, end_speed, rate)) &&
+        start_speed > 0 && end_speed > 0 && start_speed != end_speed && rate > 0 ||
+        throw(ArgumentError("Ramp endpoints must be positive, finite and distinct; rate must be positive and finite"))
+    return abs(end_speed-start_speed)/rate
+end
+
 """Align simple fractional ramp durations without reducing dt to rounding noise."""
 function pazy_lco_aligned_timestep(upsweep_duration, downsweep_duration, nominal_dt;
     fixed_time_step=nothing)
@@ -36,6 +44,11 @@ pazy_root_strain_ue(result, y, z) = 1e6 .* (result.root_axial_strain .+
 """Run independent upsweep and downsweep simulations at fixed root incidence.
 
 Defaults: 35 -> 52 m/s in 40 s and 52 -> 35 m/s in 20 s, at 5 degrees.
+With durations omitted, `upsweep_rate=0.425` and `downsweep_rate=0.85` [m/s^2]
+set positive rate magnitudes. Durations follow each branch's speed range, so
+changing endpoints preserves dU/dt = +0.425 and -0.85 m/s^2, respectively.
+An explicitly supplied duration overrides the rate for that branch, preserving
+duration-based calls used for numerical diagnostics and earlier comparisons.
 `downsweep_initial_speed` defaults to `peak_speed`; set it independently to
 start the downsweep higher without extending the upsweep. The shared timestep
 is sized for the highest speed of either branch.
@@ -61,10 +74,14 @@ Skipped branches have no static solve or dynamic integration and return nothing.
 Timestep and wake sizing retain both configured ramps for consistent comparisons.
 `plot_branches` defaults to `run_branches` and independently selects saved
 figures from the computed branches. No previous CSV is used in automatic plots.
+By default, save to `output_base_directory/AoA<degrees>/run_001`, then run_002,
+etc. An explicit `output_directory` must be empty; existing results are never
+overwritten. The returned `output_directory` identifies this run's actual folder.
 """
 function run_pazy_linear_LCO(; initial_speed=35.0, peak_speed=52.0,
     downsweep_initial_speed=peak_speed,
-    upsweep_duration=40.0, downsweep_duration=20.0,
+    upsweep_rate=0.425, downsweep_rate=0.85,
+    upsweep_duration=nothing, downsweep_duration=nothing,
     density=1.225, angle_of_attack=deg2rad(5.0),
     chordwise_panels=10, spanwise_panels=20, time_step_chords=0.25,
     fixed_time_step=nothing, maximum_wake_rows=nothing,
@@ -79,12 +96,18 @@ function run_pazy_linear_LCO(; initial_speed=35.0, peak_speed=52.0,
     coupling_relaxation=0.5, coupling_geometry_tolerance=1e-4,
     coupling_load_tolerance=1e-4, progress_frequency=100,
     equilibrium_options=(;), run_branches=:both, plot_branches=run_branches,
-    output_directory=joinpath(@__DIR__, "output", "LCO_independent_sweeps"))
+    output_base_directory=joinpath(@__DIR__, "output", "LCO_independent_sweeps"),
+    output_directory=nothing)
 
+    upsweep_duration = isnothing(upsweep_duration) ?
+        pazy_lco_ramp_duration(initial_speed, peak_speed, upsweep_rate) : upsweep_duration
+    downsweep_duration = isnothing(downsweep_duration) ?
+        pazy_lco_ramp_duration(downsweep_initial_speed, initial_speed, downsweep_rate) : downsweep_duration
     @assert all(isfinite, (initial_speed, peak_speed, downsweep_initial_speed, upsweep_duration,
         downsweep_duration, time_step_chords, wake_length_chords, gauge_y, gauge_z,
         downsweep_pulse_amplitude, downsweep_pulse_start, downsweep_pulse_duration,
-        upsweep_pulse_amplitude, upsweep_pulse_start, upsweep_pulse_duration))
+        upsweep_pulse_amplitude, upsweep_pulse_start, upsweep_pulse_duration,
+        angle_of_attack))
     @assert 0 < initial_speed < peak_speed
     @assert downsweep_initial_speed > initial_speed
     @assert upsweep_duration > 0 && downsweep_duration > 0
@@ -129,13 +152,16 @@ function run_pazy_linear_LCO(; initial_speed=35.0, peak_speed=52.0,
         consecutive_equilibrium_iterations=2, newton_maximum_iterations=50,
         newton_absolute_tolerance=1e-8, newton_relative_tolerance=1e-8,
         newton_display_iterations=false, progress_frequency), equilibrium_options)
-    mkpath(output_directory)
+    output_directory = pazy_lco_prepare_output_directory(output_directory;
+        base_directory=output_base_directory, angle_of_attack_deg=rad2deg(angle_of_attack))
+    println("New LCO run at $(rad2deg(angle_of_attack)) degrees: $output_directory")
     settings_path = joinpath(output_directory, "pazy_linear_LCO_settings.txt")
     open(settings_path, "w") do io
         println(io, "Independent simulations; separate coupled static equilibrium and developed wake for each branch.")
         println(io, "Run branches: $run_branches; unselected branches have no static or dynamic solve")
         println(io, "Upsweep: $initial_speed -> $peak_speed m/s in $upsweep_duration s")
         println(io, "Downsweep: $downsweep_initial_speed -> $initial_speed m/s in $downsweep_duration s")
+        println(io, "Upsweep rate [m/s^2]: ", (peak_speed-initial_speed)/upsweep_duration)
         println(io, "Downsweep rate [m/s^2]: ", (initial_speed-downsweep_initial_speed)/downsweep_duration)
         println(io, "Timestep reference airspeed [m/s]: $maximum_speed")
         println(io, "Each branch starts at t=0 with zero structural velocities; no preparation hold or state transfer between branches.")

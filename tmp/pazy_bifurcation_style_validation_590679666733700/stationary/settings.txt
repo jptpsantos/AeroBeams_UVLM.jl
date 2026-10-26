@@ -1,0 +1,5 @@
+Independent constant-speed simulations; no state transfer between speeds.
+Speeds [m/s]: [40.0]
+Analysis: (responses = [:tip_out_of_plane_percent, :root_strain_ue, :tip_twist_deg, :tip_geometric_incidence_deg], definitions = (tip_out_of_plane_percent = (unit = "% semispan", label = "Tip OOP displacement", atol = 0.0001), root_strain_ue = (unit = "microstrain", label = "Near-root longitudinal strain", atol = 0.1), tip_twist_deg = (unit = "deg", label = "Tip twist", atol = 0.001), tip_geometric_incidence_deg = (unit = "deg", label = "Tip geometric incidence", atol = 0.001)), simulation_time = 2.0, transient_time = 1.0, check_convergence = true, rtol = 0.02, convergence_cycles = 3, save_time_histories = false, save_local_extrema = true)
+Worker IDs: Int64[]
+Model settings: NamedTuple()
