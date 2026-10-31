@@ -7,9 +7,9 @@ julia --project=. lib/WingPropellerUVLM/examples/pazy_aerobeams_coupled/run_pazy
 ```
 
 Edit the named tuple at the bottom of that file before a full study. The current
-entry point uses 30:0.5:60 m/s, root incidence 5 degrees, 7 s at each fixed speed,
-statistics over `t >= 5 s`, zero pulse, serial execution, and no saved time histories.
-The function defaults use the same 30:0.5:60 m/s grid, 10 s with `t >= 8 s`, and a 0.1 N pulse.
+entry point uses 40:0.25:50 m/s, root incidence 5 degrees, 10 s at each fixed speed,
+statistics over `t >= 8 s`, zero pulse, serial execution, and no saved time histories.
+The function defaults use 35:1:52 m/s, 10 s with `t >= 8 s`, and a 0.1 N pulse.
 The exact upper
 endpoint is included even if the speed increment does not divide the interval.
 This is a separate runner; existing ramp and continuous LCO scripts retain
@@ -168,8 +168,9 @@ at 300 dpi. Plot axes follow the supplied reference exactly:
 | Tip twist | -15 to 15 degrees | 5 |
 | Geometric tip incidence | -10 to 20 degrees | 5 |
 
-All x axes cover 30 to 60 m/s with ticks every 5 m/s. The simulation grid uses
-0.5 m/s increments (61 independent speeds); the image does not establish a
+The reference x axes cover 30 to 60 m/s with ticks every 5 m/s. The current
+runner selects a 40 to 50 m/s view and 0.25 m/s simulation increments
+(41 independent speeds). The image does not establish a
 simulation increment, timestep, pulse, or transient duration. Those numerical
 settings remain explicit in the runner. Configure the axes with:
 
@@ -179,8 +180,21 @@ paper_plot_options=(
     ylims=((15.0,35.0), (-5000.0,0.0), (-15.0,15.0), (-10.0,20.0)),
     yticks=(15:5:35, -5000:1000:0, -15:5:15, -10:5:20),
     formats=("png","pdf"), save_panels=true,
+    fontfamily="Times", captionfontfamily="Times Bold",
+    guidefontsize=12, tickfontsize=11, legendfontsize=10, captionfontsize=11,
+    linewidth=0.55, markersize=1.35, markerstrokewidth=0.4,
+    figure_size=(1100,860), panel_size=(550,420), dpi=300, gridalpha=0.18,
 )
 ```
+
+These appearance controls are passed directly to `plot_pazy_bifurcation`;
+no plotting-module edits are needed to tune them. `linewidth` controls the
+dashed steady curves; extrema remain unconnected triangle markers. Marker
+sizes and line widths are in plotting points. Font sizes are in points,
+`figure_size`/`panel_size` set base (width,height), and `dpi` controls PNG
+resolution. GR's built-in TeX renders the subscripted scientific labels
+without an external LaTeX installation. The reference-style outputs begin
+with `pazy_bifurcation`; the older `bifurcation_` outputs are diagnostics.
 
 The same reference axes apply to CSV-only replotting by default. Fixed axes may
 clip results outside the reference ranges; all raw extrema remain saved in CSV.
@@ -319,6 +333,30 @@ ran outside the execution sandbox after its worker-pipe startup restriction was
 confirmed with a minimal probe. Full 10-second airspeed grids were not run.
 
 ## Revise errors while loading dependencies
+
+### Unsupported bifurcation keywords
+
+`got unsupported keyword arguments "save_local_extrema", "plot_paper", "paper_plot_options"`
+means the adapter being called has the older function signature. The Pazy
+adapter must accept those three keywords, forward `save_local_extrema` to the
+shared driver, and invoke the paper-style plotter with `paper_plot_options`.
+The entry point now checks its module API version and gives a restart message
+when an older module is already retained in the IDE REPL.
+
+After updating the source, start a fresh Julia process to replace any cached
+older definitions. Check the runner's keyword compatibility without starting
+simulations or creating result folders:
+
+```powershell
+julia --startup-file=no --project=. lib/WingPropellerUVLM/examples/pazy_aerobeams_coupled/run_pazy_bifurcation.jl --check-config
+```
+
+This checks the entry-point keyword dispatch with `enabled=false`; it does not
+solve a structural model or verify numerical convergence. Omit `--check-config`
+to run the configured study. Do not remove the plotting/extrema keywords to
+work around a stale session, since they control the requested outputs.
+
+### Dependency reload errors
 
 Messages such as `Failed to revise PrettyTables`, `invalid redefinition of
 constant PrettyTables.ColumnTable`, or `invalid redefinition of constant

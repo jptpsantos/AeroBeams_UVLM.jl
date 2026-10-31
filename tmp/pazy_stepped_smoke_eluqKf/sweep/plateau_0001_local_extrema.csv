@@ -1,0 +1,2 @@
+airspeed_mps,response,unit,kind,time_s,value,plateau_index,direction,global_time_s,extrema_method
+20.0,root_strain_ue,microstrain,maximum,0.005593223859090555,-34.261822765638414,1,upsweep,0.005593223859090555,quadratic

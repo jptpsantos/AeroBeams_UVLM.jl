@@ -32,14 +32,14 @@ function chang_case_defaults()
         trim_speed_mps = 65.0,
 
         # One entry per propeller: 0 = wing root, 1 = wing tip.
-        attachment_eta = [0.42, 0.83],
+        attachment_eta = [0.0],
         collective_pitch_offset_deg = 0.0, # Added to the Chang blade-angle distribution.
     )
 
     # 3. Flow, time stepping, and coupling
     simulation = (
         air_density_kgpm3 = 1.225,
-        freestream_speed_mps = 80.0,
+        freestream_speed_mps = 90.0,
         angle_of_attack_deg = 3.0,
         sideslip_deg = 0.0,
 
@@ -57,7 +57,7 @@ function chang_case_defaults()
         # Propeller pitch/yaw moments: :exact_virtual_work or :fixed_aero_axes.
         propeller_moment_projection = :exact_virtual_work,
 
-        impulse_propeller_indices = [1, 2],   # Propellers receiving the pitch impulse.
+        impulse_propeller_indices = [1],   # Propellers receiving the pitch impulse.
     )
 
     # 4. Aerodynamic finite core and load geometry

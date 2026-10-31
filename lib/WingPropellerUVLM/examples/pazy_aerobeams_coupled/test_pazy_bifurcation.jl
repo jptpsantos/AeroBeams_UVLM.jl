@@ -3,6 +3,32 @@ include(joinpath(@__DIR__, "PazyBifurcation.jl"))
 using .PazyBifurcation
 using .PazyBifurcation.TimeDomainBifurcation
 
+module StaleBifurcationSession
+module PazyBifurcation
+end
+end
+
+@testset "Runner keyword compatibility and stale-session guidance" begin
+    mktempdir() do directory
+        output = joinpath(directory, "must_not_be_created")
+        @test isnothing(run_pazy_bifurcation(; enabled=false,
+            U_min=40., U_max=50., dU=0.25, simulation_time=10., transient_time=6.,
+            save_local_extrema=true, plot_paper=true,
+            paper_plot_options=(linewidth=2., markersize=4.), output_directory=output))
+        @test !ispath(output)
+    end
+    # Reproduce an IDE REPL that already holds the old module. Fail before any
+    # runner configuration can launch a study, with a useful recovery message.
+    caught = try
+        Base.include(StaleBifurcationSession, joinpath(@__DIR__, "run_pazy_bifurcation.jl"))
+        nothing
+    catch err
+        err
+    end
+    @test caught isa LoadError
+    @test occursin("Restart the Julia REPL", sprint(showerror, caught))
+end
+
 @testset "Final-window statistics" begin
     t = collect(0:0.001:10)
     q = 3 .+ 2sin.(2pi .* 5 .* t)
@@ -110,6 +136,19 @@ end
         b = readdlm(joinpath(repeat.output_directory,"case_0001_history.csv"), ','; skipstart=1)
         @test a ≈ b rtol=1e-10 atol=1e-12
         @test !isfile(joinpath(directory,"repeat","case_0002_history.csv"))
+        # Exercise the actual Pazy adapter through both newly connected outputs.
+        # This millisecond case checks integration, not a settled bifurcation.
+        paper = run_pazy_bifurcation(; short..., U_max=20., plot_results=true,
+            plot_amplitude=false, plot_paper=true, save_local_extrema=true,
+            responses=(:tip_out_of_plane_percent, :root_strain_ue,
+                :tip_twist_deg, :tip_geometric_incidence_deg),
+            paper_plot_options=(formats=("png","pdf"), save_panels=false,
+                linewidth=2., markersize=4.),
+            output_directory=joinpath(directory,"paper"))
+        @test length(paper.rows) == 4
+        @test isfile(paper.local_extrema_path)
+        @test length(paper.paper_plot_paths) == 2
+        @test all(p -> isfile(p) && filesize(p)>1000, paper.paper_plot_paths)
         # Exercise separate-process solves and compare compact summaries to serial.
         if "--parallel" in ARGS
             ids = addprocs(2; exeflags=`--startup-file=no --compiled-modules=existing --project=$(dirname(Base.active_project()))`)

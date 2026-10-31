@@ -2,9 +2,14 @@ module PazyBifurcation
 
 include(joinpath(@__DIR__, "..", "bifurcation", "TimeDomainBifurcation.jl"))
 using .TimeDomainBifurcation
+include(joinpath(@__DIR__, "PazyBifurcationPlots.jl"))
+using .PazyBifurcationPlots
 using Distributed, Dates
 include(joinpath(@__DIR__, "PazyWingUVLMStatic.jl"))
-export run_pazy_bifurcation, plot_bifurcation
+export run_pazy_bifurcation, plot_bifurcation, plot_pazy_bifurcation
+
+# The entry point uses this to detect an older module retained by an IDE REPL.
+const BIFURCATION_API_VERSION = 2
 
 const RESPONSE_DEFINITIONS = (
     tip_out_of_plane_m=(unit="m", label="Tip out-of-plane displacement", atol=1e-6),
@@ -102,7 +107,8 @@ function run_pazy_bifurcation(; enabled=true, U_min=35.0, U_max=52.0, dU=1.0,
     dynamic_options=(;), equilibrium_options=(;),
     response_definitions=RESPONSE_DEFINITIONS,
     check_convergence=true, rtol=0.02, convergence_cycles=3,
-    save_time_histories=false, plot_results=true, plot_amplitude=true,
+    save_time_histories=false, save_local_extrema=true,
+    plot_results=true, plot_amplitude=true, plot_paper=true, paper_plot_options=(;),
     zoom_limits=nothing, worker_ids=Int[],
     output_directory=joinpath(@__DIR__, "output", "bifurcation",
         Dates.format(now(), "yyyymmdd_HHMMSSsss")))
@@ -166,10 +172,20 @@ function run_pazy_bifurcation(; enabled=true, U_min=35.0, U_max=52.0, dU=1.0,
         end)
     end
     simulate = speed -> simulate_pazy_speed(speed, options)
-    return run_bifurcation(simulate; U_min, U_max, dU,
+    result = run_bifurcation(simulate; U_min, U_max, dU,
         definitions=response_definitions, responses, simulation_time, transient_time,
-        check_convergence, rtol, convergence_cycles, save_time_histories,
+        check_convergence, rtol, convergence_cycles, save_time_histories, save_local_extrema,
         plot_results, plot_amplitude, zoom_limits, worker_ids, metadata=options, output_directory)
+    paper_plot_paths = String[]
+    if plot_results && plot_paper
+        if all(n -> n in responses, (:tip_out_of_plane_percent, :root_strain_ue, :tip_twist_deg))
+            paper_plot_paths = plot_pazy_bifurcation(result.summary_path;
+                angle_of_attack_deg=rad2deg(angle_of_attack), paper_plot_options...)
+        else
+            @warn "Four-panel figure requires tip_out_of_plane_percent, root_strain_ue and tip_twist_deg"
+        end
+    end
+    return (; result..., paper_plot_paths)
 end
 
 end # module

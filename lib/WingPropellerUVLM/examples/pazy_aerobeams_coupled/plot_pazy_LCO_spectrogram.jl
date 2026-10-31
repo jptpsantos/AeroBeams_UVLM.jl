@@ -190,7 +190,7 @@ function plot_pazy_LCO_spectrogram(;
         order = sortperm(spectrum.airspeed_mps)
         speed = spectrum.airspeed_mps[order]
         limits = airspeed_limits == :auto ? extrema(history.airspeed) : airspeed_limits
-        angle_label = isnothing(incidence) ? "" : ", α = $(incidence)°"
+        angle_label = isnothing(incidence) ? "" : ", α = $(round(incidence; digits=6))°"
         title = "AeroBeams + UVLM$(angle_label) ($(name))"
         figure = Plots.heatmap(speed, spectrum.frequency_hz, spectrum.amplitude_db[:, order];
             xlabel="Airspeed [m/s]", ylabel="Frequency [Hz]", title,

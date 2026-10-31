@@ -1,0 +1,19 @@
+Source: C:\Users\Acer\Documents\João Tavares\Doutorado EESC\Models\AeroBeams_UVLM.jl\lib\WingPropellerUVLM\examples\pazy_aerobeams_coupled\output\LCO_downsweep_pulse\AoA3\run_002\pazy_linear_LCO_downsweep.csv
+Branch: downsweep; root incidence [deg]: 3.0000000000000004
+Signal: signed root_longitudinal_strain_ue; near-root first-element midpoint gauge
+Sampling step [s]: 0.0004120809780329933; sample count: 57100
+Window: symmetric Hann; requested [s]: 1.0; actual N*dt [s]: 1.0001205336860748
+Window samples: 2427; hop samples: 121; actual overlap: 0.950144210960033
+FFT length: 16384; padded bin spacing [Hz]: 0.14811447143554687
+Nominal frequency resolution scale 1/(N*dt) [Hz]: 0.9998794808405438
+Window-center time range [s]: (0.4998542263540209, 22.987525278592496); frame count: 452
+Window-center speed range [m/s]: (40.46060351319638, 59.575123907599085)
+Airspeed change across a window [m/s], maximum: 0.8497521848018437
+Per-window detrending: linear; no global static solution is subtracted
+One-sided peak amplitude: 2*abs(rfft(window*signal))/sum(window); DC/Nyquist factor=1
+dB = 20*log10(amplitude_ue/1.0); dB floor: -80.0
+Color limits [dB]: (-40.0, 60.0); frequency limits [Hz]: (0.0, 100.0)
+Only complete windows; no time padding/extrapolation. Descending frames sorted for display only.
+STFT window, overlap, detrending and dB reference are processing choices; the paper does not specify them.
+Applied nonzero tip-force samples: time range [s] (2.3529823845683917, 2.452705981252376); speed range [m/s] (57.91519991593548, 57.99996497311687)
+The pulse and its transient are retained; its start is marked when mark_pulse=true.

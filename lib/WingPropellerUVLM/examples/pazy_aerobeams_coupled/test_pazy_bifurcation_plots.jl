@@ -54,7 +54,12 @@ end
             @test !isnothing(index)
             @test r[6] == getproperty(reference.responses, Symbol(r[2]))[index]
         end
-        paths = plot_pazy_bifurcation(sweep.summary_path; xlims=(40.,50.))
+        # These keywords are also passed directly by the editable runner.
+        paths = plot_pazy_bifurcation(sweep.summary_path; xlims=(40.,50.),
+            linewidth=0.55, markersize=1.35, markerstrokewidth=0.4,
+            fontfamily="Times", guidefontsize=12, tickfontsize=11,
+            legendfontsize=10, captionfontsize=11, captionfontfamily="Times Bold",
+            figure_size=(1100,860), panel_size=(550,420), dpi=300, gridalpha=0.18)
         @test length(paths) == 10
         @test all(p -> isfile(p) && filesize(p)>1000, paths)
         @test PazyBifurcationPlots.saved_incidence(sweep.summary_path) ≈ 5.

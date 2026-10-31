@@ -1,0 +1,14 @@
+PCHIP interpolation of final-window envelope center and half-range; no extrapolation.
+Interpolation does not identify stability, individual periodic branches, or Hopf points.
+Black crosses: samples without verified final-window convergence.
+Palette: cgrad(:rainbow, 5; categorical=true), incidences [1,3,5,7,10] deg.
+Linewidth=2.8; steady_linewidth=1.8; markersize=3.4 pt.
+
+Case 1: C:\Users\Acer\Documents\João Tavares\Doutorado EESC\Models\AeroBeams_UVLM.jl\lib\WingPropellerUVLM\examples\pazy_aerobeams_coupled\output\bifurcation\20261026_203829683\bifurcation_summary.csv
+Root incidence [deg]: 5.0
+Color: RGBA{Float64}(0.0, 0.5019607843137255, 0.0, 1.0)
+Local extrema available: true
+tip_out_of_plane_percent: 16 speeds, 0 unverified; statuses: stationary, converged
+root_strain_ue: 16 speeds, 0 unverified; statuses: stationary, converged
+tip_twist_deg: 16 speeds, 0 unverified; statuses: stationary, converged
+tip_geometric_incidence_deg: 16 speeds, 0 unverified; statuses: stationary, converged

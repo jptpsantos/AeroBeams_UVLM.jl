@@ -10,8 +10,21 @@ const REFERENCE_AXES = (
 
 const PANEL_RESPONSES = (:tip_out_of_plane_percent, :root_strain_ue,
     :tip_twist_deg, :tip_geometric_incidence_deg)
-# GR's basic TeX handles these symbols without an external LaTeX installation.
-const PANEL_LABELS = ("Tip OOP displacement [% semispan]",
+# A dedicated label type selects GR's built-in TeX for Latin subscripts too.
+# Plain strings containing only u_3 would otherwise be drawn as literal text.
+struct NativeTeXLabel <: AbstractString
+    value::String
+end
+Base.String(s::NativeTeXLabel) = s.value
+Base.string(s::NativeTeXLabel) = s
+Base.ncodeunits(s::NativeTeXLabel) = ncodeunits(s.value)
+Base.codeunit(::Type{NativeTeXLabel}) = UInt8
+Base.codeunit(s::NativeTeXLabel, i::Integer) = codeunit(s.value, i)
+Base.isvalid(s::NativeTeXLabel, i::Integer) = isvalid(s.value, i)
+Base.iterate(s::NativeTeXLabel, state...) = iterate(s.value, state...)
+Base.getindex(s::NativeTeXLabel, i::Int) = s.value[i]
+
+const PANEL_LABELS = (NativeTeXLabel("Tip OOP displacement, u_{3} [% semispan]"),
     raw"Root longitudinal strain, \epsilon_{11} [\mu]", raw"Tip twist, \theta [deg]",
     raw"Tip geometric incidence, \alpha_{g} [deg]")
 const PANEL_CAPTIONS = ("(a) Tip OOP displacement.",
@@ -66,6 +79,11 @@ Hopf diamonds require independently identified points supplied as
 responses=(tip_out_of_plane_percent=..., root_strain_ue=...,
 tip_twist_deg=..., tip_geometric_incidence_deg=...)),)`.
 No bifurcation location is inferred from an amplitude or a convergence flag.
+Appearance controls are accepted directly here and in the runner's
+paper_plot_options: linewidth (steady curves), markersize, markerstrokewidth,
+fontfamily, guidefontsize, tickfontsize, legendfontsize, captionfontsize,
+captionfontfamily, figure_size, panel_size, dpi, and gridalpha.
+Latin and Greek subscripts use GR's built-in TeX, without external LaTeX.
 """
 function plot_pazy_bifurcation(summary_paths;
     angle_of_attack_deg=nothing, output_directory=nothing,
@@ -73,8 +91,9 @@ function plot_pazy_bifurcation(summary_paths;
     ylims=REFERENCE_AXES.ylims, yticks=REFERENCE_AXES.yticks,
     hopf_points=(), formats=("png", "pdf"), filename="pazy_bifurcation",
     save_panels=true, show_hopf_key=true,
-    fontfamily="Times", guidefontsize=13, tickfontsize=11, legendfontsize=10,
-    captionfontsize=11, linewidth=0.55, markersize=1.35, markerstrokewidth=0.4,
+    fontfamily="Times", guidefontsize=12, tickfontsize=11, legendfontsize=10,
+    captionfontsize=11, captionfontfamily="Times Bold",
+    linewidth=0.55, markersize=1.35, markerstrokewidth=0.4,
     figure_size=(1100,860), panel_size=(550,420), dpi=300, gridalpha=0.18)
     paths = summary_paths isa AbstractString ? [abspath(summary_paths)] : abspath.(summary_paths)
     isempty(paths) && throw(ArgumentError("Supply at least one summary CSV"))
@@ -85,15 +104,17 @@ function plot_pazy_bifurcation(summary_paths;
     length(ylims) == 4 || throw(ArgumentError("ylims must contain four limits or nothing entries"))
     length(yticks) == 4 || throw(ArgumentError("yticks must contain four tick specifications"))
     all(f -> f in ("png", "pdf", "svg"), formats) || throw(ArgumentError("Use png, pdf or svg formats"))
-    all(v -> v isa Real && isfinite(v) && v > 0,
-        (guidefontsize, tickfontsize, legendfontsize, captionfontsize, markersize, dpi)) ||
-        throw(ArgumentError("Font sizes, markersize and dpi must be finite and positive"))
+    all(v -> v isa Integer && v > 0,
+        (guidefontsize, tickfontsize, legendfontsize, captionfontsize)) ||
+        throw(ArgumentError("Font sizes must be positive integer point sizes"))
+    all(v -> v isa Real && isfinite(v) && v > 0, (markersize, dpi)) ||
+        throw(ArgumentError("markersize and dpi must be finite and positive"))
     all(v -> v isa Real && isfinite(v) && v >= 0, (linewidth, markerstrokewidth)) ||
         throw(ArgumentError("Line and marker stroke widths must be finite and nonnegative"))
     all(s -> length(s) == 2 && all(v -> v isa Integer && v > 0, s), (figure_size, panel_size)) ||
         throw(ArgumentError("figure_size and panel_size must be positive integer (width,height) tuples"))
     isfinite(gridalpha) && 0 <= gridalpha <= 1 || throw(ArgumentError("gridalpha must lie in [0,1]"))
-    style = (; fontfamily, guidefontsize, tickfontsize, legendfontsize, captionfontsize,
+    style = (; fontfamily, guidefontsize, tickfontsize, legendfontsize, captionfontsize, captionfontfamily,
         linewidth, markersize, markerstrokewidth, figure_size, panel_size, dpi, gridalpha)
     directory = isnothing(output_directory) ? dirname(first(paths)) : abspath(output_directory)
     datasets = map(zip(paths, angles)) do (path, angle)
@@ -110,8 +131,27 @@ function plot_pazy_bifurcation(summary_paths;
     if !isdefined(@__MODULE__, :Plots)
         @eval import Plots
     end
-    return Base.invokelatest(plot_loaded, datasets; directory, xlims, xticks, ylims, yticks,
+    return Base.invokelatest(plot_with_native_labels, datasets; directory, xlims, xticks, ylims, yticks,
         hopf_points, formats, filename, save_panels, show_hopf_key, style)
+end
+
+const NATIVE_LABELS_READY = Ref(false)
+
+function plot_with_native_labels(datasets; kwargs...)
+    previous_backend = Plots.backend_name()
+    try
+        Plots.gr()
+        if !NATIVE_LABELS_READY[]
+            @eval begin
+                Plots.gr_text(x, y, s::NativeTeXLabel) = Plots.GR.textext(x, y, s.value)
+                Plots.gr_inqtext(x, y, s::NativeTeXLabel) = Plots.GR.inqtextext(x, y, s.value)
+            end
+            NATIVE_LABELS_READY[] = true
+        end
+        return Base.invokelatest(plot_loaded, datasets; kwargs...)
+    finally
+        Plots.backend(previous_backend)
+    end
 end
 
 function reference_legend!(p, datasets; all_local, show_hopf_key, style)
@@ -177,7 +217,7 @@ function plot_loaded(datasets; directory, xlims, xticks, ylims, yticks,
     saved = String[]
     all_local = all(d -> !isnothing(d.peaks), datasets)
     for (i, name) in enumerate(PANEL_RESPONSES)
-        p = Plots.plot(; common..., xlabel="Airspeed, U∞ [m/s]",
+        p = Plots.plot(; common..., xlabel=NativeTeXLabel("Airspeed, U_{∞}  [m∕s]"),
             ylabel=PANEL_LABELS[i], xlims=limits, xticks, yticks=yticks[i],
             legend=false, widen=false)
         for d in datasets
@@ -218,7 +258,7 @@ function plot_loaded(datasets; directory, xlims, xticks, ylims, yticks,
         caption = Plots.plot(; xlims=(0,1), ylims=(0,1), axis=false, ticks=false,
             grid=false, framestyle=:none, margin=0Plots.mm, legend=false)
         Plots.annotate!(caption, 0.5, 0.5,
-            Plots.text(PANEL_CAPTIONS[i], style.captionfontsize, style.fontfamily))
+            Plots.text(PANEL_CAPTIONS[i], style.captionfontsize, style.captionfontfamily))
         push!(captions, caption)
         if save_panels
             Plots.plot!(p; size=style.panel_size, style.dpi)

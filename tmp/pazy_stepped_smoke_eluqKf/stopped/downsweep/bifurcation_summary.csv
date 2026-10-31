@@ -1,0 +1,1 @@
+airspeed_mps,response,unit,minimum,maximum,mean,amplitude,convergence_status,converged,window_start_s,window_end_s,sample_count,static_equilibrium,label,plateau_index,direction,global_window_start_s,global_window_end_s,sample_minimum,sample_maximum,extrema_method

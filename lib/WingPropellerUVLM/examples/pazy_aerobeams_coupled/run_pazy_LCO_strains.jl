@@ -4,9 +4,9 @@ include(joinpath(@__DIR__, "PazyLinearLCOSweep.jl"))
 
 # Set PAZY_LCO_DOWNSWEEP_PULSE_RUN=false before including to load without running.
 if get(ENV, "PAZY_LCO_DOWNSWEEP_PULSE_RUN", "true") == "true"
-    angle_of_attack_deg = 7.0            # set 3.0, 5.0, 7.0, etc.; also sets the output folder
+    angle_of_attack_deg = 3.0            # set 3.0, 5.0, 7.0, etc.; also sets the output folder
     # Select the analyses to execute independently from plotting.
-    run_branches = :both                 # :both, :upsweep, or :downsweep
+    run_branches = :downsweep                 # :both, :upsweep, or :downsweep
     plot_only = false                    # true: regenerate strain-versus-speed plot only
     plot_branches = run_branches         # or explicitly :both, :upsweep, :downsweep
     pulse_branches = :downsweep          # :both, :upsweep, :downsweep, or :none
@@ -30,8 +30,8 @@ if get(ENV, "PAZY_LCO_DOWNSWEEP_PULSE_RUN", "true") == "true"
         symmetric_wing=true,
         aerodynamic_interaction=true)
 
-    sweep_initial_speed = 35.0           # m/s, lower endpoint of both branches
-    sweep_peak_speed = 52.0              # m/s, upper endpoint of both branches
+    sweep_initial_speed = 40.0           # m/s, lower endpoint of both branches
+    sweep_peak_speed = 60.0              # m/s, upper endpoint of both branches
     # Keep these rates fixed across angles; changing endpoints changes duration.
     upsweep_rate = 0.425                 # m/s^2, positive ascending slope
     downsweep_rate = 0.85                # m/s^2, magnitude of the descending slope
@@ -39,11 +39,11 @@ if get(ENV, "PAZY_LCO_DOWNSWEEP_PULSE_RUN", "true") == "true"
     downsweep_duration = pazy_lco_ramp_duration(sweep_peak_speed, sweep_initial_speed, downsweep_rate)
 
     # Excite the wing when the descending speed reaches this value.
-    pulse_speed = 44.0                   # m/s, diagnostic trigger; keep inside chosen speed range
+    pulse_speed = 56.0                   # m/s, diagnostic trigger; keep inside chosen speed range
     pulse_coefficient = 1.0              # N; waveform peak is about 0.6495 times this
     pulse_duration = 0.1                # s; smooth bipolar pulse, zero net impulse
     # Separate ascending trigger; 45 m/s is a diagnostic choice, not a boundary.
-    upsweep_pulse_speed = 45.0           # m/s
+    upsweep_pulse_speed = 50.0           # m/s
     upsweep_pulse_coefficient = 1.0      # N
     upsweep_pulse_duration = 0.1        # s
     pulse_branches in (:both, :upsweep, :downsweep, :none) ||

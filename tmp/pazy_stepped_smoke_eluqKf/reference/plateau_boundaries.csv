@@ -1,0 +1,2 @@
+plateau_index,direction,airspeed_mps,global_time_s,accepted_step,aerodynamic_step,aerodynamic_time_s,retained_wake_rows,circulation_norm,structural_state_norm,maximum_section_velocity_norm,structural_problem_id,aerodynamic_problem_id
+1,upsweep,20.0,0.006,12,13,0.006,20,0.12006978386445567,3.0740390624326195,0.0005868690754979183,17004213198248055169,18249241230596028449

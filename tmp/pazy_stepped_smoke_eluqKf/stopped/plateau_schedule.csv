@@ -1,0 +1,5 @@
+plateau_index,direction,airspeed_mps,start_step,end_step,start_time_s,end_time_s
+1,upsweep,20.0,0,12,0.0,0.006
+2,upsweep,22.0,12,24,0.006,0.012
+3,downsweep,22.0,24,36,0.012,0.018000000000000002
+4,downsweep,20.0,36,48,0.018000000000000002,0.024
