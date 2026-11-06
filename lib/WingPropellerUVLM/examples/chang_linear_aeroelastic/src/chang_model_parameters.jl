@@ -322,13 +322,14 @@ function build_chang_model_parameters(config)
     )
 
     # ### Propeller and pylon model
+    Npropellers = length(config.propeller.attachment_eta)
     Vinf = config.simulation.freestream_speed_mps  # increase to find the flutter speed
     R_prop = config.propeller.radius_m
     Ω_wind = config.propeller.rotation_rpm
     V_trim = config.propeller.trim_speed_mps
     μ_prop = V_trim / (Ω_wind * 2 * pi / 60)/(R_prop)
     J = μ_prop * pi
-    Ω = Vinf / R_prop / μ_prop
+    Ω = Npropellers == 0 ? 0.0 : Vinf / R_prop / μ_prop
     Nb_prop = config.propeller.blades
     c_prop = config.propeller.chord_m
 
@@ -391,15 +392,16 @@ function build_chang_model_parameters(config)
     IαP_prop = I_root + 2.0 * d_EA_to_pivot * SθP_prop + mP_prop * d_EA_to_pivot^2
     IγP_prop = I_root + 2.0 * d_EA_to_pivot * SψP_prop + mP_prop * d_EA_to_pivot^2
 
-    println("Flexible-pylon modal structural definition:")
-    println("  L_pylon = $(round(L_pylon, digits=6)) m,  mP = $(round(mP_prop, digits=6)) kg")
-    println("  S_root = $(round(S_root, digits=6)), S_modal = $(round(S_modal, digits=6))")
-    println("  I_root = $(round(I_root, digits=6)), I_cross = $(round(I_cross, digits=6))")
-    println("  Ix = $(round(Ix_prop, digits=6))  (positive axial inertia; Cgyro sign follows spin/yaw convention)")
+    if Npropellers > 0
+        println("Flexible-pylon modal structural definition:")
+        println("  L_pylon = $(round(L_pylon, digits=6)) m,  mP = $(round(mP_prop, digits=6)) kg")
+        println("  S_root = $(round(S_root, digits=6)), S_modal = $(round(S_modal, digits=6))")
+        println("  I_root = $(round(I_root, digits=6)), I_cross = $(round(I_cross, digits=6))")
+        println("  Ix = $(round(Ix_prop, digits=6))  (positive axial inertia; Cgyro sign follows spin/yaw convention)")
+    end
 
     propeller_eta = config.propeller.attachment_eta
     propeller_span_positions = propeller_eta .* span_length
-    Npropellers = length(propeller_span_positions)
     prop_attach_nodes = [clamp(round(Int, Lp / le) + 1, 1, nnodes) for Lp in propeller_span_positions]
     ndof_P = 2 * Npropellers
 
@@ -415,10 +417,13 @@ function build_chang_model_parameters(config)
     azimutal_step_deg = config.simulation.azimuth_step_deg
     t_end = config.simulation.end_time_s
     t_end > 0 || error("CHANG_END_TIME_S must be positive")
-    t_step = (azimutal_step_deg * pi / 180) / Ω
+    t_step = Npropellers == 0 ? config.simulation.time_step_s :
+        (azimutal_step_deg * pi / 180) / Ω
     t = range(0.0, t_end, step=t_step)
     dt = fill(t_step, length(t) - 1)
-    println("Timestep based on propeller rotation: dt = $t_step s")
+    length(t) >= 2 || error("Simulation duration must cover at least one time step")
+    println(Npropellers == 0 ? "Isolated-wing time step: dt = $t_step s" :
+        "Timestep based on propeller rotation: dt = $t_step s")
 
     INTERACTION_ON = config.simulation.interaction_on
     INTERACTION_MATRIX = nothing

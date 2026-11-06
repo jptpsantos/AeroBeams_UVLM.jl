@@ -4,17 +4,27 @@ const ROOT=joinpath(@__DIR__,"..","examples","chang_linear_aeroelastic","studies
 # Load definitions even if the interactive entry's execution guard is disabled.
 Base.include(ex -> ex == :(ChangConvergenceAerodynamic.main()) ? nothing : ex,
     @__MODULE__,joinpath(ROOT,"chang_convergence_aerodynamic.jl"))
-include(joinpath(ROOT,"chang_convergence_aeroelastic.jl"))
+Base.include(ex -> ex == :(ChangConvergenceAeroelastic.main()) ? nothing : ex,
+    @__MODULE__,joinpath(ROOT,"chang_convergence_aeroelastic.jl"))
 const C=ChangConvergenceAerodynamic.Convergence
 const E=ChangConvergenceAeroelastic
 
 function fixture()
     s=ChangConvergenceAerodynamic.aerodynamic_study()
-    return merge(s,(;dry_run=true,make_plots=false,
+    return merge(s,(;dry_run=true,make_plots=false,families=collect(C.FIELDS),
+        physical=merge(s.physical,(;speed_mps=65.0,wake_shedding_fraction=.1)),core_mode=:fixed,
         nominal=(wing_span=2,wing_chord=1,prop_radial=2,prop_chord=1,wake_revolutions=1.,core=.01,azimuth_deg=90.),
         sweeps=(wing_span=[2,3,4],wing_chord=[1,2,3],prop_radial=[2,3,4],prop_chord=[1,2,3],
             wake_revolutions=[1.,2.,3.],core=[.02,.01,.005],azimuth_deg=[90.,45.,30.]),
         simulated_revolutions=6,averaged_revolutions=1))
+end
+
+function elastic_fixture()
+    # Planning tests own their controls rather than the editable entry preset.
+    return merge(E.aeroelastic_study(runMode=:full),(;dry_run=true,make_plots=false,
+        speed_mps=nothing,nominal=nothing,families=collect(C.FIELDS[2:end]),
+        sweeps=(wing_chord=nothing,prop_radial=nothing,prop_chord=nothing,
+            wake_revolutions=nothing,core=nothing,azimuth_deg=nothing)))
 end
 
 @testset "Independent two-stage convergence" begin
@@ -69,12 +79,15 @@ end
         @test loaded.selected==selected
         @test C.data(loaded.physical)==C.data(s.physical)
         @test !haskey(TOML.parsefile(path)["study"],"chang_case")
-        elastic=C.run_aeroelastic(merge(E.aeroelastic_study(),(;dry_run=true,make_plots=false,
+        original=read(path)
+        elastic=C.run_aeroelastic(merge(elastic_fixture(),(;
             selection_file=path,output_directory=joinpath(directory,"elastic"))))
         @test length(elastic.cases)==18 && isempty(elastic.results)
+        @test elastic.nominal==loaded.selected
+        @test elastic.selection==loaded
+        @test read(path)==original
         @test isfile(joinpath(elastic.directory,"aerodynamic_input.toml"))
-        original=read(path)
-        overridden=E.run_aeroelastic(merge(E.aeroelastic_study(),(;dry_run=true,make_plots=false,
+        overridden=E.run_aeroelastic(merge(elastic_fixture(),(;
             speed_mps=85.0,selection_file=path,output_directory=joinpath(directory,"elastic_U85"))))
         @test read(path)==original
         @test overridden.selection.selected==loaded.selected
@@ -90,7 +103,25 @@ end
         @test Float64.(matrix[:,dt_column])≈[c.azimuth_deg/(6overridden.selection.physical.rpm) for c in overridden.cases]
         @test occursin("85.0 m/s",read(joinpath(overridden.directory,"report.md"),String))
         @test TOML.parsefile(joinpath(overridden.directory,"study.toml"))["settings"]["damping_method"]=="moving_block_2"
-        nested=E.Convergence.run_aeroelastic(merge(E.aeroelastic_study(),(;dry_run=true,make_plots=false,
+        custom=E.run_aeroelastic(merge(elastic_fixture(),(;
+            nominal=(wing_chord=3,prop_radial=6,core=nothing),
+            families=[:prop_radial],sweeps=(prop_radial=[2,4,8],),
+            selection_file=path,output_directory=joinpath(directory,"elastic_custom"))))
+        @test isempty(custom.results) && length(custom.cases)==3
+        @test custom.nominal==merge(loaded.selected,(;wing_chord=3,prop_radial=6))
+        @test [c.prop_radial for c in custom.cases]==[2,4,8]
+        @test all(c->c.wing_chord==3 && c.wing_span==loaded.selected.wing_span,custom.cases)
+        @test custom.selection==loaded && custom.aerodynamic_reference==loaded
+        @test C.load_selection(path)==loaded && read(path)==original
+        custom_matrix,custom_header=readdlm(joinpath(custom.directory,"case_matrix.csv"),',',header=true)
+        radial_column=findfirst(==("prop_radial"),vec(custom_header))
+        chord_column=findfirst(==("wing_chord"),vec(custom_header))
+        @test Int.(custom_matrix[:,radial_column])==[2,4,8]
+        @test Int.(custom_matrix[:,chord_column])==[3,3,3]
+        report=read(joinpath(custom.directory,"report.md"),String)
+        @test occursin("Nominal numerical controls (after overrides):",report)
+        @test occursin("wing_chord = 3",report)
+        nested=E.Convergence.run_aeroelastic(merge(elastic_fixture(),(;
             speed_mps=85.0,selection_file=path,output_directory=joinpath(directory,"nested_U85"))))
         @test nested.selection.physical.speed_mps==85.0
         payload=TOML.parsefile(path); payload["selected"]["core"]*=2
@@ -103,9 +134,59 @@ end
     C.load_model()
 end
 
+# The nominal baseline and the varied levels are independent, as in stage 1.
+@testset "Aeroelastic nominal controls and sweep families" begin
+    selected=fixture().nominal
+    e=elastic_fixture()
+    without_nominal=(; (k=>v for (k,v) in pairs(e) if k!=:nominal)...)
+    @test C.elastic_nominal(selected,without_nominal)==selected
+    @test C.elastic_nominal(selected,e)==selected
+    @test C.elastic_nominal(selected,merge(e,(;nominal=(;))))==selected
+    inherited=(; (k=>nothing for k in C.FIELDS)...)
+    @test C.elastic_nominal(selected,merge(e,(;nominal=inherited)))==selected
+    @test C.elastic_nominal(selected,merge(e,(;nominal=(wing_span=selected.wing_span,))))==selected
+
+    overrides=(wing_chord=3,prop_radial=6,azimuth_deg=45.0,core=nothing)
+    customized=merge(e,(;nominal=overrides,families=[:prop_radial,:azimuth_deg],
+        sweeps=(prop_radial=[2,4,8],azimuth_deg=[90.,45.,30.])))
+    nominal=C.elastic_nominal(selected,customized)
+    @test nominal==merge(selected,(;wing_chord=3,prop_radial=6,azimuth_deg=45.0))
+    selection=(;physical=fixture().physical,core_mode=:fixed,selected)
+    plan=C.validate_elastic(customized,selection)
+    @test length(plan)==6
+    @test [c.prop_radial for c in plan if c.family==:prop_radial]==[2,4,8]
+    @test [c.azimuth_deg for c in plan if c.family==:azimuth_deg]==[90.,45.,30.]
+    # Every unvaried direction keeps the resolved baseline, including overrides.
+    for c in plan, k in C.FIELDS
+        k==c.family && continue
+        @test getproperty(c,k)==getproperty(nominal,k)
+    end
+    @test selection.selected==selected
+
+    automatic=C.elastic_sweeps(nominal,merge(e,(;families=[:prop_radial,:core,:azimuth_deg])))
+    @test automatic.prop_radial==[6,8,9]
+    @test automatic.core==[selected.core,selected.core/2,selected.core/4]
+    @test automatic.azimuth_deg==[45.,22.5,11.25]
+    auto_plan=C.validate_elastic(merge(e,(;nominal=overrides,
+        families=[:prop_radial],sweeps=(prop_radial=nothing,))),selection)
+    @test [c.prop_radial for c in auto_plan]==[6,8,9]
+    @test all(c->c.wing_chord==3 && c.azimuth_deg==45.0,auto_plan)
+
+    for invalid in ((typo=2,),[1,2,3],(wing_span=selected.wing_span+1,),
+        (wing_chord=0,),(prop_radial=2.5,),(azimuth_deg=7.,))
+        @test_throws ErrorException C.elastic_nominal(selected,merge(e,(;nominal=invalid)))
+    end
+    @test_throws ErrorException C.validate_elastic(merge(customized,(;
+        nominal=(wing_span=selected.wing_span+1,))),selection)
+    @test_throws ErrorException C.validate_elastic(merge(e,(;
+        families=[:wing_span],sweeps=(wing_span=[2,3,4],))),selection)
+    @test_throws ErrorException C.build_cases(nominal,(prop_radial=[2,4],),[:prop_radial];elastic=true)
+    @test_throws ErrorException C.build_cases(nominal,(prop_radial=[2,2,4],),[:prop_radial];elastic=true)
+end
+
 # Execute after lazy module loading, so the explicit model API is in scope.
 @testset "Independent aeroelastic configuration" begin
-    s=fixture(); e=E.aeroelastic_study(); c=C.case(:core,1,s.nominal)
+    s=fixture(); e=elastic_fixture(); c=C.case(:core,1,s.nominal)
     defaults=C.model_defaults(s.physical,:chord,c,e,mktempdir())
     # Failing default loader proves the adapter does not fall back to chang_case.
     @eval C.Model.ChangAeroelastic chang_case_defaults()=error("Interactive case must not be read")
@@ -114,6 +195,7 @@ end
     @test config.wing.symmetric==s.physical.wing_symmetric
     @test isnothing(config.aerodynamic.core_radius_m)
     @test config.aerodynamic.chord_core_factor==.01
+    @test config.aerodynamic.hub_load_arm_factor==.5
     @test config.propeller.rotation_rpm==s.physical.rpm
     @test config.wake.maximum_rows_wing==4
     @test config.wake.maximum_rows_propeller==4
@@ -140,6 +222,70 @@ end
     @test_throws ErrorException C.validate_elastic(e,merge(selection,(;physical=merge(s.physical,(;wake_shedding_fraction=.2)))))
 end
 
+@testset "Explicit aeroelastic inputs without aerodynamic certification" begin
+    s=fixture()
+    base=E.create_study()
+    @test base isa E.ExplicitAeroelasticStudy
+    @test isnothing(base.settings.selectionFile)
+    @test all(!isnothing,values(base.settings.nominal))
+    driver=E.explicit_driver_fingerprint()
+    backend=C.SOURCE()
+    mktempdir() do directory
+        # The incomplete selection is deliberately unusable; explicit mode
+        # must neither read it nor change its certification status.
+        path=joinpath(directory,"incomplete_selection.toml")
+        C.save_toml(path,(;schema=1,status="incomplete"))
+        original=read(path)
+        settings=merge(E.aeroelastic_study(runMode=:full),(;selection_file=nothing,
+            physical=s.physical,core_mode=s.core_mode,nominal=s.nominal,speed_mps=nothing,
+            families=[:wing_span,:prop_radial],
+            sweeps=(wing_span=[2,3,4],prop_radial=[1,2,3]),
+            output_directory=joinpath(directory,"explicit"),dry_run=true,make_plots=false))
+        study=E.create_study(settings)
+        @test E.WingPropellerUVLMStudies.solve!(study)===study
+        result=study.results
+        @test isempty(result.results) && length(result.cases)==6
+        @test result.selection.aerodynamic_verified===false
+        @test result.selection.input_mode=="explicit"
+        @test isnothing(result.aerodynamic_reference)
+        @test result.nominal==s.nominal
+        @test [c.wing_span for c in result.cases if c.family==:wing_span]==[2,3,4]
+        @test all(c->c.wing_span==2,filter(c->c.family==:prop_radial,result.cases))
+        recorded=TOML.parsefile(joinpath(result.directory,"aerodynamic_input.toml"))
+        @test recorded["aerodynamic_verified"]===false
+        @test recorded["input_mode"]=="explicit"
+        @test !haskey(recorded,"selection_sha256")
+        saved=TOML.parsefile(joinpath(result.directory,"study.toml"))["settings"]
+        @test saved["aerodynamic_verified"]===false
+        @test saved["explicit_driver_sha256"]==driver
+        @test saved["damping_method"]=="moving_block_2"
+        report=read(joinpath(result.directory,"report.md"),String)
+        @test occursin("Aerodynamic convergence is **unverified**",report)
+        @test occursin("both the aerodynamic and structural meshes",report)
+        @test read(path)==original
+        @test_throws ErrorException E.run_aeroelastic(merge(settings,(;selection_file=path)))
+
+        # Confirm that the span sweep reaches the production structural model.
+        for c in filter(c->c.family==:wing_span,result.cases)
+            defaults=C.model_defaults(s.physical,s.core_mode,c,settings,directory)
+            config=C.Model.ChangAeroelastic.load_chang_configuration(defaults;env=Dict{String,String}())
+            model=C.Model.ChangAeroelastic.build_chang_model(config)
+            @test model.parameters.Ne==c.wing_span
+        end
+        fast=E.explicit_selection(merge(settings,(;speed_mps=85.)))
+        @test fast.physical.rpm≈s.physical.rpm*85/65
+        @test fast.aerodynamic_verified===false
+        @test_throws ArgumentError E.explicit_selection(merge(settings,(;nominal=nothing)))
+        @test_throws ArgumentError E.explicit_selection(merge(settings,(;
+            nominal=merge(s.nominal,(;core=nothing)))))
+        @test_throws ErrorException E.run_aeroelastic(merge(settings,(;
+            damping=merge(settings.damping,(;lambda_tolerance_per_s=-1.)))))
+        wrapped=E.ExplicitAeroelasticSettings(E.MovingBlockStudy(settings),driver)
+        @test_throws ErrorException C.damping_result("unused",E.ExplicitAeroelasticSettings(wrapped.movingBlock,"stale"),s.physical)
+    end
+    @test C.SOURCE()==backend
+end
+
 @testset "Moving-block case diagnostics" begin
     mktempdir() do directory
         path=joinpath(directory,"response_history.csv")
@@ -149,7 +295,10 @@ end
             println(io,"time_s,propeller_1_pitch_deg,propeller_1_yaw_deg")
             writedlm(io,hcat(t,wave,.5wave),',')
         end
-        e=merge(E.aeroelastic_study(),(;make_plots=false))
+        base=elastic_fixture()
+        e=merge(base,(;response=merge(base.response,(;end_time_s=last(t))),
+            damping=merge(base.damping,(;fit_start_s=.75,frequency_band_hz=(3.,6.),
+                minimum_peaks=8,minimum_fit_r_squared=.8))))
         wrapped=E.MovingBlockStudy(e)
         result=E.Convergence.damping_result(path,wrapped,fixture().physical)
         @test result.method=="moving_block_2"
@@ -160,6 +309,8 @@ end
         @test isfile(joinpath(directory,"pitch_moving_block.csv"))
         @test isfile(joinpath(directory,"yaw_moving_block.csv"))
         @test result.method_sha256==wrapped.estimator_sha256
+        explicit=E.ExplicitAeroelasticSettings(wrapped,E.explicit_driver_fingerprint())
+        @test E.Convergence.damping_result(path,explicit,fixture().physical).pitch==result.pitch
     end
 end
 end

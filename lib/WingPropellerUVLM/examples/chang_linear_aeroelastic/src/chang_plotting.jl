@@ -3,7 +3,8 @@
 """
     plot_chang_time_histories(...)
 
-Create the standard Chang response plot. A single-propeller case shows the
+Create the standard Chang response plot. A bare-wing case shows tip displacement
+and twist in two panels. A single-propeller case shows the
 wing-tip displacement and twist plus propeller pitch and yaw. A two-propeller
 case shows the inboard and outboard pitch/yaw histories, with the spanwise
 roles inferred from attachment eta.
@@ -40,7 +41,19 @@ function plot_chang_time_histories(
     )
     time_limits = (0.0, Float64(time_limit_s))
 
-    if number_of_propellers == 1
+    if number_of_propellers == 0
+        wing_style = merge(common_style, (;
+            right_margin = 15Plots.mm,
+            top_margin = 10Plots.mm,
+        ))
+        panels = [
+            Plots.plot(time, -tip_displacement ./ span_length .* 100;
+                ylabel = "Tip displacement (%)", xlims = time_limits, wing_style...),
+            Plots.plot(time, rad2deg.(tip_twist);
+                xlabel = "Time (s)", ylabel = "Tip twist angle (deg)",
+                xlims = time_limits, wing_style...),
+        ]
+    elseif number_of_propellers == 1
         panels = [
             Plots.plot(time, -tip_displacement ./ span_length .* 100;
                 ylabel = "Tip displacement (%)", xlims = time_limits,
@@ -76,11 +89,12 @@ function plot_chang_time_histories(
                 xlims = time_limits, ylims = (-7.5, 7.5), common_style...),
         ]
     else
-        @warn "Automatic Chang time-history plotting supports one or two propellers" number_of_propellers
+        @warn "Automatic Chang time-history plotting supports zero, one, or two propellers" number_of_propellers
         return nothing
     end
 
-    final_plot = Plots.plot(panels...; layout = (4, 1), size = (1000, 2000))
+    final_plot = Plots.plot(panels...; layout = (length(panels), 1),
+        size = (1000, 500 * length(panels)))
     Plots.savefig(final_plot, output_path)
     display(final_plot)
     println("Time-history plot written to $output_path")

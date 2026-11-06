@@ -19,7 +19,7 @@ function model_defaults(p,mode,c,s,directory)
             end_time_s=s.response.end_time_s,interaction_on=p.interaction,near_field_force_model=:imperial,
             propeller_moment_projection=s.propeller_moment_projection,impulse_propeller_indices=[1]),
         aerodynamic=(core_radius_m=f.radius,segment_core_factor=f.segment,chord_core_factor=f.chord,
-            elastic_axis_fraction=p.elastic_axis_fraction),
+            elastic_axis_fraction=p.elastic_axis_fraction,hub_load_arm_factor=0.5),
         wake=(maximum_rows_wing=ceil(Int,c.wake_revolutions*360/c.azimuth_deg),wing_rows_per_chord_panel=10,
             retained_revolutions_propeller=c.wake_revolutions,
             maximum_rows_propeller=ceil(Int,c.wake_revolutions*360/c.azimuth_deg)),
@@ -37,11 +37,22 @@ function fit_start(s,p)
     automatic=max(.75,pulse_start+s.response.impulse_duration_s+60/p.rpm)
     return something(s.damping.fit_start_s,automatic)
 end
-function elastic_sweeps(selected,s)
+function elastic_nominal(selected,s)
+    overrides=hasproperty(s,:nominal) ? s.nominal : nothing
+    isnothing(overrides) && return selected
+    overrides isa NamedTuple || error("Aeroelastic nominal must be a NamedTuple or nothing")
+    unknown=setdiff(keys(overrides),FIELDS)
+    isempty(unknown) || error("Unknown aeroelastic nominal controls: $unknown")
+    nominal=merge(selected,(; (k=>v for (k,v) in pairs(overrides) if !isnothing(v))...))
+    nominal.wing_span==selected.wing_span || error("Wing span also sets the structural mesh; keep nominal wing span at the aerodynamic selection")
+    validate_controls(nominal)
+    return nominal
+end
+function elastic_sweeps(nominal,s)
     pairs=map(s.families) do k
         k in FIELDS || error("Unknown family $k")
         hasproperty(s.sweeps,k) || error("Missing aeroelastic sweep $k")
-        value=getproperty(s.sweeps,k); base=getproperty(selected,k)
+        value=getproperty(s.sweeps,k); base=getproperty(nominal,k)
         if isnothing(value)
             value=k in MESH ? [base,base+max(1,cld(base,4)),base+max(2,cld(base,2))] :
                 k==:wake_revolutions ? [base,base+1,base+2] : [base,base/2,base/4]
@@ -53,7 +64,8 @@ end
 function validate_elastic(s,selection)
     # The production solver currently fixes this shedding fraction at 0.1.
     selection.physical.wake_shedding_fraction==.1 || error("Production aeroelastic solver requires wake_shedding_fraction=0.1; rerun the aerodynamic stage with that value")
-    cases=build_cases(selection.selected,elastic_sweeps(selection.selected,s),s.families;elastic=true)
+    nominal=elastic_nominal(selection.selected,s)
+    cases=build_cases(nominal,elastic_sweeps(nominal,s),s.families;elastic=true)
     d=s.damping; start=fit_start(s,selection.physical)
     0<=start<s.response.end_time_s || error("Damping fit must start inside the response interval")
     0<d.block_duration_s<s.response.end_time_s-start || error("Damping window must fit inside the post-excitation interval")
@@ -118,6 +130,7 @@ function run_aeroelastic(s)
 end
 function run_aeroelastic_loaded(s,selection)
     cases=validate_elastic(s,selection)
+    nominal=elastic_nominal(selection.selected,s)
     directory=abspath(s.output_directory); mkpath(directory)
     save_toml(joinpath(directory,"aerodynamic_input.toml"),selection)
     results=execute_cases(cases,s,selection.physical,selection.core_mode;elastic=true,
@@ -127,7 +140,7 @@ function run_aeroelastic_loaded(s,selection)
         @eval using Plots
         Base.invokelatest(plot_results,directory,rows;elastic=true)
     end
-    write(joinpath(directory,"report.md"),"# Aeroelastic convergence\n\nAerodynamic selection: $(s.selection_file)\n\nWing span/structural elements: $(selection.selected.wing_span). Positive lambda means growth; negative lambda means decay. Compare both pitch/yaw growth rates and tracked frequencies, and inspect damping_fit.toml and raw histories. This is a damping sensitivity study at one operating point, not a flutter boundary calculation.\n")
+    write(joinpath(directory,"report.md"),"# Aeroelastic convergence\n\nAerodynamic selection: $(s.selection_file)\n\nNominal numerical controls (after overrides):\n\n```toml\n$(toml_text(nominal))```\n\nWing span/structural elements: $(selection.selected.wing_span). Positive lambda means growth; negative lambda means decay. Compare both pitch/yaw growth rates and tracked frequencies, and inspect damping_fit.toml and raw histories. This is a damping sensitivity study at one operating point, not a flutter boundary calculation.\n")
     println("Results: $directory")
-    return (;directory,cases,results=rows,selection)
+    return (;directory,cases,results=rows,selection,nominal)
 end

@@ -94,7 +94,7 @@ function initialize_wing_propeller_uvlm_system(;
             blade_counts_prop[ip],
         ) for ip in 1:Npropellers
     ]
-    grids_prop_ref_single = first(grids_prop_ref)
+    grids_prop_ref_single = isempty(grids_prop_ref) ? nothing : first(grids_prop_ref)
     grids_prop_initial_global = [deepcopy(grids_prop_ref[ip]) for ip in 1:Npropellers]
 
     attach_node_y = [span_nodes[prop_attach_nodes[ip]] for ip in 1:Npropellers]

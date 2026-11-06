@@ -158,6 +158,6 @@ include(joinpath(@__DIR__, "PazyLinearLCOSweep.jl"))
 if get(ENV, "PAZY_LCO_RUN", "true") == "true"
     lco_results = run_pazy_linear_LCO(;
         initial_speed=35.0, peak_speed=52.0,
-        upsweep_duration=20.0, downsweep_duration=10.0,
+        upsweep_duration=40.0, downsweep_duration=20.0,
         angle_of_attack=deg2rad(5.0))
 end

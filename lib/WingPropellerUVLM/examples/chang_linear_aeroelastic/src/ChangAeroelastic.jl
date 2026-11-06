@@ -15,6 +15,7 @@ using WingPropellerUVLM:
 using WingPropellerUVLM: add_direct_node_wrench!
 
 export chang_case_defaults, load_chang_configuration, ChangModel,
+       chang_isolated_wing_case_defaults, load_chang_isolated_wing_configuration,
        build_chang_model, build_chang_workspace, run_chang,
     assemble_structural_model, update_aero_geometry_for_state!,
     assemble_structural_aero_load!, aero_load_for_state!
@@ -26,6 +27,21 @@ function chang_case_defaults()
     scope = Module(gensym(:ChangCaseDefaults))
     Base.include(scope, joinpath(@__DIR__, "..", "chang_case.jl"))
     return Base.invokelatest(scope.chang_case_defaults)
+end
+
+"""Read the separate bare-wing case, leaving the wing-propeller inputs unchanged."""
+function chang_isolated_wing_case_defaults()
+    scope = Module(gensym(:ChangIsolatedWingDefaults))
+    Base.include(scope, joinpath(@__DIR__, "..", "chang_isolated_wing_case.jl"))
+    return Base.invokelatest(scope.chang_isolated_wing_case_defaults, chang_case_defaults())
+end
+
+function load_chang_isolated_wing_configuration(
+    defaults = chang_isolated_wing_case_defaults(); env = ENV,
+)
+    isempty(defaults.propeller.attachment_eta) ||
+        error("The isolated-wing variant must have no propeller attachments")
+    return load_chang_configuration(defaults; env)
 end
 include("chang_configuration.jl")
 include("chang_model_parameters.jl")
@@ -92,7 +108,11 @@ function run_chang_case(config; model=build_chang_model(config))
     config = model.config
     parameters, structural = model.parameters, model.structural
     println("Aeroelastic near-field force model: $(config.simulation.near_field_force_model)")
-    println("Propeller moment projection: $(config.simulation.propeller_moment_projection)")
+    if parameters.Npropellers == 0
+        println("Isolated wing: no propeller/pylon structural or aerodynamic contributions")
+    else
+        println("Propeller moment projection: $(config.simulation.propeller_moment_projection)")
+    end
     report_and_validate_structural_model(structural)
     println("Matrices after BCs. Total DOFs (free): $(structural.ndof_free)")
     if isnothing(config.aerodynamic.core_radius_m)

@@ -39,7 +39,7 @@ if get(ENV, "PAZY_LCO_DOWNSWEEP_PULSE_RUN", "true") == "true"
     downsweep_duration = pazy_lco_ramp_duration(sweep_peak_speed, sweep_initial_speed, downsweep_rate)
 
     # Excite the wing when the descending speed reaches this value.
-    pulse_speed = 56.0                   # m/s, diagnostic trigger; keep inside chosen speed range
+    pulse_speed = 59.0                   # m/s, diagnostic trigger; keep inside chosen speed range
     pulse_coefficient = 1.0              # N; waveform peak is about 0.6495 times this
     pulse_duration = 0.1                # s; smooth bipolar pulse, zero net impulse
     # Separate ascending trigger; 45 m/s is a diagnostic choice, not a boundary.

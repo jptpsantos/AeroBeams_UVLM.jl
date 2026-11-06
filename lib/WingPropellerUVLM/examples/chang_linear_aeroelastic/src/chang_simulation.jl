@@ -49,8 +49,23 @@ end
 
 """Derive the trim averaging window and the smooth pitch pulse from the case."""
 function chang_excitation_options(config, parameters)
-    revolution_period = 2pi / abs(parameters.Ω)
     excitation = config.excitation
+    if parameters.Npropellers == 0
+        # Apply a nodal moment to the wing itself, using the structural DOF basis.
+        node = clamp(round(Int, excitation.wing_impulse_eta * parameters.Ne) + 1,
+            2, parameters.nnodes)
+        return (;
+            dof_indices = [(node - 2) * parameters.ndof + excitation.wing_impulse_dof],
+            number_of_propellers = 0,
+            magnitude = excitation.impulse_magnitude_nm,
+            start_time = excitation.impulse_start_s,
+            duration = excitation.impulse_duration_s,
+            trim_average_duration_s = excitation.trim_average_duration_s,
+            trim_average_start_time = max(0.0,
+                excitation.impulse_start_s - excitation.trim_average_duration_s),
+        )
+    end
+    revolution_period = 2pi / abs(parameters.Ω)
     return (;
         propeller_indices = config.simulation.impulse_propeller_indices,
         number_of_propellers = parameters.Npropellers,
@@ -133,8 +148,11 @@ function report_chang_solver_options(excitation, integration)
         "tol_coupled=$(coupling.coupled_equilibrium_tolerance), " *
         "relaxation=$(coupling.relaxation), verbose=$(integration.coupling_verbose)",
     )
+    average_window = hasproperty(excitation, :trim_average_duration_s) ?
+        "$(excitation.trim_average_duration_s) s" :
+        "$(excitation.trim_average_revolutions) revolution(s)"
     println(
-        "Trim baseline: average $(excitation.trim_average_revolutions) revolution(s), " *
+        "Trim baseline: average $average_window, " *
         "from t=$(round(excitation.trim_average_start_time, digits = 4)) s " *
         "to t=$(round(excitation.start_time, digits = 4)) s",
     )
@@ -297,7 +315,7 @@ function chang_state_limit_status(
 )
     maximum_state = maximum(abs, state)
     propeller_angles_deg = rad2deg.(state[(wing_dof_count + 1):end])
-    maximum_propeller_angle_deg = maximum(abs, propeller_angles_deg)
+    maximum_propeller_angle_deg = maximum(abs, propeller_angles_deg; init = 0.0)
     nonfinite = any(value -> !isfinite(value), state)
     state_limit_exceeded = maximum_state > state_norm_limit
     angle_limit_exceeded = maximum_propeller_angle_deg > propeller_angle_limit_deg
@@ -343,7 +361,7 @@ function solve_chang_aeroelastic!(
     velocity = history.velocity
     acceleration = history.acceleration
 
-    pitch_dof_indices = [
+    impulse_dof_indices = hasproperty(excitation, :dof_indices) ? excitation.dof_indices : [
         structural.ndof_wing_free + 2 * (index - 1) + 1
         for index in excitation.propeller_indices
     ]
@@ -385,7 +403,7 @@ function solve_chang_aeroelastic!(
         external_load_n = smooth_hann_pulse_load(
             time[step],
             structural.ndof_free,
-            pitch_dof_indices;
+            impulse_dof_indices;
             magnitude = excitation.magnitude,
             start_time = excitation.start_time,
             duration = excitation.duration,
@@ -393,14 +411,14 @@ function solve_chang_aeroelastic!(
         external_load_np1 = smooth_hann_pulse_load(
             time[step + 1],
             structural.ndof_free,
-            pitch_dof_indices;
+            impulse_dof_indices;
             magnitude = excitation.magnitude,
             start_time = excitation.start_time,
             duration = excitation.duration,
         )
         if !impulse_was_reported &&
             (maximum(abs, external_load_n) > 0.0 || maximum(abs, external_load_np1) > 0.0)
-            println("<<<<<<<<<<< Applying Smooth Pitch Impulse >>>>>>>>>>>")
+            println("<<<<<<<<<<< Applying Smooth Moment Impulse >>>>>>>>>>>")
             impulse_was_reported = true
         end
 
@@ -558,7 +576,7 @@ function solve_chang_aeroelastic!(
         if limit.exceeded
             sample_range = max(1, step - 400):step
             pitch_envelope = [
-                abs(displacement[index][pitch_dof_indices[1]])
+                abs(displacement[index][impulse_dof_indices[1]])
                 for index in sample_range
             ]
             sample_time = [time[index] for index in sample_range]
@@ -574,7 +592,7 @@ function solve_chang_aeroelastic!(
                 growth_rate = (
                     log(pitch_envelope[last_index]) - log(pitch_envelope[first_index])
                 ) / (sample_time[last_index] - sample_time[first_index])
-                message *= "; growth sigma(P1 pitch) approx " *
+                message *= "; growth sigma(excited coordinate) approx " *
                     "$(round(growth_rate, digits = 4)) /s"
             end
             println(message)

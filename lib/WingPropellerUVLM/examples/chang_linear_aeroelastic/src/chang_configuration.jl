@@ -90,6 +90,14 @@ function load_chang_configuration(defaults = chang_case_defaults(); env = ENV)
         near_field_force_model = (Symbol, "CHANG_NEAR_FIELD_FORCE_MODEL"),
         propeller_moment_projection = (Symbol, "CHANG_PROP_MOMENT_PROJECTION"),
     ), env)
+    isolated_wing = isempty(propeller.attachment_eta)
+    if isolated_wing
+        simulation = merge(simulation, (;
+            time_step_s = environment_number(
+                Float64, "CHANG_TIME_STEP_S", defaults.simulation.time_step_s; env,
+            ),
+        ))
+    end
     aerodynamic = environment_overrides(defaults.aerodynamic, (
         segment_core_factor = (Float64, "CHANG_FCORE_SEGMENT_FACTOR"),
         chord_core_factor = (Float64, "CHANG_FCORE_CHORD_FACTOR"),
@@ -127,12 +135,23 @@ function load_chang_configuration(defaults = chang_case_defaults(); env = ENV)
         impulse_duration_s = (Float64, "CHANG_IMPULSE_DURATION_S"),
         impulse_magnitude_nm = (Float64, "CHANG_IMPULSE_MAGNITUDE"),
     ), env)
-    revolution_period = 2pi / abs(chang_rotor_angular_speed((; propeller, simulation)))
-    start = isnothing(excitation.impulse_start_s) ?
-        excitation.trim_revolutions * revolution_period : excitation.impulse_start_s
+    start = if isolated_wing
+        excitation.impulse_start_s
+    else
+        revolution_period = 2pi / abs(chang_rotor_angular_speed((; propeller, simulation)))
+        isnothing(excitation.impulse_start_s) ?
+            excitation.trim_revolutions * revolution_period : excitation.impulse_start_s
+    end
     excitation = merge(excitation, (;
         impulse_start_s = environment_number(Float64, "CHANG_IMPULSE_START_S", start; env),
     ))
+    if isolated_wing
+        excitation = merge(excitation, (;
+            trim_average_duration_s = environment_number(
+                Float64, "CHANG_TRIM_AVERAGE_DURATION_S", excitation.trim_average_duration_s; env,
+            ),
+        ))
+    end
     integration = environment_overrides(defaults.integration, (
         time_integrator = (Symbol, "CHANG_TIME_INTEGRATOR"),
         newmark_alpha = (Float64, "CHANG_NEWMARK_ALPHA"),
@@ -176,6 +195,7 @@ end
 # Validate geometry, mesh, model, and excitation settings.
 function validate_configuration(config)
     wing, prop, sim = config.wing, config.propeller, config.simulation
+    isolated_wing = isempty(prop.attachment_eta)
     wing.root_chord_m > 0 || error("Wing root chord must be positive")
     wing.tip_chord_m > 0 || error("Wing tip chord must be positive")
     wing.span_m > 0 || error("Wing span must be positive")
@@ -203,7 +223,7 @@ function validate_configuration(config)
             "Propeller moment projection must be :fixed_aero_axes or " *
             ":exact_virtual_work",
         )
-    isempty(sim.impulse_propeller_indices) &&
+    !isolated_wing && isempty(sim.impulse_propeller_indices) &&
         error("At least one impulse propeller index is required")
     all(
         (1 .<= sim.impulse_propeller_indices) .&
@@ -213,6 +233,21 @@ function validate_configuration(config)
     length(unique(sim.impulse_propeller_indices)) ==
         length(sim.impulse_propeller_indices) ||
         error("Impulse propeller indices must be unique")
+    if isolated_wing
+        isfinite(sim.time_step_s) && 0 < sim.time_step_s <= sim.end_time_s ||
+            error("Wing time step must be finite, positive, and no greater than the end time")
+        isfinite(config.excitation.trim_average_duration_s) &&
+            config.excitation.trim_average_duration_s > 0 ||
+            error("Wing trim averaging duration must be finite and positive")
+        config.excitation.impulse_start_s >= sim.time_step_s ||
+            error("Wing impulse must start after at least one aerodynamic time step")
+        config.excitation.trim_average_duration_s >= sim.time_step_s ||
+            error("Wing trim averaging duration must cover at least one time step")
+        0 < config.excitation.wing_impulse_eta <= 1 ||
+            error("Wing impulse eta must lie in (0, 1]; the root is clamped")
+        config.excitation.wing_impulse_dof in (4, 5, 6) ||
+            error("Wing moment impulse DOF must be 4 (torsion), 5 (bending), or 6 (in-plane)")
+    end
     for (label, value) in (
         ("Air density", sim.air_density_kgpm3),
         ("Trim revolutions", config.excitation.trim_revolutions),

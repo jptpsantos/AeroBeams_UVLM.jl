@@ -4,6 +4,116 @@ This example couples the Chang linear wing--propeller structural model to the
 free-wake UVLM solver. The source is arranged so the normal workflow starts
 from two files: edit `chang_case.jl`, then run `run_chang_linear_aeroelastic.jl`.
 
+## Isolated-wing variant
+
+Edit **`chang_isolated_wing_case.jl`** and run:
+
+```powershell
+julia --threads=auto lib/WingPropellerUVLM/examples/chang_linear_aeroelastic/run_chang_isolated_wing.jl
+```
+
+This separate case removes all propeller/pylon mass, stiffness, gyroscopic
+terms, pitch/yaw DOFs, blade surfaces, and propeller wakes. It retains the
+Chang wing's tabulated structural properties and the same UVLM/load-transfer
+model. Setting `interaction_on = false` in the original case only isolates
+aerodynamic groups and still retains the installed propellers structurally.
+
+The new case inherits shared numerical defaults from `chang_case.jl` and
+provides separate editable wing, flow, excitation, and output settings.
+`simulation.time_step_s` sets the time step directly, independently of RPM;
+`CHANG_TIME_STEP_S` overrides it. The final time is the last whole step at or
+before `end_time_s`, as in the original solver.
+
+The smooth moment pulse acts on the nearest free wing node to
+`excitation.wing_impulse_eta` (default: tip), using structural DOF 4 for torsion,
+5 for out-of-plane bending, or 6 for in-plane bending. Its magnitude is in N m.
+Trim start and averaging duration are specified in seconds through
+`impulse_start_s` and `trim_average_duration_s`
+(`CHANG_IMPULSE_START_S` / `CHANG_TRIM_AVERAGE_DURATION_S`). The wing is held at
+zero perturbation while its aerodynamic baseline develops; later loads have
+that mean subtracted. This is a perturbation response about the reference
+wing, without a separate deflected static-trim solve.
+
+CSV history, summary, and the two-panel tip-displacement/twist plot go to
+`output/isolated_wing/`. Existing `CHANG_*` overrides, both time integrators,
+both coupling schemes, wing image symmetry, and optional wake animation
+remain available. Run `validation/verify_chang_isolated_wing.jl` with
+`--project=lib/WingPropellerUVLM` for the reduced wing-only checks.
+
+## Plot saved CSV histories as PDF
+
+Run the standalone plotting script from the repository root; it reads saved
+histories without rerunning the simulation:
+
+```powershell
+julia --project=. lib/WingPropellerUVLM/examples/chang_linear_aeroelastic/plot_time_histories_csv.jl [input.csv] [output.pdf]
+```
+
+The bracketed arguments are optional placeholders. With no arguments, the
+editable `INPUT_CSV` selects the isolated-wing V50 history. `OUTPUT_PDF = nothing`
+saves a PDF beside the effective input CSV, using the same basename; set it to
+a path or supply the second argument to choose another destination.
+
+The defaults follow the plotting properties in `src/chang_plotting.jl`.
+`PANELS = :auto` detects complete `propeller_N_pitch_deg` and
+`propeller_N_yaw_deg` column pairs and chooses the original system layout:
+
+| CSV system | Panels |
+|:--|:--|
+| Bare wing | Tip displacement and twist |
+| One propeller | Tip displacement, twist, propeller pitch, and yaw |
+| Two propellers | Pitch and yaw for each propeller |
+
+Edit the following settings in the plotting script:
+
+| Setting | What to adjust |
+|:--|:--|
+| `WING_PANELS` | Wing CSV columns, scales, offsets, labels, and individual plot settings |
+| `BARE_WING_OPTIONS` | Extra top/right margins for automatic bare-wing plots |
+| `SINGLE_PROPELLER_WING_OPTIONS` | Reference wing limits for one propeller: displacement +/-0.3% with 0.1% ticks, twist +/-0.2 degrees |
+| `PROPELLER_PANEL_OPTIONS` | Pitch/yaw limits, initially +/-7.5 degrees |
+| `PROPELLER_ETA` | Attachment positions from the saved case, for two-propeller span ordering |
+| `TIME_COLUMN`, `TIME_SCALE`, `TIME_OFFSET` | Time column and conversion |
+| `TIME_LIMIT_S` | `nothing` for the full recorded interval; `5.0` for the original `(0, 5)` second window |
+| `AXES_OPTIONS` | Shared axes, fonts, lines, grids, legends, and margins |
+| `FIGURE_OPTIONS`, `FIGURE_LAYOUT` | Figure styling and layout; `size = nothing` derives `(1000, 500 * number_of_panels)` |
+
+The shared style uses black lines of width 6, tick font size 20, axis label
+font size 24, and left/bottom/top/right margins of 22/12/5/5 mm. Automatic
+bare-wing plots use top/right margins of 10/15 mm and automatic y limits.
+The fixed wing-propeller limits can crop a response; set the corresponding
+`ylims = :auto` and, where necessary, `yticks = :auto` in
+`SINGLE_PROPELLER_WING_OPTIONS` or `PROPELLER_PANEL_OPTIONS` to show its full range.
+
+For two propellers, `PROPELLER_ETA = nothing` keeps numbered labels such as
+"Propeller 1" and "Propeller 2". Set it to `[eta_1, eta_2]`, corresponding to
+the CSV's propellers in increasing numeric index order, to sort and label the
+panels inboard then outboard. Attachment positions are not stored in these
+CSV files, so the script does not infer them from the current case settings.
+
+Set `PANELS = WING_PANELS` to plot only the wing, or supply an explicit vector
+of panel entries for custom columns and layouts. Each panel's `options`
+override `AXES_OPTIONS`. In automatic single-propeller mode,
+`SINGLE_PROPELLER_WING_OPTIONS` additionally override the wing templates'
+limits. The default displacement scale is `-100 / SPAN_M`, with `SPAN_M = 7.5`,
+giving percent span with the Chang sign convention. To plot metres, set the
+scale to `1.0`, update the label, and adjust the limits as needed. All CSV
+columns ending in `_deg` are already in degrees; do not convert them again.
+
+For repeated plotting in a Julia REPL, include the script and call its API:
+
+```julia
+include("lib/WingPropellerUVLM/examples/chang_linear_aeroelastic/plot_time_histories_csv.jl")
+CSVTimeHistoryPlots.plot_time_histories("input.csv";
+    output_path = "output.pdf",
+    panels = :auto,  # Or CSVTimeHistoryPlots.WING_PANELS / a custom vector.
+    propeller_eta = nothing,  # Or saved-case positions, e.g. [0.25, 0.75].
+    figure_options = CSVTimeHistoryPlots.FIGURE_OPTIONS,
+    axes_options = CSVTimeHistoryPlots.AXES_OPTIONS,
+    layout = nothing,  # One panel per row, matching the detected system.
+)
+```
+
 ## Directory map
 
 | Path | Purpose |

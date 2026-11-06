@@ -26,7 +26,7 @@ function write_chang_results(solution;
         wing_node_count,
         degrees_of_freedom_per_node = dofs_per_node,
         number_of_propellers = length(propeller.attachment_eta),
-        number_of_blades = propeller.blades,
+        number_of_blades = isempty(propeller.attachment_eta) ? 0 : propeller.blades,
         propeller_eta = propeller.attachment_eta,
         span_length = wing.span_m,
         density,
@@ -181,7 +181,9 @@ function write_chang_results(;
     summary_path = joinpath(output_directory, output_label * "_summary.txt")
     open(summary_path, "w") do stream
         println(stream, "Chang linear aeroelastic / UVLM validation")
-        println(stream, "source_case = run_chang_linear_aeroelastic.jl")
+        println(stream, "source_case = " * (number_of_propellers == 0 ?
+            "run_chang_isolated_wing.jl" : "run_chang_linear_aeroelastic.jl"))
+        println(stream, "isolated_wing = $(number_of_propellers == 0)")
         println(stream, "time_integrator = $time_integrator")
         println(stream, "coupling_scheme = $coupling_scheme")
         println(stream, "air_density_kg_m3 = $density")
