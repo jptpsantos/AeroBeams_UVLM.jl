@@ -23,8 +23,8 @@ function chang_case_defaults()
         chord_m = 0.197,           # Constant blade chord.
         blades = 4,
 
-        radial_panels = 5,         # Panels along each blade.
-        chordwise_panels = 5,  # Panels across each blade chord.
+        radial_panels = 10,         # Panels along each blade.
+        chordwise_panels = 10,  # Panels across each blade chord.
 
         # RPM is specified at trim_speed_mps. The solver scales RPM with airspeed
         # to keep the advance ratio fixed.
@@ -32,19 +32,19 @@ function chang_case_defaults()
         trim_speed_mps = 65.0,
 
         # One entry per propeller: 0 = wing root, 1 = wing tip.
-        attachment_eta = [0.0],
+        attachment_eta = [0.83],
         collective_pitch_offset_deg = 0.0, # Added to the Chang blade-angle distribution.
     )
 
     # 3. Flow, time stepping, and coupling
     simulation = (
         air_density_kgpm3 = 1.225,
-        freestream_speed_mps = 90.0,
+        freestream_speed_mps = 83.0,
         angle_of_attack_deg = 3.0,
         sideslip_deg = 0.0,
 
         azimuth_step_deg = 2.5,    # Rotor angle advanced per time step.
-        end_time_s = 5.0,          # Total requested simulation duration.
+        end_time_s = 5,          # Total requested simulation duration.
 
         # true: include wing–propeller and propeller–propeller aerodynamic influence.
         # false: isolate those groups; blades within each propeller still interact.
@@ -84,7 +84,7 @@ function chang_case_defaults()
         # One wake row is shed per time step: retained wake age ≈ rows * Δt.
         # Wing: use an integer for a fixed row count, or nothing for automatic sizing.
         maximum_rows_wing = nothing,
-        wing_rows_per_chord_panel = 10,    # Automatic count = this * active chordwise panels.
+        wing_rows_per_chord_panel = 5,    # Automatic count = this * active chordwise panels.
         # Propeller wake: rows = ceil(revolutions * 360 / azimuth_step_deg).
         # This keeps the retained wake duration fixed when the azimuth step changes.
         retained_revolutions_propeller = 1.0,
@@ -96,7 +96,7 @@ function chang_case_defaults()
     excitation = (
         trim_revolutions = 10.0,           # Revolutions before the automatic impulse start.
         trim_average_revolutions = 1.0,    # Revolutions used for the mean baseline load.
-        impulse_start_s = nothing,        # nothing: start after trim_revolutions.
+        impulse_start_s = 0.1,        # nothing: start after trim_revolutions.
         impulse_duration_s = 0.15,
         impulse_magnitude_nm = 1200.0,     # Peak pitch moment per selected propeller.
     )

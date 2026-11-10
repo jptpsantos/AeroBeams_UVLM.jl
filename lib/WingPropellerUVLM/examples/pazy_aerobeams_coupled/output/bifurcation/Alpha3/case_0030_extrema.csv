@@ -1,0 +1,5 @@
+airspeed_mps,response,unit,minimum,maximum,mean,amplitude,convergence_status,converged,window_start_s,window_end_s,sample_count,static_equilibrium,label
+54.5,tip_out_of_plane_percent,% semispan,20.853274172814874,23.942939269059185,22.45774150040282,1.5448325481221552,unconverged,false,4.000181455271276,5.0,2205,21.68829915316596,Tip out-of-plane displacement
+54.5,root_strain_ue,microstrain,-2599.30018138853,-523.5870628626079,-1556.832967906277,1037.856559262961,converged,true,4.000181455271276,5.0,2205,-1521.6526198972426,Near-root longitudinal strain
+54.5,tip_twist_deg,deg,-2.5867920734902907,5.820610531329818,1.6449269099107258,4.203701302410054,unconverged,false,4.000181455271276,5.0,2205,1.4967857592723142,Tip twist
+54.5,tip_geometric_incidence_deg,deg,0.4132079265097097,8.820610531329818,4.644926909910726,4.203701302410054,unconverged,false,4.000181455271276,5.0,2205,4.496785759272314,Root incidence + elastic tip twist

@@ -68,13 +68,13 @@ function create_study(; runMode=:full, dryRun=false)
     # nothing generates three refinement levels from the resolved nominal.
     # wingSpanPanels also refines the structural mesh in explicit mode.
     sweeps = (
-        wingSpanPanels = [10, 20, 30],
-        wingChordPanels = [5, 10, 15],
-        propellerRadialPanels = [5, 10, 20],
-        propellerChordPanels = [5, 10, 20],
+        #wingSpanPanels = [10, 20, 30],
+        #wingChordPanels = [5, 10, 15],
+        #propellerRadialPanels = [10, 20, 30, 40, 50],
+        #propellerChordPanels = [10, 20, 30, 40, 50],
 #        wakeRevolutions = [2.0, 4.0, 6.0],
         # Explicit coupling also needs a time-step convergence check.
-        #azimuthStepDeg = [5.0, 2.5, 1.25],
+        azimuthStepDeg = [5.0, 2.5, 1.25],
     )
 
     settings = (;

@@ -1,0 +1,261 @@
+airspeed_mps,response,unit,kind,time_s,value
+49.0,tip_out_of_plane_percent,% semispan,minimum,4.007467958421637,16.631879660799342
+49.0,tip_out_of_plane_percent,% semispan,maximum,4.0226057119790095,16.633805214224267
+49.0,tip_out_of_plane_percent,% semispan,minimum,4.037743465536382,16.631882319803516
+49.0,tip_out_of_plane_percent,% semispan,maximum,4.053385810878999,16.63380033711151
+49.0,tip_out_of_plane_percent,% semispan,minimum,4.068523564436371,16.6318856596549
+49.0,tip_out_of_plane_percent,% semispan,maximum,4.0836613179937435,16.63379774885699
+49.0,tip_out_of_plane_percent,% semispan,minimum,4.098799071551116,16.6318901203541
+49.0,tip_out_of_plane_percent,% semispan,maximum,4.114441416893733,16.633794001091417
+49.0,tip_out_of_plane_percent,% semispan,minimum,4.129579170451105,16.63189252359288
+49.0,tip_out_of_plane_percent,% semispan,maximum,4.144716924008478,16.633789759658843
+49.0,tip_out_of_plane_percent,% semispan,minimum,4.160359269351096,16.631896295747335
+49.0,tip_out_of_plane_percent,% semispan,maximum,4.175497022908467,16.633787140880717
+49.0,tip_out_of_plane_percent,% semispan,minimum,4.190634776465839,16.631900269856086
+49.0,tip_out_of_plane_percent,% semispan,maximum,4.206277121808458,16.633783193384975
+49.0,tip_out_of_plane_percent,% semispan,minimum,4.22141487536583,16.63190298770398
+49.0,tip_out_of_plane_percent,% semispan,maximum,4.236552628923201,16.633779540719193
+49.0,tip_out_of_plane_percent,% semispan,minimum,4.252194974265819,16.631906983763695
+49.0,tip_out_of_plane_percent,% semispan,maximum,4.267332727823192,16.633776569896987
+49.0,tip_out_of_plane_percent,% semispan,minimum,4.282470481380564,16.631910292362843
+49.0,tip_out_of_plane_percent,% semispan,maximum,4.298112826723181,16.633772287767272
+49.0,tip_out_of_plane_percent,% semispan,minimum,4.313250580280553,16.631913239150375
+49.0,tip_out_of_plane_percent,% semispan,maximum,4.328388333837926,16.633769192059667
+49.0,tip_out_of_plane_percent,% semispan,minimum,4.344030679180543,16.63191749138596
+49.0,tip_out_of_plane_percent,% semispan,maximum,4.359168432737915,16.633765955826448
+49.0,tip_out_of_plane_percent,% semispan,minimum,4.3743061862952874,16.63192024342795
+49.0,tip_out_of_plane_percent,% semispan,maximum,4.389948531637906,16.633761446183374
+49.0,tip_out_of_plane_percent,% semispan,minimum,4.405086285195278,16.631923498646245
+49.0,tip_out_of_plane_percent,% semispan,maximum,4.420224038752649,16.633758955049146
+49.0,tip_out_of_plane_percent,% semispan,minimum,4.4353617923100215,16.631927975376144
+49.0,tip_out_of_plane_percent,% semispan,maximum,4.45100413765264,16.633755463525304
+49.0,tip_out_of_plane_percent,% semispan,minimum,4.466141891210012,16.631930219819157
+49.0,tip_out_of_plane_percent,% semispan,maximum,4.481279644767383,16.633751253946308
+49.0,tip_out_of_plane_percent,% semispan,minimum,4.4969219901100015,16.6319337346616
+49.0,tip_out_of_plane_percent,% semispan,maximum,4.512059743667374,16.633748756949355
+49.0,tip_out_of_plane_percent,% semispan,minimum,4.527197497224746,16.631937616545837
+49.0,tip_out_of_plane_percent,% semispan,maximum,4.542839842567363,16.633744993996782
+49.0,tip_out_of_plane_percent,% semispan,minimum,4.5579775961247355,16.63194013353248
+49.0,tip_out_of_plane_percent,% semispan,maximum,4.573115349682108,16.633741357780398
+49.0,tip_out_of_plane_percent,% semispan,minimum,4.588757695024725,16.631943913337977
+49.0,tip_out_of_plane_percent,% semispan,maximum,4.603895448582097,16.633738594852144
+49.0,tip_out_of_plane_percent,% semispan,minimum,4.6190332021394696,16.631947231287707
+49.0,tip_out_of_plane_percent,% semispan,maximum,4.634675547482088,16.633734585205424
+49.0,tip_out_of_plane_percent,% semispan,minimum,4.64981330103946,16.63195002862369
+49.0,tip_out_of_plane_percent,% semispan,maximum,4.664951054596831,16.63373151964801
+49.0,tip_out_of_plane_percent,% semispan,minimum,4.68059339993945,16.631954068705706
+49.0,tip_out_of_plane_percent,% semispan,maximum,4.695731153496822,16.63372849409134
+49.0,tip_out_of_plane_percent,% semispan,minimum,4.710868907054194,16.631956828711733
+49.0,tip_out_of_plane_percent,% semispan,maximum,4.726511252396811,16.633724234014075
+49.0,tip_out_of_plane_percent,% semispan,minimum,4.741649005954184,16.63195988926709
+49.0,tip_out_of_plane_percent,% semispan,maximum,4.756786759511556,16.633721718372694
+49.0,tip_out_of_plane_percent,% semispan,minimum,4.772429104854173,16.631964175419014
+49.0,tip_out_of_plane_percent,% semispan,maximum,4.787566858411545,16.633718431164887
+49.0,tip_out_of_plane_percent,% semispan,minimum,4.802704611968918,16.631966387071728
+49.0,tip_out_of_plane_percent,% semispan,maximum,4.81784236552629,16.63371428149434
+49.0,tip_out_of_plane_percent,% semispan,minimum,4.833484710868907,16.63196970595343
+49.0,tip_out_of_plane_percent,% semispan,maximum,4.848622464426279,16.63371195340023
+49.0,tip_out_of_plane_percent,% semispan,minimum,4.863760217983652,16.631973545235905
+49.0,tip_out_of_plane_percent,% semispan,maximum,4.87940256332627,16.63370841289449
+49.0,tip_out_of_plane_percent,% semispan,minimum,4.894540316883641,16.63197591124054
+49.0,tip_out_of_plane_percent,% semispan,maximum,4.9096780704410135,16.63370482008423
+49.0,tip_out_of_plane_percent,% semispan,minimum,4.925320415783632,16.631979481290134
+49.0,tip_out_of_plane_percent,% semispan,maximum,4.940458169341004,16.63370222778176
+49.0,tip_out_of_plane_percent,% semispan,minimum,4.955595922898376,16.631982769928783
+49.0,tip_out_of_plane_percent,% semispan,maximum,4.9712382682409935,16.633698437906993
+49.0,tip_out_of_plane_percent,% semispan,minimum,4.986376021798366,16.631985395218983
+49.0,root_strain_ue,microstrain,minimum,4.007467958421637,-1165.8308427278923
+49.0,root_strain_ue,microstrain,maximum,4.0226057119790095,-1163.920851537711
+49.0,root_strain_ue,microstrain,minimum,4.038248057321627,-1165.8263505480888
+49.0,root_strain_ue,microstrain,maximum,4.053385810878999,-1163.9241509469587
+49.0,root_strain_ue,microstrain,minimum,4.068523564436371,-1165.8235549499152
+49.0,root_strain_ue,microstrain,maximum,4.0841659097789895,-1163.9287230142147
+49.0,root_strain_ue,microstrain,minimum,4.099303663336362,-1165.8200607835588
+49.0,root_strain_ue,microstrain,maximum,4.114441416893733,-1163.931244623492
+49.0,root_strain_ue,microstrain,minimum,4.129579170451105,-1165.8157422281292
+49.0,root_strain_ue,microstrain,maximum,4.1452215157937236,-1163.9348423600372
+49.0,root_strain_ue,microstrain,minimum,4.160359269351096,-1165.81312255323
+49.0,root_strain_ue,microstrain,maximum,4.175497022908467,-1163.9388869393613
+49.0,root_strain_ue,microstrain,minimum,4.191139368251085,-1165.8093309952028
+49.0,root_strain_ue,microstrain,maximum,4.206277121808458,-1163.9416308383584
+49.0,root_strain_ue,microstrain,minimum,4.22141487536583,-1165.8056716205597
+49.0,root_strain_ue,microstrain,maximum,4.237057220708447,-1163.9455275392882
+49.0,root_strain_ue,microstrain,minimum,4.252194974265819,-1165.802727321375
+49.0,root_strain_ue,microstrain,maximum,4.267332727823192,-1163.9488947815298
+49.0,root_strain_ue,microstrain,minimum,4.282975073165809,-1165.7986424321778
+49.0,root_strain_ue,microstrain,maximum,4.298112826723181,-1163.951950565569
+49.0,root_strain_ue,microstrain,minimum,4.313250580280553,-1165.7956320780436
+49.0,root_strain_ue,microstrain,maximum,4.328892925623172,-1163.9561447319227
+49.0,root_strain_ue,microstrain,minimum,4.344030679180543,-1165.7923834785445
+49.0,root_strain_ue,microstrain,maximum,4.359168432737915,-1163.9588745777583
+49.0,root_strain_ue,microstrain,minimum,4.374810778080533,-1165.7879963704127
+49.0,root_strain_ue,microstrain,maximum,4.389948531637906,-1163.9622216716411
+49.0,root_strain_ue,microstrain,minimum,4.405086285195278,-1165.785626697297
+49.0,root_strain_ue,microstrain,maximum,4.420224038752649,-1163.9666201972645
+49.0,root_strain_ue,microstrain,minimum,4.4358663840952675,-1165.782111939421
+49.0,root_strain_ue,microstrain,maximum,4.45100413765264,-1163.968845077231
+49.0,root_strain_ue,microstrain,minimum,4.466141891210012,-1165.7780162758816
+49.0,root_strain_ue,microstrain,maximum,4.481784236552629,-1163.9724626213863
+49.0,root_strain_ue,microstrain,minimum,4.4969219901100015,-1165.7756405988728
+49.0,root_strain_ue,microstrain,maximum,4.512059743667374,-1163.976322817168
+49.0,root_strain_ue,microstrain,minimum,4.527702089009991,-1165.7718700694147
+49.0,root_strain_ue,microstrain,maximum,4.542839842567363,-1163.9787916744656
+49.0,root_strain_ue,microstrain,minimum,4.5579775961247355,-1165.7683288356639
+49.0,root_strain_ue,microstrain,maximum,4.573619941467354,-1163.9826526603588
+49.0,root_strain_ue,microstrain,minimum,4.588757695024725,-1165.7657140470626
+49.0,root_strain_ue,microstrain,maximum,4.603895448582097,-1163.9859943849858
+49.0,root_strain_ue,microstrain,minimum,4.6195377939247155,-1165.761710685552
+49.0,root_strain_ue,microstrain,maximum,4.634675547482088,-1163.988708269209
+49.0,root_strain_ue,microstrain,minimum,4.64981330103946,-1165.7586493517135
+49.0,root_strain_ue,microstrain,maximum,4.665455646382077,-1163.9928006264013
+49.0,root_strain_ue,microstrain,minimum,4.68059339993945,-1165.755799504486
+49.0,root_strain_ue,microstrain,maximum,4.695731153496822,-1163.9956589635146
+49.0,root_strain_ue,microstrain,minimum,4.711373498839439,-1165.7515779503478
+49.0,root_strain_ue,microstrain,maximum,4.726511252396811,-1163.9985980408417
+49.0,root_strain_ue,microstrain,minimum,4.741649005954184,-1165.7490098169728
+49.0,root_strain_ue,microstrain,maximum,4.757291351296802,-1164.002904121897
+49.0,root_strain_ue,microstrain,minimum,4.772429104854173,-1165.745931879694
+49.0,root_strain_ue,microstrain,maximum,4.787566858411545,-1164.0052818281677
+49.0,root_strain_ue,microstrain,minimum,4.802704611968918,-1165.741494466142
+49.0,root_strain_ue,microstrain,maximum,4.818346957311536,-1164.0084504054362
+49.0,root_strain_ue,microstrain,minimum,4.833484710868907,-1165.7393994523627
+49.0,root_strain_ue,microstrain,maximum,4.848622464426279,-1164.0126471199278
+49.0,root_strain_ue,microstrain,minimum,4.864264809768898,-1165.7360921827328
+49.0,root_strain_ue,microstrain,maximum,4.87940256332627,-1164.0148585529084
+49.0,root_strain_ue,microstrain,minimum,4.894540316883641,-1165.7322057717133
+49.0,root_strain_ue,microstrain,maximum,4.910182662226259,-1164.0182518563831
+49.0,root_strain_ue,microstrain,minimum,4.925320415783632,-1165.7298202650338
+49.0,root_strain_ue,microstrain,maximum,4.940458169341004,-1164.0219122433869
+49.0,root_strain_ue,microstrain,minimum,4.956100514683621,-1165.7262845604785
+49.0,root_strain_ue,microstrain,maximum,4.9712382682409935,-1164.024415606754
+49.0,root_strain_ue,microstrain,minimum,4.986376021798366,-1165.7229525449882
+49.0,tip_twist_deg,deg,minimum,4.008981733777374,1.150914969084441
+49.0,tip_twist_deg,deg,maximum,4.024119487334747,1.1732784824182214
+49.0,tip_twist_deg,deg,minimum,4.039761832677365,1.1509612693104747
+49.0,tip_twist_deg,deg,maximum,4.054899586234736,1.1732446239741405
+49.0,tip_twist_deg,deg,minimum,4.070037339792108,1.1510026871384353
+49.0,tip_twist_deg,deg,maximum,4.085679685134727,1.1731957025075344
+49.0,tip_twist_deg,deg,minimum,4.100817438692099,1.1510369698246568
+49.0,tip_twist_deg,deg,maximum,4.115955192249471,1.1731558020830994
+49.0,tip_twist_deg,deg,minimum,4.131597537592088,1.1510871929472484
+49.0,tip_twist_deg,deg,maximum,4.146735291149461,1.1731194069313058
+49.0,tip_twist_deg,deg,minimum,4.161873044706833,1.1511219114697293
+49.0,tip_twist_deg,deg,maximum,4.17751539004945,1.1730682793310936
+49.0,tip_twist_deg,deg,minimum,4.192653143606822,1.1511603823583096
+49.0,tip_twist_deg,deg,maximum,4.207790897164195,1.1730354938097238
+49.0,tip_twist_deg,deg,minimum,4.223433242506813,1.151214620970753
+49.0,tip_twist_deg,deg,maximum,4.238570996064184,1.172996796917688
+49.0,tip_twist_deg,deg,minimum,4.253708749621556,1.151242729663194
+49.0,tip_twist_deg,deg,maximum,4.268846503178929,1.172944085450918
+49.0,tip_twist_deg,deg,minimum,4.284488848521547,1.1512852115879366
+49.0,tip_twist_deg,deg,maximum,4.299626602078918,1.1729175583691103
+49.0,tip_twist_deg,deg,minimum,4.3147643556362905,1.1513338799739294
+49.0,tip_twist_deg,deg,maximum,4.330406700978909,1.1728763376755629
+49.0,tip_twist_deg,deg,minimum,4.345544454536281,1.1513646166746143
+49.0,tip_twist_deg,deg,maximum,4.360682208093653,1.1728305665132437
+49.0,tip_twist_deg,deg,minimum,4.3763245534362705,1.151410636419648
+49.0,tip_twist_deg,deg,maximum,4.391462306993643,1.172801157251411
+49.0,tip_twist_deg,deg,minimum,4.406600060551015,1.1514524229172447
+49.0,tip_twist_deg,deg,maximum,4.422242405893632,1.172757029025583
+49.0,tip_twist_deg,deg,minimum,4.4373801594510045,1.1514865455923575
+49.0,tip_twist_deg,deg,maximum,4.452517913008377,1.172717898765823
+49.0,tip_twist_deg,deg,minimum,4.468160258350995,1.1515355467533093
+49.0,tip_twist_deg,deg,maximum,4.483298011908366,1.1726852048290075
+49.0,tip_twist_deg,deg,minimum,4.4984357654657385,1.15157046724378
+49.0,tip_twist_deg,deg,maximum,4.514078110808357,1.172637827142313
+49.0,tip_twist_deg,deg,minimum,4.529215864365729,1.1516074825721068
+49.0,tip_twist_deg,deg,maximum,4.5443536179231,1.1726050986187666
+49.0,tip_twist_deg,deg,minimum,4.5599959632657185,1.1516590621553564
+49.0,tip_twist_deg,deg,maximum,4.575133716823091,1.1725688882939833
+49.0,tip_twist_deg,deg,minimum,4.590271470380463,1.1516872140078638
+49.0,tip_twist_deg,deg,maximum,4.60591381572308,1.172518099354326
+49.0,tip_twist_deg,deg,minimum,4.621051569280453,1.1517268467250443
+49.0,tip_twist_deg,deg,maximum,4.636189322837825,1.172491639271027
+49.0,tip_twist_deg,deg,minimum,4.651327076395197,1.1517745401522193
+49.0,tip_twist_deg,deg,maximum,4.666969421737814,1.1724519129273736
+49.0,tip_twist_deg,deg,minimum,4.682107175295187,1.1518023890993527
+49.0,tip_twist_deg,deg,maximum,4.697244928852559,1.172406290122498
+49.0,tip_twist_deg,deg,minimum,4.712887274195176,1.1518446199338666
+49.0,tip_twist_deg,deg,maximum,4.728025027752548,1.1723775513905492
+49.0,tip_twist_deg,deg,minimum,4.743162781309921,1.1518855819321627
+49.0,tip_twist_deg,deg,maximum,4.758805126652539,1.1723345297162553
+49.0,tip_twist_deg,deg,minimum,4.773942880209911,1.151916253580419
+49.0,tip_twist_deg,deg,maximum,4.789080633767282,1.1722953038794781
+49.0,tip_twist_deg,deg,minimum,4.804722979109901,1.1519612196729294
+49.0,tip_twist_deg,deg,maximum,4.819860732667273,1.1722633085207756
+49.0,tip_twist_deg,deg,minimum,4.834998486224645,1.1519956874027764
+49.0,tip_twist_deg,deg,maximum,4.8506408315672624,1.172217327580325
+49.0,tip_twist_deg,deg,minimum,4.865778585124635,1.1520293583696941
+49.0,tip_twist_deg,deg,maximum,4.880916338682007,1.1721844463209863
+49.0,tip_twist_deg,deg,minimum,4.896558684024624,1.152077246181658
+49.0,tip_twist_deg,deg,maximum,4.9116964375819965,1.1721495237325144
+49.0,tip_twist_deg,deg,minimum,4.926834191139369,1.1521054272825908
+49.0,tip_twist_deg,deg,maximum,4.942476536481987,1.1721008905048227
+49.0,tip_twist_deg,deg,minimum,4.957614290039358,1.1521422487972768
+49.0,tip_twist_deg,deg,maximum,4.9727520435967305,1.1720742826940849
+49.0,tip_twist_deg,deg,minimum,4.987889797154103,1.152189308586602
+49.0,tip_geometric_incidence_deg,deg,minimum,4.008981733777374,4.150914969084441
+49.0,tip_geometric_incidence_deg,deg,maximum,4.024119487334747,4.173278482418222
+49.0,tip_geometric_incidence_deg,deg,minimum,4.039761832677365,4.150961269310475
+49.0,tip_geometric_incidence_deg,deg,maximum,4.054899586234736,4.173244623974141
+49.0,tip_geometric_incidence_deg,deg,minimum,4.070037339792108,4.151002687138436
+49.0,tip_geometric_incidence_deg,deg,maximum,4.085679685134727,4.173195702507535
+49.0,tip_geometric_incidence_deg,deg,minimum,4.100817438692099,4.151036969824657
+49.0,tip_geometric_incidence_deg,deg,maximum,4.115955192249471,4.1731558020831
+49.0,tip_geometric_incidence_deg,deg,minimum,4.131597537592088,4.151087192947249
+49.0,tip_geometric_incidence_deg,deg,maximum,4.146735291149461,4.173119406931306
+49.0,tip_geometric_incidence_deg,deg,minimum,4.161873044706833,4.15112191146973
+49.0,tip_geometric_incidence_deg,deg,maximum,4.17751539004945,4.173068279331094
+49.0,tip_geometric_incidence_deg,deg,minimum,4.192653143606822,4.15116038235831
+49.0,tip_geometric_incidence_deg,deg,maximum,4.207790897164195,4.173035493809724
+49.0,tip_geometric_incidence_deg,deg,minimum,4.223433242506813,4.151214620970753
+49.0,tip_geometric_incidence_deg,deg,maximum,4.238570996064184,4.172996796917689
+49.0,tip_geometric_incidence_deg,deg,minimum,4.253708749621556,4.151242729663195
+49.0,tip_geometric_incidence_deg,deg,maximum,4.268846503178929,4.1729440854509185
+49.0,tip_geometric_incidence_deg,deg,minimum,4.284488848521547,4.151285211587937
+49.0,tip_geometric_incidence_deg,deg,maximum,4.299626602078918,4.172917558369111
+49.0,tip_geometric_incidence_deg,deg,minimum,4.3147643556362905,4.151333879973929
+49.0,tip_geometric_incidence_deg,deg,maximum,4.330406700978909,4.1728763376755635
+49.0,tip_geometric_incidence_deg,deg,minimum,4.345544454536281,4.1513646166746145
+49.0,tip_geometric_incidence_deg,deg,maximum,4.360682208093653,4.172830566513245
+49.0,tip_geometric_incidence_deg,deg,minimum,4.3763245534362705,4.151410636419648
+49.0,tip_geometric_incidence_deg,deg,maximum,4.391462306993643,4.172801157251412
+49.0,tip_geometric_incidence_deg,deg,minimum,4.406600060551015,4.151452422917245
+49.0,tip_geometric_incidence_deg,deg,maximum,4.422242405893632,4.1727570290255835
+49.0,tip_geometric_incidence_deg,deg,minimum,4.4373801594510045,4.151486545592358
+49.0,tip_geometric_incidence_deg,deg,maximum,4.452517913008377,4.172717898765823
+49.0,tip_geometric_incidence_deg,deg,minimum,4.468160258350995,4.15153554675331
+49.0,tip_geometric_incidence_deg,deg,maximum,4.483298011908366,4.172685204829008
+49.0,tip_geometric_incidence_deg,deg,minimum,4.4984357654657385,4.151570467243781
+49.0,tip_geometric_incidence_deg,deg,maximum,4.514078110808357,4.172637827142314
+49.0,tip_geometric_incidence_deg,deg,minimum,4.529215864365729,4.151607482572107
+49.0,tip_geometric_incidence_deg,deg,maximum,4.5443536179231,4.172605098618767
+49.0,tip_geometric_incidence_deg,deg,minimum,4.5599959632657185,4.151659062155357
+49.0,tip_geometric_incidence_deg,deg,maximum,4.575133716823091,4.172568888293984
+49.0,tip_geometric_incidence_deg,deg,minimum,4.590271470380463,4.151687214007865
+49.0,tip_geometric_incidence_deg,deg,maximum,4.60591381572308,4.172518099354327
+49.0,tip_geometric_incidence_deg,deg,minimum,4.621051569280453,4.151726846725045
+49.0,tip_geometric_incidence_deg,deg,maximum,4.636189322837825,4.172491639271027
+49.0,tip_geometric_incidence_deg,deg,minimum,4.651327076395197,4.1517745401522195
+49.0,tip_geometric_incidence_deg,deg,maximum,4.666969421737814,4.172451912927374
+49.0,tip_geometric_incidence_deg,deg,minimum,4.682107175295187,4.151802389099354
+49.0,tip_geometric_incidence_deg,deg,maximum,4.697244928852559,4.172406290122499
+49.0,tip_geometric_incidence_deg,deg,minimum,4.712887274195176,4.1518446199338666
+49.0,tip_geometric_incidence_deg,deg,maximum,4.728025027752548,4.17237755139055
+49.0,tip_geometric_incidence_deg,deg,minimum,4.743162781309921,4.151885581932163
+49.0,tip_geometric_incidence_deg,deg,maximum,4.758805126652539,4.172334529716256
+49.0,tip_geometric_incidence_deg,deg,minimum,4.773942880209911,4.15191625358042
+49.0,tip_geometric_incidence_deg,deg,maximum,4.789080633767282,4.172295303879478
+49.0,tip_geometric_incidence_deg,deg,minimum,4.804722979109901,4.15196121967293
+49.0,tip_geometric_incidence_deg,deg,maximum,4.819860732667273,4.172263308520776
+49.0,tip_geometric_incidence_deg,deg,minimum,4.834998486224645,4.151995687402777
+49.0,tip_geometric_incidence_deg,deg,maximum,4.8506408315672624,4.172217327580325
+49.0,tip_geometric_incidence_deg,deg,minimum,4.865778585124635,4.152029358369695
+49.0,tip_geometric_incidence_deg,deg,maximum,4.880916338682007,4.172184446320987
+49.0,tip_geometric_incidence_deg,deg,minimum,4.896558684024624,4.152077246181658
+49.0,tip_geometric_incidence_deg,deg,maximum,4.9116964375819965,4.172149523732514
+49.0,tip_geometric_incidence_deg,deg,minimum,4.926834191139369,4.152105427282591
+49.0,tip_geometric_incidence_deg,deg,maximum,4.942476536481987,4.172100890504823
+49.0,tip_geometric_incidence_deg,deg,minimum,4.957614290039358,4.1521422487972774
+49.0,tip_geometric_incidence_deg,deg,maximum,4.9727520435967305,4.172074282694085
+49.0,tip_geometric_incidence_deg,deg,minimum,4.987889797154103,4.152189308586602

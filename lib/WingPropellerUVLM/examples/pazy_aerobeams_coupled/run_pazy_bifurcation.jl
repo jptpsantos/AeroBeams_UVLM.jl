@@ -12,9 +12,9 @@ using .PazyBifurcation
 #if abspath(PROGRAM_FILE) == @__FILE__
     bifurcation = (
         enabled=true,
-        U_min=35.0, U_max=55.0, dU=0.25,
+        U_min=40.0, U_max=60.0, dU=0.5,
         simulation_time=5.0, transient_time=4.0,
-        angle_of_attack=deg2rad(5.0),
+        angle_of_attack=deg2rad(3.0),
         initialization=:equilibrium,
         pulse_amplitude=1.0, pulse_start=0.1, pulse_duration=0.04,
         responses=(:tip_out_of_plane_percent, :root_strain_ue,
@@ -22,10 +22,10 @@ using .PazyBifurcation
         check_convergence=true,
         save_time_histories=false, save_local_extrema=true,
         plot_results=true, plot_amplitude=true, plot_paper=true,
-        # Reference style over the full speed range (panels a–d).
-        paper_plot_options=(xlims=(35.0, 55.0), xticks=35:5:55,
-            ylims=((10.0, 35.0), (-5000.0, 0.0), (-15.0, 15.0), (-10.0, 20.0)),
-            yticks=(10:5:35, -5000:1000:0, -15:5:15, -10:5:20),
+        # Reference style, with your selected 40–50 m/s view (panels a–d).
+        paper_plot_options=(xlims=(40.0, 60.0), xticks=40:5:60,
+            ylims=((15.0, 35.0), (-5000.0, 0.0), (-15.0, 15.0), (-10.0, 20.0)),
+            yticks=(15:5:35, -5000:1000:0, -15:5:15, -10:5:20),
             formats=("png", "pdf"), save_panels=true,
             fontfamily="Times", captionfontfamily="Times Bold",
             guidefontsize=12, tickfontsize=11, legendfontsize=10, captionfontsize=11,

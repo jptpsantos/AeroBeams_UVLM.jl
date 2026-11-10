@@ -331,6 +331,51 @@ shedding fraction is 0.1; the handoff rejects other aerodynamic values.
 This study checks damping sensitivity at one operating point. To establish
 flutter-speed convergence, repeat near the stability crossing.
 
+### Plot the First and Second case archives
+
+To combine the saved blade radial/chord sweeps without running simulations:
+
+```powershell
+julia --startup-file=no --project=lib/WingPropellerUVLM/studies lib/WingPropellerUVLM/examples/chang_linear_aeroelastic/studies/convergence/plot_chang_convergence_aeroelastic.jl
+```
+
+The plotter reads `First case/` and `Second case/` inside
+`output/convergence_aeroelastic_explicit/`. An optional first argument selects
+another parent directory. It checks matching saved settings and fingerprints,
+merges by full numerical controls, and rejects conflicting duplicate results.
+The merged counts are `[5, 10, 20, 30, 40, 50]` for each sweep: 12 curve points
+represent 11 unique configurations because the 10-by-10 baseline is shared.
+The separate azimuth sweep in the parent directory is excluded.
+
+Outputs in `plots/` are `damping_convergence.png` and `.svg`,
+`damping_percentage_differences.png` and `.svg`,
+`unique_cases.csv` with source provenance, `damping_convergence.csv`, and
+`plot_notes.md`. The figure shows pitch/yaw lambda and the successive relative
+error in percent: `100 * abs(lambda(N_i) - lambda(N_(i-1))) / abs(lambda(N_i))`.
+Dotted pitch/yaw curves convert the saved absolute tolerance to percent using
+the same current-lambda denominator. The CSV includes absolute and percentage
+errors, also against the merged finest reference. Relative errors at zero lambda
+are undefined and saved as NaN. Errors are recalculated after merging; saved level numbers and
+old reference errors are not reused. These mesh comparisons keep the time
+step fixed and do not establish time-step convergence.
+
+The dedicated percentage-difference figure shows both comparisons on linear
+axes: successive meshes in the top row, and each mesh versus the finest mesh
+in the bottom row. The radial/chord sweeps occupy the left/right columns.
+The finest-reference difference is
+`100 * abs(lambda(N_i) - lambda(N_finest)) / abs(lambda(N_finest))`.
+Its reference point is exactly zero. Each row uses its own shared scale across
+the two sweeps, and the dotted tolerances use the corresponding denominator.
+The existing saved absolute tolerances and acceptance criteria are unchanged.
+
+Including the script defines
+`ChangConvergenceAeroelasticPlots.plot_saved_convergence(directory)` without
+running it. Focused checks for the supplied archives can be run with:
+
+```powershell
+julia --startup-file=no --project=lib/WingPropellerUVLM/studies lib/WingPropellerUVLM/test/chang_aeroelastic_convergence_plots.jl
+```
+
 ## Previous scripts and verification
 
 Old filenames now live under `archive/`; their relative solver paths and
