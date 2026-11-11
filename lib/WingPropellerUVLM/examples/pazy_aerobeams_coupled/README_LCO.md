@@ -92,7 +92,7 @@ responses to check both entry points, repeat runs, plot-only selection and
 preservation of existing 5-degree results:
 
 ```powershell
-julia --project=. lib/WingPropellerUVLM/examples/pazy_aerobeams_coupled/test_pazy_LCO_output.jl
+julia --project=. lib/WingPropellerUVLM/examples/pazy_aerobeams_coupled/test/test_pazy_LCO_output.jl
 ```
 
 ## Continuous test (separate runner)
@@ -156,7 +156,7 @@ independent upsweep and checks the shared boundary sample, live velocity,
 continuing aerodynamic clock/wake counters, fixed dt, and CSV outputs:
 
 ```powershell
-julia --startup-file=no --compiled-modules=existing --project=. lib/WingPropellerUVLM/examples/pazy_aerobeams_coupled/test_pazy_continuous_LCO.jl
+julia --startup-file=no --compiled-modules=existing --project=. lib/WingPropellerUVLM/examples/pazy_aerobeams_coupled/test/test_pazy_continuous_LCO.jl
 ```
 
 ## Independent runs (original runner)
@@ -464,7 +464,7 @@ check force application, constant speed, equilibrium reuse, preserved wake age
 under timestep refinement, coupling convergence, and exports:
 
 ```powershell
-julia --startup-file=no --compiled-modules=existing --project=. lib/WingPropellerUVLM/examples/pazy_aerobeams_coupled/test_pazy_LCO_diagnostic.jl
+julia --startup-file=no --compiled-modules=existing --project=. lib/WingPropellerUVLM/examples/pazy_aerobeams_coupled/test/test_pazy_LCO_diagnostic.jl
 ```
 
 To analyze the completed 45 m/s CSVs without rerunning the solver:
@@ -485,5 +485,5 @@ verify copied beam/wake states and zero starting velocity, require independent
 clocks, reject unconverged initialization, and check exports and plots:
 
 ```powershell
-julia --startup-file=no --compiled-modules=existing --project=. lib/WingPropellerUVLM/examples/pazy_aerobeams_coupled/test_pazy_LCO.jl
+julia --startup-file=no --compiled-modules=existing --project=. lib/WingPropellerUVLM/examples/pazy_aerobeams_coupled/test/test_pazy_LCO.jl
 ```

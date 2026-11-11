@@ -2,7 +2,7 @@
 # Follows AeroBeams' PazyWingPitchRange.jl structural procedure: SteadyProblem,
 # nonlinear Newton balance, and the same wingtip OOP/IP displacement and twist.
 # UVLM replaces strip aerodynamics; no linearized UVLM or dynamic beam settling.
-include(joinpath(@__DIR__, "PazyWingUVLMStatic.jl"))
+include(joinpath(@__DIR__,"PazyWingUVLMStatic.jl"))
 using DelimitedFiles
 
 # Flight condition. Incidence is imposed through the freestream, once only.
@@ -15,7 +15,7 @@ chordwise_panels = 4
 spanwise_panels = 15
 symmetric_wing = true
 wake_length_chords = 10.0
-maximum_wake_rows = ceil(Int, wake_length_chords*chordwise_panels)
+maximum_wake_rows = ceil(Int,wake_length_chords * chordwise_panels)
 core_radius = 1e-3                    # metres
 wake_shedding_fraction = 0.1
 aerodynamic_interaction = true
@@ -45,39 +45,40 @@ newton_display_iterations = false
 progress_frequency = 100             # UVLM wake steps; every static iteration prints
 
 # Dedicated output folder: existing dynamic results are not overwritten.
-output_directory = joinpath(@__DIR__, "output", "static_uvlm")
+output_directory = joinpath(@__DIR__,"output","static_uvlm")
 save_convergence_plot = true
 
 static_result = run_pazy_wing_uvlm_static(;
-    airspeed, density, angle_of_attack, chordwise_panels, spanwise_panels,
-    symmetric_wing, maximum_wake_rows, core_radius, wake_shedding_fraction,
-    aerodynamic_interaction, maximum_aerodynamic_time, minimum_aerodynamic_time,
-    aerodynamic_window_time, aerodynamic_force_tolerance, aerodynamic_circulation_tolerance,
-    maximum_static_iterations, static_relaxation, geometry_tolerance, load_tolerance,
-    consecutive_equilibrium_iterations, newton_maximum_iterations, newton_absolute_tolerance,
-    newton_relative_tolerance, newton_display_iterations, progress_frequency)
+    airspeed,density,angle_of_attack,chordwise_panels,spanwise_panels,
+    symmetric_wing,maximum_wake_rows,core_radius,wake_shedding_fraction,
+    aerodynamic_interaction,maximum_aerodynamic_time,minimum_aerodynamic_time,
+    aerodynamic_window_time,aerodynamic_force_tolerance,aerodynamic_circulation_tolerance,
+    maximum_static_iterations,static_relaxation,geometry_tolerance,load_tolerance,
+    consecutive_equilibrium_iterations,newton_maximum_iterations,newton_absolute_tolerance,
+    newton_relative_tolerance,newton_display_iterations,progress_frequency)
 
 mkpath(output_directory)
 writedlm(joinpath(output_directory,"static_convergence.csv"),
-    vcat(permutedims(static_result.history_columns), static_result.history), ',')
+    vcat(permutedims(static_result.history_columns),static_result.history),',')
 # Always write the convergence flag: a time/iteration limit is not equilibrium.
-writedlm(joinpath(output_directory,"static_summary.csv"), [
-    "converged" "U_m_s" "root_incidence_deg" "tip_OOP_m" "tip_IP_m" "tip_twist_deg";
-    static_result.converged airspeed rad2deg(angle_of_attack) static_result.tip_out_of_plane static_result.tip_in_plane static_result.tip_twist_degrees
-], ',')
-open(joinpath(output_directory,"static_status.txt"), "w") do io
-    println(io, static_result.termination_reason)
-    println(io, "Time in the convergence history is cumulative aerodynamic settling time, not physical wing motion.")
+writedlm(joinpath(output_directory,"static_summary.csv"),
+    [
+        "converged" "U_m_s" "root_incidence_deg" "tip_OOP_m" "tip_IP_m" "tip_twist_deg";
+        static_result.converged airspeed rad2deg(angle_of_attack) static_result.tip_out_of_plane static_result.tip_in_plane static_result.tip_twist_degrees
+    ],',')
+open(joinpath(output_directory,"static_status.txt"),"w") do io
+    println(io,static_result.termination_reason)
+    println(io,"Time in the convergence history is cumulative aerodynamic settling time, not physical wing motion.")
 end
 if save_convergence_plot
     static_plotter = AeroBeams.Plots
     t = static_result.history[:,2]
-    p1 = static_plotter.plot(t, static_result.history[:,7], ylabel="Tip OOP [m]", label=false)
-    p2 = static_plotter.plot(t, static_result.history[:,9], ylabel="Tip twist [deg]", label=false,
+    p1 = static_plotter.plot(t,static_result.history[:,7],ylabel="Tip OOP [m]",label=false)
+    p2 = static_plotter.plot(t,static_result.history[:,9],ylabel="Tip twist [deg]",label=false,
         xlabel="Cumulative aerodynamic settling time [s]")
     figure = static_plotter.plot(p1,p2,layout=(2,1),size=(900,650),
         plot_title=static_result.converged ? "Static equilibrium converged" : "NOT converged - last iterates")
-    static_plotter.savefig(figure, joinpath(output_directory,"static_convergence.png"))
+    static_plotter.savefig(figure,joinpath(output_directory,"static_convergence.png"))
 end
 println("Tip OOP [m]: ",static_result.tip_out_of_plane)
 println("Tip IP [m]: ",static_result.tip_in_plane)

@@ -107,5 +107,5 @@ Figure 4 itself uses upsweeps.
 Run the calibration and CSV/plot checks without a simulation:
 
 ```powershell
-julia --project=. lib/WingPropellerUVLM/examples/pazy_aerobeams_coupled/test_pazy_LCO_spectrogram.jl
+julia --project=. lib/WingPropellerUVLM/examples/pazy_aerobeams_coupled/test/test_pazy_LCO_spectrogram.jl
 ```

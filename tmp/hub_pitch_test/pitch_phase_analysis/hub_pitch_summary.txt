@@ -1,0 +1,13 @@
+Source: C:\Users\Acer\Documents\João Tavares\Doutorado EESC\Models\AeroBeams_UVLM.jl\tmp\hub_pitch_test\synthetic_history.txt
+Window 3.000–4.900 s; reference time 3.950 s
+Frequency 4.00000 Hz; growth rate 0.05200 1/s
+Positive phase leads the wing-tip pitch. Angles follow the structural sign convention.
+Wing-tip pitch         amplitude 0.119993 deg; relative phase +0.000 deg; normalized residual 0.00108
+Attachment wing pitch  amplitude 0.099995 deg; relative phase +10.000 deg; normalized residual 0.00108
+Combined hub pitch     amplitude 2.094173 deg; relative phase +29.063 deg; normalized residual 0.00109
+Relative pylon pitch   amplitude 1.999929 deg; relative phase +29.999 deg; normalized residual 0.00109
+Relative pylon yaw     amplitude 2.099815 deg; relative phase +119.998 deg; normalized residual 0.00110
+Combined hub / tip amplitude ratio: 17.45249
+Combined hub / attachment amplitude ratio: 20.94278
+Combined hub pitch is attachment wing twist + relative pylon pitch; this is the composed intermediate y-rotation coordinate.
+Global hub elevation depends on the other finite rotations; this coordinate approximates global pitch for small rotations.

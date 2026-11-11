@@ -7,7 +7,7 @@
 # tip-force pulse.  The root incidence is applied once: through the UVLM
 # operating point in case 1 and through the Pazy root pitch in case 2.
 
-include(joinpath(@__DIR__, "PazyWingUVLMCoupling.jl"))
+include(joinpath(@__DIR__,"PazyWingUVLMCoupling.jl"))
 using DelimitedFiles
 
 # ---------------------------------------------------------------------------
@@ -34,7 +34,7 @@ chordwise_panels = 4
 spanwise_panels = 15
 symmetric_wing = true
 wake_length_chords = 10.0
-maximum_wake_rows = ceil(Int, wake_length_chords * chordwise_panels)
+maximum_wake_rows = ceil(Int,wake_length_chords * chordwise_panels)
 core_radius = 1e-3                    # [m]
 wake_shedding_fraction = 0.1
 aerodynamic_interaction = true
@@ -63,7 +63,7 @@ coupling_geometry_tolerance = 1e-5
 coupling_load_tolerance = 1e-3
 coupling_display_iterations = false
 
-output_directory = joinpath(@__DIR__, "output", "aero_comparison")
+output_directory = joinpath(@__DIR__,"output","aero_comparison")
 
 # Numerical agreement between the two curves is a model comparison, not a
 # UVLM mesh-convergence proof.  For convergence, repeat this file with finer
@@ -74,17 +74,17 @@ output_directory = joinpath(@__DIR__, "output", "aero_comparison")
 # ---------------------------------------------------------------------------
 
 """Smooth speed law used in both time-domain simulations."""
-function comparison_airspeed(t, target, initial_fraction, ramp_duration)
+function comparison_airspeed(t,target,initialFraction,ramp_duration)
     ramp_duration == 0 && return target
-    fraction = clamp(t / ramp_duration, 0.0, 1.0)
-    smoothstep = fraction^2 * (3 - 2*fraction)
-    return target * (initial_fraction + (1 - initial_fraction) * smoothstep)
+    fraction = clamp(t / ramp_duration,0.0,1.0)
+    smoothstep = fraction^2 * (3 - 2 * fraction)
+    return target * (initialFraction + (1 - initialFraction) * smoothstep)
 end
 
 """The same compact, smooth tip pulse used by the UVLM coupling."""
-function comparison_tip_force(t, start_time, pulse_duration, amplitude)
+function comparison_tip_force(t,start_time,pulse_duration,amplitude)
     phase = (t - start_time) / pulse_duration
-    return 0 < phase < 1 ? amplitude * sin(2pi*phase) * sinpi(phase)^2 : 0.0
+    return 0 < phase < 1 ? amplitude * sin(2pi * phase) * sinpi(phase)^2 : 0.0
 end
 
 function comparison_newton_solver()
@@ -95,32 +95,32 @@ function comparison_newton_solver()
         displayStatus=newton_display_iterations,
         alwaysUpdateJacobian=newton_always_update_jacobian,
         minConvRateAeroJacUpdate=1.2,
-        minConvRateJacUpdate=1.2,
+        minConvRateJacUpdate=1.2
     )
 end
 
 """Run the nonlinear AeroBeams model with its Indicial strip aerodynamics."""
 function run_strip_comparison(time_vector)
-    n_elements, span, _, _ = AeroBeams.geometrical_properties_Pazy()
+    n_elements,span,_,_ = AeroBeams.geometrical_properties_Pazy()
 
     # create_Pazy replaces this dummy beam with the actual Pazy beam.
-    dummy_beam = AeroBeams.create_Beam(
+    dummyBeam = AeroBeams.create_Beam(
         length=span,
         nElements=n_elements,
-        S=[AeroBeams.isotropic_stiffness_matrix()],
+        S=[AeroBeams.isotropic_stiffness_matrix()]
     )
-    tip_pulse = AeroBeams.create_BC(
+    tipPulse = AeroBeams.create_BC(
         name="comparison tip pulse",
-        beam=dummy_beam,
+        beam=dummyBeam,
         node=n_elements + 1,
         types=["F1A"],
         values=[t -> comparison_tip_force(
-            t, settling_time, perturbation_duration, perturbation_amplitude)],
+            t,settling_time,perturbation_duration,perturbation_amplitude)]
     )
     speed = t -> comparison_airspeed(
-        t, airspeed, initial_airspeed_fraction, airspeed_ramp_duration)
+        t,airspeed,initial_airspeed_fraction,airspeed_ramp_duration)
 
-    model, _, _, _, _ = AeroBeams.create_Pazy(
+    model,_,_,_,_ = AeroBeams.create_Pazy(
         aeroSolver=AeroBeams.Indicial(),
         upright=true,
         θ=angle_of_attack,
@@ -133,7 +133,7 @@ function run_strip_comparison(time_vector)
         hasTipCorrection=strip_has_tip_correction,
         tipLossType=strip_tip_loss_type,
         tipLossFunctionIsAirspeedDependent=true,
-        additionalBCs=[tip_pulse],
+        additionalBCs=[tipPulse]
     )
     model.atmosphere.ρ = density
 
@@ -145,30 +145,32 @@ function run_strip_comparison(time_vector)
         trackingFrequency=1,
         displayProgress=true,
         displayFrequency=progress_frequency,
-        saveInitialSolution=true,
+        saveInitialSolution=true
     )
     AeroBeams.solve!(problem)
     length(problem.savedTimeVector) == length(time_vector) ||
         error("AeroBeams strip solution stopped before the requested final time")
 
-    tip_bending = [-states[n_elements].u_n2[1]
-        for states in problem.nodalStatesOverTime]
-    tip_twist = [begin
-        rotation, _ = AeroBeams.rotation_tensor_WM(states[n_elements].p_n2_b)
-        chord_direction = rotation * [0.0; 1.0; 0.0]
-        asind(clamp(chord_direction[3], -1.0, 1.0))
-    end for states in problem.nodalStatesOverTime]
+    tipBending = [-states[n_elements].u_n2[1]
+                  for states in problem.nodalStatesOverTime]
+    tip_twist = [
+        begin
+            rotation,_ = AeroBeams.rotation_tensor_WM(states[n_elements].p_n2_b)
+            chordDirection = rotation * [0.0; 1.0; 0.0]
+            asind(clamp(chordDirection[3],-1.0,1.0))
+        end for states in problem.nodalStatesOverTime
+    ]
 
     return (
         problem=problem,
         time=copy(problem.savedTimeVector),
-        tip_bending_displacement=tip_bending,
-        tip_twist_degrees=tip_twist,
+        tip_bending_displacement=tipBending,
+        tip_twist_degrees=tip_twist
     )
 end
 
 mean_of(values) = sum(values) / length(values)
-rms_of(values) = sqrt(sum(abs2, values) / length(values))
+rms_of(values) = sqrt(sum(abs2,values) / length(values))
 
 function run_aero_comparison()
     @assert airspeed > 0 && density > 0 && duration > 0
@@ -182,23 +184,23 @@ function run_aero_comparison()
 
     println("\n=== 1/2: UVLM + nonlinear AeroBeams structure ===")
     uvlm = run_pazy_wing_uvlm(;
-        airspeed, density, angle_of_attack, sideslip,
-        initial_airspeed_fraction, airspeed_ramp_duration,
-        duration, settling_time,
-        chordwise_panels, spanwise_panels, symmetric_wing,
-        maximum_wake_rows, core_radius, wake_shedding_fraction,
-        aerodynamic_interaction, save_uvlm_history, uvlm_save_frequency,
-        newton_maximum_iterations, newton_absolute_tolerance,
-        newton_relative_tolerance, newton_display_iterations,
+        airspeed,density,angle_of_attack,sideslip,
+        initial_airspeed_fraction,airspeed_ramp_duration,
+        duration,settling_time,
+        chordwise_panels,spanwise_panels,symmetric_wing,
+        maximum_wake_rows,core_radius,wake_shedding_fraction,
+        aerodynamic_interaction,save_uvlm_history,uvlm_save_frequency,
+        newton_maximum_iterations,newton_absolute_tolerance,
+        newton_relative_tolerance,newton_display_iterations,
         newton_always_update_jacobian,
-        perturbation_amplitude, perturbation_duration,
+        perturbation_amplitude,perturbation_duration,
         animation_frames=2,
         progress_frequency,
         coupling_maximum_iterations,
         coupling_relaxation,
         coupling_geometry_tolerance,
         coupling_load_tolerance,
-        coupling_display_iterations,
+        coupling_display_iterations
     )
 
     println("\n=== 2/2: AeroBeams Indicial strip aerodynamics ===")
@@ -207,30 +209,30 @@ function run_aero_comparison()
 
     # Remove the mean immediately before the pulse to compare perturbations
     # around each aerodynamic model's own deformed operating condition.
-    equilibrium_indices = findall(t ->
-        settling_time - equilibrium_average_duration <= t <= settling_time,
+    equilibriumIndices = findall(t ->
+            settling_time - equilibrium_average_duration <= t <= settling_time,
         uvlm.time)
-    isempty(equilibrium_indices) && error("No samples in equilibrium averaging interval")
+    isempty(equilibriumIndices) && error("No samples in equilibrium averaging interval")
 
-    uvlm_bending_mean = mean_of(uvlm.tip_bending_displacement[equilibrium_indices])
-    strip_bending_mean = mean_of(strip.tip_bending_displacement[equilibrium_indices])
-    uvlm_twist_mean = mean_of(uvlm.tip_twist_degrees[equilibrium_indices])
-    strip_twist_mean = mean_of(strip.tip_twist_degrees[equilibrium_indices])
+    uvlmBendingMean = mean_of(uvlm.tip_bending_displacement[equilibriumIndices])
+    stripBendingMean = mean_of(strip.tip_bending_displacement[equilibriumIndices])
+    uvlmTwistMean = mean_of(uvlm.tip_twist_degrees[equilibriumIndices])
+    stripTwistMean = mean_of(strip.tip_twist_degrees[equilibriumIndices])
 
-    uvlm_bending_delta = uvlm.tip_bending_displacement .- uvlm_bending_mean
-    strip_bending_delta = strip.tip_bending_displacement .- strip_bending_mean
-    uvlm_twist_delta = uvlm.tip_twist_degrees .- uvlm_twist_mean
-    strip_twist_delta = strip.tip_twist_degrees .- strip_twist_mean
+    uvlmBendingDelta = uvlm.tip_bending_displacement .- uvlmBendingMean
+    stripBendingDelta = strip.tip_bending_displacement .- stripBendingMean
+    uvlmTwistDelta = uvlm.tip_twist_degrees .- uvlmTwistMean
+    stripTwistDelta = strip.tip_twist_degrees .- stripTwistMean
 
-    response_indices = findall(t ->
-        t >= settling_time + perturbation_duration, uvlm.time)
-    bending_rms_error = rms_of(
-        uvlm_bending_delta[response_indices] .- strip_bending_delta[response_indices])
-    twist_rms_error = rms_of(
-        uvlm_twist_delta[response_indices] .- strip_twist_delta[response_indices])
+    responseIndices = findall(t ->
+            t >= settling_time + perturbation_duration,uvlm.time)
+    bendingRMSError = rms_of(
+        uvlmBendingDelta[responseIndices] .- stripBendingDelta[responseIndices])
+    twistRMSError = rms_of(
+        uvlmTwistDelta[responseIndices] .- stripTwistDelta[responseIndices])
 
     mkpath(output_directory)
-    data_path = joinpath(output_directory, "pazy_aero_comparison.csv")
+    data_path = joinpath(output_directory,"pazy_aero_comparison.csv")
     data = hcat(
         uvlm.time,
         uvlm.airspeed_history,
@@ -238,78 +240,78 @@ function run_aero_comparison()
         strip.tip_bending_displacement,
         uvlm.tip_twist_degrees,
         strip.tip_twist_degrees,
-        uvlm_bending_delta,
-        strip_bending_delta,
-        uvlm_twist_delta,
-        strip_twist_delta,
+        uvlmBendingDelta,
+        stripBendingDelta,
+        uvlmTwistDelta,
+        stripTwistDelta
     )
     header = permutedims([
-        "time_s", "airspeed_m_per_s", "uvlm_bending_m", "strip_bending_m",
-        "uvlm_twist_deg", "strip_twist_deg", "uvlm_delta_bending_m",
-        "strip_delta_bending_m", "uvlm_delta_twist_deg", "strip_delta_twist_deg",
+        "time_s","airspeed_m_per_s","uvlm_bending_m","strip_bending_m",
+        "uvlm_twist_deg","strip_twist_deg","uvlm_delta_bending_m",
+        "strip_delta_bending_m","uvlm_delta_twist_deg","strip_delta_twist_deg"
     ])
-    writedlm(data_path, vcat(header, data), ',')
+    writedlm(data_path,vcat(header,data),',')
 
     plots = AeroBeams.Plots
     p1 = plots.plot(
-        uvlm.time, uvlm.tip_bending_displacement,
-        label="UVLM", color=:blue, linewidth=2,
-        ylabel="Tip bending [m]", title="Absolute histories",
+        uvlm.time,uvlm.tip_bending_displacement,
+        label="UVLM",color=:blue,linewidth=2,
+        ylabel="Tip bending [m]",title="Absolute histories"
     )
-    plots.plot!(p1, strip.time, strip.tip_bending_displacement,
-        label="Indicial strip", color=:orange, linewidth=2, linestyle=:dash)
+    plots.plot!(p1,strip.time,strip.tip_bending_displacement,
+        label="Indicial strip",color=:orange,linewidth=2,linestyle=:dash)
     p2 = plots.plot(
-        uvlm.time, uvlm.tip_twist_degrees,
-        label="UVLM", color=:blue, linewidth=2,
-        xlabel="Time [s]", ylabel="Tip twist [deg]",
+        uvlm.time,uvlm.tip_twist_degrees,
+        label="UVLM",color=:blue,linewidth=2,
+        xlabel="Time [s]",ylabel="Tip twist [deg]"
     )
-    plots.plot!(p2, strip.time, strip.tip_twist_degrees,
-        label="Indicial strip", color=:orange, linewidth=2, linestyle=:dash)
+    plots.plot!(p2,strip.time,strip.tip_twist_degrees,
+        label="Indicial strip",color=:orange,linewidth=2,linestyle=:dash)
 
-    response_time = uvlm.time[response_indices] .-
-        (settling_time + perturbation_duration)
+    responseTime = uvlm.time[responseIndices] .-
+                   (settling_time + perturbation_duration)
     p3 = plots.plot(
-        response_time, uvlm_bending_delta[response_indices],
-        label="UVLM", color=:blue, linewidth=2,
-        ylabel="Δ bending [m]", title="Post-pulse, equilibrium removed",
+        responseTime,uvlmBendingDelta[responseIndices],
+        label="UVLM",color=:blue,linewidth=2,
+        ylabel="Δ bending [m]",title="Post-pulse, equilibrium removed"
     )
-    plots.plot!(p3, response_time, strip_bending_delta[response_indices],
-        label="Indicial strip", color=:orange, linewidth=2, linestyle=:dash)
+    plots.plot!(p3,responseTime,stripBendingDelta[responseIndices],
+        label="Indicial strip",color=:orange,linewidth=2,linestyle=:dash)
     p4 = plots.plot(
-        response_time, uvlm_twist_delta[response_indices],
-        label="UVLM", color=:blue, linewidth=2,
-        xlabel="Time after pulse [s]", ylabel="Δ twist [deg]",
+        responseTime,uvlmTwistDelta[responseIndices],
+        label="UVLM",color=:blue,linewidth=2,
+        xlabel="Time after pulse [s]",ylabel="Δ twist [deg]"
     )
-    plots.plot!(p4, response_time, strip_twist_delta[response_indices],
-        label="Indicial strip", color=:orange, linewidth=2, linestyle=:dash)
+    plots.plot!(p4,responseTime,stripTwistDelta[responseIndices],
+        label="Indicial strip",color=:orange,linewidth=2,linestyle=:dash)
 
-    figure = plots.plot(p1, p2, p3, p4;
-        layout=(2, 2), size=(1200, 750), margin=5*AeroBeams.Measures.mm)
-    figure_path = joinpath(output_directory, "pazy_aero_comparison.png")
-    plots.savefig(figure, figure_path)
+    figure = plots.plot(p1,p2,p3,p4;
+        layout=(2,2),size=(1200,750),margin=5 * AeroBeams.Measures.mm)
+    figurePath = joinpath(output_directory,"pazy_aero_comparison.png")
+    plots.savefig(figure,figurePath)
 
     println("\n=== Comparison complete ===")
-    println("UVLM equilibrium bending [m]: ", uvlm_bending_mean)
-    println("Strip equilibrium bending [m]: ", strip_bending_mean)
-    println("UVLM equilibrium twist [deg]: ", uvlm_twist_mean)
-    println("Strip equilibrium twist [deg]: ", strip_twist_mean)
-    println("Post-pulse bending RMS difference [m]: ", bending_rms_error)
-    println("Post-pulse twist RMS difference [deg]: ", twist_rms_error)
-    println("Plot: ", figure_path)
-    println("Data: ", data_path)
+    println("UVLM equilibrium bending [m]: ",uvlmBendingMean)
+    println("Strip equilibrium bending [m]: ",stripBendingMean)
+    println("UVLM equilibrium twist [deg]: ",uvlmTwistMean)
+    println("Strip equilibrium twist [deg]: ",stripTwistMean)
+    println("Post-pulse bending RMS difference [m]: ",bendingRMSError)
+    println("Post-pulse twist RMS difference [deg]: ",twistRMSError)
+    println("Plot: ",figurePath)
+    println("Data: ",data_path)
 
     return (
         uvlm=uvlm,
         strip=strip,
         equilibrium=(
-            uvlm_bending=uvlm_bending_mean,
-            strip_bending=strip_bending_mean,
-            uvlm_twist=uvlm_twist_mean,
-            strip_twist=strip_twist_mean,
+            uvlm_bending=uvlmBendingMean,
+            strip_bending=stripBendingMean,
+            uvlm_twist=uvlmTwistMean,
+            strip_twist=stripTwistMean
         ),
-        rms_difference=(bending=bending_rms_error, twist=twist_rms_error),
-        plot_path=figure_path,
-        data_path=data_path,
+        rms_difference=(bending=bendingRMSError,twist=twistRMSError),
+        plot_path=figurePath,
+        data_path=data_path
     )
 end
 

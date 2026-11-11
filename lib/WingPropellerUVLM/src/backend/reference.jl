@@ -17,21 +17,21 @@ struct Reference{TF}
     S::TF
     c::TF
     b::TF
-    r::SVector{3, TF}
+    r::SVector{3,TF}
     V::TF
     rho::TF
 end
 
-function Reference(S, c, b, r, V, rho=1.0)
-    TF = promote_type(typeof(S), typeof(c), typeof(b), eltype(r), typeof(V), typeof(rho))
-    return Reference{TF}(S, c, b, r, V, rho)
+function Reference(S,c,b,r,V,rho=1.0)
+    TF = promote_type(typeof(S),typeof(c),typeof(b),eltype(r),typeof(V),typeof(rho))
+    return Reference{TF}(S,c,b,r,V,rho)
 end
 
-Base.eltype(::Type{Reference{TF}}) where TF = TF
-Base.eltype(::Reference{TF}) where TF = TF
+Base.eltype(::Type{Reference{TF}}) where {TF} = TF
+Base.eltype(::Reference{TF}) where {TF} = TF
 
-Reference{TF}(r::Reference) where TF = Reference{TF}(r.S, r.c, r.b, r.r, r.V, r.rho)
-Base.convert(::Type{Reference{TF}}, r::Reference) where {TF} = Reference{TF}(r)
+Reference{TF}(r::Reference) where {TF} = Reference{TF}(r.S,r.c,r.b,r.r,r.V,r.rho)
+Base.convert(::Type{Reference{TF}},r::Reference) where {TF} = Reference{TF}(r)
 
 # --- reference frames --- #
 

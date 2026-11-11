@@ -14,7 +14,7 @@ Based on the provided graph, chord/R is constant at 0.3.
 """
 function get_chord_over_R(non_dim_radius::Float64)
     if !(0.0 <= non_dim_radius <= 1.0)
-        error("Non-dimensional radius must be between 0.0 and 1.0. Received: ", non_dim_radius)
+        error("Non-dimensional radius must be between 0.0 and 1.0. Received: ",non_dim_radius)
     end
     return 0.3
 end
@@ -36,7 +36,7 @@ This ensures T(0.75) = 0 degrees.
 """
 function get_twist_deg(non_dim_radius::Float64)
     if !(0.0 <= non_dim_radius <= 1.0)
-        error("Non-dimensional radius must be between 0.0 and 1.0. Received: ", non_dim_radius)
+        error("Non-dimensional radius must be between 0.0 and 1.0. Received: ",non_dim_radius)
     end
 
     r_nd = non_dim_radius
@@ -52,14 +52,14 @@ end
 
 function get_twist_deg_chang(non_dim_radius::Float64)
     if !(0.0 <= non_dim_radius <= 1.0)
-        error("Non-dimensional radius must be between 0.0 and 1.0. Received: ", non_dim_radius)
+        error("Non-dimensional radius must be between 0.0 and 1.0. Received: ",non_dim_radius)
     end
 
     # Linear twist from 44 deg (root) to 0 deg (tip)
     # Equation: twist = -44.0 * r_nd + 44.0
     # This can be factored to: 44.0 * (1.0 - r_nd)
     twist = 44.0 * (1.0 - non_dim_radius)
-    
+
     return twist
 end
 
@@ -82,30 +82,30 @@ at each node of the spanwise panels. For N panels, there are N+1 nodes.
 """
 function get_nodal_properties(num_panels::Int)
     if num_panels <= 0
-        error("Number of panels must be positive. Received: ", num_panels)
+        error("Number of panels must be positive. Received: ",num_panels)
     end
 
     N = num_panels
-    num_nodes = N + 1
-    
-    nodal_radii = zeros(Float64, num_nodes)
-    nodal_chords_over_R = zeros(Float64, num_nodes)
-    nodal_twists_deg = zeros(Float64, num_nodes)
+    numNodes = N + 1
 
-    for j in 0:N # Loop from node 0 to node N (N+1 nodes in total)
+    nodal_radii = zeros(Float64,numNodes)
+    nodal_chords_over_R = zeros(Float64,numNodes)
+    nodal_twists_deg = zeros(Float64,numNodes)
+
+    for j = 0:N # Loop from node 0 to node N (N+1 nodes in total)
         # Calculate non-dimensional radius of the current node
         # Nodes are at r_nd = 0/N, 1/N, 2/N, ..., N/N
-        r_node = Float64(j) / N 
-        
+        rNode = Float64(j) / N
+
         # Julia arrays are 1-indexed, so node j (0 to N) maps to array index j+1
-        array_index = j + 1
-        
-        nodal_radii[array_index] = r_node
-        nodal_chords_over_R[array_index] = get_chord_over_R(r_node)
-        nodal_twists_deg[array_index] = get_twist_deg(r_node)
+        arrayIndex = j + 1
+
+        nodal_radii[arrayIndex] = rNode
+        nodal_chords_over_R[arrayIndex] = get_chord_over_R(rNode)
+        nodal_twists_deg[arrayIndex] = get_twist_deg(rNode)
     end
 
-    return nodal_radii, nodal_chords_over_R, nodal_twists_deg
+    return nodal_radii,nodal_chords_over_R,nodal_twists_deg
 end
 
 using Interpolations
@@ -116,12 +116,12 @@ using Interpolations
 # in feet; E21:E36 assigns twist to the 16 segments between those nodes.
 # Locate each sample at its segment midpoint, normalized by the tip radius.
 const CHANG_RADIAL_NODES_FT = [
-    0.0, 0.235813, 0.471625, 0.707437, 0.943250, 1.179063,
-    1.414875, 1.650687, 1.886500, 2.122313, 2.358125, 2.593937,
-    2.829750, 3.065563, 3.301375, 3.537187, 3.773000,
+    0.0,0.235813,0.471625,0.707437,0.943250,1.179063,
+    1.414875,1.650687,1.886500,2.122313,2.358125,2.593937,
+    2.829750,3.065563,3.301375,3.537187,3.773000
 ]
 const R_DATA = (CHANG_RADIAL_NODES_FT[1:end-1] .+ CHANG_RADIAL_NODES_FT[2:end]) ./
-    (2 * CHANG_RADIAL_NODES_FT[end])
+               (2 * CHANG_RADIAL_NODES_FT[end])
 
 # Preserve the tabulated angles converted to degrees; only their locations
 # change. Do not replace them with rounded nominal root/tip angles.
@@ -146,7 +146,7 @@ const TWIST_DATA = [
 
 # Linearly interpolate between segment centers and extrapolate over the
 # half-segments at the root and tip to obtain the UVLM nodal twist angles.
-const twist_interpolator = linear_interpolation(R_DATA, TWIST_DATA, extrapolation_bc=Line())
+const twist_interpolator = linear_interpolation(R_DATA,TWIST_DATA,extrapolation_bc=Line())
 
 
 # --- 2. New Geometry Function ---
@@ -160,7 +160,7 @@ The root and tip values are linearly extrapolated from the nearest samples.
 function get_twist_deg_interp(non_dim_radius::Float64)
     # Sanity check for bounds (with small tolerance for floating point errors)
     if non_dim_radius < -1e-6 || non_dim_radius > 1.0 + 1e-6
-        error("Non-dimensional radius must be between 0.0 and 1.0. Received: ", non_dim_radius)
+        error("Non-dimensional radius must be between 0.0 and 1.0. Received: ",non_dim_radius)
     end
 
     # The interpolator object can be called like a function
@@ -177,26 +177,26 @@ Generate nodal properties from the Chang segment-midpoint twist distribution.
 """
 function get_nodal_properties_chang(num_panels::Int)
     if num_panels <= 0
-        error("Number of panels must be positive. Received: ", num_panels)
+        error("Number of panels must be positive. Received: ",num_panels)
     end
 
     N = num_panels
-    num_nodes = N + 1
-    
-    nodal_radii = zeros(Float64, num_nodes)
-    nodal_chords_over_R = zeros(Float64, num_nodes)
-    nodal_twists_deg = zeros(Float64, num_nodes)
+    numNodes = N + 1
 
-    for j in 0:N 
-        r_node = Float64(j) / N 
-        array_index = j + 1
-        
-        nodal_radii[array_index] = r_node
-        nodal_chords_over_R[array_index] = get_chord_over_R(r_node) # Uses your existing constant chord function
-        nodal_twists_deg[array_index] = get_twist_deg_interp(r_node) # Uses new interpolation
+    nodal_radii = zeros(Float64,numNodes)
+    nodal_chords_over_R = zeros(Float64,numNodes)
+    nodal_twists_deg = zeros(Float64,numNodes)
+
+    for j = 0:N
+        rNode = Float64(j) / N
+        arrayIndex = j + 1
+
+        nodal_radii[arrayIndex] = rNode
+        nodal_chords_over_R[arrayIndex] = get_chord_over_R(rNode) # Uses your existing constant chord function
+        nodal_twists_deg[arrayIndex] = get_twist_deg_interp(rNode) # Uses new interpolation
     end
 
-    return nodal_radii, nodal_chords_over_R, nodal_twists_deg
+    return nodal_radii,nodal_chords_over_R,nodal_twists_deg
 end
 
 ## --- Example Usage for 15 panels ---

@@ -165,9 +165,9 @@ recovery, followed by a converged second solve with a changed structural state.
 
 ```powershell
 julia --project=lib/WingPropellerUVLM lib/WingPropellerUVLM/test/runtests.jl
-julia --project=lib/WingPropellerUVLM lib/WingPropellerUVLM/examples/pazy_aerobeams_coupled/test_coupling.jl --dynamic
-julia --project=lib/WingPropellerUVLM lib/WingPropellerUVLM/examples/pazy_aerobeams_coupled/verify_pazy_coupling.jl
-julia --project=lib/WingPropellerUVLM lib/WingPropellerUVLM/examples/pazy_aerobeams_coupled/test_static_uvlm.jl
+julia --project=lib/WingPropellerUVLM lib/WingPropellerUVLM/examples/pazy_aerobeams_coupled/test/test_coupling.jl --dynamic
+julia --project=lib/WingPropellerUVLM lib/WingPropellerUVLM/examples/pazy_aerobeams_coupled/test/verify_pazy_coupling.jl
+julia --project=lib/WingPropellerUVLM lib/WingPropellerUVLM/examples/pazy_aerobeams_coupled/test/test_static_uvlm.jl
 ```
 
 Initial audit, before corrections:

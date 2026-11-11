@@ -80,19 +80,24 @@ iteration limit and tolerances are also defined in the runner.
 3. Create the independent UVLM mesh and its interpolation weights.
 4. March both solvers forward in the same time loop.
 
-Inside that loop, UVLM predicts forces, AeroBeams advances the beam, and UVLM
-recomputes the circulation on the deformed wing and advances the wake once.
-The force predictor extrapolates the last two wing geometries to the new time,
-so UVLM includes wing motion instead of incorrectly treating the wing as stationary.
-The array `nodal_loads` connects them: each column contains the three forces
-and three moments applied to one beam node. AeroBeams reads that array through
-its boundary-condition functions.
+The default `coupling_scheme=:strong` iterates the aerodynamic loads and beam
+deformation within each physical time step until the interface geometry and
+load tolerances are satisfied. The `:loose` option uses one aerodynamic trial
+on the predicted wing geometry before the structural solve. Both schemes
+include wing motion and advance the accepted wake once per physical step.
 
-Only three small helpers follow the main function:
+Each column of `nodal_loads` contains the three forces and three moments at
+one beam node, expressed in AeroBeams axes. `apply_pazy_nodal_loads!` updates
+the numeric boundary conditions on the active structural model, including
+when AeroBeams retries a Newton solve.
 
-- `wing_geometry`: beam positions and rotations -> UVLM grid.
-- `beam_loads`: UVLM forces -> beam forces and moments, using `arm × force`.
-- `save_wing_frame!`: copy the wing and wake for animation.
+The transfer helpers use reusable geometry and load buffers:
+
+- `wing_geometry!`: beam positions and rotations -> UVLM grid.
+- `beam_loads!`: UVLM forces -> beam forces and moments, using `arm × force`.
+- `PazySpanMap`: cached nonzero interpolation weights for both transfers.
+- `save_wing_frame!`: copy the accepted wing and wake for animation, including
+  the final state even when the frame stride does not divide the step count.
 
 The aerodynamic root uses the exact prescribed clamp position and rotation.
 It does not use the small residual displacements in the beam's recovered root
@@ -106,20 +111,23 @@ settling interval, not an automatic equilibrium check. Check the tip history
 to see whether the startup transient has decayed before interpreting the pulse
 response. Neither the structure nor UVLM is linearized.
 
-The coupling is explicit: the structural step uses predicted aerodynamic loads.
 Mesh, timestep and wake-length convergence still need checking for quantitative
-flutter results. The timestep sets the *nominal* wake-row length to one bound
-panel chord; wing motion and induced velocity deform the wake. The final time
-is rounded to the nearest whole step to retain this timestep.
-During the speed ramp, `U(t)*dt` is smaller than a bound panel chord; the nominal
-length matches only after the target speed is reached.
+flutter results. The nominal wake-row length at the target speed is
+`time_step_chords * chord`; it equals a bound panel chord when
+`time_step_chords = 1/chordwise_panels`. Wing motion and induced velocity deform
+the wake. During the speed ramp, the convected length `U(t)*dt` is smaller.
+The final time is rounded to the nearest whole step to retain the timestep.
 
 ## Run
+
+Automated checks are grouped in [`test/`](test/README.md). Run the default suite
+with `test/runtests.jl`, or append `--full` for static and dynamic integration
+tests. Saved-result animation verification is in `validation/`.
 
 Run the focused geometry, finite-force and wake-commit checks with:
 
 ```powershell
-julia --project=lib/WingPropellerUVLM lib/WingPropellerUVLM/examples/pazy_aerobeams_coupled/test_coupling.jl
+julia --project=lib/WingPropellerUVLM lib/WingPropellerUVLM/examples/pazy_aerobeams_coupled/test/test_coupling.jl
 ```
 
 Append `--dynamic` to also run a short coupled startup-and-pulse test. This

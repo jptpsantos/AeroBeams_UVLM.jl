@@ -20,13 +20,13 @@ function far_field_drag(system)
     Γ = system.Γ
 
     # construct trefftz panels
-    trefftz_panels!(trefftz, surfaces, fs, Γ)
+    trefftz_panels!(trefftz,surfaces,fs,Γ)
 
     # perform far field analysis
     nsurf = length(surfaces)
     CD = zero(eltype(system))
-    for i = 1:nsurf, j = 1:nsurf
-        CD += far_field_drag(trefftz[i], trefftz[j], ref, symmetric[j])
+    for i = 1:nsurf,j = 1:nsurf
+        CD += far_field_drag(trefftz[i],trefftz[j],ref,symmetric[j])
     end
 
     return CD
@@ -46,10 +46,10 @@ plane analysis.
  - `symmetric`: Flag indicating whether a mirror image of the panels in `surface`,
     should be used when calculating induced velocities
 """
-function far_field_drag(receiving, sending, ref, symmetric)
+function far_field_drag(receiving,sending,ref,symmetric)
 
     # get float type
-    TF = promote_type(eltype(eltype(receiving)), eltype(eltype(sending)), eltype(ref))
+    TF = promote_type(eltype(eltype(receiving)),eltype(eltype(sending)),eltype(ref))
 
     # get number of receiving and sending panels
     Nr = length(receiving)
@@ -57,12 +57,12 @@ function far_field_drag(receiving, sending, ref, symmetric)
 
     # add up drag
     Di = zero(TF)
-    for j = 1:Ns, i = 1:Nr
+    for j = 1:Ns,i = 1:Nr
         Di += trefftz_panel_induced_drag(
             receiving[i],
             sending[j];
             symmetric,
-            rho = ref.rho,
+            rho=ref.rho
         )
     end
 
@@ -72,10 +72,10 @@ function far_field_drag(receiving, sending, ref, symmetric)
     end
 
     # reference dynamic pressure
-    q = 1/2*ref.rho*ref.V^2
+    q = 1 / 2 * ref.rho * ref.V^2
 
     # normalize
-    CDi = Di / (q*ref.S)
+    CDi = Di / (q * ref.S)
 
     return CDi
 end

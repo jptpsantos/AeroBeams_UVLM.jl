@@ -5,6 +5,7 @@ These files are focused checks, not alternative production drivers.
 | File | Check |
 |:--|:--|
 | `verify_chang_structural_model.jl` | Mass/stiffness integrity and published modal frequencies |
+| `verify_chang_runner.jl` | Primary runner, configured export directory, and one-/two-propeller CSV ordering without CSV/DataFrames dependencies |
 | `compare_chang_pylon_frequencies.jl` | Chang RCAS Tables 3/4/7 versus the retuned rigid and assumed-mode pylons; current defaults and a 30-element case at the published 6.25 m attachment |
 | `audit_chang_virtual_work.jl` | All-coordinate virtual work at reference, uniform, and nonuniform wing rotations |
 | `investigate_chang_wing_moment_transfer.jl` | Production load-map regression against geometry derivatives at three step sizes |

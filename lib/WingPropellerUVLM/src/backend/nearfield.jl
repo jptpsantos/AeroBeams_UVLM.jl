@@ -9,20 +9,20 @@ Return the quadrilateral area using the two-diagonal average used by Imperial
 College London's C++ UVLM implementation.
 """
 function imperial_panel_area(panel::SurfacePanel)
-    vertices = (top_left(panel), bottom_left(panel), bottom_right(panel), top_right(panel))
-    sides = ntuple(i -> norm(vertices[mod1(i + 1, 4)] - vertices[i]), 4)
+    vertices = (top_left(panel),bottom_left(panel),bottom_right(panel),top_right(panel))
+    sides = ntuple(i -> norm(vertices[mod1(i + 1,4)] - vertices[i]),4)
 
-    triangle_area(a, b, c) = begin
+    triangle_area(a,b,c) = begin
         s = (a + b + c) / 2
-        sqrt(max(zero(s), s * (s - a) * (s - b) * (s - c)))
+        sqrt(max(zero(s),s * (s - a) * (s - b) * (s - c)))
     end
 
     diagonal_02 = norm(vertices[3] - vertices[1])
     diagonal_13 = norm(vertices[4] - vertices[2])
-    area_02 = triangle_area(sides[1], sides[2], diagonal_02) +
-              triangle_area(sides[3], sides[4], diagonal_02)
-    area_13 = triangle_area(sides[2], sides[3], diagonal_13) +
-              triangle_area(sides[1], sides[4], diagonal_13)
+    area_02 = triangle_area(sides[1],sides[2],diagonal_02) +
+              triangle_area(sides[3],sides[4],diagonal_02)
+    area_13 = triangle_area(sides[2],sides[3],diagonal_13) +
+              triangle_area(sides[1],sides[4],diagonal_13)
     return (area_02 + area_13) / 2
 end
 
@@ -33,8 +33,8 @@ Evaluate the dimensional Joukovski force on one vortex segment. Segment
 orientation is from `r1` to `r2`, matching `f = rho*delta_gamma*v×(r2-r1)` in
 Imperial's `calculate_static_forces_unsteady` routine.
 """
-imperial_segment_force(velocity, r1, r2, delta_gamma, rho) =
-    rho * delta_gamma * cross(velocity, r2 - r1)
+imperial_segment_force(velocity,r1,r2,delta_gamma,rho) =
+    rho * delta_gamma * cross(velocity,r2 - r1)
 
 """
     imperial_unsteady_panel_force(panel, gamma_dot, rho)
@@ -42,7 +42,7 @@ imperial_segment_force(velocity, r1, r2, delta_gamma, rho) =
 Evaluate the dimensional non-circulatory panel force
 `-rho*area*normal*gamma_dot` used by Imperial's `calculate_dynamic_forces`.
 """
-imperial_unsteady_panel_force(panel, gamma_dot, rho) =
+imperial_unsteady_panel_force(panel,gamma_dot,rho) =
     -rho * imperial_panel_area(panel) * normal(panel) * gamma_dot
 
 # VortexLattice.jl traverses a positive-circulation ring in the opposite
@@ -50,117 +50,117 @@ imperial_unsteady_panel_force(panel, gamma_dot, rho) =
 # keep all force equations below in the Imperial convention.
 _to_imperial_circulation(gamma) = -gamma
 
-_imperial_spanwise_circulation_jump(gamma, i, j) =
-    i == 1 ? -gamma[i, j] : gamma[i - 1, j] - gamma[i, j]
+_imperial_spanwise_circulation_jump(gamma,i,j) =
+    i == 1 ? -gamma[i,j] : gamma[i-1,j] - gamma[i,j]
 
-function _imperial_chordwise_circulation_jump(gamma, i, j)
-    ns = size(gamma, 2)
+function _imperial_chordwise_circulation_jump(gamma,i,j)
+    ns = size(gamma,2)
     if j == 1
-        return gamma[i, 1]
+        return gamma[i,1]
     elseif j == ns + 1
-        return -gamma[i, ns]
+        return -gamma[i,ns]
     end
-    return gamma[i, j] - gamma[i, j - 1]
+    return gamma[i,j] - gamma[i,j-1]
 end
 
-function _imperial_base_velocity(rc, ref, fs, additional_velocity, segment_motion)
-    velocity = freestream_velocity(fs) + rotational_velocity(rc, fs, ref)
+function _imperial_base_velocity(rc,ref,fs,additional_velocity,segmentMotion)
+    velocity = freestream_velocity(fs) + rotational_velocity(rc,fs,ref)
     if !isnothing(additional_velocity)
         velocity += additional_velocity(rc)
     end
-    if !isnothing(segment_motion)
-        velocity += segment_motion
+    if !isnothing(segmentMotion)
+        velocity += segmentMotion
     end
     return velocity
 end
 
-function _imperial_induced_velocity(rc, receiving_index, segment_kind,
-    surfaces, wakes, Γ, isurf; symmetric, nwake, surface_id,
-    wake_finite_core, wake_shedding_locations, trailing_vortices, xhat,
-    interaction_id, interaction)
+function _imperial_induced_velocity(rc,receivingIndex,segment_kind,
+    surfaces,wakes,Γ,isurf; symmetric,nwake,surface_id,
+    wake_finite_core,wake_shedding_locations,trailing_vortices,xhat,
+    interaction_id,interaction)
 
     induced = zero(rc)
     jΓ = 0
     for jsurf in eachindex(surfaces)
         sending = surfaces[jsurf]
-        number_of_panels = length(sending)
-        same_group = interaction || (interaction_id[isurf] == interaction_id[jsurf])
-        if !same_group
-            jΓ += number_of_panels
+        nPanels = length(sending)
+        sameGroup = interaction || (interaction_id[isurf] == interaction_id[jsurf])
+        if !sameGroup
+            jΓ += nPanels
             continue
         end
 
-        wake_panels = nwake[jsurf] > 0
+        wakePanels = nwake[jsurf] > 0
         shedding_locations = isnothing(wake_shedding_locations) ?
-            nothing : wake_shedding_locations[jsurf]
-        circulation = view(Γ, jΓ + 1:jΓ + number_of_panels)
+                             nothing : wake_shedding_locations[jsurf]
+        circulation = view(Γ,jΓ+1:jΓ+nPanels)
 
         skip_top = ()
         skip_bottom = ()
         skip_left = ()
         skip_right = ()
         if isurf == jsurf
-            i, j = Tuple(receiving_index)
+            i,j = Tuple(receivingIndex)
             if segment_kind === :span
-                skip_top = (CartesianIndex(i, j),)
-                skip_bottom = (CartesianIndex(i - 1, j),)
+                skip_top = (CartesianIndex(i,j),)
+                skip_bottom = (CartesianIndex(i - 1,j),)
             elseif segment_kind === :chord
-                if j <= size(sending, 2)
-                    skip_left = (CartesianIndex(i, j),)
+                if j <= size(sending,2)
+                    skip_left = (CartesianIndex(i,j),)
                 end
                 if j > 1
-                    skip_right = (CartesianIndex(i, j - 1),)
+                    skip_right = (CartesianIndex(i,j - 1),)
                 end
             end
         end
 
-        induced += induced_velocity(rc, sending, circulation;
-            finite_core = surface_id[isurf] != surface_id[jsurf],
-            wake_shedding_locations = shedding_locations,
-            symmetric = symmetric[jsurf],
-            trailing_vortices = trailing_vortices[jsurf] && !wake_panels,
-            xhat, skip_top, skip_bottom, skip_left, skip_right)
+        induced += induced_velocity(rc,sending,circulation;
+            finite_core=surface_id[isurf] != surface_id[jsurf],
+            wake_shedding_locations=shedding_locations,
+            symmetric=symmetric[jsurf],
+            trailing_vortices=trailing_vortices[jsurf] && !wakePanels,
+            xhat,skip_top,skip_bottom,skip_left,skip_right)
 
-        if wake_panels
-            induced += induced_velocity(rc, wakes[jsurf];
-                finite_core = wake_finite_core[jsurf] ||
-                    (surface_id[isurf] != surface_id[jsurf]),
-                symmetric = symmetric[jsurf], nc = nwake[jsurf],
-                trailing_vortices = trailing_vortices[jsurf], xhat)
+        if wakePanels
+            induced += induced_velocity(rc,wakes[jsurf];
+                finite_core=wake_finite_core[jsurf] ||
+                            (surface_id[isurf] != surface_id[jsurf]),
+                symmetric=symmetric[jsurf],nc=nwake[jsurf],
+                trailing_vortices=trailing_vortices[jsurf],xhat)
         end
-        jΓ += number_of_panels
+        jΓ += nPanels
     end
     return induced
 end
 
-function _imperial_panel_properties!(props, isurf, panels, Γjulia,
-    span_forces, chord_forces, unsteady_forces, span_velocities, ref)
+function _imperial_panel_properties!(props,isurf,panels,Γjulia,
+    span_forces,chord_forces,unsteady_forces,spanVelocities,ref)
 
-    nc, ns = size(panels)
+    nc,ns = size(panels)
     dynamic_pressure_area = (ref.rho * ref.V^2 / 2) * ref.S
     zero_force = zero(eltype(span_forces))
 
-    for j in 1:ns, i in 1:nc
-        span_force = span_forces[i, j]
+    for j = 1:ns,i = 1:nc
+        spanForce = span_forces[i,j]
 
-        left_weight = j == 1 ? one(eltype(Γjulia)) : one(eltype(Γjulia)) / 2
-        right_weight = j == ns ? one(eltype(Γjulia)) : one(eltype(Γjulia)) / 2
-        left_force = left_weight * chord_forces[i, j]
-        right_force = right_weight * chord_forces[i, j + 1]
+        leftWeight = j == 1 ? one(eltype(Γjulia)) : one(eltype(Γjulia)) / 2
+        rightWeight = j == ns ? one(eltype(Γjulia)) : one(eltype(Γjulia)) / 2
+        leftForce = leftWeight * chord_forces[i,j]
+        rightForce = rightWeight * chord_forces[i,j+1]
 
         # Split the complete unsteady panel force between its spanwise-edge
         # representatives. Their resultant acts at the same location as the
         # four-corner nodal redistribution used by `imperial_nodal_forces`.
-        left_force += unsteady_forces[i, j] / 2
-        right_force += unsteady_forces[i, j] / 2
+        leftForce += unsteady_forces[i,j] / 2
+        rightForce += unsteady_forces[i,j] / 2
 
-        props[isurf][i, j] = PanelProperties(
-            Γjulia[i, j] / ref.V,
-            span_velocities[i, j] / ref.V,
-            span_force / dynamic_pressure_area,
-            left_force / dynamic_pressure_area,
-            right_force / dynamic_pressure_area,
-            zero_force,
+        props[isurf][i,j] = PanelProperties(
+            Γjulia[i,j] / ref.V,
+            spanVelocities[i,j] / ref.V,
+            spanForce / dynamic_pressure_area,
+            leftForce / dynamic_pressure_area,
+            rightForce / dynamic_pressure_area,
+            zero_force
         )
     end
     return props
@@ -174,31 +174,36 @@ London's C++ UVLM force implementation. The spanwise and chordwise circulation
 jumps, Joukovski cross-product orientation, unsteady pressure-rate force, and
 trailing-edge treatment mirror `include/postproc.h`.
 """
-function near_field_forces!(props, surfaces, wakes, ref, fs, Γ;
-    dΓdt, additional_velocity, Vh, Vv, symmetric, nwake, surface_id,
-    wake_finite_core, wake_shedding_locations, trailing_vortices, xhat,
-    interaction_id = surface_id, interaction::Bool = true,
-    chord_force_buffers = nothing, span_force_buffers = nothing,
-    unsteady_force_buffers = nothing, span_velocity_buffers = nothing)
+function near_field_forces!(props,surfaces,wakes,ref,fs,Γ;
+    dΓdt,additional_velocity,Vh,Vv,symmetric,nwake,surface_id,
+    wake_finite_core,wake_shedding_locations,trailing_vortices,xhat,
+    interaction_id=surface_id,interaction::Bool=true,
+    chord_force_buffers=nothing,span_force_buffers=nothing,
+    unsteady_force_buffers=nothing,span_velocity_buffers=nothing)
 
     nsurf = length(surfaces)
     TF = eltype(Γ)
-    chord_seg_forces = isnothing(chord_force_buffers) ? Vector{Matrix{SVector{3, TF}}}(undef, nsurf) : chord_force_buffers
-    span_seg_forces = isnothing(span_force_buffers) ? Vector{Matrix{SVector{3, TF}}}(undef, nsurf) : span_force_buffers
-    unsteady_forces = isnothing(unsteady_force_buffers) ? Vector{Matrix{SVector{3, TF}}}(undef, nsurf) : unsteady_force_buffers
+    chord_seg_forces =
+        isnothing(chord_force_buffers) ? Vector{Matrix{SVector{3,TF}}}(undef,nsurf) : chord_force_buffers
+    span_seg_forces = isnothing(span_force_buffers) ? Vector{Matrix{SVector{3,TF}}}(undef,nsurf) : span_force_buffers
+    unsteady_forces =
+        isnothing(unsteady_force_buffers) ? Vector{Matrix{SVector{3,TF}}}(undef,nsurf) : unsteady_force_buffers
 
     iΓ = 0
     for isurf in eachindex(surfaces)
         panels = surfaces[isurf]
-        nc, ns = size(panels)
-        linear_indices = LinearIndices(panels)
-        Γjulia = reshape(view(Γ, iΓ + 1:iΓ + length(panels)), nc, ns)
-        chord_forces = isnothing(chord_force_buffers) ? Matrix{SVector{3,TF}}(undef,nc,ns+1) : chord_seg_forces[isurf]
-        span_forces = isnothing(span_force_buffers) ? Matrix{SVector{3,TF}}(undef,nc+1,ns) : span_seg_forces[isurf]
-        panel_unsteady = isnothing(unsteady_force_buffers) ? Matrix{SVector{3,TF}}(undef,nc,ns) : unsteady_forces[isurf]
-        span_velocities = isnothing(span_velocity_buffers) ? Matrix{SVector{3,TF}}(undef,nc,ns) : span_velocity_buffers[isurf]
-        size(chord_forces) == (nc,ns+1) && size(span_forces) == (nc+1,ns) &&
-            size(panel_unsteady) == size(span_velocities) == (nc,ns) ||
+        nc,ns = size(panels)
+        linearIndices = LinearIndices(panels)
+        Γjulia = reshape(view(Γ,iΓ+1:iΓ+length(panels)),nc,ns)
+        chord_forces =
+            isnothing(chord_force_buffers) ? Matrix{SVector{3,TF}}(undef,nc,ns + 1) : chord_seg_forces[isurf]
+        span_forces = isnothing(span_force_buffers) ? Matrix{SVector{3,TF}}(undef,nc + 1,ns) : span_seg_forces[isurf]
+        panel_unsteady =
+            isnothing(unsteady_force_buffers) ? Matrix{SVector{3,TF}}(undef,nc,ns) : unsteady_forces[isurf]
+        spanVelocities =
+            isnothing(span_velocity_buffers) ? Matrix{SVector{3,TF}}(undef,nc,ns) : span_velocity_buffers[isurf]
+        size(chord_forces) == (nc,ns + 1) && size(span_forces) == (nc + 1,ns) &&
+            size(panel_unsteady) == size(spanVelocities) == (nc,ns) ||
             throw(DimensionMismatch("Near-field workspace does not match surface topology"))
         # The final spanwise row and absent unsteady loads must not retain a prior trial.
         fill!(span_forces,zero(SVector{3,TF}))
@@ -206,66 +211,66 @@ function near_field_forces!(props, surfaces, wakes, ref, fs, Γ;
 
         # Spanwise segments. As in Imperial's loop, the final chordwise row of
         # spanwise segments is allocated but remains zero.
-        for j in 1:ns, i in 1:nc
-            panel = panels[i, j]
+        for j = 1:ns,i = 1:nc
+            panel = panels[i,j]
             r1 = top_left(panel)
             r2 = top_right(panel)
             rc = (r1 + r2) / 2
-            motion = isnothing(Vh) ? nothing : Vh[isurf][i, j]
-            velocity = _imperial_base_velocity(rc, ref, fs, additional_velocity, motion)
-            velocity += _imperial_induced_velocity(rc, CartesianIndex(i, j), :span,
-                surfaces, wakes, Γ, isurf; symmetric, nwake, surface_id,
-                wake_finite_core, wake_shedding_locations, trailing_vortices, xhat,
-                interaction_id, interaction)
+            motion = isnothing(Vh) ? nothing : Vh[isurf][i,j]
+            velocity = _imperial_base_velocity(rc,ref,fs,additional_velocity,motion)
+            velocity += _imperial_induced_velocity(rc,CartesianIndex(i,j),:span,
+                surfaces,wakes,Γ,isurf; symmetric,nwake,surface_id,
+                wake_finite_core,wake_shedding_locations,trailing_vortices,xhat,
+                interaction_id,interaction)
 
-            delta_gamma = -_imperial_spanwise_circulation_jump(Γjulia, i, j)
-            span_forces[i, j] = imperial_segment_force(
-                velocity, r1, r2, delta_gamma, ref.rho)
-            span_velocities[i, j] = velocity
+            delta_gamma = -_imperial_spanwise_circulation_jump(Γjulia,i,j)
+            span_forces[i,j] = imperial_segment_force(
+                velocity,r1,r2,delta_gamma,ref.rho)
+            spanVelocities[i,j] = velocity
         end
 
         # Chordwise segments, including both outer spanwise boundaries.
-        for j in 1:ns + 1, i in 1:nc
+        for j = 1:ns+1,i = 1:nc
             if j <= ns
-                panel = panels[i, j]
+                panel = panels[i,j]
                 r1 = top_left(panel)
                 r2 = bottom_left(panel)
             else
-                panel = panels[i, ns]
+                panel = panels[i,ns]
                 r1 = top_right(panel)
                 r2 = bottom_right(panel)
             end
             rc = (r1 + r2) / 2
-            motion = isnothing(Vv) ? nothing : Vv[isurf][i, j]
-            velocity = _imperial_base_velocity(rc, ref, fs, additional_velocity, motion)
-            velocity += _imperial_induced_velocity(rc, CartesianIndex(i, j), :chord,
-                surfaces, wakes, Γ, isurf; symmetric, nwake, surface_id,
-                wake_finite_core, wake_shedding_locations, trailing_vortices, xhat,
-                interaction_id, interaction)
+            motion = isnothing(Vv) ? nothing : Vv[isurf][i,j]
+            velocity = _imperial_base_velocity(rc,ref,fs,additional_velocity,motion)
+            velocity += _imperial_induced_velocity(rc,CartesianIndex(i,j),:chord,
+                surfaces,wakes,Γ,isurf; symmetric,nwake,surface_id,
+                wake_finite_core,wake_shedding_locations,trailing_vortices,xhat,
+                interaction_id,interaction)
 
-            delta_gamma = -_imperial_chordwise_circulation_jump(Γjulia, i, j)
-            chord_forces[i, j] = imperial_segment_force(
-                velocity, r1, r2, delta_gamma, ref.rho)
+            delta_gamma = -_imperial_chordwise_circulation_jump(Γjulia,i,j)
+            chord_forces[i,j] = imperial_segment_force(
+                velocity,r1,r2,delta_gamma,ref.rho)
         end
 
         if !isnothing(dΓdt)
-            for j in 1:ns, i in 1:nc
+            for j = 1:ns,i = 1:nc
                 gamma_dot = _to_imperial_circulation(
-                    dΓdt[iΓ + linear_indices[i, j]])
-                panel_unsteady[i, j] = imperial_unsteady_panel_force(
-                    panels[i, j], gamma_dot, ref.rho)
+                    dΓdt[iΓ+linearIndices[i,j]])
+                panel_unsteady[i,j] = imperial_unsteady_panel_force(
+                    panels[i,j],gamma_dot,ref.rho)
             end
         end
 
-        _imperial_panel_properties!(props, isurf, panels, Γjulia,
-            span_forces, chord_forces, panel_unsteady, span_velocities, ref)
+        _imperial_panel_properties!(props,isurf,panels,Γjulia,
+            span_forces,chord_forces,panel_unsteady,spanVelocities,ref)
         chord_seg_forces[isurf] = chord_forces
         span_seg_forces[isurf] = span_forces
         unsteady_forces[isurf] = panel_unsteady
         iΓ += length(panels)
     end
 
-    return props, chord_seg_forces, span_seg_forces, unsteady_forces
+    return props,chord_seg_forces,span_seg_forces,unsteady_forces
 end
 
 """
@@ -277,33 +282,33 @@ each corner, including the downstream pair of trailing-edge vertices, so the
 nodal resultant conserves the complete panel force.
 """
 function imperial_nodal_forces(span_forces::AbstractMatrix,
-    chord_forces::AbstractMatrix, unsteady_forces::AbstractMatrix)
+    chord_forces::AbstractMatrix,unsteady_forces::AbstractMatrix)
 
-    nc, ns = size(unsteady_forces)
-    @assert size(span_forces) == (nc + 1, ns)
-    @assert size(chord_forces) == (nc, ns + 1)
-    nodal = fill(zero(eltype(span_forces)), nc + 1, ns + 1)
+    nc,ns = size(unsteady_forces)
+    @assert size(span_forces) == (nc + 1,ns)
+    @assert size(chord_forces) == (nc,ns + 1)
+    nodal = fill(zero(eltype(span_forces)),nc + 1,ns + 1)
 
-    for j in 1:ns + 1, i in 1:nc + 1
+    for j = 1:ns+1,i = 1:nc+1
         if j > 1
-            nodal[i, j] += span_forces[i, j - 1] / 2
+            nodal[i,j] += span_forces[i,j-1] / 2
         end
         if j <= ns
-            nodal[i, j] += span_forces[i, j] / 2
+            nodal[i,j] += span_forces[i,j] / 2
         end
         if i > 1
-            nodal[i, j] += chord_forces[i - 1, j] / 2
+            nodal[i,j] += chord_forces[i-1,j] / 2
         end
         if i <= nc
-            nodal[i, j] += chord_forces[i, j] / 2
+            nodal[i,j] += chord_forces[i,j] / 2
         end
     end
 
-    for j in 1:ns, i in 1:nc
-        nodal[i, j] += unsteady_forces[i, j] / 4
-        nodal[i, j + 1] += unsteady_forces[i, j] / 4
-        nodal[i + 1, j] += unsteady_forces[i, j] / 4
-        nodal[i + 1, j + 1] += unsteady_forces[i, j] / 4
+    for j = 1:ns,i = 1:nc
+        nodal[i,j] += unsteady_forces[i,j] / 4
+        nodal[i,j+1] += unsteady_forces[i,j] / 4
+        nodal[i+1,j] += unsteady_forces[i,j] / 4
+        nodal[i+1,j+1] += unsteady_forces[i,j] / 4
     end
     return nodal
 end
@@ -316,9 +321,11 @@ surface. A near-field analysis must have been performed first.
 """
 function imperial_nodal_forces(system::System)
     @assert system.near_field_analysis[] "Near field analysis required"
-    return [imperial_nodal_forces(system.span_seg_forces[i],
-        system.chord_seg_forces[i], system.unsteady_forces[i])
-        for i in eachindex(system.surfaces)]
+    return [
+        imperial_nodal_forces(system.span_seg_forces[i],
+            system.chord_seg_forces[i],system.unsteady_forces[i])
+        for i in eachindex(system.surfaces)
+    ]
 end
 
 """
@@ -330,22 +337,22 @@ use these positions, rather than the original physical grid, to keep forces
 and moment arms on the same aerodynamic lattice.
 """
 function imperial_nodal_positions(surface::AbstractMatrix{<:SurfacePanel})
-    nc, ns = size(surface)
+    nc,ns = size(surface)
     nc > 0 && ns > 0 || throw(ArgumentError("surface must contain at least one panel"))
 
-    position_type = typeof(top_left(surface[1, 1]))
-    positions = Matrix{position_type}(undef, nc + 1, ns + 1)
+    positionType = typeof(top_left(surface[1,1]))
+    positions = Matrix{positionType}(undef,nc + 1,ns + 1)
 
-    for i in 1:nc, j in 1:ns
-        positions[i, j] = top_left(surface[i, j])
+    for i = 1:nc,j = 1:ns
+        positions[i,j] = top_left(surface[i,j])
     end
-    for i in 1:nc
-        positions[i, ns + 1] = top_right(surface[i, ns])
+    for i = 1:nc
+        positions[i,ns+1] = top_right(surface[i,ns])
     end
-    for j in 1:ns
-        positions[nc + 1, j] = bottom_left(surface[nc, j])
+    for j = 1:ns
+        positions[nc+1,j] = bottom_left(surface[nc,j])
     end
-    positions[nc + 1, ns + 1] = bottom_right(surface[nc, ns])
+    positions[nc+1,ns+1] = bottom_right(surface[nc,ns])
     return positions
 end
 

@@ -15,37 +15,37 @@ forces must have been previously computed and stored in `system`
 """
 function body_derivatives(system)
 
-    CF, CM, dCF, dCM = body_forces_derivatives(system)
+    CF,CM,dCF,dCM = body_forces_derivatives(system)
 
     fs = system.freestream[]
 
     # unpack derivatives
-    (CF_a, CF_b, CF_p, CF_q, CF_r) = dCF
-    (CM_a, CM_b, CM_p, CM_q, CM_r) = dCM
+    (CF_a,CF_b,CF_p,CF_q,CF_r) = dCF
+    (CM_a,CM_b,CM_p,CM_q,CM_r) = dCM
 
     # convert derivatives to be with respect to (u, v, w) instead of (alpha, beta)
-    u, v, w = freestream_velocity(fs)
-    u2, v2, w2 = u^2, v^2, w^2
+    u,v,w = freestream_velocity(fs)
+    u2,v2,w2 = u^2,v^2,w^2
     # a = atan(w, u)
-    a_u = -w/(u2+w2)
-    a_w = u/(u2+w2)
+    a_u = -w / (u2 + w2)
+    a_w = u / (u2 + w2)
     # b = atan(v, u)
-    b_u =-v/(u2+v2)
-    b_v = u/(u2+v2)
+    b_u = -v / (u2 + v2)
+    b_v = u / (u2 + v2)
 
-    CF_u = CF_a*a_u + CF_b*b_u
-    CF_v = CF_b*b_v
-    CF_w = CF_a*a_w
+    CF_u = CF_a * a_u + CF_b * b_u
+    CF_v = CF_b * b_v
+    CF_w = CF_a * a_w
 
-    CM_u = CM_a*a_u + CM_b*b_u
-    CM_v = CM_b*b_v
-    CM_w = CM_a*a_w
+    CM_u = CM_a * a_u + CM_b * b_u
+    CM_v = CM_b * b_v
+    CM_w = CM_a * a_w
 
     # pack up derivatives as named tuples
-    dCF = (u=CF_u, v=CF_v, w=CF_w, p=CF_p, q=CF_q, r=CF_r)
-    dCM = (u=CM_u, v=CM_v, w=CM_w, p=CM_p, q=CM_q, r=CM_r)
+    dCF = (u=CF_u,v=CF_v,w=CF_w,p=CF_p,q=CF_q,r=CF_r)
+    dCM = (u=CM_u,v=CM_v,w=CM_w,p=CM_p,q=CM_q,r=CM_r)
 
-    return dCF, dCM
+    return dCF,dCM
 end
 
 """
@@ -65,26 +65,26 @@ forces must have been previously computed and stored in `system`
 """
 function stability_derivatives(system)
 
-    CFb, CMb, dCFb, dCMb = body_forces_derivatives(system)
+    CFb,CMb,dCFb,dCMb = body_forces_derivatives(system)
 
     fs = system.freestream[]
     ref = system.reference[]
-    reference_length = SVector(ref.b, ref.c, ref.b)
+    referenceLength = SVector(ref.b,ref.c,ref.b)
 
     # unpack derivatives
-    (CFb_a, CFb_b, CFb_pb, CFb_qb, CFb_rb) = dCFb
-    (CMb_a, CMb_b, CMb_pb, CMb_qb, CMb_rb) = dCMb
+    (CFb_a,CFb_b,CFb_pb,CFb_qb,CFb_rb) = dCFb
+    (CMb_a,CMb_b,CMb_pb,CMb_qb,CMb_rb) = dCMb
 
     # unscale
-    CMb = CMb .* reference_length
-    CMb_a = CMb_a .* reference_length
-    CMb_b = CMb_b .* reference_length
-    CMb_pb = CMb_pb .* reference_length
-    CMb_qb = CMb_qb .* reference_length
-    CMb_rb = CMb_rb .* reference_length
+    CMb = CMb .* referenceLength
+    CMb_a = CMb_a .* referenceLength
+    CMb_b = CMb_b .* referenceLength
+    CMb_pb = CMb_pb .* referenceLength
+    CMb_qb = CMb_qb .* referenceLength
+    CMb_rb = CMb_rb .* referenceLength
 
     # rotate forces/moments into the stability frame
-    R, R_a = body_to_stability_alpha(fs)
+    R,R_a = body_to_stability_alpha(fs)
 
     CFs = R * CFb
     CFs_a = R * CFb_a + R_a * CFb
@@ -96,7 +96,7 @@ function stability_derivatives(system)
     CMs = R * CMb
     CMs_a = R * CMb_a + R_a * CMb
     CMs_b = R * CMb_b
-    CMs_pb = R * CMb_pb 
+    CMs_pb = R * CMb_pb
     CMs_qb = R * CMb_qb
     CMs_rb = R * CMb_rb
 
@@ -105,37 +105,37 @@ function stability_derivatives(system)
     Ωs = R * Ωb # stability p, q, r
 
     # Ωb = R' * Ωs
-    pb_ps, qb_ps, rb_ps = R[1,:]
-    pb_qs, qb_qs, rb_qs = R[2,:]
-    pb_rs, qb_rs, rb_rs = R[3,:]
+    pb_ps,qb_ps,rb_ps = R[1,:]
+    pb_qs,qb_qs,rb_qs = R[2,:]
+    pb_rs,qb_rs,rb_rs = R[3,:]
 
-    CFs_ps = CFs_pb*pb_ps + CFs_qb*qb_ps + CFs_rb*rb_ps
-    CFs_qs = CFs_pb*pb_qs + CFs_qb*qb_qs + CFs_rb*rb_qs
-    CFs_rs = CFs_pb*pb_rs + CFs_qb*qb_rs + CFs_rb*rb_rs
+    CFs_ps = CFs_pb * pb_ps + CFs_qb * qb_ps + CFs_rb * rb_ps
+    CFs_qs = CFs_pb * pb_qs + CFs_qb * qb_qs + CFs_rb * rb_qs
+    CFs_rs = CFs_pb * pb_rs + CFs_qb * qb_rs + CFs_rb * rb_rs
 
-    CMs_ps = CMs_pb*pb_ps + CMs_qb*qb_ps + CMs_rb*rb_ps
-    CMs_qs = CMs_pb*pb_qs + CMs_qb*qb_qs + CMs_rb*rb_qs
-    CMs_rs = CMs_pb*pb_rs + CMs_qb*qb_rs + CMs_rb*rb_rs
+    CMs_ps = CMs_pb * pb_ps + CMs_qb * qb_ps + CMs_rb * rb_ps
+    CMs_qs = CMs_pb * pb_qs + CMs_qb * qb_qs + CMs_rb * rb_qs
+    CMs_rs = CMs_pb * pb_rs + CMs_qb * qb_rs + CMs_rb * rb_rs
 
     # assign outputs, and apply stability derivative normalizations
-    pb_a, qb_a, rb_a = R_a' * Ωs
+    pb_a,qb_a,rb_a = R_a' * Ωs
     CF_a = CFs_a + (CFs_pb * pb_a + CFs_qb * qb_a + CFs_rb * rb_a)
     CF_b = CFs_b
-    CF_p = CFs_ps*2*ref.V/ref.b
-    CF_q = CFs_qs*2*ref.V/ref.c
-    CF_r = CFs_rs*2*ref.V/ref.b
+    CF_p = CFs_ps * 2 * ref.V / ref.b
+    CF_q = CFs_qs * 2 * ref.V / ref.c
+    CF_r = CFs_rs * 2 * ref.V / ref.b
 
-    CM_a = (CMs_a + (CMs_pb * pb_a + CMs_qb * qb_a + CMs_rb * rb_a)) ./ reference_length
-    CM_b = (CMs_b) ./ reference_length
-    CM_p = (CMs_ps*2*ref.V/ref.b) ./ reference_length
-    CM_q = (CMs_qs*2*ref.V/ref.c) ./ reference_length
-    CM_r = (CMs_rs*2*ref.V/ref.b) ./ reference_length
+    CM_a = (CMs_a + (CMs_pb * pb_a + CMs_qb * qb_a + CMs_rb * rb_a)) ./ referenceLength
+    CM_b = (CMs_b) ./ referenceLength
+    CM_p = (CMs_ps * 2 * ref.V / ref.b) ./ referenceLength
+    CM_q = (CMs_qs * 2 * ref.V / ref.c) ./ referenceLength
+    CM_r = (CMs_rs * 2 * ref.V / ref.b) ./ referenceLength
 
     # pack up derivatives as named tuples
-    dCF = (alpha=CF_a, beta=CF_b, p=CF_p, q=CF_q, r=CF_r)
-    dCM = (alpha=CM_a, beta=CM_b, p=CM_p, q=CM_q, r=CM_r)
+    dCF = (alpha=CF_a,beta=CF_b,p=CF_p,q=CF_q,r=CF_r)
+    dCM = (alpha=CM_a,beta=CM_b,p=CM_p,q=CM_q,r=CM_r)
 
-    return dCF, dCM
+    return dCF,dCM
 end
 
 

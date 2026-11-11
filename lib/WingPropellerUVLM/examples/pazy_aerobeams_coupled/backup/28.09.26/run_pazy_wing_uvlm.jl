@@ -1,6 +1,6 @@
 # This file can be run directly from the IDE or from either local Julia project.
-include(joinpath(@__DIR__, "PazyWingUVLMCoupling.jl"))
-include(joinpath(@__DIR__, "PazyWingUVLMVisualization.jl"))
+include(joinpath(@__DIR__,"PazyWingUVLMCoupling.jl"))
+include(joinpath(@__DIR__,"PazyWingUVLMVisualization.jl"))
 
 # Flight conditions
 airspeed = 50.0                       # m/s
@@ -17,7 +17,7 @@ airspeed_ramp_duration = 0.0           # seconds; must not exceed settling_time
 chordwise_panels = 20
 spanwise_panels = 30
 symmetric_wing = true                 # mirror wing and wake across UVLM y=0
-                                     # false: isolated cantilever, without its image
+# false: isolated cantilever, without its image
 
 # Physical timestep: dt = time_step_chords * chord / airspeed.
 # Ribeiro's baseline value is 0.25. This is independent of the UVLM mesh.
@@ -28,16 +28,16 @@ time_step_chords = 0.25
 # N*time_step_chords chord lengths at the target airspeed.
 wake_length_chords = 10.0             # nominal retained length / wing chord
 @assert isfinite(wake_length_chords) && wake_length_chords > 0
-maximum_wake_rows = ceil(Int, wake_length_chords / time_step_chords)
+maximum_wake_rows = ceil(Int,wake_length_chords / time_step_chords)
 # To specify the row count directly, replace the expression above with e.g. 80.
 # The wake starts empty and grows to this limit. Induced velocities deform it.
 
 # UVLM solver controls
 core_radius = 1e-3                    # vortex core radius [m], strictly positive
 wake_shedding_fraction = 0.1          # trailing-edge offset = fraction * V_relative * dt
-                                     # allowed range: 0 to 1; this does not set wake length
+# allowed range: 0 to 1; this does not set wake length
 aerodynamic_interaction = true       # influence between different surface groups
-                                     # no effect with this single wing; NOT a roll-up switch
+# no effect with this single wing; NOT a roll-up switch
 
 # Store UVLM circulation and total force/moment histories in result.
 save_uvlm_history = true
@@ -71,29 +71,29 @@ generate_time_history_plot = true
 animation_time_step = 0.01              # simulated seconds between frames, as in Pazy gust
 animation_frames = 150                  # fallback maximum if animation_time_step=nothing
 animation_fps = 30                      # same requested FPS as the AeroBeams example
-wake_camera = (45, 30)                  # high oblique view: (azimuth, elevation) [deg]
+wake_camera = (45,30)                  # high oblique view: (azimuth, elevation) [deg]
 show_force_vectors = true               # F1A lift arrows (wake GIF keeps full force vectors)
 show_moment_vectors = true              # M3A torsional arrows about the elastic axis
 force_vector_scale = 1.0                # AeroBeams size multiplier for both load symbols
-output_directory = joinpath(@__DIR__, "output")
+output_directory = joinpath(@__DIR__,"output")
 
 # Solve, then generate the AeroBeams deformation and UVLM wake GIFs.
 result = run_pazy_wing_uvlm(;
-    airspeed, density, angle_of_attack, sideslip,
-    initial_airspeed_fraction, airspeed_ramp_duration,
-    duration, settling_time,
-    chordwise_panels, spanwise_panels, time_step_chords,
-    symmetric_wing, maximum_wake_rows,
-    core_radius, wake_shedding_fraction, aerodynamic_interaction,
-    save_uvlm_history, uvlm_save_frequency,
-    newton_maximum_iterations, newton_absolute_tolerance,
-    newton_relative_tolerance, newton_display_iterations,
+    airspeed,density,angle_of_attack,sideslip,
+    initial_airspeed_fraction,airspeed_ramp_duration,
+    duration,settling_time,
+    chordwise_panels,spanwise_panels,time_step_chords,
+    symmetric_wing,maximum_wake_rows,
+    core_radius,wake_shedding_fraction,aerodynamic_interaction,
+    save_uvlm_history,uvlm_save_frequency,
+    newton_maximum_iterations,newton_absolute_tolerance,
+    newton_relative_tolerance,newton_display_iterations,
     newton_always_update_jacobian,
-    perturbation_amplitude, perturbation_duration, animation_frames,
-    progress_frequency, animation_time_step,
+    perturbation_amplitude,perturbation_duration,animation_frames,
+    progress_frequency,animation_time_step,
     coupling_scheme,
-    coupling_maximum_iterations, coupling_relaxation,
-    coupling_geometry_tolerance, coupling_load_tolerance,
+    coupling_maximum_iterations,coupling_relaxation,
+    coupling_geometry_tolerance,coupling_load_tolerance,
     coupling_display_iterations)
 if generate_animations
     animations = save_animations(
@@ -103,18 +103,18 @@ if generate_animations
         wake_camera,
         show_force_vectors,
         show_moment_vectors,
-        force_vector_scale,
+        force_vector_scale
     )
 end
 if generate_time_history_plot
     tip_time_history_plot = save_tip_time_histories(
         result;
-        output_path=joinpath(output_directory, "pazy_tip_time_histories.png"),
+        output_path=joinpath(output_directory,"pazy_tip_time_histories.png")
     )
 end
-println("Final tip displacement [m]: ", last(result.tip_out_of_plane))
-println("Final tip twist [deg]: ", last(result.tip_twist_degrees))
-println("Maximum FSI iterations in one step: ", maximum(result.coupling_iterations))
+println("Final tip displacement [m]: ",last(result.tip_out_of_plane))
+println("Final tip twist [deg]: ",last(result.tip_twist_degrees))
+println("Maximum FSI iterations in one step: ",maximum(result.coupling_iterations))
 # Applied startup sweep: result.airspeed_history
 # Aerodynamic histories: result.aerodynamic_problem.results
 # Fields: savedTimeVector, circulationOverTime, forceOverTime, momentOverTime.

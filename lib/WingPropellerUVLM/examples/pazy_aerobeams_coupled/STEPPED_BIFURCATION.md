@@ -110,7 +110,7 @@ unstable periodic branches or certify Hopf/fold locations.
 Verification:
 
 ```powershell
-julia --startup-file=no --compiled-modules=existing --project=. lib/WingPropellerUVLM/examples/pazy_aerobeams_coupled/test_pazy_stepped_bifurcation.jl --physical
+julia --startup-file=no --compiled-modules=existing --project=. lib/WingPropellerUVLM/examples/pazy_aerobeams_coupled/test/test_pazy_stepped_bifurcation.jl --physical
 ```
 
 Without `--physical`, only schedule, derivative-zero extraction and synthetic

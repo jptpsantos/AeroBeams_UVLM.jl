@@ -32,7 +32,7 @@ function snapshot_uvlm(system::System)
         deepcopy(system.previous_surfaces),
         deepcopy(system.wake_shedding_locations),
         copy(system.nwake),
-        deepcopy(system.freestream[]),
+        deepcopy(system.freestream[])
     )
 end
 
@@ -50,7 +50,7 @@ end
 The facade uses this for trial reset and a separate commit buffer. Include both
 history and scratch fields so repeated/failed trials retain deepcopy semantics.
 """
-function copy_system!(destination::System{TF}, source::System{TF}) where TF
+function copy_system!(destination::System{TF},source::System{TF}) where {TF}
     for field in (:AIC,:w,:Γ,:invert_normals,:reference,:freestream,:symmetric,
         :nwake,:surface_id,:wake_finite_core,:trailing_vortices,:xhat,
         :near_field_analysis,:derivatives,:dΓdt)
@@ -98,7 +98,7 @@ function restore_uvlm!(system::System,snapshot::UVLMSnapshot)
     end
 
     @assert length(system.wake_shedding_locations) ==
-        length(snapshot.wakeSheddingLocations)
+            length(snapshot.wakeSheddingLocations)
     for i in eachindex(system.wake_shedding_locations)
         system.wake_shedding_locations[i] .=
             snapshot.wakeSheddingLocations[i]
@@ -149,7 +149,7 @@ function advance_uvlm_trial!(system::System,snapshot::UVLMSnapshot,
         derivatives=derivatives,
         interaction_id=interactionID,
         interaction=interaction,
-        advance_wake=advanceWake,
+        advance_wake=advanceWake
     )
 
     return system
@@ -166,7 +166,7 @@ function commit_wake_rows!(activeWakeRows::Vector{Int},
     @assert length(activeWakeRows) == length(maximumWakeRows)
     for i in eachindex(activeWakeRows)
         @assert 0 <= activeWakeRows[i] <= maximumWakeRows[i]
-        activeWakeRows[i] = min(activeWakeRows[i]+1,maximumWakeRows[i])
+        activeWakeRows[i] = min(activeWakeRows[i] + 1,maximumWakeRows[i])
     end
     return activeWakeRows
 end

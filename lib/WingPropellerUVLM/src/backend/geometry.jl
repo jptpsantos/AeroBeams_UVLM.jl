@@ -6,9 +6,9 @@ Spacing discretization scheme supertype
 abstract type AbstractSpacing end
 
 grid_chord_length(grid,j) = norm(SVector(
-    grid[1,end,j]-grid[1,1,j],
-    grid[2,end,j]-grid[2,1,j],
-    grid[3,end,j]-grid[3,1,j]))
+    grid[1,end,j] - grid[1,1,j],
+    grid[2,end,j] - grid[2,1,j],
+    grid[3,end,j] - grid[3,1,j]))
 
 """
     Uniform()
@@ -39,7 +39,7 @@ struct Cosine <: AbstractSpacing end
 Linearly interpolate between `rstart` and `rend` where eta is the fraction
 between 0 (rstart) and 1 (rend)
 """
-linearinterp(eta, rstart, rend) = (1-eta)*rstart + eta*rend
+linearinterp(eta,rstart,rend) = (1 - eta) * rstart + eta * rend
 
 """
     spanwise_spacing(n, spacing::AbstractSpacing)
@@ -50,37 +50,37 @@ Distribute `n` panel endpoints and `n-1` panel midpoints on the interval between
 spanwise_spacing
 
 # uniform
-function spanwise_spacing(n, ::Uniform)
+function spanwise_spacing(n,::Uniform)
 
-    eta = range(0, 1.0, length=n)
-    eta_mid = linearinterp(0.5, eta[1:end-1], eta[2:end])
+    eta = range(0,1.0,length=n)
+    etaMid = linearinterp(0.5,eta[1:end-1],eta[2:end])
 
-    return eta, eta_mid
+    return eta,etaMid
 end
 
 # sine
-function spanwise_spacing(n, ::Sine)
+function spanwise_spacing(n,::Sine)
 
-    theta = range(0, pi/2, length=n)
+    theta = range(0,pi / 2,length=n)
     eta = sin.(theta)
 
     # note that control points are also placed with cosine spacing as this improves accuracy tremendously
-    theta_mid = linearinterp(0.5, theta[1:end-1], theta[2:end])
-    eta_mid = sin.(theta_mid)
+    theta_mid = linearinterp(0.5,theta[1:end-1],theta[2:end])
+    etaMid = sin.(theta_mid)
 
-    return eta, eta_mid
+    return eta,etaMid
 end
 
 # cosine
-function spanwise_spacing(n, ::Cosine)
-    theta = range(0, pi, length=n)
-    eta = (1.0 .- cos.(theta))/2.0
+function spanwise_spacing(n,::Cosine)
+    theta = range(0,pi,length=n)
+    eta = (1.0 .- cos.(theta)) / 2.0
 
     # note that control points are also placed with cosine spacing as this improves accuracy tremendously
-    theta_mid = linearinterp(0.5, theta[1:end-1], theta[2:end])
-    eta_mid = (1.0 .- cos.(theta_mid))/2.0
+    theta_mid = linearinterp(0.5,theta[1:end-1],theta[2:end])
+    etaMid = (1.0 .- cos.(theta_mid)) / 2.0
 
-    return eta, eta_mid
+    return eta,etaMid
 end
 
 """
@@ -93,38 +93,38 @@ strategy in `spacing`.
 chordwise_spacing
 
 # uniform
-function chordwise_spacing(n, ::Uniform)
+function chordwise_spacing(n,::Uniform)
 
-    eta = range(0, 1.0, length=n)
+    eta = range(0,1.0,length=n)
 
-    eta_qtr = linearinterp(0.25, eta[1:end-1], eta[2:end])
-    eta_thrqtr = linearinterp(0.75, eta[1:end-1], eta[2:end])
+    etaQtr = linearinterp(0.25,eta[1:end-1],eta[2:end])
+    etaThrqtr = linearinterp(0.75,eta[1:end-1],eta[2:end])
 
-    return eta, eta_qtr, eta_thrqtr
+    return eta,etaQtr,etaThrqtr
 end
 
 # sine
-function chordwise_spacing(n, ::Sine)
+function chordwise_spacing(n,::Sine)
 
-    theta = range(0, pi/2, length=n)
+    theta = range(0,pi / 2,length=n)
     eta = sin.(theta)
 
-    eta_qtr = linearinterp(0.25, eta[1:end-1], eta[2:end])
-    eta_thrqtr = linearinterp(0.75, eta[1:end-1], eta[2:end])
+    etaQtr = linearinterp(0.25,eta[1:end-1],eta[2:end])
+    etaThrqtr = linearinterp(0.75,eta[1:end-1],eta[2:end])
 
-    return eta, eta_qtr, eta_thrqtr
+    return eta,etaQtr,etaThrqtr
 end
 
 # cosine
-function chordwise_spacing(n, ::Cosine)
+function chordwise_spacing(n,::Cosine)
 
-    theta = range(0, pi, length=n)
-    eta = (1.0 .- cos.(theta))/2.0
+    theta = range(0,pi,length=n)
+    eta = (1.0 .- cos.(theta)) / 2.0
 
-    eta_qtr = linearinterp(0.25, eta[1:end-1], eta[2:end])
-    eta_thrqtr = linearinterp(0.75, eta[1:end-1], eta[2:end])
+    etaQtr = linearinterp(0.25,eta[1:end-1],eta[2:end])
+    etaThrqtr = linearinterp(0.75,eta[1:end-1],eta[2:end])
 
-    return eta, eta_qtr, eta_thrqtr
+    return eta,etaQtr,etaThrqtr
 end
 
 """
@@ -139,18 +139,18 @@ Interpolates the grid `xyz` along direction `dir`
  - `xdir`: Independent variable direction, defaults to arc length
  - `ydir`: Dependent variable direction `xyz` (`i=1`, `j=2`)
 """
-function interpolate_grid(xyz, eta, interp; xdir=0, ydir=1)
-    
+function interpolate_grid(xyz,eta,interp; xdir=0,ydir=1)
+
     y = nothing
 
     ydim = ydir + 1
 
-    ni = size(xyz, ydim)
+    ni = size(xyz,ydim)
 
     if ydir == 2
-        xyz_new = Array{eltype(xyz)}(undef, size(xyz,1), size(xyz,2), length(eta))
+        xyzNew = Array{eltype(xyz)}(undef,size(xyz,1),size(xyz,2),length(eta))
     elseif ydir == 1
-        xyz_new = Array{eltype(xyz)}(undef, size(xyz,1), length(eta), size(xyz,3))
+        xyzNew = Array{eltype(xyz)}(undef,size(xyz,1),length(eta),size(xyz,3))
     else
         error("ydir must be 1 or 2")
     end
@@ -161,7 +161,7 @@ function interpolate_grid(xyz, eta, interp; xdir=0, ydir=1)
         dim = 2
     end
 
-    for i in axes(xyz_new, dim)
+    for i in axes(xyzNew,dim)
         if ydir == 2
             xyz_i = xyz[:,i,:]
         elseif ydir == 1
@@ -169,9 +169,9 @@ function interpolate_grid(xyz, eta, interp; xdir=0, ydir=1)
         end
 
         if xdir == 0
-            ds = [norm(xyz_i[:,k] - xyz_i[:,max(1,k-1)]) for k = 1:ni]
+            ds = [norm(xyz_i[:,k] - xyz_i[:,max(1,k - 1)]) for k = 1:ni]
         else
-            ds = [xyz_i[xdir,k] - xyz_i[xdir,max(1,k-1)] for k = 1:ni]
+            ds = [xyz_i[xdir,k] - xyz_i[xdir,max(1,k - 1)] for k = 1:ni]
         end
         # create interpolation vector
         t = cumsum(ds)
@@ -179,21 +179,21 @@ function interpolate_grid(xyz, eta, interp; xdir=0, ydir=1)
         # normalize interpolation vector
         t /= t[end]
 
-        x = interp(t, xyz_i[1,:], eta)
-        if !isnothing(y) && ydir==2
+        x = interp(t,xyz_i[1,:],eta)
+        if !isnothing(y) && ydir == 2
         else
-            y = interp(t, xyz_i[2,:], eta)
+            y = interp(t,xyz_i[2,:],eta)
         end
-            z = interp(t, xyz_i[3,:], eta)
+        z = interp(t,xyz_i[3,:],eta)
 
         if ydir == 2
-            xyz_new[:,i,:] = vcat(x',y',z')
+            xyzNew[:,i,:] = vcat(x',y',z')
         else
-            xyz_new[:,:,i] = vcat(x',y',z')
-        end 
+            xyzNew[:,:,i] = vcat(x',y',z')
+        end
     end
 
-    return xyz_new
+    return xyzNew
 end
 
 """
@@ -220,36 +220,36 @@ with dimensions (i, j) containing the generated panels.
        Defaults to `(c, Δs) -> 1e-3`
 """
 function grid_to_surface_panels(xyz;
-    ratios = zeros(2, size(xyz, 2)-1, size(xyz, 3)-1) .+ [0.5;0.75],
-    mirror = false,
-    fcore = (c, Δs) -> 1e-3)
+    ratios=zeros(2,size(xyz,2) - 1,size(xyz,3) - 1) .+ [0.5; 0.75],
+    mirror=false,
+    fcore=(c,Δs) -> 1e-3)
 
     TF = eltype(xyz)
 
-    nc = size(xyz, 2)-1 # number of chordwise panels
-    ns = size(xyz, 3)-1 # number of spanwise panels
-    N = (1+mirror)*nc*ns # total number of panels
+    nc = size(xyz,2) - 1 # number of chordwise panels
+    ns = size(xyz,3) - 1 # number of spanwise panels
+    N = (1 + mirror) * nc * ns # total number of panels
 
     # check which side we're working with
-    right_side = sum(xyz[2,:,:]) > 0
+    rightSide = sum(xyz[2,:,:]) > 0
 
     # initialize output
-    xyz_panels = copy(xyz)
-    panels = Matrix{SurfacePanel{TF}}(undef, nc, (1+mirror)*ns)
+    xyzPanels = copy(xyz)
+    panels = Matrix{SurfacePanel{TF}}(undef,nc,(1 + mirror) * ns)
 
     # populate each panel
     for j = 1:ns
 
         # get leading edge panel corners
-        r1n = SVector(xyz[1,1,j], xyz[2,1,j], xyz[3,1,j]) # top left
-        r2n = SVector(xyz[1,1,j+1], xyz[2,1,j+1], xyz[3,1,j+1]) # top right
-        r3n = SVector(xyz[1,2,j], xyz[2,2,j], xyz[3,2,j]) # bottom left
-        r4n = SVector(xyz[1,2,j+1], xyz[2,2,j+1], xyz[3,2,j+1]) # bottom right
+        r1n = SVector(xyz[1,1,j],xyz[2,1,j],xyz[3,1,j]) # top left
+        r2n = SVector(xyz[1,1,j+1],xyz[2,1,j+1],xyz[3,1,j+1]) # top right
+        r3n = SVector(xyz[1,2,j],xyz[2,2,j],xyz[3,2,j]) # bottom left
+        r4n = SVector(xyz[1,2,j+1],xyz[2,2,j+1],xyz[3,2,j+1]) # bottom right
 
         # also get chord length for setting finite core size
         cl = grid_chord_length(xyz,j)
-        cr = grid_chord_length(xyz,j+1)
-        c = (cl + cr)/2
+        cr = grid_chord_length(xyz,j + 1)
+        c = (cl + cr) / 2
 
         for i = 1:nc-1
 
@@ -262,47 +262,47 @@ function grid_to_surface_panels(xyz;
             # xyz corners of next panel
             r1n = r3 # top left
             r2n = r4 # top right
-            r3n = SVector(xyz[1,i+2,j], xyz[2,i+2,j], xyz[3,i+2,j]) # bottom left
-            r4n = SVector(xyz[1,i+2,j+1], xyz[2,i+2,j+1], xyz[3,i+2,j+1]) # bottom right
+            r3n = SVector(xyz[1,i+2,j],xyz[2,i+2,j],xyz[3,i+2,j]) # bottom left
+            r4n = SVector(xyz[1,i+2,j+1],xyz[2,i+2,j+1],xyz[3,i+2,j+1]) # bottom right
 
             # top left corner of ring vortex
-            rtl = linearinterp(0.25, r1, r3)
+            rtl = linearinterp(0.25,r1,r3)
 
             # top right corner of ring vortex
-            rtr = linearinterp(0.25, r2, r4)
+            rtr = linearinterp(0.25,r2,r4)
 
             # center of top bound vortex
-            rtc = linearinterp(ratios[1,i,j], rtl, rtr)
+            rtc = linearinterp(ratios[1,i,j],rtl,rtr)
 
             # bottom left corner of ring vortex
-            rbl = linearinterp(0.25, r1n, r3n)
+            rbl = linearinterp(0.25,r1n,r3n)
 
             # bottom right corner of ring vortex
-            rbr = linearinterp(0.25, r2n, r4n)
+            rbr = linearinterp(0.25,r2n,r4n)
 
             # center of bottom bound vortex
-            rbc = linearinterp(ratios[1,i,j], rbl, rbr)
+            rbc = linearinterp(ratios[1,i,j],rbl,rbr)
 
             # control point
-            rtop = linearinterp(ratios[1,i,j], r1, r2)
-            rbot = linearinterp(ratios[1,i,j], r3, r4)
-            rcp = linearinterp(ratios[2,i,j], rtop, rbot)
+            rtop = linearinterp(ratios[1,i,j],r1,r2)
+            rbot = linearinterp(ratios[1,i,j],r3,r4)
+            rcp = linearinterp(ratios[2,i,j],rtop,rbot)
 
             # surface normal
-            ncp = cross(rcp - rtr, rcp - rtl)
+            ncp = cross(rcp - rtr,rcp - rtl)
             ncp /= norm(ncp)
 
             # set finite core size
             Δs = norm(rtr - rtl)
-            core_size = fcore(c, Δs)
+            core_size = fcore(c,Δs)
 
             # get chord length of current panel
-            chord = norm((r1 + r2)/2 - (r3 + r4)/2)
+            chord = norm((r1 + r2) / 2 - (r3 + r4) / 2)
 
             ip = i
-            jp = mirror*right_side*ns + j
-            panels[ip, jp] = SurfacePanel{TF}(rtl, rtc, rtr, rbl, rbc, rbr, rcp,
-                ncp, core_size, chord)
+            jp = mirror * rightSide * ns + j
+            panels[ip,jp] = SurfacePanel{TF}(rtl,rtc,rtr,rbl,rbc,rbr,rcp,
+                ncp,core_size,chord)
         end
 
         # xyz corners of current panel
@@ -312,13 +312,13 @@ function grid_to_surface_panels(xyz;
         r4 = r4n # bottom right
 
         # top left corner of ring vortex
-        rtl = linearinterp(0.25, r1, r3)
+        rtl = linearinterp(0.25,r1,r3)
 
         # top right corner of ring vortex
-        rtr = linearinterp(0.25, r2, r4)
+        rtr = linearinterp(0.25,r2,r4)
 
         # center of top bound vortex
-        rtc = linearinterp(ratios[1,nc,j], rtl, rtr)
+        rtc = linearinterp(ratios[1,nc,j],rtl,rtr)
 
         # bottom left corner of ring vortex
         rbl = r3
@@ -327,59 +327,59 @@ function grid_to_surface_panels(xyz;
         rbr = r4
 
         # center of bottom bound vortex
-        rbc = linearinterp(ratios[1,nc,j], rbl, rbr)
+        rbc = linearinterp(ratios[1,nc,j],rbl,rbr)
 
         # control point
-        rtop = linearinterp(ratios[1,nc,j], r1, r2)
-        rbot = linearinterp(ratios[1,nc,j], r3, r4)
-        rcp = linearinterp(ratios[2,nc,j], rtop, rbot)
+        rtop = linearinterp(ratios[1,nc,j],r1,r2)
+        rbot = linearinterp(ratios[1,nc,j],r3,r4)
+        rcp = linearinterp(ratios[2,nc,j],rtop,rbot)
 
         # surface normal
-        ncp = cross(rcp - rtr, rcp - rtl)
+        ncp = cross(rcp - rtr,rcp - rtl)
         ncp /= norm(ncp)
 
         # set finite core size
         Δs = norm(rtr - rtl)
-        core_size = fcore(c, Δs)
+        core_size = fcore(c,Δs)
 
         # get chord length of current panel
-        chord = norm((r1 + r2)/2 - (r3 + r4)/2)
+        chord = norm((r1 + r2) / 2 - (r3 + r4) / 2)
 
         ip = nc
-        jp = mirror*right_side*ns + j
-        panels[ip,jp] = SurfacePanel{TF}(rtl, rtc, rtr, rbl, rbc, rbr, rcp, ncp,
-            core_size, chord)
+        jp = mirror * rightSide * ns + j
+        panels[ip,jp] = SurfacePanel{TF}(rtl,rtc,rtr,rbl,rbc,rbr,rcp,ncp,
+            core_size,chord)
     end
 
     # other side
     if mirror
 
         # first reflect xyz
-        if right_side
-            xyz_l = reverse(xyz_panels, dims=3)
-            xyz_l[2,:,:] .= -xyz_l[2,:,:]
-            xyz_r = xyz_panels
-            ratios = cat(reverse(ratios,dims=2), ratios, dims=3)
+        if rightSide
+            xyzL = reverse(xyzPanels,dims=3)
+            xyzL[2,:,:] .= -xyzL[2,:,:]
+            xyzR = xyzPanels
+            ratios = cat(reverse(ratios,dims=2),ratios,dims=3)
         else
-            xyz_l = xyz_panels
-            xyz_r = reverse(xyz_panels, dims=3)
-            xyz_r[2,:,:] .= -xyz_r[2,:,:]
-            ratios = cat(ratios, reverse(ratios,dims=2), dims=3)
+            xyzL = xyzPanels
+            xyzR = reverse(xyzPanels,dims=3)
+            xyzR[2,:,:] .= -xyzR[2,:,:]
+            ratios = cat(ratios,reverse(ratios,dims=2),dims=3)
         end
-        xyz_panels = cat(xyz_l, xyz_r[:,:,2:end], dims=3)
+        xyzPanels = cat(xyzL,xyzR[:,:,2:end],dims=3)
 
         # then populate remaining panels
         for j = 1:ns
             for i = 1:nc
                 ip = i
-                jp1 = right_side*ns + j
-                jp2 = 2*ns - right_side*ns - j + 1
+                jp1 = rightSide * ns + j
+                jp2 = 2 * ns - rightSide * ns - j + 1
                 panels[ip,jp2] = reflect(panels[ip,jp1])
             end
         end
     end
 
-    return xyz_panels, ratios, panels
+    return xyzPanels,ratios,panels
 end
 
 """
@@ -419,41 +419,41 @@ with dimensions (i, j) containing the generated panels.
  - `interp_s`: spanwise interpolation function, defaults to linear interpolation
  - `interp_c`: chordwise interpolation function, defaults to linear interpolation
 """
-function grid_to_surface_panels(xyz, ns, nc;
-    mirror = false,
-    fcore = (c, Δs) -> 1e-3,
-    spacing_s = Cosine(),
-    spacing_c = Uniform(),
-    interp_s = (x, y, xpt) -> FLOWMath.linear(x, y, xpt),
-    interp_c = (x, y, xpt) -> FLOWMath.linear(x, y, xpt))
+function grid_to_surface_panels(xyz,ns,nc;
+    mirror=false,
+    fcore=(c,Δs) -> 1e-3,
+    spacing_s=Cosine(),
+    spacing_c=Uniform(),
+    interp_s=(x,y,xpt) -> FLOWMath.linear(x,y,xpt),
+    interp_c=(x,y,xpt) -> FLOWMath.linear(x,y,xpt))
 
     TF = eltype(xyz)
 
     # get spanwise and chordwise spacing
-    etas, etabar = spanwise_spacing(ns+1, spacing_s)
-    etac, eta_qtr, eta_thrqtr = chordwise_spacing(nc+1, spacing_c)
+    etas,etabar = spanwise_spacing(ns + 1,spacing_s)
+    etac,etaQtr,etaThrqtr = chordwise_spacing(nc + 1,spacing_c)
 
     ratios = zeros(2,nc,ns)
 
     # add leading and trailing edge to grid
-    eta_qtr = vcat(0.0, eta_qtr, 1.0)
+    etaQtr = vcat(0.0,etaQtr,1.0)
 
     # interpolate grid first along `i` then along `j`
-    xyz_edge = interpolate_grid(xyz, etac, interp_c, ydir=1)
-    xyz_panels = interpolate_grid(xyz_edge, etas, interp_s, ydir=2)
+    xyzEdge = interpolate_grid(xyz,etac,interp_c,ydir=1)
+    xyzPanels = interpolate_grid(xyzEdge,etas,interp_s,ydir=2)
 
-    xyz_bound = interpolate_grid(xyz, eta_qtr, interp_c, ydir=1)
-    xyz_corner = interpolate_grid(xyz_bound, etas, interp_s, ydir=2)
-    xyz_center = interpolate_grid(xyz_bound, etabar, interp_s, ydir=2)
+    xyzBound = interpolate_grid(xyz,etaQtr,interp_c,ydir=1)
+    xyzCorner = interpolate_grid(xyzBound,etas,interp_s,ydir=2)
+    xyzCenter = interpolate_grid(xyzBound,etabar,interp_s,ydir=2)
 
-    xyz_cp = interpolate_grid(xyz, eta_thrqtr, interp_c, ydir=1)
-    xyz_cp = interpolate_grid(xyz_cp, etabar, interp_s, ydir=2)
+    xyzCp = interpolate_grid(xyz,etaThrqtr,interp_c,ydir=1)
+    xyzCp = interpolate_grid(xyzCp,etabar,interp_s,ydir=2)
 
     # check which side we're working with
-    right_side = sum(xyz[2,:,:]) > 0
+    rightSide = sum(xyz[2,:,:]) > 0
 
     # initialize output
-    panels = Matrix{SurfacePanel{TF}}(undef, nc, (1+mirror)*ns)
+    panels = Matrix{SurfacePanel{TF}}(undef,nc,(1 + mirror) * ns)
 
     # populate each panel
     for j = 1:ns
@@ -461,72 +461,74 @@ function grid_to_surface_panels(xyz, ns, nc;
         # get chord for setting finite core size
 
         # also get chord length for setting finite core size
-        c = norm(xyz_center[:,end,j] - xyz_center[:,1,j])
+        c = norm(xyzCenter[:,end,j] - xyzCenter[:,1,j])
 
         for i = 1:nc
             # note that `i==1` corresponds to the leading edge for `xyz_corner` and `xyz_center`
-            rtl = SVector(xyz_corner[1,i+1,j], xyz_corner[2,i+1,j], xyz_corner[3,i+1,j])
-            rtc = SVector(xyz_center[1,i+1,j], xyz_center[2,i+1,j], xyz_center[3,i+1,j])
-            rtr = SVector(xyz_corner[1,i+1,j+1], xyz_corner[2,i+1,j+1], xyz_corner[3,i+1,j+1])
-            rbl = SVector(xyz_corner[1,i+2,j], xyz_corner[2,i+2,j], xyz_corner[3,i+2,j])
-            rbc = SVector(xyz_center[1,i+2,j], xyz_center[2,i+2,j], xyz_center[3,i+2,j])
-            rbr = SVector(xyz_corner[1,i+2,j+1], xyz_corner[2,i+2,j+1], xyz_corner[3,i+2,j+1])
-            rcp = SVector(xyz_cp[1,i,j], xyz_cp[2,i,j], xyz_cp[3,i,j])
-            ncp = cross(rcp - rtr, rcp - rtl)
+            rtl = SVector(xyzCorner[1,i+1,j],xyzCorner[2,i+1,j],xyzCorner[3,i+1,j])
+            rtc = SVector(xyzCenter[1,i+1,j],xyzCenter[2,i+1,j],xyzCenter[3,i+1,j])
+            rtr = SVector(xyzCorner[1,i+1,j+1],xyzCorner[2,i+1,j+1],xyzCorner[3,i+1,j+1])
+            rbl = SVector(xyzCorner[1,i+2,j],xyzCorner[2,i+2,j],xyzCorner[3,i+2,j])
+            rbc = SVector(xyzCenter[1,i+2,j],xyzCenter[2,i+2,j],xyzCenter[3,i+2,j])
+            rbr = SVector(xyzCorner[1,i+2,j+1],xyzCorner[2,i+2,j+1],xyzCorner[3,i+2,j+1])
+            rcp = SVector(xyzCp[1,i,j],xyzCp[2,i,j],xyzCp[3,i,j])
+            ncp = cross(rcp - rtr,rcp - rtl)
             ncp /= norm(ncp)
 
             # set finite core size
             Δs = norm(rtr - rtl)
-            core_size = fcore(c, Δs)
+            core_size = fcore(c,Δs)
 
             # set chord length of current panel
-            r1 = xyz_panels[:, i, j] # top left
-            r2 = xyz_panels[:, i, j+1] # top right
-            r3 = xyz_panels[:, i+1, j] # bottom left
-            r4 = xyz_panels[:, i+1, j+1] # bottom right
-            chord = norm((r1 + r2)/2 - (r3 + r4)/2)
+            r1 = xyzPanels[:,i,j] # top left
+            r2 = xyzPanels[:,i,j+1] # top right
+            r3 = xyzPanels[:,i+1,j] # bottom left
+            r4 = xyzPanels[:,i+1,j+1] # bottom right
+            chord = norm((r1 + r2) / 2 - (r3 + r4) / 2)
 
             # calculate ratios for placement of control points for updating surface panels from grids
-            ratios[1,i,j] = sqrt((rtc[2] - rtl[2])^2 + (rtc[3] - rtl[3])^2) / sqrt((rtr[2] - rtl[2])^2 + (rtr[3] - rtl[3])^2)
-            rtop = linearinterp(ratios[1,i,j], r1, r2)
-            rbot = linearinterp(ratios[1,i,j], r3, r4)
-            ratios[2,i,j] = sqrt((rcp[1] - rtop[1])^2 + (rcp[3] - rtop[3])^2) / sqrt((rbot[1] - rtop[1])^2 + (rbot[3] - rtop[3])^2)
+            ratios[1,i,j] =
+                sqrt((rtc[2] - rtl[2])^2 + (rtc[3] - rtl[3])^2) / sqrt((rtr[2] - rtl[2])^2 + (rtr[3] - rtl[3])^2)
+            rtop = linearinterp(ratios[1,i,j],r1,r2)
+            rbot = linearinterp(ratios[1,i,j],r3,r4)
+            ratios[2,i,j] =
+                sqrt((rcp[1] - rtop[1])^2 + (rcp[3] - rtop[3])^2) / sqrt((rbot[1] - rtop[1])^2 + (rbot[3] - rtop[3])^2)
 
             ip = i
-            jp = mirror*right_side*ns + j
-            panels[ip, jp] = SurfacePanel{TF}(rtl, rtc, rtr, rbl, rbc, rbr, rcp,
-                ncp, core_size, chord)
+            jp = mirror * rightSide * ns + j
+            panels[ip,jp] = SurfacePanel{TF}(rtl,rtc,rtr,rbl,rbc,rbr,rcp,
+                ncp,core_size,chord)
         end
     end
 
     # other side
     if mirror
         # first reflect grid
-        if right_side
-            xyz_l = reverse(xyz_panels, dims=3)
-            xyz_l[2,:,:] .= -xyz_l[2,:,:]
-            xyz_r = xyz_panels
-            ratios = cat(reverse(ratios,dims=2), ratios, dims=3)
+        if rightSide
+            xyzL = reverse(xyzPanels,dims=3)
+            xyzL[2,:,:] .= -xyzL[2,:,:]
+            xyzR = xyzPanels
+            ratios = cat(reverse(ratios,dims=2),ratios,dims=3)
         else
-            xyz_l = xyz_panels
-            xyz_r = reverse(xyz_panels, dims=3)
-            xyz_r[2,:,:] .= -xyz_r[2,:,:]
-            ratios = cat(ratios, reverse(ratios,dims=2), dims=3)
+            xyzL = xyzPanels
+            xyzR = reverse(xyzPanels,dims=3)
+            xyzR[2,:,:] .= -xyzR[2,:,:]
+            ratios = cat(ratios,reverse(ratios,dims=2),dims=3)
         end
-        xyz_panels = cat(xyz_l, xyz_r[:,:,2:end], dims=3)
+        xyzPanels = cat(xyzL,xyzR[:,:,2:end],dims=3)
 
         # then populate remaining panels
         for j = 1:ns
             for i = 1:nc
                 ip = i
-                jp1 = right_side*ns + j
-                jp2 = 2*ns - right_side*ns - j + 1
+                jp1 = rightSide * ns + j
+                jp2 = 2 * ns - rightSide * ns - j + 1
                 panels[ip,jp2] = reflect(panels[ip,jp1])
             end
         end
     end
 
-    return xyz_panels, ratios, panels
+    return xyzPanels,ratios,panels
 end
 
 """
@@ -567,49 +569,49 @@ of ratios to place control points when converting to surface panels.
  - 'invert_cambers': invert the camber of the grid, defaults to `false`.
         used in generating rotors/turbines
 """
-function wing_to_grid(xle, yle, zle, chord, theta, phi, ns, nc;
-    fc = fill(x->0, length(xle)),
-    reference_line = zeros(length(xle),2),
-    mirror = false,
-    fcore = (c, Δs) -> 1e-3,
-    spacing_s = Cosine(),
-    spacing_c = Uniform(),
-    interp_s = (x, y, xpt) -> FLOWMath.linear(x, y, xpt),
-    invert_cambers = false)
+function wing_to_grid(xle,yle,zle,chord,theta,phi,ns,nc;
+    fc=fill(x -> 0,length(xle)),
+    reference_line=zeros(length(xle),2),
+    mirror=false,
+    fcore=(c,Δs) -> 1e-3,
+    spacing_s=Cosine(),
+    spacing_c=Uniform(),
+    interp_s=(x,y,xpt) -> FLOWMath.linear(x,y,xpt),
+    invert_cambers=false)
 
-    TF = promote_type(eltype(xle), eltype(yle), eltype(zle), eltype(chord), eltype(theta), eltype(phi))
+    TF = promote_type(eltype(xle),eltype(yle),eltype(zle),eltype(chord),eltype(theta),eltype(phi))
 
     # get spanwise and chordwise spacing
-    etas, etabar = spanwise_spacing(ns+1, spacing_s)
-    etac, eta_qtr, eta_thrqtr = chordwise_spacing(nc+1, spacing_c)
+    etas,etabar = spanwise_spacing(ns + 1,spacing_s)
+    etac,etaQtr,etaThrqtr = chordwise_spacing(nc + 1,spacing_c)
 
     ratios = zeros(2,nc,ns)
 
     # add leading and trailing edge to grid
-    eta_qtr = vcat(0.0, eta_qtr, 1.0)
+    etaQtr = vcat(0.0,etaQtr,1.0)
 
     # check input dimensions
     n = length(xle)
     @assert n == length(yle) == length(zle) == length(chord) == length(theta) == length(phi)
 
     # set bound vortex and control point chordwise locations
-    xyz_edge = Array{TF, 3}(undef, 3, nc+1, n)
-    xyz_bound = Array{TF, 3}(undef, 3, nc+2, n)
-    xyz_cp = Array{TF, 3}(undef, 3, nc, n)
+    xyzEdge = Array{TF,3}(undef,3,nc + 1,n)
+    xyzBound = Array{TF,3}(undef,3,nc + 2,n)
+    xyzCp = Array{TF,3}(undef,3,nc,n)
     for j = 1:n
 
         # rotation matrix for twist
-        st, ct = sincos(theta[j])
+        st,ct = sincos(theta[j])
         Rt = @SMatrix [ct 0 st; 0 1 0; -st 0 ct]
 
         # rotation matrix for dihedral
-        sp, cp = sincos(phi[j])
+        sp,cp = sincos(phi[j])
         Rp = @SMatrix [1 0 0; 0 cp -sp; 0 sp cp]
 
-        reference_offset = SVector(reference_line[j,1],0.0,reference_line[j,2]) * chord[j]
+        referenceOffset = SVector(reference_line[j,1],0.0,reference_line[j,2]) * chord[j]
 
         # location of leading edge
-        rle = SVector(xle[j], yle[j], zle[j]) - (Rt * reference_offset)
+        rle = SVector(xle[j],yle[j],zle[j]) - (Rt * referenceOffset)
 
         # panel edge chordwise locations
         for i = 1:nc+1
@@ -621,7 +623,7 @@ function wing_to_grid(xle, yle, zle, chord, theta, phi, ns, nc;
             end
 
             # location on airfoil
-            r = SVector(xc, 0.0, zc)
+            r = SVector(xc,0.0,zc)
 
             # scale by chord length
             r = chord[j] * r
@@ -636,20 +638,20 @@ function wing_to_grid(xle, yle, zle, chord, theta, phi, ns, nc;
             r = Rp * r
 
             # store final location
-            xyz_edge[:,i,j] = r
+            xyzEdge[:,i,j] = r
         end
 
         # bound vortex chordwise locations (and leading and trailing edges)
         for i = 1:nc+2
             # bound vortex location
-            xc = eta_qtr[i]
+            xc = etaQtr[i]
             zc = fc[j](xc)
             if invert_cambers
                 zc = -zc
             end
 
             # location on airfoil
-            r = SVector(xc, 0, zc)
+            r = SVector(xc,0,zc)
 
             # scale by chord length
             r = chord[j] * r
@@ -664,20 +666,20 @@ function wing_to_grid(xle, yle, zle, chord, theta, phi, ns, nc;
             r = Rp * r
 
             # store final location
-            xyz_bound[:,i,j] = r
+            xyzBound[:,i,j] = r
         end
 
         # control point chordwise locations
         for i = 1:nc
             # bound vortex location
-            xc = eta_thrqtr[i]
+            xc = etaThrqtr[i]
             zc = fc[j](xc)
             if invert_cambers
                 zc = -zc
             end
 
             # location on airfoil
-            r = SVector(xc, 0, zc)
+            r = SVector(xc,0,zc)
 
             # scale by chord length
             r = chord[j] * r
@@ -692,92 +694,94 @@ function wing_to_grid(xle, yle, zle, chord, theta, phi, ns, nc;
             r = Rp * r
 
             # store final location
-            xyz_cp[:,i,j] = r
+            xyzCp[:,i,j] = r
         end
     end
 
     # interpolate the grids to match the specified spanwise spacing
-    xyz_panels = interpolate_grid(xyz_edge, etas, interp_s; ydir=2)
-    xyz_corner = interpolate_grid(xyz_bound, etas, interp_s; ydir=2)
-    xyz_center = interpolate_grid(xyz_bound, etabar, interp_s; ydir=2)
-    xyz_cp = interpolate_grid(xyz_cp, etabar, interp_s; ydir=2)
+    xyzPanels = interpolate_grid(xyzEdge,etas,interp_s; ydir=2)
+    xyzCorner = interpolate_grid(xyzBound,etas,interp_s; ydir=2)
+    xyzCenter = interpolate_grid(xyzBound,etabar,interp_s; ydir=2)
+    xyzCp = interpolate_grid(xyzCp,etabar,interp_s; ydir=2)
 
     # initialize output
-    panels = Matrix{SurfacePanel{TF}}(undef,  nc, (1+mirror)*ns)
+    panels = Matrix{SurfacePanel{TF}}(undef,nc,(1 + mirror) * ns)
 
     # check which side we're working with
-    right_side = sum(yle) > 0
+    rightSide = sum(yle) > 0
 
     # populate each panel
     for j = 1:ns
 
         # get chord for setting finite core size
-        c = norm(xyz_center[:,end,j] - xyz_center[:,1,j])
+        c = norm(xyzCenter[:,end,j] - xyzCenter[:,1,j])
 
         for i = 1:nc
             # note that `i==1` corresponds to the leading edge for `xyz_corner` and `xyz_center`
-            rtl = SVector(xyz_corner[1,i+1,j], xyz_corner[2,i+1,j], xyz_corner[3,i+1,j])
-            rtc = SVector(xyz_center[1,i+1,j], xyz_center[2,i+1,j], xyz_center[3,i+1,j])
-            rtr = SVector(xyz_corner[1,i+1,j+1], xyz_corner[2,i+1,j+1], xyz_corner[3,i+1,j+1])
-            rbl = SVector(xyz_corner[1,i+2,j], xyz_corner[2,i+2,j], xyz_corner[3,i+2,j])
-            rbc = SVector(xyz_center[1,i+2,j], xyz_center[2,i+2,j], xyz_center[3,i+2,j])
-            rbr = SVector(xyz_corner[1,i+2,j+1], xyz_corner[2,i+2,j+1], xyz_corner[3,i+2,j+1])
-            rcp = SVector(xyz_cp[1,i,j], xyz_cp[2,i,j], xyz_cp[3,i,j])
-            ncp = cross(rcp - rtr, rcp - rtl)
+            rtl = SVector(xyzCorner[1,i+1,j],xyzCorner[2,i+1,j],xyzCorner[3,i+1,j])
+            rtc = SVector(xyzCenter[1,i+1,j],xyzCenter[2,i+1,j],xyzCenter[3,i+1,j])
+            rtr = SVector(xyzCorner[1,i+1,j+1],xyzCorner[2,i+1,j+1],xyzCorner[3,i+1,j+1])
+            rbl = SVector(xyzCorner[1,i+2,j],xyzCorner[2,i+2,j],xyzCorner[3,i+2,j])
+            rbc = SVector(xyzCenter[1,i+2,j],xyzCenter[2,i+2,j],xyzCenter[3,i+2,j])
+            rbr = SVector(xyzCorner[1,i+2,j+1],xyzCorner[2,i+2,j+1],xyzCorner[3,i+2,j+1])
+            rcp = SVector(xyzCp[1,i,j],xyzCp[2,i,j],xyzCp[3,i,j])
+            ncp = cross(rcp - rtr,rcp - rtl)
             ncp /= norm(ncp)
 
             # set finite core size
             Δs = norm(rtr - rtl)
-            core_size = fcore(c, Δs)
+            core_size = fcore(c,Δs)
 
             # set chord length of current panel
-            r1 = xyz_panels[:,i,j] # top left
-            r2 = xyz_panels[:,i,j+1] # top right
-            r3 = xyz_panels[:,i+1, j] # bottom left
-            r4 = xyz_panels[:,i+1, j+1] # bottom right
-            chord = norm((r1 + r2)/2 - (r3 + r4)/2)
+            r1 = xyzPanels[:,i,j] # top left
+            r2 = xyzPanels[:,i,j+1] # top right
+            r3 = xyzPanels[:,i+1,j] # bottom left
+            r4 = xyzPanels[:,i+1,j+1] # bottom right
+            chord = norm((r1 + r2) / 2 - (r3 + r4) / 2)
 
             # calculate ratios for placement of control points for updating surface panels from grids
-            ratios[1,i,j] = sqrt((rtc[2] - rtl[2])^2 + (rtc[3] - rtl[3])^2) / sqrt((rtr[2] - rtl[2])^2 + (rtr[3] - rtl[3])^2)
-            rtop = linearinterp(ratios[1,i,j], r1, r2)
-            rbot = linearinterp(ratios[1,i,j], r3, r4)
-            ratios[2,i,j] = sqrt((rcp[1] - rtop[1])^2 + (rcp[3] - rtop[3])^2) / sqrt((rbot[1] - rtop[1])^2 + (rbot[3] - rtop[3])^2)
+            ratios[1,i,j] =
+                sqrt((rtc[2] - rtl[2])^2 + (rtc[3] - rtl[3])^2) / sqrt((rtr[2] - rtl[2])^2 + (rtr[3] - rtl[3])^2)
+            rtop = linearinterp(ratios[1,i,j],r1,r2)
+            rbot = linearinterp(ratios[1,i,j],r3,r4)
+            ratios[2,i,j] =
+                sqrt((rcp[1] - rtop[1])^2 + (rcp[3] - rtop[3])^2) / sqrt((rbot[1] - rtop[1])^2 + (rbot[3] - rtop[3])^2)
 
             ip = i
-            jp = mirror*right_side*ns + j
-            panels[ip, jp] = SurfacePanel{TF}(rtl, rtc, rtr, rbl, rbc, rbr, rcp,
-                ncp, core_size, chord)
+            jp = mirror * rightSide * ns + j
+            panels[ip,jp] = SurfacePanel{TF}(rtl,rtc,rtr,rbl,rbc,rbr,rcp,
+                ncp,core_size,chord)
         end
     end
 
     # other side
     if mirror
         # first reflect grid
-        if right_side
-            xyz_l = reverse(xyz_panels, dims=3)
-            xyz_l[2,:,:] .= -xyz_l[2,:,:]
-            xyz_r = xyz_panels
-            ratios = cat(reverse(ratios,dims=2), ratios, dims=3)
+        if rightSide
+            xyzL = reverse(xyzPanels,dims=3)
+            xyzL[2,:,:] .= -xyzL[2,:,:]
+            xyzR = xyzPanels
+            ratios = cat(reverse(ratios,dims=2),ratios,dims=3)
         else
-            xyz_l = xyz_panels
-            xyz_r = reverse(xyz_panels, dims=3)
-            xyz_r[2,:,:] .= -xyz_r[2,:,:]
-            ratios = cat(ratios, reverse(ratios,dims=2), dims=3)
+            xyzL = xyzPanels
+            xyzR = reverse(xyzPanels,dims=3)
+            xyzR[2,:,:] .= -xyzR[2,:,:]
+            ratios = cat(ratios,reverse(ratios,dims=2),dims=3)
         end
-        xyz_panels = cat(xyz_l, xyz_r[:,:,2:end], dims=3)
+        xyzPanels = cat(xyzL,xyzR[:,:,2:end],dims=3)
 
         # then populate remaining panels
         for j = 1:ns
             for i = 1:nc
                 ip = i
-                jp1 = right_side*ns + j
-                jp2 = 2*ns - right_side*ns - j + 1
+                jp1 = rightSide * ns + j
+                jp2 = 2 * ns - rightSide * ns - j + 1
                 panels[ip,jp2] = reflect(panels[ip,jp1])
             end
         end
     end
 
-    return xyz_panels, ratios
+    return xyzPanels,ratios
 end
 
 """
@@ -786,27 +790,27 @@ end
 Updates the surface panels in `surface` to correspond to the grid coordinates in
 `grid`.
 """
-function update_surface_panels!(surface, grid; 
-    ratios = zeros(2, size(grid, 2)-1, size(grid, 3)-1) .+ [0.5;0.75], 
-    fcore = (c, Δs) -> 1e-3)
+function update_surface_panels!(surface,grid;
+    ratios=zeros(2,size(grid,2) - 1,size(grid,3) - 1) .+ [0.5; 0.75],
+    fcore=(c,Δs) -> 1e-3)
 
     TF = eltype(eltype(surface))
 
-    nc, ns = size(surface) # number of chordwise and spanwise panels
+    nc,ns = size(surface) # number of chordwise and spanwise panels
 
     # populate each panel
     for j = 1:ns
 
         # get leading edge panel corners
-        r1n = SVector(grid[1,1,j], grid[2,1,j], grid[3,1,j]) # top left
-        r2n = SVector(grid[1,1,j+1], grid[2,1,j+1], grid[3,1,j+1]) # top right
-        r3n = SVector(grid[1,2,j], grid[2,2,j], grid[3,2,j]) # bottom left
-        r4n = SVector(grid[1,2,j+1], grid[2,2,j+1], grid[3,2,j+1]) # bottom right
+        r1n = SVector(grid[1,1,j],grid[2,1,j],grid[3,1,j]) # top left
+        r2n = SVector(grid[1,1,j+1],grid[2,1,j+1],grid[3,1,j+1]) # top right
+        r3n = SVector(grid[1,2,j],grid[2,2,j],grid[3,2,j]) # bottom left
+        r4n = SVector(grid[1,2,j+1],grid[2,2,j+1],grid[3,2,j+1]) # bottom right
 
         # also get chord length for setting finite core size
         cl = grid_chord_length(grid,j)
-        cr = grid_chord_length(grid,j+1)
-        c = (cl + cr)/2
+        cr = grid_chord_length(grid,j + 1)
+        c = (cl + cr) / 2
 
         for i = 1:nc-1
 
@@ -819,45 +823,45 @@ function update_surface_panels!(surface, grid;
             # grid corners of next panel
             r1n = r3 # top left
             r2n = r4 # top right
-            r3n = SVector(grid[1,i+2,j], grid[2,i+2,j], grid[3,i+2,j]) # bottom left
-            r4n = SVector(grid[1,i+2,j+1], grid[2,i+2,j+1], grid[3,i+2,j+1]) # bottom right
+            r3n = SVector(grid[1,i+2,j],grid[2,i+2,j],grid[3,i+2,j]) # bottom left
+            r4n = SVector(grid[1,i+2,j+1],grid[2,i+2,j+1],grid[3,i+2,j+1]) # bottom right
 
             # top left corner of ring vortex
-            rtl = linearinterp(0.25, r1, r3)
+            rtl = linearinterp(0.25,r1,r3)
 
             # top right corner of ring vortex
-            rtr = linearinterp(0.25, r2, r4)
+            rtr = linearinterp(0.25,r2,r4)
 
             # center of top bound vortex
-            rtc = linearinterp(ratios[1,i,j], rtl, rtr)
+            rtc = linearinterp(ratios[1,i,j],rtl,rtr)
 
             # bottom left corner of ring vortex
-            rbl = linearinterp(0.25, r1n, r3n)
+            rbl = linearinterp(0.25,r1n,r3n)
 
             # bottom right corner of ring vortex
-            rbr = linearinterp(0.25, r2n, r4n)
+            rbr = linearinterp(0.25,r2n,r4n)
 
             # center of bottom bound vortex
-            rbc = linearinterp(ratios[1,i,j], rbl, rbr)
+            rbc = linearinterp(ratios[1,i,j],rbl,rbr)
 
             # control point
-            rtop = linearinterp(ratios[1,i,j], r1, r2)
-            rbot = linearinterp(ratios[1,i,j], r3, r4)
-            rcp = linearinterp(ratios[2,i,j], rtop, rbot)
+            rtop = linearinterp(ratios[1,i,j],r1,r2)
+            rbot = linearinterp(ratios[1,i,j],r3,r4)
+            rcp = linearinterp(ratios[2,i,j],rtop,rbot)
 
             # surface normal
-            ncp = cross(rcp - rtr, rcp - rtl)
+            ncp = cross(rcp - rtr,rcp - rtl)
             ncp /= norm(ncp)
 
             # set finite core size
             Δs = norm(rtr - rtl)
-            core_size = fcore(c, Δs)
+            core_size = fcore(c,Δs)
 
             # get chord length of current panel
-            chord = norm((r1 + r2)/2 - (r3 + r4)/2)
+            chord = norm((r1 + r2) / 2 - (r3 + r4) / 2)
 
-            surface[i,j] = SurfacePanel{TF}(rtl, rtc, rtr, rbl, rbc, rbr, rcp,
-                ncp, core_size, chord)
+            surface[i,j] = SurfacePanel{TF}(rtl,rtc,rtr,rbl,rbc,rbr,rcp,
+                ncp,core_size,chord)
         end
 
         # grid corners of current panel
@@ -867,13 +871,13 @@ function update_surface_panels!(surface, grid;
         r4 = r4n # bottom right
 
         # top left corner of ring vortex
-        rtl = linearinterp(0.25, r1, r3)
+        rtl = linearinterp(0.25,r1,r3)
 
         # top right corner of ring vortex
-        rtr = linearinterp(0.25, r2, r4)
+        rtr = linearinterp(0.25,r2,r4)
 
         # center of top bound vortex
-        rtc = linearinterp(ratios[1,nc,j], rtl, rtr)
+        rtc = linearinterp(ratios[1,nc,j],rtl,rtr)
 
         # bottom left corner of ring vortex
         rbl = r3
@@ -882,26 +886,26 @@ function update_surface_panels!(surface, grid;
         rbr = r4
 
         # center of bottom bound vortex
-        rbc = linearinterp(ratios[1,nc,j], rbl, rbr)
+        rbc = linearinterp(ratios[1,nc,j],rbl,rbr)
 
         # control point
-        rtop = linearinterp(ratios[1,nc,j], r1, r2)
-        rbot = linearinterp(ratios[1,nc,j], r3, r4)
-        rcp = linearinterp(ratios[2,nc,j], rtop, rbot)
+        rtop = linearinterp(ratios[1,nc,j],r1,r2)
+        rbot = linearinterp(ratios[1,nc,j],r3,r4)
+        rcp = linearinterp(ratios[2,nc,j],rtop,rbot)
 
         # surface normal
-        ncp = cross(rcp - rtr, rcp - rtl)
+        ncp = cross(rcp - rtr,rcp - rtl)
         ncp /= norm(ncp)
 
         # set finite core size
         Δs = norm(rtr - rtl)
-        core_size = fcore(c, Δs)
+        core_size = fcore(c,Δs)
 
         # get chord length of current panel
-        chord = norm((r1 + r2)/2 - (r3 + r4)/2)
+        chord = norm((r1 + r2) / 2 - (r3 + r4) / 2)
 
-        surface[end, j] = SurfacePanel{TF}(rtl, rtc, rtr, rbl, rbc, rbr, rcp, ncp,
-            core_size, chord)
+        surface[end,j] = SurfacePanel{TF}(rtl,rtc,rtr,rbl,rbc,rbr,rcp,ncp,
+            core_size,chord)
     end
 
     return surface
@@ -927,44 +931,44 @@ and chord lengths.
     being a vector of length `ns+1` which contains the chord lengths at each
     lifting line coordinate.
 """
-function lifting_line_geometry(grids, xc=0.25)
+function lifting_line_geometry(grids,xc=0.25)
     TF = eltype(eltype(grids))
     nsurf = length(grids)
-    r = Vector{Matrix{TF}}(undef, nsurf)
-    c = Vector{Vector{TF}}(undef, nsurf)
+    r = Vector{Matrix{TF}}(undef,nsurf)
+    c = Vector{Vector{TF}}(undef,nsurf)
     for isurf = 1:nsurf
-        ns = size(grids[isurf], 3) - 1
-        r[isurf] = Matrix{TF}(undef, 3, ns+1)
-        c[isurf] = Vector{TF}(undef, ns+1)
+        ns = size(grids[isurf],3) - 1
+        r[isurf] = Matrix{TF}(undef,3,ns + 1)
+        c[isurf] = Vector{TF}(undef,ns + 1)
     end
-    return lifting_line_geometry!(r, c, grids, xc)
+    return lifting_line_geometry!(r,c,grids,xc)
 end
 
 """
     lifting_line_geometry!(r, c, grids, xc=0.25)
 In-place version of [`lifting_line_geometry`](@ref)
 """
-function lifting_line_geometry!(r, c, grids, xc=0.25)
+function lifting_line_geometry!(r,c,grids,xc=0.25)
     nsurf = length(grids)
     # iterate through each lifting surface
     for isurf = 1:nsurf
         # extract current grid
         grid = grids[isurf]
         # dimensions of this grid
-        nc = size(grid, 2)
-        ns = size(grid, 3)
+        nc = size(grid,2)
+        ns = size(grid,3)
         # loop through each spanwise section
         for j = 1:ns
             # get leading and trailing edges
-            le = SVector(grid[1,1,j], grid[2,1,j], grid[3,1,j])
-            te = SVector(grid[1,end,j], grid[2,end,j], grid[3,end,j])
+            le = SVector(grid[1,1,j],grid[2,1,j],grid[3,1,j])
+            te = SVector(grid[1,end,j],grid[2,end,j],grid[3,end,j])
             # get quarter-chord
-            r[isurf][:,j] = linearinterp(xc, le, te)
+            r[isurf][:,j] = linearinterp(xc,le,te)
             # get chord length
             c[isurf][j] = norm(le - te)
         end
     end
-    return r, c
+    return r,c
 end
 
 """
@@ -972,14 +976,14 @@ end
 
 Return a copy of the grid points in `grid` translated the distance specified by vector `r`
 """
-translate(grid, r) = grid .+ r
+translate(grid,r) = grid .+ r
 
 """
     translate!(grid, r)
 
 Translate the grid points in `grid` the distance specified by vector `r`
 """
-function translate!(grid, r)
+function translate!(grid,r)
     grid .+= r
     return grid
 end
@@ -989,20 +993,20 @@ end
 
 Return a copy of the grid points in `grid` rotated about point `r` using the rotation matrix `R`
 """
-rotate(grid, args...) = rotate!(copy(grid), args...)
+rotate(grid,args...) = rotate!(copy(grid),args...)
 
 """
     rotate!(grid, R, r = [0,0,0])
 
 Rotate the grid points in `grid` about point `r` using the rotation matrix `R`
 """
-function rotate!(grid, R, r = (@SVector zeros(3)))
-    nc, ns = size(grid, 2), size(grid, 3)
+function rotate!(grid,R,r=(@SVector zeros(3)))
+    nc,ns = size(grid,2),size(grid,3)
 
     grid .-= r
 
-    for i = 1:nc, j = 1:ns
-        grid[:,i,j] = R*grid[:,i,j]
+    for i = 1:nc,j = 1:ns
+        grid[:,i,j] = R * grid[:,i,j]
     end
 
     grid .+= r
@@ -1015,7 +1019,7 @@ end
 
 Return points on the trailing edge of each surface.
 """
-trailing_edge_points(surfaces) = [bottom_left.(surfaces[end, :])..., bottom_right(surfaces[end, end])]
+trailing_edge_points(surfaces) = [bottom_left.(surfaces[end,:])...,bottom_right(surfaces[end,end])]
 
 """
     repeated_trailing_edge_points(surface[s])
@@ -1033,21 +1037,21 @@ function repeated_trailing_edge_points(surfaces::AbstractVector{<:AbstractMatrix
 
     nsurf = length(surfaces)
     points = trailing_edge_points.(surfaces)
-    repeated_points = Dict{NTuple{2, Int}, Vector{NTuple{2, Int}}}()
+    repeated_points = Dict{NTuple{2,Int},Vector{NTuple{2,Int}}}()
 
     # loop through all points
-    for isurf = 1:nsurf, i = 1:length(points[isurf])
+    for isurf = 1:nsurf,i = 1:length(points[isurf])
         # start with empty vector
-        repeats = NTuple{2, Int}[]
+        repeats = NTuple{2,Int}[]
         # add all repeated points to the vector
-        for jsurf = 1:nsurf, j = 1:length(points[jsurf])
-            if (isurf, i) != (jsurf, j) && isapprox(points[isurf][i], points[jsurf][j])
-                push!(repeats, (jsurf, j))
+        for jsurf = 1:nsurf,j = 1:length(points[jsurf])
+            if (isurf,i) != (jsurf,j) && isapprox(points[isurf][i],points[jsurf][j])
+                push!(repeats,(jsurf,j))
             end
         end
         # only store vector if nonempty
         if !isempty(repeats)
-            repeated_points[(isurf, i)] = repeats
+            repeated_points[(isurf,i)] = repeats
         end
     end
 
@@ -1059,7 +1063,7 @@ end
 
 Flip sign of y-component of vector `r` (used for symmetry)
 """
-flipy(r) = SVector{3}(r[1], -r[2], r[3])
+flipy(r) = SVector{3}(r[1],-r[2],r[3])
 
 """
     on_symmetry_plane(args...; tol=eps())
@@ -1068,9 +1072,9 @@ Test whether points in `args` are on the symmetry plane (y = 0)
 """
 on_symmetry_plane
 
-on_symmetry_plane(r; tol=eps()) = isapprox(r[2], 0.0, atol=tol)
+on_symmetry_plane(r; tol=eps()) = isapprox(r[2],0.0,atol=tol)
 
-function on_symmetry_plane(r, args...; tol=eps())
+function on_symmetry_plane(r,args...; tol=eps())
     return on_symmetry_plane(r; tol=tol) && on_symmetry_plane(args...; tol=tol)
 end
 

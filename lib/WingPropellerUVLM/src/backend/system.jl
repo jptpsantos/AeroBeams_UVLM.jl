@@ -20,24 +20,24 @@ Panel specific properties calculated during the vortex lattice method analysis.
 """
 struct PanelProperties{TF}
     gamma::TF
-    velocity::SVector{3, TF}
-    cfb::SVector{3, TF}
-    cfl::SVector{3, TF}
-    cfr::SVector{3, TF}
-    velocity_from_streamwise::SVector{3, TF}
+    velocity::SVector{3,TF}
+    cfb::SVector{3,TF}
+    cfl::SVector{3,TF}
+    cfr::SVector{3,TF}
+    velocity_from_streamwise::SVector{3,TF}
 end
 
 # constructor
-function PanelProperties(gamma, velocity, cfb, cfl, cfr, velocity_from_streamwise)
+function PanelProperties(gamma,velocity,cfb,cfl,cfr,velocity_from_streamwise)
 
-    TF = promote_type(typeof(gamma), typeof(velocity), eltype(cfb), eltype(cfl),
-        eltype(cfr), eltype(velocity_from_streamwise))
+    TF = promote_type(typeof(gamma),typeof(velocity),eltype(cfb),eltype(cfl),
+        eltype(cfr),eltype(velocity_from_streamwise))
 
-    return PanelProperties{TF}(gamma, velocity, cfb, cfl, cfr, velocity_from_streamwise)
+    return PanelProperties{TF}(gamma,velocity,cfb,cfl,cfr,velocity_from_streamwise)
 end
 
-Base.eltype(::Type{PanelProperties{TF}}) where TF = TF
-Base.eltype(::PanelProperties{TF}) where TF = TF
+Base.eltype(::Type{PanelProperties{TF}}) where {TF} = TF
+Base.eltype(::PanelProperties{TF}) where {TF} = TF
 
 """
     System{TF}
@@ -91,7 +91,7 @@ struct System{TF}
     w::Vector{TF}
     Γ::Vector{TF}
     V::Vector{Matrix{SVector{3,TF}}}
-    grids::Vector{<:AbstractArray{TF, 3}}
+    grids::Vector{<:AbstractArray{TF,3}}
     ratios::Vector{Array{TF,3}}
     surfaces::Vector{Matrix{SurfacePanel{TF}}}
     invert_normals::Vector{Bool}
@@ -99,35 +99,35 @@ struct System{TF}
     properties::Vector{Matrix{PanelProperties{TF}}}
     wakes::Vector{Matrix{WakePanel{TF}}}
     trefftz::Vector{Vector{TrefftzPanel{TF}}}
-    reference::Array{Reference{TF}, 0}
-    freestream::Array{Freestream{TF}, 0}
+    reference::Array{Reference{TF},0}
+    freestream::Array{Freestream{TF},0}
     symmetric::Vector{Bool}
     nwake::Vector{Int}
     surface_id::Vector{Int}
     wake_finite_core::Vector{Bool}
     trailing_vortices::Vector{Bool}
-    xhat::Array{SVector{3, TF}, 0}
-    near_field_analysis::Array{Bool, 0}
-    derivatives::Array{Bool, 0}
-    dw::NTuple{5, Vector{TF}}
-    dΓ::NTuple{5, Vector{TF}}
-    dproperties::NTuple{5, Vector{Matrix{PanelProperties{TF}}}}
+    xhat::Array{SVector{3,TF},0}
+    near_field_analysis::Array{Bool,0}
+    derivatives::Array{Bool,0}
+    dw::NTuple{5,Vector{TF}}
+    dΓ::NTuple{5,Vector{TF}}
+    dproperties::NTuple{5,Vector{Matrix{PanelProperties{TF}}}}
     wake_shedding_locations::Vector{Vector{SVector{3,TF}}}
     previous_surfaces::Vector{Matrix{SurfacePanel{TF}}}
-    Vcp::Vector{Matrix{SVector{3, TF}}}
-    Vh::Vector{Matrix{SVector{3, TF}}}
-    Vv::Vector{Matrix{SVector{3, TF}}}
-    Vte::Vector{Vector{SVector{3, TF}}}
-    chord_seg_forces::Vector{Matrix{SVector{3, TF}}}
-    span_seg_forces::Vector{Matrix{SVector{3, TF}}}
-    unsteady_forces::Vector{Matrix{SVector{3, TF}}}
+    Vcp::Vector{Matrix{SVector{3,TF}}}
+    Vh::Vector{Matrix{SVector{3,TF}}}
+    Vv::Vector{Matrix{SVector{3,TF}}}
+    Vte::Vector{Vector{SVector{3,TF}}}
+    chord_seg_forces::Vector{Matrix{SVector{3,TF}}}
+    span_seg_forces::Vector{Matrix{SVector{3,TF}}}
+    unsteady_forces::Vector{Matrix{SVector{3,TF}}}
     # Reusable total velocity at the spanwise force segments (not surface motion).
-    span_force_velocities::Vector{Matrix{SVector{3, TF}}}
+    span_force_velocities::Vector{Matrix{SVector{3,TF}}}
     dΓdt::Vector{TF}
 end
 
-Base.eltype(::Type{System{TF}}) where TF = TF
-Base.eltype(::System{TF}) where TF = TF
+Base.eltype(::Type{System{TF}}) where {TF} = TF
+Base.eltype(::System{TF}) where {TF} = TF
 
 """
     System([TF], surfaces; kwargs...)
@@ -158,35 +158,35 @@ variables
 System(args...; kwargs...)
 
 # grid inputs, no provided type
-function System(grids::AbstractVector{<:AbstractArray{TF, 3}}; kwargs...) where TF
+function System(grids::AbstractVector{<:AbstractArray{TF,3}}; kwargs...) where {TF}
 
-    return System(TF, grids; kwargs...)
+    return System(TF,grids; kwargs...)
 end
 
 # grid inputs, provided type
-function System(TF::Type, grids::AbstractVector{<:AbstractArray{<:Any, 3}}; kwargs...)
+function System(TF::Type,grids::AbstractVector{<:AbstractArray{<:Any,3}}; kwargs...)
 
-    nc = size.(grids, 2) .- 1
-    ns = size.(grids, 3) .- 1
+    nc = size.(grids,2) .- 1
+    ns = size.(grids,3) .- 1
 
-    return System(TF, nc, ns; grids=grids, kwargs...)
+    return System(TF,nc,ns; grids=grids,kwargs...)
 end
 
 # surface inputs, no provided type
 function System(surfaces::AbstractVector{<:AbstractMatrix{SurfacePanel{TF}}};
-    kwargs...) where TF
+    kwargs...) where {TF}
 
-    return System(TF, surfaces; kwargs...)
+    return System(TF,surfaces; kwargs...)
 end
 
 # surface inputs, provided type
-function System(TF::Type, surfaces::AbstractVector{<:AbstractMatrix{<:SurfacePanel}};
+function System(TF::Type,surfaces::AbstractVector{<:AbstractMatrix{<:SurfacePanel}};
     kwargs...)
 
-    nc = size.(surfaces, 1)
-    ns = size.(surfaces, 2)
+    nc = size.(surfaces,1)
+    ns = size.(surfaces,2)
 
-    return System(TF, nc, ns; kwargs...)
+    return System(TF,nc,ns; kwargs...)
 end
 
 """
@@ -209,7 +209,7 @@ variables
  - `invert_normals`: Flags indicating whether the normals of each surface should
     be inverted
 """
-function System(TF::Type, nc, ns; nw = zero(nc), grids = nothing, ratios = nothing, sections = nothing, invert_normals = nothing)
+function System(TF::Type,nc,ns; nw=zero(nc),grids=nothing,ratios=nothing,sections=nothing,invert_normals=nothing)
 
     @assert length(nc) == length(ns) == length(nw)
 
@@ -220,34 +220,34 @@ function System(TF::Type, nc, ns; nw = zero(nc), grids = nothing, ratios = nothi
     N = sum(nc .* ns)
 
     if isnothing(grids)
-        grids = [Array{TF,3}(undef, 3, nc[i]+1, ns[i]+1) for i = 1:nsurf]
+        grids = [Array{TF,3}(undef,3,nc[i] + 1,ns[i] + 1) for i = 1:nsurf]
     end
     if isnothing(ratios)
-        ratios = [Array{TF}(undef, 2, nc[i], ns[i]) for i = 1:nsurf]
+        ratios = [Array{TF}(undef,2,nc[i],ns[i]) for i = 1:nsurf]
         for ratio in ratios
-            ratio[1, :, :] .= TF(0.5)
-            ratio[2, :, :] .= TF(0.75)
+            ratio[1,:,:] .= TF(0.5)
+            ratio[2,:,:] .= TF(0.75)
         end
     end
 
     if isnothing(sections)
-        sections = [Vector{SectionProperties{TF}}(undef, ns[i]) for i = 1:nsurf]
+        sections = [Vector{SectionProperties{TF}}(undef,ns[i]) for i = 1:nsurf]
     else
         redefine_gamma_index!(sections)
     end
 
     if isnothing(invert_normals)
-        invert_normals = fill(false, nsurf)
+        invert_normals = fill(false,nsurf)
     end
 
-    AIC = zeros(TF, N, N)
-    w = zeros(TF, N)
-    Γ = zeros(TF, N)
-    V = [fill((@SVector zeros(TF, 3)), nw[i]+1, ns[i]+1) for i = 1:nsurf]
-    surfaces = [Matrix{SurfacePanel{TF}}(undef, nc[i], ns[i]) for i = 1:nsurf]
-    properties = [Matrix{PanelProperties{TF}}(undef, nc[i], ns[i]) for i = 1:nsurf]
-    wakes = [Matrix{WakePanel{TF}}(undef, nw[i], ns[i]) for i = 1:nsurf]
-    trefftz = [Vector{TrefftzPanel{TF}}(undef, ns[i]) for i = 1:nsurf]
+    AIC = zeros(TF,N,N)
+    w = zeros(TF,N)
+    Γ = zeros(TF,N)
+    V = [fill((@SVector zeros(TF,3)),nw[i] + 1,ns[i] + 1) for i = 1:nsurf]
+    surfaces = [Matrix{SurfacePanel{TF}}(undef,nc[i],ns[i]) for i = 1:nsurf]
+    properties = [Matrix{PanelProperties{TF}}(undef,nc[i],ns[i]) for i = 1:nsurf]
+    wakes = [Matrix{WakePanel{TF}}(undef,nw[i],ns[i]) for i = 1:nsurf]
+    trefftz = [Vector{TrefftzPanel{TF}}(undef,ns[i]) for i = 1:nsurf]
     reference = Array{Reference{TF}}(undef)
     freestream = Array{Freestream{TF}}(undef)
     symmetric = [false for i = 1:nsurf]
@@ -255,30 +255,30 @@ function System(TF::Type, nc, ns; nw = zero(nc), grids = nothing, ratios = nothi
     surface_id = [i for i = 1:nsurf]
     wake_finite_core = [true for i = 1:nsurf]
     trailing_vortices = [false for i = 1:nsurf]
-    xhat = fill(SVector{3,TF}(1, 0, 0))
+    xhat = fill(SVector{3,TF}(1,0,0))
     near_field_analysis = fill(false)
     derivatives = fill(false)
-    dw = Tuple(zeros(TF, N) for i = 1:5)
-    dΓ = Tuple(zeros(TF, N) for i = 1:5)
-    dproperties = Tuple([Matrix{PanelProperties{TF}}(undef, nc[i], ns[i]) for i = 1:length(surfaces)] for j = 1:5)
-    wake_shedding_locations = [fill((@SVector zeros(TF, 3)), ns[i]+1) for i = 1:nsurf]
-    previous_surfaces = [Matrix{SurfacePanel{TF}}(undef, nc[i], ns[i]) for i = 1:nsurf]
-    Vcp = [fill((@SVector zeros(TF, 3)), nc[i], ns[i]) for i = 1:nsurf]
-    Vh = [fill((@SVector zeros(TF, 3)), nc[i]+1, ns[i]) for i = 1:nsurf]
-    Vv = [fill((@SVector zeros(TF, 3)), nc[i], ns[i]+1) for i = 1:nsurf]
-    Vte = [fill((@SVector zeros(TF, 3)), ns[i]+1) for i = 1:nsurf]
+    dw = Tuple(zeros(TF,N) for i = 1:5)
+    dΓ = Tuple(zeros(TF,N) for i = 1:5)
+    dproperties = Tuple([Matrix{PanelProperties{TF}}(undef,nc[i],ns[i]) for i = 1:length(surfaces)] for j = 1:5)
+    wake_shedding_locations = [fill((@SVector zeros(TF,3)),ns[i] + 1) for i = 1:nsurf]
+    previous_surfaces = [Matrix{SurfacePanel{TF}}(undef,nc[i],ns[i]) for i = 1:nsurf]
+    Vcp = [fill((@SVector zeros(TF,3)),nc[i],ns[i]) for i = 1:nsurf]
+    Vh = [fill((@SVector zeros(TF,3)),nc[i] + 1,ns[i]) for i = 1:nsurf]
+    Vv = [fill((@SVector zeros(TF,3)),nc[i],ns[i] + 1) for i = 1:nsurf]
+    Vte = [fill((@SVector zeros(TF,3)),ns[i] + 1) for i = 1:nsurf]
     # Initialize the new load parameters
-    chord_seg_forces = [fill((@SVector zeros(TF, 3)), nc[i], ns[i]+1) for i = 1:nsurf]
-    span_seg_forces = [fill((@SVector zeros(TF, 3)), nc[i]+1, ns[i]) for i = 1:nsurf]
-    unsteady_forces = [fill((@SVector zeros(TF, 3)), nc[i], ns[i]) for i = 1:nsurf]
-    span_force_velocities = [fill((@SVector zeros(TF, 3)), nc[i], ns[i]) for i = 1:nsurf]
-    dΓdt = zeros(TF, N)
+    chord_seg_forces = [fill((@SVector zeros(TF,3)),nc[i],ns[i] + 1) for i = 1:nsurf]
+    span_seg_forces = [fill((@SVector zeros(TF,3)),nc[i] + 1,ns[i]) for i = 1:nsurf]
+    unsteady_forces = [fill((@SVector zeros(TF,3)),nc[i],ns[i]) for i = 1:nsurf]
+    span_force_velocities = [fill((@SVector zeros(TF,3)),nc[i],ns[i]) for i = 1:nsurf]
+    dΓdt = zeros(TF,N)
 
-    return System{TF}(AIC, w, Γ, V, grids, ratios, surfaces, invert_normals, sections, 
-        properties, wakes, trefftz, reference, freestream, symmetric, nwake, surface_id, 
-        wake_finite_core, trailing_vortices, xhat, near_field_analysis, derivatives,
-        dw, dΓ, dproperties, wake_shedding_locations, previous_surfaces, Vcp, Vh,
-        Vv, Vte, chord_seg_forces, span_seg_forces, unsteady_forces, span_force_velocities, dΓdt)
+    return System{TF}(AIC,w,Γ,V,grids,ratios,surfaces,invert_normals,sections,
+        properties,wakes,trefftz,reference,freestream,symmetric,nwake,surface_id,
+        wake_finite_core,trailing_vortices,xhat,near_field_analysis,derivatives,
+        dw,dΓ,dproperties,wake_shedding_locations,previous_surfaces,Vcp,Vh,
+        Vv,Vte,chord_seg_forces,span_seg_forces,unsteady_forces,span_force_velocities,dΓdt)
 end
 
 """

@@ -7,10 +7,10 @@ function _legacy_imperial_base_velocity(
     reference,
     freestream,
     additional_velocity,
-    surface_motion,
+    surface_motion
 )
     velocity = freestream_velocity(freestream)
-    velocity += rotational_velocity(location, freestream, reference)
+    velocity += rotational_velocity(location,freestream,reference)
     if !isnothing(additional_velocity)
         velocity += additional_velocity(location)
     end
@@ -35,7 +35,7 @@ function _legacy_imperial_induced_velocity(
     segment_kind::Symbol,
     surfaces,
     wakes,
-    surface_circulations,
+    surfaceCirculations,
     receiving_surface;
     symmetric,
     nwake,
@@ -45,73 +45,74 @@ function _legacy_imperial_induced_velocity(
     trailing_vortices,
     xhat,
     same_interaction_group,
-    different_surface_id,
+    different_surface_id
 )
-    segment_kind in (:spanwise, :chordwise) ||
+    segment_kind in (:spanwise,:chordwise) ||
         throw(ArgumentError("segment_kind must be :spanwise or :chordwise"))
 
     velocity = zero(location)
-    for sending_surface in eachindex(surfaces)
-        if !same_interaction_group[receiving_surface, sending_surface]
+    for sendingSurface in eachindex(surfaces)
+        if !same_interaction_group[receiving_surface,sendingSurface]
             continue
         end
 
-        sending = surfaces[sending_surface]
-        sending_circulation = surface_circulations[sending_surface]
-        ids_are_different =
-            different_surface_id[receiving_surface, sending_surface]
+        sending = surfaces[sendingSurface]
+        sendingCirculation = surfaceCirculations[sendingSurface]
+        idsAreDifferent =
+            different_surface_id[receiving_surface,sendingSurface]
 
-        if receiving_surface == sending_surface
+        if receiving_surface == sendingSurface
             if segment_kind === :spanwise
                 velocity += induced_velocity(
                     panel_index,
                     sending,
-                    sending_circulation;
-                    finite_core = ids_are_different,
-                    wake_shedding_locations = shedding_locations[sending_surface],
-                    symmetric = symmetric[sending_surface],
-                    trailing_vortices = trailing_vortices[sending_surface] &&
-                        !wake_is_active[sending_surface],
-                    xhat = xhat,
+                    sendingCirculation;
+                    finite_core=idsAreDifferent,
+                    wake_shedding_locations=shedding_locations[sendingSurface],
+                    symmetric=symmetric[sendingSurface],
+                    trailing_vortices=trailing_vortices[sendingSurface] &&
+                                      !wake_is_active[sendingSurface],
+                    xhat=xhat
                 )
             else
-                chordwise_index, spanwise_segment_index = Tuple(panel_index)
-                skip_left = spanwise_segment_index <= size(sending, 2) ?
-                    (CartesianIndex(chordwise_index, spanwise_segment_index),) : ()
-                skip_right = spanwise_segment_index > 1 ?
-                    (CartesianIndex(chordwise_index, spanwise_segment_index - 1),) : ()
+                chordwiseIndex,spanwiseSegmentIndex = Tuple(panel_index)
+                skip_left =
+                    spanwiseSegmentIndex <= size(sending,2) ?
+                    (CartesianIndex(chordwiseIndex,spanwiseSegmentIndex),) : ()
+                skip_right = spanwiseSegmentIndex > 1 ?
+                             (CartesianIndex(chordwiseIndex,spanwiseSegmentIndex - 1),) : ()
                 velocity += induced_velocity(
                     location,
                     sending,
-                    sending_circulation;
-                    finite_core = ids_are_different,
-                    wake_shedding_locations = shedding_locations[sending_surface],
-                    symmetric = symmetric[sending_surface],
-                    trailing_vortices = trailing_vortices[sending_surface] &&
-                        !wake_is_active[sending_surface],
-                    xhat = xhat,
+                    sendingCirculation;
+                    finite_core=idsAreDifferent,
+                    wake_shedding_locations=shedding_locations[sendingSurface],
+                    symmetric=symmetric[sendingSurface],
+                    trailing_vortices=trailing_vortices[sendingSurface] &&
+                                      !wake_is_active[sendingSurface],
+                    xhat=xhat,
                     skip_left,
-                    skip_right,
+                    skip_right
                 )
             end
         else
-            velocity += induced_velocity(location, sending, sending_circulation;
-                finite_core = ids_are_different,
-                wake_shedding_locations = shedding_locations[sending_surface],
-                symmetric = symmetric[sending_surface],
-                trailing_vortices = trailing_vortices[sending_surface] &&
-                    !wake_is_active[sending_surface],
-                xhat = xhat)
+            velocity += induced_velocity(location,sending,sendingCirculation;
+                finite_core=idsAreDifferent,
+                wake_shedding_locations=shedding_locations[sendingSurface],
+                symmetric=symmetric[sendingSurface],
+                trailing_vortices=trailing_vortices[sendingSurface] &&
+                                  !wake_is_active[sendingSurface],
+                xhat=xhat)
         end
 
-        if wake_is_active[sending_surface]
-            velocity += induced_velocity(location, wakes[sending_surface];
-                finite_core = wake_finite_core[sending_surface] ||
-                    ids_are_different,
-                symmetric = symmetric[sending_surface],
-                nc = nwake[sending_surface],
-                trailing_vortices = trailing_vortices[sending_surface],
-                xhat = xhat)
+        if wake_is_active[sendingSurface]
+            velocity += induced_velocity(location,wakes[sendingSurface];
+                finite_core=wake_finite_core[sendingSurface] ||
+                            idsAreDifferent,
+                symmetric=symmetric[sendingSurface],
+                nc=nwake[sendingSurface],
+                trailing_vortices=trailing_vortices[sendingSurface],
+                xhat=xhat)
         end
     end
 
@@ -153,103 +154,109 @@ function legacy_imperial_segment_forces!(
     wake_shedding_locations,
     trailing_vortices,
     xhat,
-    interaction_id = surface_id,
-    interaction::Bool = true,
-    threaded::Bool = true,
-    chord_force_buffers = nothing,
-    span_force_buffers = nothing,
-    unsteady_force_buffers = nothing,
+    interaction_id=surface_id,
+    interaction::Bool=true,
+    threaded::Bool=true,
+    chord_force_buffers=nothing,
+    span_force_buffers=nothing,
+    unsteady_force_buffers=nothing
 )
-    number_of_surfaces = length(surfaces)
-    scalar_type = eltype(circulation)
-    zero_force = zero(SVector{3, scalar_type})
+    nSurfaces = length(surfaces)
+    scalarType = eltype(circulation)
+    zero_force = zero(SVector{3,scalarType})
 
-    chord_segment_forces = isnothing(chord_force_buffers) ?
-        Vector{Matrix{SVector{3, scalar_type}}}(undef, number_of_surfaces) :
+    chordSegmentForces =
+        isnothing(chord_force_buffers) ?
+        Vector{Matrix{SVector{3,scalarType}}}(undef,nSurfaces) :
         chord_force_buffers
-    span_segment_forces = isnothing(span_force_buffers) ?
-        Vector{Matrix{SVector{3, scalar_type}}}(undef, number_of_surfaces) :
+    spanSegmentForces =
+        isnothing(span_force_buffers) ?
+        Vector{Matrix{SVector{3,scalarType}}}(undef,nSurfaces) :
         span_force_buffers
-    unsteady_forces = isnothing(unsteady_force_buffers) ?
-        Vector{Matrix{SVector{3, scalar_type}}}(undef, number_of_surfaces) :
+    unsteady_forces =
+        isnothing(unsteady_force_buffers) ?
+        Vector{Matrix{SVector{3,scalarType}}}(undef,nSurfaces) :
         unsteady_force_buffers
-    length(chord_segment_forces) == number_of_surfaces ||
+    length(chordSegmentForces) == nSurfaces ||
         throw(DimensionMismatch("one chord-force buffer is required per surface"))
-    length(span_segment_forces) == number_of_surfaces ||
+    length(spanSegmentForces) == nSurfaces ||
         throw(DimensionMismatch("one span-force buffer is required per surface"))
-    length(unsteady_forces) == number_of_surfaces ||
+    length(unsteady_forces) == nSurfaces ||
         throw(DimensionMismatch("one unsteady-force buffer is required per surface"))
 
-    panel_counts = length.(surfaces)
-    circulation_ends = cumsum(panel_counts)
-    circulation_starts = circulation_ends .- panel_counts .+ 1
-    surface_circulations = [
-        view(circulation, circulation_starts[index]:circulation_ends[index])
+    panelCounts = length.(surfaces)
+    circulationEnds = cumsum(panelCounts)
+    circulationStarts = circulationEnds .- panelCounts .+ 1
+    surfaceCirculations = [
+        view(circulation,circulationStarts[index]:circulationEnds[index])
         for index in eachindex(surfaces)
     ]
     wake_is_active = nwake .> 0
     shedding_locations = isnothing(wake_shedding_locations) ?
-        fill(nothing, number_of_surfaces) : wake_shedding_locations
+                         fill(nothing,nSurfaces) : wake_shedding_locations
     same_interaction_group = [
         interaction || interaction_id[receiving] == interaction_id[sending]
-        for receiving in eachindex(surfaces), sending in eachindex(surfaces)
+        for receiving in eachindex(surfaces),sending in eachindex(surfaces)
     ]
     different_surface_id = [
         surface_id[receiving] != surface_id[sending]
-        for receiving in eachindex(surfaces), sending in eachindex(surfaces)
+        for receiving in eachindex(surfaces),sending in eachindex(surfaces)
     ]
 
     for receiving_surface in eachindex(surfaces)
         receiving = surfaces[receiving_surface]
-        number_chordwise, number_spanwise = size(receiving)
-        circulation_offset = circulation_starts[receiving_surface] - 1
+        numberChordwise,numberSpanwise = size(receiving)
+        circulationOffset = circulationStarts[receiving_surface] - 1
 
-        expected_chord_size = (number_chordwise, number_spanwise + 1)
-        expected_span_size = (number_chordwise + 1, number_spanwise)
-        expected_unsteady_size = (number_chordwise, number_spanwise)
+        expectedChordSize = (numberChordwise,numberSpanwise + 1)
+        expectedSpanSize = (numberChordwise + 1,numberSpanwise)
+        expectedUnsteadySize = (numberChordwise,numberSpanwise)
 
-        current_chord = isnothing(chord_force_buffers) ?
-            fill(zero_force, expected_chord_size) :
-            chord_segment_forces[receiving_surface]
-        current_span = isnothing(span_force_buffers) ?
-            fill(zero_force, expected_span_size) :
-            span_segment_forces[receiving_surface]
-        current_unsteady = isnothing(unsteady_force_buffers) ?
-            fill(zero_force, expected_unsteady_size) :
+        currentChord =
+            isnothing(chord_force_buffers) ?
+            fill(zero_force,expectedChordSize) :
+            chordSegmentForces[receiving_surface]
+        currentSpan =
+            isnothing(span_force_buffers) ?
+            fill(zero_force,expectedSpanSize) :
+            spanSegmentForces[receiving_surface]
+        currentUnsteady =
+            isnothing(unsteady_force_buffers) ?
+            fill(zero_force,expectedUnsteadySize) :
             unsteady_forces[receiving_surface]
-        size(current_chord) == expected_chord_size ||
+        size(currentChord) == expectedChordSize ||
             throw(DimensionMismatch("chord-force buffer has the wrong size"))
-        size(current_span) == expected_span_size ||
+        size(currentSpan) == expectedSpanSize ||
             throw(DimensionMismatch("span-force buffer has the wrong size"))
-        size(current_unsteady) == expected_unsteady_size ||
+        size(currentUnsteady) == expectedUnsteadySize ||
             throw(DimensionMismatch("unsteady-force buffer has the wrong size"))
-        fill!(current_chord, zero_force)
-        fill!(current_span, zero_force)
-        fill!(current_unsteady, zero_force)
+        fill!(currentChord,zero_force)
+        fill!(currentSpan,zero_force)
+        fill!(currentUnsteady,zero_force)
 
-        function calculate_panel_forces!(linear_index)
-            panel_index = CartesianIndices(receiving)[linear_index]
-            chordwise_index, spanwise_index = Tuple(panel_index)
+        function calculate_panel_forces!(linearIndex)
+            panel_index = CartesianIndices(receiving)[linearIndex]
+            chordwiseIndex,spanwiseIndex = Tuple(panel_index)
             panel = receiving[panel_index]
-            global_index = circulation_offset + linear_index
+            globalIndex = circulationOffset + linearIndex
 
-            span_location = top_center(panel)
-            span_motion = isnothing(Vh) ? nothing :
-                Vh[receiving_surface][panel_index]
-            span_velocity = _legacy_imperial_base_velocity(
-                span_location,
+            spanLocation = top_center(panel)
+            spanMotion = isnothing(Vh) ? nothing :
+                         Vh[receiving_surface][panel_index]
+            spanVelocity = _legacy_imperial_base_velocity(
+                spanLocation,
                 reference,
                 freestream,
                 additional_velocity,
-                span_motion,
+                spanMotion
             )
-            span_velocity += _legacy_imperial_induced_velocity(
-                span_location,
+            spanVelocity += _legacy_imperial_induced_velocity(
+                spanLocation,
                 panel_index,
                 :spanwise,
                 surfaces,
                 wakes,
-                surface_circulations,
+                surfaceCirculations,
                 receiving_surface;
                 symmetric,
                 nwake,
@@ -259,32 +266,33 @@ function legacy_imperial_segment_forces!(
                 trailing_vortices,
                 xhat,
                 same_interaction_group,
-                different_surface_id,
+                different_surface_id
             )
-            spanwise_jump = chordwise_index == 1 ?
-                circulation[global_index] :
-                circulation[global_index] - circulation[global_index - 1]
-            current_span[chordwise_index, spanwise_index] =
-                reference.rho * spanwise_jump *
-                cross(span_velocity, top_vector(panel))
+            spanwiseJump =
+                chordwiseIndex == 1 ?
+                circulation[globalIndex] :
+                circulation[globalIndex] - circulation[globalIndex-1]
+            currentSpan[chordwiseIndex,spanwiseIndex] =
+                reference.rho * spanwiseJump *
+                cross(spanVelocity,top_vector(panel))
 
-            left_location = left_center(panel)
-            left_motion = isnothing(Vv) ? nothing :
-                Vv[receiving_surface][chordwise_index, spanwise_index]
-            left_velocity = _legacy_imperial_base_velocity(
-                left_location,
+            leftLocation = left_center(panel)
+            leftMotion = isnothing(Vv) ? nothing :
+                         Vv[receiving_surface][chordwiseIndex,spanwiseIndex]
+            leftVelocity = _legacy_imperial_base_velocity(
+                leftLocation,
                 reference,
                 freestream,
                 additional_velocity,
-                left_motion,
+                leftMotion
             )
-            left_velocity += _legacy_imperial_induced_velocity(
-                left_location,
+            leftVelocity += _legacy_imperial_induced_velocity(
+                leftLocation,
                 panel_index,
                 :chordwise,
                 surfaces,
                 wakes,
-                surface_circulations,
+                surfaceCirculations,
                 receiving_surface;
                 symmetric,
                 nwake,
@@ -294,34 +302,35 @@ function legacy_imperial_segment_forces!(
                 trailing_vortices,
                 xhat,
                 same_interaction_group,
-                different_surface_id,
+                different_surface_id
             )
-            chordwise_jump = spanwise_index == 1 ?
-                circulation[global_index] :
-                circulation[global_index] -
-                    circulation[global_index - number_chordwise]
-            current_chord[chordwise_index, spanwise_index] =
-                reference.rho * chordwise_jump *
-                cross(left_velocity, left_vector(panel))
+            chordwiseJump =
+                spanwiseIndex == 1 ?
+                circulation[globalIndex] :
+                circulation[globalIndex] -
+                circulation[globalIndex-numberChordwise]
+            currentChord[chordwiseIndex,spanwiseIndex] =
+                reference.rho * chordwiseJump *
+                cross(leftVelocity,left_vector(panel))
 
-            if spanwise_index == number_spanwise
-                right_location = right_center(panel)
-                right_motion = isnothing(Vv) ? nothing :
-                    Vv[receiving_surface][chordwise_index, spanwise_index + 1]
-                right_velocity = _legacy_imperial_base_velocity(
-                    right_location,
+            if spanwiseIndex == numberSpanwise
+                rightLocation = right_center(panel)
+                rightMotion = isnothing(Vv) ? nothing :
+                              Vv[receiving_surface][chordwiseIndex,spanwiseIndex+1]
+                rightVelocity = _legacy_imperial_base_velocity(
+                    rightLocation,
                     reference,
                     freestream,
                     additional_velocity,
-                    right_motion,
+                    rightMotion
                 )
-                right_velocity += _legacy_imperial_induced_velocity(
-                    right_location,
-                    CartesianIndex(chordwise_index, spanwise_index + 1),
+                rightVelocity += _legacy_imperial_induced_velocity(
+                    rightLocation,
+                    CartesianIndex(chordwiseIndex,spanwiseIndex + 1),
                     :chordwise,
                     surfaces,
                     wakes,
-                    surface_circulations,
+                    surfaceCirculations,
                     receiving_surface;
                     symmetric,
                     nwake,
@@ -331,39 +340,39 @@ function legacy_imperial_segment_forces!(
                     trailing_vortices,
                     xhat,
                     same_interaction_group,
-                    different_surface_id,
+                    different_surface_id
                 )
-                current_chord[chordwise_index, spanwise_index + 1] =
-                    reference.rho * circulation[global_index] *
-                    cross(right_velocity, right_vector(panel))
+                currentChord[chordwiseIndex,spanwiseIndex+1] =
+                    reference.rho * circulation[globalIndex] *
+                    cross(rightVelocity,right_vector(panel))
             end
 
             if !isnothing(dΓdt)
-                approximate_area =
+                approximateArea =
                     norm(top_vector(panel)) * norm(left_vector(panel))
-                current_unsteady[chordwise_index, spanwise_index] =
-                    reference.rho * approximate_area * normal(panel) *
-                    dΓdt[global_index]
+                currentUnsteady[chordwiseIndex,spanwiseIndex] =
+                    reference.rho * approximateArea * normal(panel) *
+                    dΓdt[globalIndex]
             end
             return nothing
         end
 
         if threaded && Threads.nthreads() > 1
-            Threads.@threads :static for linear_index in eachindex(receiving)
-                calculate_panel_forces!(linear_index)
+            Threads.@threads :static for linearIndex in eachindex(receiving)
+                calculate_panel_forces!(linearIndex)
             end
         else
-            for linear_index in eachindex(receiving)
-                calculate_panel_forces!(linear_index)
+            for linearIndex in eachindex(receiving)
+                calculate_panel_forces!(linearIndex)
             end
         end
 
-        chord_segment_forces[receiving_surface] = current_chord
-        span_segment_forces[receiving_surface] = current_span
-        unsteady_forces[receiving_surface] = current_unsteady
+        chordSegmentForces[receiving_surface] = currentChord
+        spanSegmentForces[receiving_surface] = currentSpan
+        unsteady_forces[receiving_surface] = currentUnsteady
     end
 
-    return properties, chord_segment_forces, span_segment_forces, unsteady_forces
+    return properties,chordSegmentForces,spanSegmentForces,unsteady_forces
 end
 
 """

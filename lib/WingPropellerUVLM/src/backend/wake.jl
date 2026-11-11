@@ -23,8 +23,8 @@ to account for the new wake shedding location
  - `eta`: Time step fraction used to define separation between trailing
     edge and wake shedding location.  Typical values range from 0.2-0.3.
 """
-function update_wake_shedding_locations!(wakes, wake_shedding_locations,
-    surfaces, ref, fs, dt, additional_velocity, Vte, nwake, eta)
+function update_wake_shedding_locations!(wakes,wake_shedding_locations,
+    surfaces,ref,fs,dt,additional_velocity,Vte,nwake,eta)
 
     # get number of surfaces
     nsurf = length(surfaces)
@@ -33,36 +33,36 @@ function update_wake_shedding_locations!(wakes, wake_shedding_locations,
     for isurf = 1:nsurf
 
         # number of spanwise panels
-        ns = size(wakes[isurf], 2)
+        ns = size(wakes[isurf],2)
 
         # update wake shedding location
         for j = 1:ns+1
 
             # extract trailing edge coordinate
             if j < ns + 1
-                rte = bottom_left(surfaces[isurf][end, j])
+                rte = bottom_left(surfaces[isurf][end,j])
             else
-                rte = bottom_right(surfaces[isurf][end, j-1])
+                rte = bottom_right(surfaces[isurf][end,j-1])
             end
 
             # freestream velocity
             V = freestream_velocity(fs)
 
             # rotational velocity
-            V += rotational_velocity(rte, fs, ref)
+            V += rotational_velocity(rte,fs,ref)
 
             # additional velocity field
             if !isnothing(additional_velocity)
                 V += additional_velocity(rte)
             end
-            
+
             # velocity due to surface motion
             if !isnothing(Vte)
                 V += Vte[isurf][j]
             end
 
             # update wake shedding location coordinates
-            wake_shedding_locations[isurf][j] = rte + eta*V*dt
+            wake_shedding_locations[isurf][j] = rte + eta * V * dt
 
         end
 
@@ -84,13 +84,13 @@ function update_wake_shedding_locations!(wakes, wake_shedding_locations,
                 gamma = circulation_strength(wakes[isurf][1,j])
 
                 # replace the old wake panel
-                wakes[isurf][1,j] = WakePanel(rtl, rtr, rbl, rbr, core_size, gamma)
+                wakes[isurf][1,j] = WakePanel(rtl,rtr,rbl,rbr,core_size,gamma)
             end
         end
 
     end
 
-    return wakes, wake_shedding_locations
+    return wakes,wake_shedding_locations
 end
 
 """
@@ -131,11 +131,11 @@ end
  - `xhat`: Direction in which to shed trailing vortices, defaults to [1, 0, 0]
 """
 
-function get_wake_velocities!(wake_velocities, surfaces, wakes, ref, fs, Γ,
-    additional_velocity, Vte, symmetric, repeated_points, nwake,
-    surface_id, wake_finite_core, wake_shedding_locations, trailing_vortices, xhat;
-    interaction_id = surface_id,
-    interaction::Bool = true)
+function get_wake_velocities!(wake_velocities,surfaces,wakes,ref,fs,Γ,
+    additional_velocity,Vte,symmetric,repeated_points,nwake,
+    surface_id,wake_finite_core,wake_shedding_locations,trailing_vortices,xhat;
+    interaction_id=surface_id,
+    interaction::Bool=true)
 
     # number of surfaces
     nsurf = length(surfaces)
@@ -144,7 +144,7 @@ function get_wake_velocities!(wake_velocities, surfaces, wakes, ref, fs, Γ,
     for isurf = 1:nsurf
 
         # number of chordwise and spanwise panels
-        nc, ns = size(surfaces[isurf])
+        nc,ns = size(surfaces[isurf])
         nw = nwake[isurf]
 
         # velocity at the wake shedding locations
@@ -157,7 +157,7 @@ function get_wake_velocities!(wake_velocities, surfaces, wakes, ref, fs, Γ,
             V = freestream_velocity(fs)
 
             # rotational velocity
-            V += rotational_velocity(rc, fs, ref)
+            V += rotational_velocity(rc,fs,ref)
 
             # additional velocity field
             if !isnothing(additional_velocity)
@@ -174,27 +174,27 @@ function get_wake_velocities!(wake_velocities, surfaces, wakes, ref, fs, Γ,
         end
 
         # velocity at all other wake vertices
-        cr = CartesianIndices((2:nw+1, 1:ns+1))
+        cr = CartesianIndices((2:nw+1,1:ns+1))
 
         # loop through all vertices
         for I in cr
 
             # get vertex location
             if I[1] <= nw && I[2] <= ns
-                rc = top_left(wakes[isurf][I[1], I[2]])
+                rc = top_left(wakes[isurf][I[1],I[2]])
             elseif I[1] == nw + 1 && I[2] <= ns
-                rc = bottom_left(wakes[isurf][I[1]-1, I[2]])
+                rc = bottom_left(wakes[isurf][I[1]-1,I[2]])
             elseif I[1] <= nw && I[2] == ns + 1
-                rc = top_right(wakes[isurf][I[1], I[2]-1])
+                rc = top_right(wakes[isurf][I[1],I[2]-1])
             else # I[1] == nw + 1 && I[2] == ns + 1
-                rc = bottom_right(wakes[isurf][I[1]-1, I[2]-1])
+                rc = bottom_right(wakes[isurf][I[1]-1,I[2]-1])
             end
 
             # freestream velocity
             wake_velocities[isurf][I] = freestream_velocity(fs)
 
             # rotational velocity
-            wake_velocities[isurf][I] += rotational_velocity(rc, fs, ref)
+            wake_velocities[isurf][I] += rotational_velocity(rc,fs,ref)
 
             # additional velocity field
             if !isnothing(additional_velocity)
@@ -217,63 +217,64 @@ function get_wake_velocities!(wake_velocities, surfaces, wakes, ref, fs, Γ,
                 # check if receiving point is repeated on the sending surface
                 if isurf == jsurf
                     # the surfaces are the same
-                    same_surface = true
+                    sameSurface = true
                     # vertex spanwise coordinate
                     js = I[2]
                 else
                     # the surfaces are different, but the point could still be a duplicate
-                    if (isurf, I[2]) in keys(repeated_points)
+                    if (isurf,I[2]) in keys(repeated_points)
                         # the vertex is duplicated
                         # check if the vertex is on the sending surface
-                        idx = findfirst(x -> x[1] == jsurf, repeated_points[(isurf, I[2])])
+                        idx = findfirst(x -> x[1] == jsurf,repeated_points[(isurf,I[2])])
 
                         if isnothing(idx)
                             # the vertex is not duplicated on the sending surface
-                            same_surface = false
+                            sameSurface = false
                         else
                             # the vertex is duplicated on the sending surface
-                            same_surface = true
+                            sameSurface = true
                             # vertex spanwise coordinate on sending surface
-                            js = repeated_points[(isurf, I[2])][idx][2]
+                            js = repeated_points[(isurf,I[2])][idx][2]
                         end
                     else
                         # the vertex is not duplicated
                         # the vertex is not on the sending surface
-                        same_surface = false
+                        sameSurface = false
                     end
                 end
 
                 # extract circulation values corresponding to the sending surface
-                vΓ = view(Γ, jΓ+1:jΓ+Ns)
+                vΓ = view(Γ,jΓ+1:jΓ+Ns)
 
                 # induced velocity from this surface
-                wake_velocities[isurf][I] += induced_velocity(rc, surfaces[jsurf], vΓ;
-                    finite_core = surface_id[isurf] != surface_id[jsurf],
-                    wake_shedding_locations = wake_shedding_locations[jsurf],
-                    symmetric = symmetric[jsurf],
-                    trailing_vortices = false,
-                    xhat = xhat)
+                wake_velocities[isurf][I] += induced_velocity(rc,surfaces[jsurf],vΓ;
+                    finite_core=surface_id[isurf] != surface_id[jsurf],
+                    wake_shedding_locations=wake_shedding_locations[jsurf],
+                    symmetric=symmetric[jsurf],
+                    trailing_vortices=false,
+                    xhat=xhat)
 
                 # add induced velocity from the wake
-                if same_surface
+                if sameSurface && I[1] <= nwake[jsurf] + 1
                     # vertex location on wake
-                    J = CartesianIndex(I[1], js)
+                    J = CartesianIndex(I[1],js)
 
                     # induced velocity from wake on its own vertex
-                    wake_velocities[isurf][I] += induced_velocity(J, wakes[jsurf];
-                        finite_core = wake_finite_core[jsurf] || surface_id[isurf] != surface_id[jsurf],
-                        symmetric = symmetric[jsurf],
-                        nc = nwake[jsurf],
-                        trailing_vortices = trailing_vortices[jsurf],
-                        xhat = xhat)
+                    wake_velocities[isurf][I] += induced_velocity(J,wakes[jsurf];
+                        finite_core=wake_finite_core[jsurf] || surface_id[isurf] != surface_id[jsurf],
+                        symmetric=symmetric[jsurf],
+                        nc=nwake[jsurf],
+                        trailing_vortices=trailing_vortices[jsurf],
+                        xhat=xhat)
                 else
-                    # induced velocity from wake on another wake's vertex
-                    wake_velocities[isurf][I] += induced_velocity(rc, wakes[jsurf];
-                        finite_core = wake_finite_core[jsurf] || surface_id[isurf] != surface_id[jsurf],
-                        symmetric = symmetric[jsurf],
-                        nc = nwake[jsurf],
-                        trailing_vortices = trailing_vortices[jsurf],
-                        xhat = xhat)
+                    # Use the receiving coordinate for another wake, including
+                    # shared edges downstream of a shorter sending wake.
+                    wake_velocities[isurf][I] += induced_velocity(rc,wakes[jsurf];
+                        finite_core=wake_finite_core[jsurf] || surface_id[isurf] != surface_id[jsurf],
+                        symmetric=symmetric[jsurf],
+                        nc=nwake[jsurf],
+                        trailing_vortices=trailing_vortices[jsurf],
+                        xhat=xhat)
                 end
 
                 jΓ += Ns # increment Γ index
@@ -296,7 +297,7 @@ Return a translated copy of the wake panel `panel` given the wake corner velocit
     of `panel`
  - `dt`: Time step (seconds)
 """
-function translate_wake(panel::WakePanel, wake_velocities, dt)
+function translate_wake(panel::WakePanel,wake_velocities,dt)
 
     # extract corners
     rtl = top_left(panel)
@@ -312,10 +313,10 @@ function translate_wake(panel::WakePanel, wake_velocities, dt)
     l1 = lt + lb + ll + lr
 
     # translate corners
-    rtl += wake_velocities[1,1]*dt
-    rtr += wake_velocities[1,2]*dt
-    rbl += wake_velocities[2,1]*dt
-    rbr += wake_velocities[2,2]*dt
+    rtl += wake_velocities[1,1] * dt
+    rtr += wake_velocities[1,2] * dt
+    rbl += wake_velocities[2,1] * dt
+    rbr += wake_velocities[2,2] * dt
 
     # get new vortex filament length
     lt = norm(rtr - rtl)
@@ -328,9 +329,9 @@ function translate_wake(panel::WakePanel, wake_velocities, dt)
     core_size = get_core_size(panel)
 
     # correct vorticity for vortex stretching
-    gamma = circulation_strength(panel)*l1/l2
+    gamma = circulation_strength(panel) * l1 / l2
 
-    return WakePanel(rtl, rtr, rbl, rbr, core_size, gamma)
+    return WakePanel(rtl,rtr,rbl,rbr,core_size,gamma)
 end
 
 """
@@ -351,19 +352,19 @@ and the time step `dt`.
  - `nwake`: Number of chordwise wake panels to use from `wake`, defaults to all
     provided wake panels
 """
-function translate_wake!(wake, wake_velocities, dt; nwake = size(wake, 1))
+function translate_wake!(wake,wake_velocities,dt; nwake=size(wake,1))
 
     nw = nwake
-    ns = size(wake, 2)
-    cw = CartesianIndices((nw, ns))
+    ns = size(wake,2)
+    cw = CartesianIndices((nw,ns))
 
     for I in cw
 
         panel = wake[I]
 
-        vV = view(wake_velocities, I[1]:I[1]+1, I[2]:I[2]+1)
+        vV = view(wake_velocities,I[1]:I[1]+1,I[2]:I[2]+1)
 
-        wake[I] = translate_wake(panel, vV, dt)
+        wake[I] = translate_wake(panel,vV,dt)
     end
 
     return wake
@@ -391,12 +392,12 @@ wake panels.
  - `nwake`: Number of chordwise wake panels to use from `wake`, defaults to all
     provided wake panels
 """
-function shed_wake!(wake::AbstractMatrix, wake_shedding_locations,
-    wake_velocities, dt, surface, Γ, nwake)
+function shed_wake!(wake::AbstractMatrix,wake_shedding_locations,
+    wake_velocities,dt,surface,Γ,nwake)
 
-    nc, ns = size(surface)
-    nw = size(wake, 1)
-    ls = LinearIndices((nc, ns))
+    nc,ns = size(surface)
+    nw = size(wake,1)
+    ls = LinearIndices((nc,ns))
 
     # replace the last chordwise panels with the newly shed wake panels
     for j = 1:ns
@@ -406,21 +407,21 @@ function shed_wake!(wake::AbstractMatrix, wake_shedding_locations,
         rtr = wake_shedding_locations[j+1]
 
         # shed coordinates
-        rbl = rtl + wake_velocities[1, j]*dt
-        rbr = rtr + wake_velocities[1, j+1]*dt
+        rbl = rtl + wake_velocities[1,j] * dt
+        rbr = rtr + wake_velocities[1,j+1] * dt
 
         # use core size from the shedding panel
-        core_size = get_core_size(surface[end, j])
+        core_size = get_core_size(surface[end,j])
 
         # use circulation strength from the shedding panel
         gamma = Γ[ls[end,j]]
 
         # replace the oldest wake panel
-        wake[end,j] = WakePanel(rtl, rtr, rbl, rbr, core_size, gamma)
+        wake[end,j] = WakePanel(rtl,rtr,rbl,rbr,core_size,gamma)
     end
 
     # translate all existing wake panels except the most recently shed panels
-    translate_wake!(wake, wake_velocities, dt, nwake = min(nwake, nw-1))
+    translate_wake!(wake,wake_velocities,dt,nwake=min(nwake,nw - 1))
 
     # shift wake panels to make newly shed wake panel first
     rowshift!(wake)
@@ -450,18 +451,18 @@ wake panels.
  - `nwake`: Number of chordwise wake panels to use from each wake in `wakes`,
     defaults to all provided wake panels
 """
-function shed_wake!(wakes::AbstractVector{<:AbstractMatrix}, wake_shedding_locations,
-    wake_velocities, dt, surfaces, Γ, nwake)
+function shed_wake!(wakes::AbstractVector{<:AbstractMatrix},wake_shedding_locations,
+    wake_velocities,dt,surfaces,Γ,nwake)
 
     iΓ = 0
     for i = 1:length(surfaces)
 
         N = length(surfaces[i])
 
-        vΓ = view(Γ, iΓ+1:iΓ+N)
+        vΓ = view(Γ,iΓ+1:iΓ+N)
 
-        shed_wake!(wakes[i], wake_shedding_locations[i], wake_velocities[i], dt,
-            surfaces[i], vΓ, nwake[i])
+        shed_wake!(wakes[i],wake_shedding_locations[i],wake_velocities[i],dt,
+            surfaces[i],vΓ,nwake[i])
 
         iΓ += N
     end
@@ -476,7 +477,7 @@ Circularly shifts the rows of a matrix down one row.
 """
 function rowshift!(A)
 
-    ni, nj = size(A)
+    ni,nj = size(A)
 
     for j = 1:nj
         tmp = A[ni,j]

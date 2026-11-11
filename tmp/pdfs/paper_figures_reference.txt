@@ -1,0 +1,980 @@
+       Wing-Propeller Whirl Flutter Analysis Using the
+                 Unsteady Vortex-Lattice Method
+
+                                                   João P. T. P. dos Santos 
+                                   Georgia Institute of Technology, Atlanta, GA 30332
+
+                                        University of São Paulo, São Carlos, Brazil
+                                                      Flávio D. Marques
+
+                                        University of São Paulo, São Carlos, Brazil
+                                                          Cristina Riso§
+
+                                   Georgia Institute of Technology, Atlanta, GA 30332
+
+           This paper analyzes the aeroelastic stability of a notional wing-propeller configuration
+      exhibiting whirl flutter using the unsteady vortex-lattice method for the aerodynamics of both
+      fixed and rotating lifting surfaces coupled with a linear beam model for the wing and Reed's two-
+      degree-of-freedom model for the propeller. The influence of three-dimensional aerodynamics
+      and aerodynamic interactions on the whirl flutter speed is systematically isolated and quantified
+      for the first time. This is accomplished through output-based aeroelastic stability analyses
+      using fully coupled or decoupled aerodynamic influence coefficient matrices and comparisons
+      with eigenvalue-based analyses obtained using strip-theory aerodynamics for the wing and the
+      Houbolt-Reed formulation for the propeller. The results are also compared with a published
+      study employing a lifting-line approach combined with vortex-wake wing inflow and the viscous
+      vortex-particle method propeller inflow. Aerodynamic interactions are shown to reduce the whirl
+      flutter speed under both windmilling and thrusting conditions. However, they are partially offset
+      by stabilizing three-dimensional aerodynamics, yielding a modest increase in the whirl flutter
+      speed relative to predictions neglecting both effects. The results obtained using the unsteady
+      vortex-lattice method closely agree with those from the published study, suggesting that wake
+      modeling assumptions and viscosity effects do not significantly impact the whirl flutter speed.
+      These findings elucidate the potentially competing roles of three-dimensional aerodynamics and
+      aerodynamic interactions in the aeroelastic stability of wing-propeller systems and demonstrate
+      the effectiveness of the unsteady vortex-lattice method for analyzing these configurations.
+
+Visiting Scholar, Daniel Guggenheim School of Aerospace Engineering, 275 Ferst Drive NW; jsantos73@gatech.edu. Student Member AIAA.
+Ph.D. Candidate, Department of Mechanical Engineering, Avenida Trabalhador São-Carlense 400.
+Associate Professor, Department of Mechanical Engineering, Avenida Trabalhador São-Carlense 400; fmarques@sc.usp.br.
+§Assistant Professor, Daniel Guggenheim School of Aerospace Engineering, 275 Ferst Drive NW; criso@gatech.edu. Senior Member AIAA.
+                                                 I. Introduction
+
+    Growing interest in distributed electric propulsion [1-3] and advanced air mobility [4-7] has led to the development
+of new aircraft concepts with multiple propellers on flexible wings. Many of these concepts combine vertical takeoff and
+landing (VTOL) capability with energy-efficient forward flight, offering unique opportunities for localized transportation
+of people and goods. However, they are susceptible to aeroelastic instabilities, with whirl flutter [8-10] being a primary
+concern.
+
+    Whirl flutter is a dynamic aeroelastic instability driven by mutual interactions among the inertial and gyroscopic
+effects associated with a rotating system (a rotor or propeller), the elasticity of its support structure (a wing or pylon),
+and the resulting aerodynamic loads [9]. Although Taylor and Browne first theorized the whirl flutter phenomenon in
+1938 [8], it became a significant aircraft design concern only in the early 1960s, following two major flight accidents
+caused by divergent whirl oscillations [11, 12]. These events highlighted the need for accurate aeroelastic stability
+analysis of wing-propeller systems, a need that has reemerged with the rise of modern distributed electric propulsion
+aircraft and electric VTOL concepts.
+
+    Among the earliest investigations of whirl flutter, Bennet and Bland [13] derived an elastically mounted propeller
+model for whirl flutter analysis and compared analytical predictions with experimental measurements. Two comprehensive
+review articles [9, 10] subsequently surveyed the body of work on classical (propeller) whirl flutter and tiltrotor whirl
+flutter until the early 2000s. More recent efforts have investigated the aeroelastic stability of wing-propeller configurations
+using disparate modeling approaches, motivated by the push to develop new aircraft configurations with multiple
+wing-mounted propellers. Hoover and Shen [14] analyzed NASA's X-57 Maxwell aircraft using a multi-body model
+coupled with quasi-steady and unsteady lifting-line theory. Xu [15] analyzed a wing-propeller configuration by coupling
+Reed's [9] rigid-blade propeller model with an Euler-Bernoulli beam-type wing model and strip-theory aerodynamics
+based on Theodorsen's theory [16]. Böhnisch et al. [17] coupled Reed's propeller model to a wing aeroelastic model
+composed of Euler-Bernoulli beam finite elements and the doublet-lattice method (DLM) [18]. Koch and Koert
+introduced methods to couple linearized time-domain propeller models with DLM-based wing models [19], aiming to
+enhance aerodynamic fidelity in frequency-domain flutter analysis of propeller-driven aircraft [20].
+
+    The models employed in these studies neglected the mutual aerodynamic influence between the propeller and the
+wing. Some recent efforts have examined these effects using mid-fidelity unsteady aerodynamic models. Bohnisch et al.
+[21, 22] analyzed the aeroelastic stability of a wing-propeller configuration using the viscous vortex-particle method
+(VVPM) [23] for the propeller aerodynamics and surface panels for the wing. They showed that aerodynamic interactions
+reduce the wing flutter speed. However, their configuration did not experience whirl flutter. Chang et al. [24] examined
+the effect of aerodynamic interactions on the whirl flutter speed of a wing-propeller system using transient simulations
+from the Rotorcraft Comprehensive Analysis System (RCAS) [25-27]. Their study obtained the aerodynamic loads on
+the wing and propeller blades using a lifting-line approach combined with either the uniform or vortex-wake (VW)
+
+                                                                      2
+inflow model for the wing wake and the uniform, dynamic, or VVPM inflow for the propeller wake. For the configuration
+examined, aerodynamic interactions reduced the whirl flutter speed by up to 5% across both windmilling and thrusting
+conditions. Simmons et al. [28] revisited the analysis by Chang et al. [24] to investigate amplitude-dependent effects
+due to system nonlinearity using an output-based method [29]. Their study focused on previous RCAS simulations for
+uniform wing inflow and VVPM propeller inflow. The results confirmed the destabilizing influence of aerodynamic
+interactions on the configuration's whirl flutter mechanisms. In addition, they revealed nonlinear aerodynamic effects
+at lower forward speeds, attributed to the propeller-wake effects on blade aerodynamic calculations. Kher et al. [30]
+further analyzed the configuration of Chang et al. [24] for varying propeller spanwise placement and introduced a
+wing-twin-propeller variant. Their study used RCAS simulations based on lifting-line aerodynamics, uniform inflow
+for the wing, and the VVPM inflow for the propellers. They observed that a more outboard propeller placement
+increased the whirl flutter speed and resulted in stronger destabilizing effects due to wing-propeller aerodynamic
+interactions. Koch [31] investigated the role of aerodynamic interactions using a time-domain unsteady panel method
+for both the wing and propeller. Harmonic forced-motion simulations were applied to identify frequency-dependent
+generalized aerodynamic forces. The interaction terms were isolated by exciting one component while holding the
+other fixed, identifying wing-to-propeller and propeller-to-wing interactions. The identified loads were them applied to
+two simplified aeroelastic models: a two-degree-of-freedom wing model (heave and pitch) for classical wing flutter
+and a two-degree-of-freedom isolated propeller-nacelle model. In contrast to previous studies [21, 22, 24, 30, 32],
+aerodynamic interactions produced small stabilizing effects, although fully coupled wing-propeller flutter mechanisms
+were not examined.
+
+    These findings indicate that aerodynamic interactions between fixed and rotating lifting surfaces can degrade
+aeroelastic stability of wing-propeller systems. However, several research questions remain open. First, most previous
+work accounted for 3D aerodynamic effects only in the propeller wake (using the VVPM), but often neglected them
+in aerodynamic load calculations on the wing and propeller blades (using lifting-line approaches) or even the wing
+wake itself (using uniform inflow). Therefore, the relative importance and combined effect of 3D aerodynamics and
+aerodynamic interactions remain poorly understood. Second, aside from an investigation into the influence of different
+inflow models [24], no systematic comparison of results from distinct aerodynamic modeling approaches was conducted
+for the same configuration. Therefore, it is unclear whether the observed aeroelastic stability trends can be captured by
+modeling both the wing and propeller aerodynamics through a free-wake, potential-flow method.
+
+    The overarching goal of this work is to advance understanding and prediction of wing-propeller aeroelastic
+stability, specifically the influence of 3D aerodynamics and aerodynamic interactions alongside corresponding modeling
+guidelines. The specific objectives of this study are: (i) to isolate and quantify the effects of 3D aerodynamics and
+aerodynamic interactions on the whirl flutter speed of a notional wing-propeller system; and (ii) to determine whether
+the influence of aerodynamic interactions captured using the UVLM aligns with previous findings from alternative
+
+                                                                      3
+aerodynamic modeling approaches. The test case is the wing-propeller configuration analyzed by Chang et al. [24]
+and more recently revisited by Kher et al. [30]. This configuration is inspired by current electric VTOL aircraft and
+was developed to exhibit whirl flutter as the critical instability mechanism [24]. A structural model of the system is
+implemented by combining linear beam finite elements for the wing with Reed's two-degree-of-freedom model for the
+propeller. This structural model is coupled with a free-wake unsteady vortex-lattice method (UVLM) [33] model for
+both fixed and rotating lifting surfaces, and the resulting aeroelastic model is used to analyze aeroelastic stability via
+transient simulations. The influence of 3D aerodynamics is first assessed by comparing whirl flutter speeds predicted by
+assuming decoupled aerodynamic influence coefficient (AIC) matrices for fixed and rotating lifting surfaces against
+those from aeroelastic eigenvalue analyses on a lower-fidelity model that employs unsteady strip theory for the wing
+and the Houbolt-Reed quasi-steady formulation for the propeller. Next, the influence of aerodynamic interactions is
+isolated from that of 3D aerodynamics by comparing results from two UVLM-based model variants with fully coupled
+or decoupled AIC matrices. Lastly, comparisons with results from the published study of Chang et al. [24] highlight
+the influence of different modeling strategies on the whirl flutter speed.
+
+    The remainder of this paper outlines the theoretical formulation of the wing and propeller models (Sec. II) and
+describes the test case used in the study (Sec. III. The results are then presented (Sec. IV), followed by concluding
+remarks and an outlook on future research directions.
+
+                                          II. Wing-Propeller Model
+
+    This section presents the components of the wing-propeller aeroelastic model employed in this work. The model
+was developed in a previous study by the authors [34], where it was verified by reproducing the whirl flutter speeds of an
+isolated propeller-nacelle test case [35, 36] and the wing-propeller configuration proposed by Xu [15]. The verification
+results are not reported in this work for completeness and can be found in the previous publication [34].
+
+A. Isolated Propeller-Pylon Aeroelastic Model
+    The propeller-pylon model adopts the rigid-blade, rigid-pylon formulation of Ref. 37, originally introduced by
+
+Houbolt and Reed [38]. The system features a propeller with  rigid blades and a radius , rotating at an angular speed
+ while subjected to a freestream velocity  along the horizontal (equilibrium) configuration of the propeller-pylon
+system. The system's dynamics consist of small pitch () and yaw () rotations of the pylon around an effective pivot
+point. These quantities are measured from the equilibrium configuration and define the vector of propeller generalized
+coordinates   = {, } . The propeller is elastically restrained at the pivot point by equivalent springs of stiffness
+constants ( and ) and equivalent viscous dampers with coefficients ( and ) in the pitch and yaw directions.
+The propeller disc is located at a distance  from the pivot point and its moment of inertia about the axis of rotation is
+, while the ones about the transverse axes are both equal to .
+
+                                                                      4
+    The aeroelastic equations of motion given by [37]
+
+                                                     +   +   +   = 
+                                                                                                                                           (1)
+
+                                                   +  -   +  = 
+
+The quantities  and  are the propeller pitch and yaw aerodynamic moments, respectively, which comprise
+the vector of generalized forces   = { ,  } associated with  . These quantities are calculated using the
+Houbolt-Reed quasi-steady formulation [38], or the UVLM [33]. Gyroscopic loads couple the pitch and yaw motions,
+resulting in the forward and backward whirl modes, of which the latter typically gives rise to whirl flutter [9].
+
+B. Isolated Wing Aeroelastic Model
+    The structural dynamics of the wing are modeled using  two-node linear Euler-Bernoulli beam finite elements.
+
+Each node has six degrees of freedom (DOFs): axial, lateral, and vertical displacements, vertical and lateral rotations,
+and twist. This modeling approach is based on Refs. [13], [15], and [17], while the FEM formulation follows Refs. [39],
+[40], and [41]. The equations of motion are written as
+
+  +   +   =   (2)
+
+where , , and  are the  ×  global stiffness, damping, and mass matrices, respectively. The  × 1 vector
+ lists the displacements and rotations at each finite element node, and  is the  × 1 global generalized force
+vector. The aerodynamic loads provided by a selected aerodynamic model are coupled with the structural model to
+analyze aeroelastic stability. Two aeroelastic model variants are considered in this study: one that employs strip-theory
+aerodynamics combined with the unsteady potential-flow airfoil theory of Peters et al. [42], and another that uses the
+UVLM [33]. The first variant neglects 3D effects in both the wing aerodynamic load calculations and the wake, while
+the other variant accounts for wingtip effects, cross-span aerodynamic interactions, and 3D free wake propagation. The
+strip-theory-based model is discussed by Santos et al. [34] and is omitted here for conciseness. The UVLM model is
+described below.
+
+C. Unsteady Vortex Lattice Method
+    The UVLM [33] is a 3D unsteady method used to calculate unsteady aerodynamic loads on lifting surfaces subject
+
+to the incompressible flow of an inviscid fluid. This potential-flow approach discretizes each lifting surface and its
+corresponding wake into panels and vortex-ring elements, assigning a collocation point to each panel and a circulation
+to each ring. By applying a time-marching scheme, new wake panels and vortex rings are shed from the lifting-surface
+trailing edge at each time step. For aeroelastic analyses, the spatial coordinates of these panels and vortex rings are
+
+5
+updated at each step to account for structural deflections. This work employs the UVLM as the aerodynamic modeling
+approach for the entire wing-propeller system. The procedure for the aerodynamic analysis of propellers with the UVLM
+is discussed in Refs. [43] and [44]. While linearized formulations of the UVLM in state-space form are available in
+the literature [45, 46] and have been employed in fixed-wing aeroelastic stability analyses [47], this study uses a fully
+nonlinear, time-domain implementation of the method.
+
+    The core of the UVLM involves solving for the unknown bound circulations  by enforcing the non-penetration
+boundary condition at each vortex-ring collocation point. This results in the following algebraic system:
+
+ = AIC-1RHS  (3)
+
+The quantity AIC in Eq. (3) is the aerodynamic influence coefficient matrix, where each entry is derived from the
+Biot-Savart law. The RHS term is the right-hand side vector, which accounts for the normal velocity components
+due to rigid-body motion, structural deformation, gust perturbations, and the shed wake. Once  is determined by
+solving Eq. (3), the wake is convected downstream with the local flow velocity. The aerodynamic loads, calculated
+using Joukowski's theorem and the unsteady Bernoulli equation, are fed to the generalized force vector. The mapping
+procedure used in this study assumes rigid chordwise cross-sections and coincident spanwise discretization for the beam
+and UVLM models, following Ref. [48]. The aeroelastic equations are integrated in time using the Newmark- scheme
+[49]. At each time step of a transient analysis, the circulations of the wing panels are solved based on the induced
+velocities from the propeller and its wake, and the circulations of the propeller panels are simultaneously determined by
+considering the wing's influence. Following the calculation of the bound circulations, the wake geometries for both
+components are updated and convected downstream.
+
+    The iterative time-stepping procedure described above captures wing-propeller aerodynamic interactions at each
+temporal state [50] by calculating the induced velocity contributions from all surfaces and their respective wakes at
+the collocation points of each vortex ring using the Biot-Savart law. For a wing-propeller system, the primary effects
+of the propeller on the wing are an increase in local dynamic pressure and a change in the flow direction [51]. In
+turn, the wing perturbs the propeller's inflow, altering the blade's effective angle of attack and aerodynamic loads.
+Wing-propeller interactions can be eliminated from the aerodynamic analysis by setting the corresponding coupling
+terms in the AIC matrix of Eq. (3) to zero. In addition, the RHS term in Eq. (3) must be assembled by ensuring that
+the entry for a specific UVLM panel only accounts for the induced-velocity contributions from other panels on the
+same lifting surface and its corresponding wake. This study follows these steps to isolate the effects of aerodynamic
+interactions on the whirl flutter speed from those of 3D aerodynamics, while using a single aerodynamic modeling
+approach for the whole system. Instead, previous studies in this area typically used different aerodynamic models for
+the wing and propeller [21, 22, 24, 28, 30] without systematically isolating the effects of 3D aerodynamics from those
+
+6
+of aerodynamic interactions. In addition, in most of these studies, 3D aerodynamic effects were only included in the
+propeller wake but neglected in the aerodynamic load calculations and wing wake [24, 28, 30].
+
+D. Coupled Wing-Propeller Aeroelastic Model
+    The coupled equations of motion are expressed as [17]
+
+                                                                              
+                                                                      0     
+ +                                                                  
+     +         +         =   (4)    
+                    0        
+                                                                         
+
+The wing-related quantities in Eq. (4) are defined in the previous section, the quantities , , and  in Eq. (4) are the
+stiffness, damping, and mass matrices for the propeller based on Eq. (1), and the other matrices capture wing-propeller
+inertial and gyroscopic coupling.
+
+    This study employs different methods to analyze aeroelastic stability depending on the aerodynamic model used.
+When the aerodynamics are modeled using strip theory based on the formulation of Peters et al. [42] (wing) and the
+Houbolt-Reed formulation [38] (propeller), the aeroelastic model can be cast in a state-space form suitable for direct
+eigenvalue calculations [34]. Therefore, aeroelastic stability is analyzed by obtaining the system's eigenvalues while
+sweeping through a parameter and by producing the associated frequency and damping diagrams. In this work, the
+varying parameter is the forward speed, while all other parameters are fixed in a given aeroelastic stability analysis.
+When the aerodynamics are modeled using the UVLM, aeroelastic stability is analyzed using an output-based approach
+applied to transient simulations. First, the system's free responses to an impulse excitation applied on a selected DOF
+are simulated across different forward speeds within a reduced range around the whirl flutter speed. This range is
+estimated from the eigenvalue-based calculations. Next, moving-block analysis [52, 53] is applied to the simulated
+time histories of a monitored variable to estimate the damping of the critical aeroelastic mode, corresponding to the
+dominant frequency of each time history. Damping values are then interpolated to predict the whirl flutter speed.
+
+    Moving-block analysis is selected for its ability to isolate specific frequency components in a time history [54]. This
+approach to output-based damping estimation involves two major assumptions: linear (amplitude-independent) behavior
+and small damping levels. The implications of these assumptions on whirl flutter prediction in nonlinear aeroelastic
+systems are discussed in Ref. [55]. The validity of the linear assumption was verified by inspecting the natural logarithm
+of the moving-block function, which exhibited the expected linear trend with time. Indeed, Simmons et al. [28] found
+that free-wake nonlinearities, which are the primary source of nonlinear behavior in this study, do not significantly
+impact damping levels near the whirl flutter point of the present wing-propeller configuration. The observed damping
+levels are also small because simulations are only conducted relatively near the whirl flutter onset. Therefore, the
+small-damping assumption is satisfied. Based on these remarks, it is concluded that the use of moving-block analysis for
+
+                 7
+output-based aeroelastic stability analysis is adequate for this work. Reference [29] discusses output-based approaches
+suitable for wing-rotor and wing-propeller systems exhibiting stronger nonlinear behavior.
+
+                                        III. Wing-Propeller Test Case
+
+    Chang et al. [24] introduced the wing-propeller model analyzed in this study (see Fig. 1), inspired by current eVTOL
+concepts [5]. The rectangular wing has a semispan of 7.5 m and a chord of 1.8 m. The structural model consists of beam
+elements along the elastic axis, at 30% of the chord from the leading edge. The properties ensure that bending-torsion
+wing flutter does not occur within the examined range of forward speed. The four-bladed propeller has a diameter of
+2.3 m, a constant blade chord of 0.197 m, and linear twist varying from 62.6 deg at the blade root to 21.4 deg at the
+tip. The propeller properties are scaled geometrically from an isolated, rigid-blade propeller used in previous work
+[35, 36, 56]. The propeller rotates counterclockwise when seen from the front, and it connects to the wing's elastic
+axis at a distance of 6.25 m from the wing root, corresponding to approximately 83% of the semispan. The mounting
+stiffness is 18, 884 Nm/rad for both DOFs, considering a rigid-wing configuration. For the flexible-wing case, the
+mounting stiffness is 19, 220 Nm/rad and 18, 916 Nm/rad for the pitch and yaw DOFs, respectively. These different
+stiffness properties ensured similar absolute displacement of the propeller hub under the same load for the rigid- and
+flexible-wing model variants [24]. The pivot length is 1.71 m.
+
+    In the study of Chang et al. [24], the pylon was modeled using beam elements, with stiffness and inertial properties
+selected to yield a whirl flutter speed below 100 m/s, consistent with the aerodynamic model employed. This study
+accounts for pylon flexibility in a simplified way. Specifically, the pylon is modeled using a reduced representation
+based on linear Euler-Bernoulli beam theory, with basis functions compatible with cantilevered boundary conditions
+and the first bending deflection normalized by the pylon tip rotations. With this approach, the propeller pitch and
+yaw DOFs are interpreted as generalized coordinates associated with the assumed out-of-plane and in-plane bending
+displacements, respectively. This assumption primarily affects the inertial coupling between the wing and propeller
+DOFs. The generalized inertia properties for the propeller DOFs are obtained from the reference natural frequencies
+and stiffness [24]. This pylon model provides a simplified way to capture flexibility while preserving the reference
+modal properties.
+
+    Chang et al. [24] computed the aerodynamic loads on the wing and propeller based on the local effective angle
+of attack using the lifting-line approach implemented into RCAS [25]. The wing aerodynamic model assumed a lift
+curve slope of 2 rad-1, a drag coefficient of 0.01, and a quarter-chord pitching moment coefficient of zero. The wing
+wake was modeled using a vortex-wake (VW) inflow model, and wing-to-propeller aerodynamic interactions were
+captured using the simple horseshoe vortex interference model in RCAS [25]. The propeller blade aerodynamic model
+assumed a NACA0012 airfoil lookup table with compressibility effects and used the VVPM [57] as the wake model.
+Propeller-to-wing aerodynamic interactions were captured by accounting for the induced velocities from the VVPM
+
+                                                                      8
+particles on the wing when computing the local effective angle of attack for the lifting-line aerodynamic load calculations.
+Even when aerodynamic interactions are not considered, RCAS simulations using the VVPM propeller inflow account
+for particle-induced velocities on the blades when computing the propeller aerodynamic loads. References [24] provide
+further details on the RCAS aerodynamic model.
+
+    The wing structural model used in this work consists of 30 linear Euler-Bernoulli beam finite elements, with
+properties from Chang et al. [24]. The UVLM aerodynamic model of the isolated propeller assumes 10 spanwise and
+10 chordwise panels and uses an azimuthal step of 2.5. The aerodynamic model of the isolated wing consists of 30
+spanwise and 10 chordwise panels. The wake of both the propeller and wing is truncated after 3 propeller rotations.
+These parameter choices are based on convergence studies and are also used for the coupled wing-propeller model.
+
+    The study of Chang et al. [24] considered both windmilling conditions, with a null propeller torque, and thrusting
+conditions, with a target propeller thrust. The operational parameters for windmilling and thrusting conditions are
+obtained from a periodic trim solution at a forward speed of 65 m/s and a wing-root angle of attack of 3 deg. This angle
+of attack was selected to provide the required lift for an estimated dead gross weight of 17,800 N, representative of an
+eVTOL aircraft. For the windmilling case, this condition produced an advance ratio of 1.33, corresponding to 1, 275
+revolutions per minute (rpm). For the thrusting case, it produced an advance ratio and a propeller rotational speed of 1.26
+and 1, 346 rpm, respectively, for the target thrust of 650 N. The advance ratios obtained from these trim analyses were
+held constant with the forward speed in the aeroelastic stability analyses to maintain the same propeller aerodynamic
+performance for comparison. This was accomplished by adjusting the propeller rotational speed to match the constant
+advance ratio, and the same approach is followed in this study. Specifically, a trim analysis of the isolated propeller is
+conducted at the same windmilling and thrusting conditions selected by Chang et al. [24]. The present model of the
+wing-propeller configuration achieves the windmilling condition at a propeller rotational speed of 1, 208 rpm for an
+advance ratio of 1.40, and the thrusting condition at 1, 313 rpm for an advance ratio of 1.29. These advance ratios based
+on the present UVLM analysis are 5.26% and 2.38% higher for windmilling and thrusting conditions compared with
+those by Chang et al. [24], respectively. These differences are attributed to the different wake treatments in the UVLM
+and VVPM, the fully 3D aerodynamic load calculations considered in this work compared with the lifting-line approach
+used in RCAS, and the NACA 0012 lookup table used for the propeller aerodynamic model in RCAS. However, the
+obtained trim parameters are considered sufficiently close for the scope of this work.
+
+                                          IV. Results and Discussion
+
+    The section first presents an aerodynamic analysis of the wing-propeller system using UVLM aerodynamics to
+verify the correct modeling of mutual aerodynamic interactions. Next, it discusses aeroelastic stability predictions for
+the isolated propeller, isolated wing, and coupled wing-propeller system. The influence of 3D aerodynamics on the
+whirl flutter speed is isolated and quantified by comparing results from the UVLM-based model with decoupled AIC
+
+                                                                      9
+7.5 m  1.8 m
+       Wing-root
+
+                                  Elastic
+                                  Axis 1.71 m
+
+                                                                  2.3 m
+
+                                                Fig. 1 Wing-propeller model [24].
+
+matrices and an adjusted RHS term with those obtained using the same structural model coupled with strip-theory
+wing aerodynamics and the Houbolt-Reed propeller aerodynamics. Next, the influence of wing-propeller aerodynamic
+interactions is examined by comparing results from the UVLM-based model for fully coupled or aerodynamically
+decoupled AIC matrices and corresponding RHS vectors. In addition, the results from the fully coupled UVLM-based
+model are compared with the previous results from the RCAS studies of Chang et al. [24] for cross-verification and to
+understand how different mid-fidelity aerodynamic modeling approaches affect predictions of the whirl flutter speed.
+
+1. Aerodynamic Analysis
+    The aerodynamic analysis of the undeformed (rigid) wing-propeller system considers a forward speed of 65 m/s and
+
+a wing-root angle of attack of 3 deg. Figure 2 compares the spanwise distribution of the wing sectional lift coefficient
+with and without aerodynamic interactions, for both windmilling and thrusting conditions. The process for neglecting
+wing-propeller aerodynamic interactions in the UVLM model was verified in Santos et al. [34]. For both cases, the local
+lift increases near the propeller attachment at 83% of the wing semispan. For the thrusting case, it also increases at
+about 50% of the semispan. This behavior is explained by the effect of the propeller slipstream and inflow over the wing,
+with peaks observed on the side where the propeller's blade moves in the upward direction [50]. The lower lift regions
+of Fig. 2 occur on the side where the propeller's blade moves downward, which reduces the wing's effective angle of
+attack. Figure 3 shows the wake visualization without and with aerodynamic interactions, which confirms the trends
+observed from the sectional lift distribution.
+
+2. Isolated Propeller-Pylon Model
+    The isolated propeller-pylon model is analyzed first to understand the influence of 3D aerodynamic effects and
+
+different aerodynamic modeling approaches on the aeroelastic stability of this component. The eigenvalue-based stability
+
+                                                                     10
+Fig. 2 Spanwise distribution of wing lift coefficient.
+
+(a) Without aerodynamic interactions      (b) With aerodynamic interactions
+
+Fig. 3 UVLM wake (thrusting case at 65 m/s and 3-deg wing-root angle of attack).
+
+analysis for Houbolt-Reed aerodynamics considers forward speeds from  = 1 m/s to  = 100 m/s. The output-based
+stability analysis for UVLM aerodynamics isolates the propeller-pylon model from the complete wing-propeller model
+by assuming a rigid wing to eliminate mechanical coupling and by using decoupled AIC matrices and adjusted RHS
+terms for the wing and propeller to eliminate aerodynamic interactions. For the output-based analysis, the system is
+perturbed by applying an impulse excitation to the pitch DOF after 2 propeller rotations at selected forward speeds.
+These forward speeds are estimated using results from the eigenvalue-based stability analysis to consider operating
+conditions near the expected whirl flutter onset. The impulse excitation applied to the system lasts for 0.2 seconds,
+inducing a peak pitch angle of 4 degrees. Free-response time histories of the propeller pitch DOF after removing
+the excitation are then used to estimate the damping values of the critical aeroelastic mode at each forward speed
+via moving-block analysis [52, 53], corresponding to the dominant frequency of the free responses. This dominant
+frequency is identified from the peak of the Fast Fourier Transform of the examined time-history data, following the
+process discussed in Ref. [55].
+
+    Figure 4 shows the frequency and damping diagrams obtained from the eigenvalue-based stability analysis for the
+propeller in windmilling (zero-torque) condition. In this work, the terminology damping refers to the dimensional
+the real part of aeroelastic eigenvalues, namely, a negative value corresponds to convergent oscillations and stable
+
+                                      11
+Fig. 4 Aeroelastic stability analysis of isolated propeller-pylon model (eigenvalue-based approach, Houbolt-Reed
+aerodynamics, windmilling case).
+
+aeroelastic behavior. Each aeroelastic eigenvalue is labeled according to the corresponding structural eigenvalue in
+wind-off conditions. The backward whirl (BW) mode flutters at around 68.80 m/s with a frequency of 2.88 Hz, while
+the forward whirl (FW) mode remains stable. This behavior aligns with trends from the literature [9] for isolated
+propeller-pylon systems with rigid blades, rigid pylon, and Houbolt-Reed propeller aerodynamics. Figure 5 shows the
+time histories for the pitch and yaw angles at selected forward speeds used in the output-based stability analysis based on
+UVLM propeller aerodynamics The system exhibits a stable response associated with convergent oscillations at 79 m/s
+and an unstable one at 80 m/s. The trajectories of the divergent oscillations evolve toward a closed orbit in the BW
+direction. The flutter speed estimated using moving-block analysis is 79.25 m/s, which is 15.18% higher than the result
+from the eigenvalue-based analysis for the case of Houbolt-Reed aerodynamics. This higher flutter speed is attributed to
+stabilizing 3D aerodynamic effects captured by the UVLM in both the aerodynamic load calculations on the propeller
+blades and the free propeller wake evolution. A similar stabilizing effect was also observed by Gali et al. [36], who
+reported a comparable percentage increase in whirl flutter speed for a different isolated propeller-nacelle model when
+contrasting results from RCAS simulations based on lifting-line aerodynamic load calculations combined with the
+uniform or VVPM inflow. The flutter frequency predicted using UVLM aerodynamics is 3.57 Hz, 23.95 % higher than
+the eigenvalue-based result. This difference is attributed to the aerodynamic stiffness introduced in the system by the
+Houbolt-Reed and UVLM aerodynamic models. Specifically, Fig. 4 shows that the BW mode has a wind-off natural
+frequency of approximately 8 Hz. A higher flutter frequency, closer to the wind-off BW frequency, is attributed to a
+lower UVLM-induced aerodynamic stiffness, consistent with the inclusion of 3D aerodynamic effects.
+
+    Table 1 compares the results from this study with those of Chang et al. [24] for the same propeller-pylon system
+mounted on a rigid wing without aerodynamic interactions. The present eigenvalue-based results are compared with
+
+                                                                     12
+(a)  = 79.0 m/s      (b)  = 80.0 m/s
+
+Fig. 5 Aeroelastic stability analysis of isolated propeller-pylon model (output-based approach, UVLM aerody-
+namics, windmilling case).
+
+those from uniform inflow (UI) for the propeller in the published study, and the output-based results are compared
+with those from VVPM propeller inflow. This choice contrasts models with the closest aerodynamic fidelity in each
+case: because RCAS uses lifting-line aerodynamic load calculations, results using the UI model completely neglect 3D
+effects, while those based on the VVPM inflow model incorporate 3D effects in the propeller wake. In both cases, the
+aerodynamic loads are computed using the NACA0012 lookup table including compressibility effects [24]. However,
+these effects are expected to be slight for the examined Mach number below 0.25.
+
+    The flutter speed based on Houbolt-Reed aerodynamics is within 0.06% of the UI results in Table 1. This close
+agreement verifies the current propeller-pylon model for Houbolt-Reed aerodynamics [38] and indicates that neglecting
+the propeller wake or considering a uniform wake-induced velocity yields similar whirl flutter predictions for this
+isolated propeller-pylon configuration. The present analysis predicts a lower flutter frequency than the reference solution.
+The simplified pylon model likely causes these differences compared with the flexible pylon of Chang et al. [24].
+Bohnisch et al. [58] analyzed rigid- and flexible-pylon configurations for the same propeller model, observing natural
+frequencies almost twice as high in the flexible case. However, this frequency discrepancy does not significantly affect
+the whirl flutter speed, given that isolated-propeller whirl flutter can be considered a single-mode flutter mechanism
+from an aeroelastic viewpoint, with no interaction or frequency coalescence with the FW mode.
+
+    The present flutter speed based on UVLM aerodynamics is 2.92% higher than the value from Chang et al. [24] for
+the VVPM inflow model. This close agreement indicates that viscous effects captured by the VVPM and the different
+treatments of the propeller wake in the VVPM and UVLM formulations do not significantly affect the whirl flutter
+mechanism. The slight influence of viscous effects is explained by the high Reynolds number of the order of 106 at
+the whirl flutter speed of the examined propeller-pylon system. The insensitivity to the wake modeling approach is
+explained by considering the study Simmons et al. [28] for the same configuration, which showed that propeller-wake
+
+                 13
+Table 1 Whirl flutter parameters of isolated propeller-pylon model.
+
+                      Without 3D effects         With 3D effects
+                Flutter speed (m/s)
+             Houbolt-Reed UI [24]  (%)    Flutter speed (m/s)
+
+                       68.84 68.80 0.06   UVLM VVPM [24]  (%)
+                       68.36
+Windmilling   Flutter frequency (Hz)      79.25  77.00 2.92
+Thrusting    Houbolt-Reed UI [24]  (%)    76.85  75.00 1.85
+
+Windmilling             2.88 4.42 -34.84  Flutter frequency (Hz)
+Thrusting               2.87
+                                          UVLM VVPM [24]  (%)
+
+                                          3.57   4.28 -16.58
+
+                                          3.55   4.00 -11.25
+
+aerodynamic nonlinearities play only a slight role near at forward speeds near the whirl flutter speed. This finding was
+explained by the relatively fast downstream convection of the propeller wake at these operating conditions. Therefore, it
+is reasonable to expect that the whirl flutter mechanism is relatively insensitive to the approach used to represent the free
+wake. The small difference between the whirl flutter speeds is primarily attributed to the inclusion of 3D effects in the
+UVLM aerodynamic load calculations compared with the lifting-line approach used in RCAS. Given that the present
+propeller blades have an aspect ratio of the order of 6 based on the propeller radius, 3D aerodynamic effects in the load
+calculation are expected to be relatively small.
+
+    Comparing results with and without 3D aerodynamic effects highlights their stabilizing role on the flutter mechanism.
+The inclusion of 3D effects increases the whirl flutter speed by 12% to 15%, depending on the aerodynamic modeling
+approach. Based on the above remarks, this stabilizing effect is primarily attributed to the propeller wake. Indeed, the
+agreement between the present UVLM-based results and those of Chang et al. [24] for VVPM inflow suggests that
+3D effects in the blade aerodynamic calculations, neglected in the lifting-line approach, do not significantly affect the
+critical aeroelastic damping near the whirl flutter onset. This conclusion is consistent with findings by Gali et al. [36]
+comparing results from the UI and VVPM wake models for a different isolated propeller-pylon system with rigid blades
+and pylon, using the lifting-line approach in both cases. Their study found that VVPM inflow yields a higher whirl flutter
+speed than a UI model, with percentage differences from 15% to 40% depending on the propeller speed. The results for
+the thrusting propeller (not analyzed in previous work) follow the same trends. These findings suggest that accurately
+predicting whirl flutter in isolated propeller-pylon systems requires a 3D propeller wake model, while lifting-line-based
+aerodynamic load calculations may be acceptable for conventional propeller blades with a relatively high aspect ratio.
+
+             14
+Table 2 First five natural frequencies of isolated wing model.
+
+Mode                                      Frequency (Hz)   (%)
+First wing out-of-plane bending (OOP1)   Present Ref. 24   0.24
+First wing in-plane bending (IP1)
+Second wing out-of-plane bending (OOP2)     6.65 6.63     -0.53
+First wing torsion (T1)                    20.82 20.93    -0.44
+Third wing out-of-plane bending (OOP3)     36.50 36.66    -1.32
+                                           42.93 43.50
+                                           93.65 93.31     0.36
+
+3. Isolated Wing
+    The isolated wing structural model is verified by comparing the wind-off natural frequencies of the first few
+
+out-of-plane bending (OOP), in-plane bending (IP), and torsion (T) modes with the results in Ref. [24]. Table 2
+shows only small residual discrepancies, which remain below 1.5% and are attributed to the linear Euler-Bernoulli
+finite-element formulation used in this study compared with the RCAS beam element implementation [25]. Note that
+the present wing structural model results in relatively high natural frequencies, of the order of 7 Hz. These frequency
+characteristics result from the structural design performed in Chang et al. [24] to prevent wing flutter within the forward
+speed range of interest for the analysis. While wing structures of eVTOL configurations may feature lower natural
+frequencies, the structural properties from Chang et al. [24] are used in this study to compare the results from the
+published whirl flutter speeds.
+
+    Figure 6 shows the eigenvalue-based stability analysis from  = 0 m/s to  = 100 m/s for zero wing-root angle of
+attack and no self-weight, consistent with the linear wing aeroelastic model. The curves in the diagrams are labeled
+after the corresponding wind-off structural eigenvalue. No wing aeroelastic instability occurs. This stable behavior is
+expected, as the wing model proposed by Chang et al. [24] intentionally features a stiff structure to ensure whirl flutter
+is the critical instability mechanism. The isolated wing model was also analyzed via transient simulations, with no
+flutter observed. Indeed, UVLM aerodynamics is expected to further stabilize the system compared with strip-theory
+aerodynamics [34]. This trend is often observed for wing flutter mechanisms that couple the OOP1 and T1 structural
+modes. However, it may not translate to mechanisms that higher-order mode shapes, particularly in the presence of
+hump-mode-type instabilities with shallow damping crossing at the flutter point. For example, for the Pazy wing
+benchmark case [59], 3D aerodynamic effects stabilize the higher-speed hard flutter mechanism resulting from OOP1-T1
+coupling and the divergence mechanism [60]. However, they destabilize the hump-mode mechanism that couples the
+OOP2 and T1 modes.
+
+15
+Fig. 6 Aeroelastic stability analysis of isolated wing model (eigenvalue-based approach, strip-theory aerody-
+namics).
+
+Table 3 First four natural frequencies of the wing-propeller model (non-rotating propeller).
+
+Mode                                      Wing-propeller model        Isolated models
+First wing out-of-plane bending (OOP1)   Frequency (Hz)         Frequency (Hz)
+Propeller-pylon yaw                     Present Ref. 24  (%)
+Propeller-pylon pitch                                                     Present  (%)
+First wing in-plane bending (IP1)          5.91 5.89 0.36                    6.65 -11.11
+                                           7.96 7.95 0.10                    7.97 -0.15
+                                           8.46 8.55 -1.06                   7.97 6.14
+                                          18.95 19.51 -2.85
+                                                                            20.82 -8.96
+
+4. Coupled Wing-Propeller System
+    The wing-propeller structural model is first verified by comparing the wind-off natural frequencies in the undeformed
+
+shape for a non-rotating propeller with the results reported by Chang et al. [24] for the flexible-wing variant. This
+comparison is presented in Table 3. Without gyroscopic effects, the propeller pitch and yaw modes remain uncoupled.
+Chang et al. [24] consider a flexible pylon model. The pitch and yaw modes defined in this study correspond to the
+pylon's out-of-plane bending and in-plane bending, respectively. Chang et al. [24] also accounted for the pylon torsion,
+introducing an additional mode not captured by the present model. The propeller lowers the wing's bending-dominated
+frequencies compared to the isolated-wing case in Table 2 due to the additional inertia. The wing also affects the
+propeller pitch and yaw frequencies. The pitch frequency increases compared with the isolated model due to coupling
+with wing torsion, while the yaw frequency changes only slightly because the wing has higher in-plane bending stiffness.
+Frequency differences compared with Chang et al. [24] remain below 3%, verifying the coupled structural model.
+
+    The aeroelastic model is then analyzed to understand how 3D effects and aerodynamic interactions influence
+aeroelastic stability. The eigenvalue-based stability analysis for the model with strip-theory wing aerodynamics and
+
+                                        16
+Houbolt-Reed propeller aerodynamics considers the forward speed range from  = 1 m/s to  = 100 m/s. This analysis
+neglects both 3D aerodynamic effects and aerodynamic interactions. The output-based stability analysis for UVLM
+aerodynamics is then conducted as discussed for the isolated propeller. The flexible-wing model is analyzed both with
+and without aerodynamic interactions. The model with aerodynamic interactions was also analyzed for a rigid wing
+to assess its effect in the absence of wing-propeller structural coupling. The results for this rigid-wing case are not
+shown because aerodynamic interactions only change the flutter speed by 1%, as observed in previous studies for the
+same configuration [24, 28]. This is because the previous studies on the same configuration identified the primary
+interaction effect to be the propeller-on-wing induced velocity, which does not influence aeroelastic stability when wing
+flexibility is neglected. In contrast, wing-on-propeller aerodynamic interactions were found to play a negligible role and
+practically yield the same whirl flutter characteristics as the aerodynamically decoupled system. The rigid-wing model
+without aerodynamic interaction is not discussed here because it corresponds to the isolated propeller model analyzed in
+the earlier section.
+
+    Figure 7 shows the frequency and damping diagrams obtained from the eigenvalue-based aeroelastic stability
+analysis for a windmilling propeller. The aeroelastic mode that originates from the OOP1 wing mode becomes unstable
+at 78.71 m/s (blue marker) due to coupling with the propeller-pylon BW mode and the flutter frequency is 3.45 Hz. The
+wing plays a stabilizing effect, increasing the whirl flutter speed by 14.30% compared with the isolated propeller-pylon
+system. This behavior is expected based on the aerodynamic damping resulting from wing bending [9]. Note that
+wing flexibility is not necessarily stabilizing, depending on the degree of torsional deflection in the modes involved in
+whirl flutter, as observed for tiltrotor aircraft [61]. However, the first structural mode of the wing-propeller system is
+primarily of the OOP type, and the first torsion-dominated mode has a much higher frequency than the range of the
+modes involved in whirl flutter. Figure 8 shows the time histories of the wingtip vertical displacement, twist angle, and
+propeller pitch and yaw angles for three forward speeds between 83 m/s and 85 m/s used in the output-based stability
+analysis. The results are for the case without aerodynamic interactions. In this case, whirl flutter occurs at a forward
+speed of 84.25 m/s, which is 7.04% higher than the eigenvalue-based result. This increase in the critical forward speed
+is again attributed to the stabilizing role of 3D aerodynamic effects captured by the UVLM in both the aerodynamic
+load calculations and the wake propagation. The difference between the eigenvalue-based and output-based results is
+smaller than for the isolated propeller-nacelle model. This reduced influence of 3D aerodynamic effects is attributed to
+the higher whirl flutter speed of the wing-propeller system than the isolated propeller-pylon system, resulting in faster
+downstream convection of the propeller wake. Based on the analysis of the isolated propeller-pylon system, it was
+concluded that the primary influence of 3D aerodynamic effects is linked to the propeller wake. This influence is then
+expected to reduce at higher forward speeds, similar to the conclusions of Simmons et al. [28] regarding free-wake
+aerodynamic nonlinearities. The flutter frequency is 4.06 Hz, which is 17.68% higher than the eigenvalue-based result,
+following the trend observed for the isolated propeller-nacelle model. The flutter frequencies for the wing-propeller
+
+                                                                     17
+Fig. 7 Aeroelastic stability analysis of wing-propeller model (eigenvalue-based approach, strip-theory wing
+aerodynamics and Houbolt-Reed propeller aerodynamics, windmilling case).
+
+system are 13% to 20% higher than those of the isolated propeller-pylon system for each aerodynamic model.
+    The time-domain simulations are conducted for the windmilling case with aerodynamic interactions and the thrusting
+
+cases. Figure 9 shows the evolution of the damping values of the critical aeroelastic mode estimated from time-history
+data with the forward speed. Specifically, Fig. 9a shows the results for the windmilling case, while Fig. 9b reports those
+for the thrusting case. These two conditions yield similar trends, with a slightly destabilizing role of wing-propeller
+aerodynamic interactions. Specifically, aerodynamic interactions reduce the whirl flutter speed by approximately -2.61%
+and -2.39% in the windmilling and thrusting cases, respectively, compared with the same case without interactions.
+The slope of the damping crossing at the whirl flutter speed is practically the same. In addition, the flutter speed
+for each case remains approximately 5% higher than the corresponding eigenvalue-based results, which neglect both
+aerodynamic interactions and 3D aerodynamic effects. This result indicates that the stabilizing role of 3D aerodynamic
+effects prevails over the destabilizing one of aerodynamic interactions. Santos et al. [34] observed a similar trend
+for a different wing-propeller configuration that exhibits wing flutter. This finding suggests that, for wing-propeller
+configurations in which 3D aerodynamic effects play a stabilizing role, the whirl flutter speed predicted by neglecting
+both these effects and aerodynamic interactions may be similar to that predicted from a fully 3D aerodynamic analysis
+with interaction effects, as the two physical mechanisms play opposite roles and partially cancel out. However, in
+configurations where 3D aerodynamic effects are destabilizing, the difference may be larger, given that two mechanisms
+would both act to reduce the whirl flutter speed. While the sign and magnitude of 3D aerodynamic effects on the flutter
+speed may change depending on the configuration, these findings highlight the importance of including these effects in
+wing-propeller aeroelastic stability analysis, as they may be stronger than those of aerodynamic interactions. Without
+aerodynamic interactions, the flutter speed for the thrusting case is approximately 80.16 m/s, -4.85% lower than in
+
+                                                                     18
+(a)  = 83 m/s  (b)  = 84 m/s  (c)  = 85 m/s
+
+Fig. 8 Aeroelastic stability analysis of wing-propeller model (output-based approach, UVLM aerodynamics,
+without interactions, windmilling case).
+
+               19
+(a) Windmilling      (b) Thrusting
+
+Fig. 9 Critical damping vs. forward speed for the wing-propeller model (output-based approach, UVLM
+aerodynamics).
+
+the windmilling case. In the case with aerodynamic interaction, the difference is about -4.64%. This behavior aligns
+with the observations of Chang et al. [24]. It results from the higher rotational speed of the propeller in the thrusting
+condition, which increases the strength of gyroscopic effects [24]. Namely, the windmilling and thrusting conditions do
+not consider the same rotational speed at a given forward speed.
+
+    Table 4 and 5 summarize the influence of 3D aerodynamic effects and aerodynamic interactions on the whirl flutter
+speed. The results for the flutter frequency are not shown, as the differences are very slight. The assessment of 3D
+aerodynamic effects is conducted by comparing results for the case without aerodynamic interactions. Aerodynamic
+interaction effects are then assessed by comparing results for different 3D propeller wake models.
+
+    The results in Table 4 highlight that 3D aerodynamic effects play a stabilizing role in the whirl flutter mechanism of
+the present wing-propeller system, as already observed for the isolated propeller-pylon model and the isolated wing. For
+the windmilling case, the present flutter speed without 3D effects is 5.86% higher than that in Chang et al. [24] for the
+most comparable case of UI propeller inflow model. One potential source of discrepancy is the simplified, 2-DOF
+propeller-pylon model used in this work. Another source of difference is the treatment of the wing wake: the present
+study uses a strip-theory model based on the formulation of Peters et al. [42], while the literature study uses the VW
+model. Compared with the VVPM results, the present analysis predicts a 3.64% higher flutter speed, attributed to the
+absence of 3D aerodynamic effects in the propeller aerodynamic load calculations of Chang et al. [24]. The results for
+the thrusting condition show similar trends, although the differences are less pronounced.
+
+    Table 5 highlights the role of wing-propeller aerodynamic interactions and of different modeling strategies for
+capturing this effect. Interaction effects are generally destabilizing across both modeling approaches and for both
+windmilling and thrusting cases. However, the flutter speeds in the case with aerodynamic interaction remain higher
+than in the most comparable case that neglects both 3D and interaction effects. Consistent with the rigid-wing case, the
+
+                 20
+Table 4 Influence of 3D effects on the whirl flutter speeds of the wing-propeller model (without interactions).
+
+             Without 3D effects                       With 3D effects
+
+             Flutter speed (m/s)               Flutter speed (m/s)
+
+             ST + Houbolt-Reed UI [24]   (%)   UVLM VVPM [24]  (%)
+                                         5.86
+Windmilling         78.71  74.35               84.25  81.29 3.64
+Thrusting           77.47    n.a.              80.16  78.76 1.77
+
+Table 5 Influence of aerodynamic interactions on the whirl flutter speed of the wing-propeller model (with 3D
+effects).
+
+             Without interactions              With interactions
+
+             Flutter speed (m/s)               Flutter speed (m/s)
+
+             UVLM VVPM [24]  (%)        UVLM VVPM [24]  (%)
+
+Windmilling  84.25         81.29 3.64          82.05  77.34 6.08
+Thrusting    80.16         78.76 1.77          78.24  75.05 4.52
+
+UVLM-based analysis predicts slightly higher speeds than Chang et al. [24] across all cases. Without aerodynamic
+interactions, the difference is 3.64% for the windmilling case and 1.77% for the thrusting case. With aerodynamic
+interactions, it increases to 6.08% and 4.52% for the windmilling and thrusting cases, respectively. The higher flutter
+speed predicted by the present study is attributed to the different calculation of aerodynamic loads: the UVLM performs
+a fully 3D analysis, whereas the previous study used a lifting-line approach, even when considering a 3D propeller inflow
+model. The discrepancies between the UVLM and VVPM results increase in the case with aerodynamic interactions,
+reflecting differences in how the two methods handle the wing and propeller wakes. The discrepancies are smaller for
+the thrusting case. Despite these variations, the two modeling strategies capture the same trends. The close agreement
+between the results and trends demonstrates the UVLM's capability as the unified aerodynamic framework for aeroelastic
+stability analysis of wing-propeller configurations.
+
+                                                 V. Conclusions
+
+    This paper examined the roles of 3D aerodynamic effects and aerodynamic interactions in the aeroelastic stability of
+a notional wing-propeller system exhibiting whirl flutter. The study used the UVLM for the aerodynamics of both fixed
+and rotating lifting surfaces coupled with a structural model comprised of linear Euler-Bernoulli beam finite elements
+for the wing and Reed's two-degree-of-freedom model for the propeller. The relative importance of 3D aerodynamic
+effects and aerodynamic interactions was isolated and quantified for both windmilling and thrusting conditions through
+systematic comparisons of output-based aeroelastic stability analysis results using fully coupled or decoupled AIC
+matrices and eigenvalue-based results that neglected both 3D and interaction effects. Results were also compared
+
+                                                                     21
+against a published study for the same configuration modeled in RCAS, using a lifting-line aerodynamic load calculation
+combined with a UI wing wake model and VVPM propeller wake model.
+
+    The inclusion of 3D aerodynamic effects destabilized both the isolated propeller-pylon system and the complete
+wing-propeller configuration, resulting in an increase in the whirl flutter speed of the order of 5%. This stabilizing
+behavior was primarily attributed to the influence of the induced velocity from the propeller wake on the blade
+aerodynamic load calculations. The 3D aerodynamic effects in these calculations were estimated to play a secondary
+role, consistent with the blade aspect ratio of 6. Results from UVLM or VVPM wake modeling resulted in relatively
+minor differences in the whirl flutter speed, indicating little sensitivity to the approach used to model the free propeller
+wake. This finding was explained by the high downstream convection speed of the propeller wake near the whirl
+flutter boundary. Wing-propeller aerodynamic interactions were found to destabilize the system, reducing the whirl
+flutter speed of the complete configuration across both windmilling and thrusting conditions by the order of 2% to
+3%. This finding aligns with previous studies based on lifting-line aerodynamics coupled with UI wing inflow and
+VVPM propeller inflow. Hence, for the examined configuration, the combination of 3D aerodynamics and aerodynamic
+interaction resulted in a partial cancellation of effects, leading to relatively small differences in the whirl flutter speed
+compared with an eigenvalue-based aeroelastic stability analysis neglecting both physical mechanisms. This finding,
+however, suggests that the differences may be significant for configurations where 3D aerodynamic effects play a
+destabilizing role, as both these effects and aerodynamic interactions would contribute to decrease the whirl flutter
+speed. Overall, the present analysis using the UVLM for both fixed and rotating lifting surfaces reproduced literature
+trends, with relatively small numerical differences in the whirl flutter speed. These findings serve as cross-verification
+of the previous work against an alternative mid-fidelity model and highlight the suitability of the UVLM for aeroelastic
+stability analysis of wing-propeller systems.
+
+    The conclusions from this study should be interpreted in the context of the characteristics of the wing model
+considered to compare with literature results, specifically, its relatively high stiffness and natural frequencies. Increasing
+wing flexibility is expected to both reduce the whirl flutter speed (and potentially introduce competing wing-dominated
+flutter mechanisms) and shift the wing structural modes to a lower frequency range, which may cause higher-order
+bending modes to participate in the critical instability mechanism. These effects are anticipated to increase the influence
+of wing-propeller aerodynamic interactions due to the slower downstream convention of the propeller blade near the
+flutter onset, and to introduce aerodynamically nonlinear behavior in the aeroelastic system [28]. In addition, the
+participation of higher-order bending modes in the critical instability mechanism may change the character of 3D
+aerodynamic effects [60, 62]. Therefore, 3D aerodynamics and aerodynamic interactions should be incorporated into
+wing-propeller aeroelastic stability analysis to enable a systematic assessment of their effects.
+
+    Future work will explore configurations with higher wing flexibility and multi-propeller arrangements. In addition,
+it will incorporate geometrical structural nonlinearities to investigate post-critical conditions, as large-amplitude
+
+                                                                     22
+oscillations resulting from weak UVLM-induced nonlinear effects invalidate the linear beam structural model employed
+in this work.
+
+                                                Funding Sources
+
+    The first author thanks the BridgeUSA program and the Daniel Guggenheim School of Aerospace Engineering at
+the Georgia Institute of Technology for the opportunity to conduct this research as a Visiting Scholar. The first author
+also acknowledges the funding from the São Paulo Research Foundation (FAPESP), Brazil, grants #2023/15547-7
+and #2024/17675-5 supporting his visit to the Georgia Institute of Technology and the development of this research.
+The second author acknowledges financial support from the Brazilian agencies: National Council for Scientific and
+Technological Development - CNPq (grant #306698/2023-4) and in part by the Coordenação de Aperfeiçoamento de
+Pessoal de Nível Superior - Brazil (CAPES) - Finance Code 001. Research on whirl flutter by the last author was
+partially funded by the U.S. Government under Cooperative Agreement No. W911W6-21-2-0001. The views and
+conclusions contained in this document are those of the authors and should not be interpreted as representing the
+official policies or position, either expressed or implied, of the U.S. Army Combat Capabilities Development Command
+(DEVCOM), Aviation & Missile Center (AvMC), or the U.S. Government.
+
+                                               Acknowledgments
+
+    The authors thank Prof. Carlos E. S. Cesnik and Ph.D. students Jasmine Chang and Shardul Kher (University of
+Michigan) for details on the wing-propeller implementation used in previous work [24]. The authors also thank Ph.D.
+student Gray Simmons (Georgia Institute of Technology) for assistance with the moving-block analysis algorithm and
+constructive feedback on this work.
+
+                                                    References
+
+ [1] Brelje, B. J., and Martins, J. R., "Electric, hybrid, and turboelectric fixed-wing aircraft: A review of concepts, models, and
+      design approaches," Progress in Aerospace Sciences, Vol. 104, 2019, pp. 1-19. https://doi.org/10.1016/j.paerosci.2018.06.004.
+
+ [2] Afonso, F., Sohst, M., Diogo, C. M., Rodrigues, S. S., Ferreira, A., Ribeiro, I., Marques, R., Rego, F. F., Sohouli,
+      A., Portugal-Pereira, J., Policarpo, H., Soares, B., Ferreira, B., Fernandes, E. C., Lau, F., and Suleman, A., "Strategies
+      Towards a More Sustainable Aviation: A Systematic Review," Progress in Aerospace Sciences, Vol. 137, 2023. https:
+      //doi.org/10.1016/j.paerosci.2022.100878.
+
+ [3] Ma, Y., and Elham, A., "Designing high aspect ratio wings: A review of concepts and approaches," Progress in Aerospace
+      Sciences, Vol. 145, 2024. https://doi.org/10.1016/j.paerosci.2024.100983.
+
+ [4] Schiff, E., "Demystifying Advanced Air Mobility (AAM) White Paper," https://evtol.news/news/white-paper-demystifying-
+      advanced-air-mobility-aam, August 2024.
+
+                                                                     23
+ [5] Silva, C., Johnson, W., Antcliff, K. R., and Patterson, M. D., "VTOL Urban Air Mobility Concept Vehicles for Technology
+      Development," AIAA Aviation Forum, Atlanta, GA, 2018. https://doi.org/10.2514/6.2018-3847.
+
+ [6] Kiesewetter, L., Shakib, K. H., Singh, P., Rahman, M., Khandelwal, B., Kumar, S., and Shah, K., "A holistic review of the
+      current state of research on aircraft design concepts and consideration for advanced air mobility applications," Progress in
+      Aerospace Sciences, Vol. 142, 2023. https://doi.org/10.1016/j.paerosci.2023.100949.
+
+ [7] Anon., "eVTOL Aircraft Directory," https://www.evtol.news/aircraft, September 2025.
+ [8] Taylor, E. S., and Browne, K. A., "Vibration Isolation of Aircraft Power Plants," Journal of the Aeronautical Sciences, Vol. 6,
+
+      No. 2, 1938, pp. 43-49. https://doi.org/10.2514/8.760.
+ [9] Reed, W. H., "Propeller-Rotor Whirl Flutter: A State-of-the-art Review," Journal of Sound and Vibration, Vol. 4, No. 3, 1966,
+
+      pp. 526-544. https://doi.org/https://doi.org/10.1016/0022-460X(66)90142-8.
+[10] Kunz, D. L., "Analysis of Proprotor Whirl Flutter: Review and Update," Journal of Aircraft, Vol. 42, No. 1, 2005, pp. 172-178.
+
+      https://doi.org/10.2514/1.4953.
+[11] Civil Aeronautics Board, "Investigation of Aircraft Accident: Braniff Airways: Buffalo, Texas: 1959-09-29," Tech. rep., Civil
+
+      Aeronautics Board, 1959. https://doi.org/10.21949/1500751, URL https://rosap.ntl.bts.gov/view/dot/33626.
+[12] Civil Aeronautics Board, "Investigation of Aircraft Accident: Northwest Airlines: Cannelton, Indiana: 1960-03-17," Tech. rep.,
+
+      Civil Aeronautics Board, 1960. https://doi.org/10.21949/1500764, URL https://rosap.ntl.bts.gov/view/dot/33639.
+[13] Bennett, R. M., and Bland, S. R., "Experimental and Analytical Investigation of Propeller Whirl Flutter of a Power Plant on a
+
+      Flexible Wing," Tech. rep., NASA, Technical note D-2399, 1964.
+[14] Hoover, C. B., and Shen, J., "Whirl Flutter Analysis of a Free-Flying Electric-Driven Propeller Aircraft," Journal of Aircraft,
+
+      Vol. 56, No. 2, 2019, pp. 831-836. https://doi.org/10.2514/1.C035263.
+[15] Xu, V. L., "Propeller-Wing Whirl Flutter: An Analytical Approach," Master's thesis, Delft University of Technology, Delft, The
+
+      Netherlands, July 2020.
+[16] Theodorsen, T., "General Theory of Aerodynamic Instability and the Mechanism of Flutter," Journal of the Franklin Institute,
+
+      Vol. 219, No. 6, 1935, pp. 766-767. https://doi.org/https://doi.org/10.1016/S0016-0032(35)92022-1.
+[17] Böhnisch, N., Braun, C., Koschel, S., Muscarello, V., and Marzocca, P., "Dynamic Aeroelasticity of Wings with Distributed
+
+      Propulsion System Featuring a Large Tip Propeller," Proceedings of the International Forum on Aeroelasticity and Structural
+      Dynamics (IFASD), Madrid, Spain, 2022.
+[18] Albano, E., and Rodden, W. P., "A Doublet-Lattice Method for Calculating Lift Distributions on Oscillating Surfaces in
+      Subsonic Flows." AIAA Journal, Vol. 7, No. 2, 1969, pp. 279-285. https://doi.org/10.2514/3.5086.
+
+                                                                     24
+[19] Koch, C., and Koert, B., "Including Blade Elasticity into Frequency-Domain Propeller Whirl Flutter Analysis," Journal of
+      Aircraft, Vol. 61, No. 3, 2023, pp. 774-784. https://doi.org/10.2514/1.C037501.
+
+[20] Julia, N., Christopher, K., Bernd, S., Bleecke, H., and Arnold, J., "Influence of blade elasticity and thrust on the whirl flutter
+      stability of a propeller-driven aircraft," International Forum on Aeroelasticity and Structural Dynamics, The Hague, The
+      Netherlands, 2024, pp. 1-16. Paper 50.
+
+[21] Böhnisch, N., Braun, C., Marzocca, P., and Muscarello, V., "Impact of Aerodynamic Interactions on Aeroelastic Stability of
+      Wing-Propeller Systems," Applied Sciences, Vol. 14, No. 19, 2024. https://doi.org/10.3390/app14198709.
+
+[22] Böhnisch, N., Braun, C., Marzocca, P., and Muscarello, V., "Insights into the aeroelastic stability of a wing with distributed electric
+      propulsion systems," Aerospace Science and Technology, Vol. 168, 2026, p. 110763. https://doi.org/10.1016/j.ast.2025.110763.
+
+[23] Zhao, J., and He, C., "A Viscous Vortex Particle Model for Rotor Wake and Interference Analysis," Journal of the American
+      Helicopter Society, Vol. 55, No. 1, 2010, p. 012007. https://doi.org/10.4050/JAHS.55.012007.
+
+[24] Chang, J. C., Sanghi, D., and Cesnik, C. E. S., "Wing and Propeller Aerodynamic Interaction Effects on Whirl Flutter Instability,"
+      80 VFS Annual Forum, Montreal, Quebec, CA, 2024, pp. 1-21. https://doi.org/10.4050/F-0080-2024-1330, Paper 1330.
+
+[25] Saberi, H., Khoshlahjeh, M., Ormiston, R., and Rutkowski, M., "Overview of RCAS and application to advanced rotorcraft
+      problems," AHS International 4th Decennial Specialists' Conference on Aeromechanics, 2004, pp. 741-781.
+
+[26] Saberi, H., Hasbun, M., Hong, J. Y., H., Y., and Ormiston, R. A., "Overview of RCAS Capabilities, Validations, and Rotorcraft
+      Applications," American Helicopter Society 71st Annual Forum, Virginia Beach, VA, 2015.
+
+[27] Hasbun, M., Yeo, H., and Saberi, H., "Overview of RCAS Capabilities and Validations for Rotorcraft and eVTOL Applications,"
+      80 Vertical Flight Society's Annual Forum, Montreal, Canada, 2024, pp. 1-19. Paper 1105.
+
+[28] Simmons, G., Chang, J. C., Cesnik, C. E. S., and Riso, C., "Influence of Wing-Propeller Aerodynamic Interactions on
+      Aeroelastic Damping," 81 VFS Annual Forum, Virginia Beach, VA, 2025, pp. 1-13. https://doi.org/https://doi.org/10.4050/F-
+      0081-2025-208, Paper 208.
+
+[29] Simmons, G., Kreshock, A., Thornburgh, R., Martin, S., and Riso, C., "Experimental Amplitude-Dependent Characterization
+      of the TiltRotor Aeroelastic Stability Testbed," Journal of the American Helicopter Society, Vol. 71, No. February, 2026, pp.
+      022006-1-19. https://doi.org/10.4050/JAHS.71.022006.
+
+[30] Kher, S. V. C., Sanghi, D., and Cesnik, C. E. S., "Impact of Spanwise Propeller Placement and Aerodynamic Interaction Effects
+      on Whirl Flutter of Wing-Twin-Propeller Configurations," 82 VFS Annual Forum, West Palm Beach, Florida, USA, 2026, pp.
+      1-13. Paper 0155.
+
+[31] Koch, C., "Unsteady, Motion-Induced Aerodynamic Interaction on Propeller-Wing System," AIAA Journal, Vol. 0, No. 0, 2026,
+      pp. 1-12. https://doi.org/10.2514/1.J066617.
+
+                                                                     25
+[32] Simmons, G., Chang, J., Cesnik, C., and Riso, C., "Influence of Wing-Propeller Aerodynamic Interactions on Aeroelastic
+      Damping," 81 VFS Annual Forum, Virginia Beach, Virginia, USA, 2025. https://doi.org/10.4050/F-0081-2025-208.
+
+[33] Katz, J., and Plotkin, A., Low-speed Aerodynamics: From Wing Theory to Panel Methods, McGraw-Hill Series in Population
+      Biology, McGraw-Hill, 1991.
+
+[34] dos Santos, J. P. T. P., Marques, F. D., and Riso, C., "Aeroelastic Stability Analysis of a Wing-Propeller System Including
+      Aerodynamic Interference Effects," AIAA SciTech Forum, Orlando, FL, 2026, pp. 1-17. https://doi.org/10.2514/6.2026-1247,
+      AIAA-2026-1247.
+
+[35] Gali, S. V., Goehmann, T. G., and Riso, C., "Fundamental Investigation Into Output-Based Prediction of Whirl Flutter
+      Bifurcations," Journal of Fluids and Structures, Vol. 123, No. November, 2023, pp. 1-22. https://doi.org/10.1016/j.jfluidstructs.
+      2023.103986.
+
+[36] Gali, S. V., Chang, J., Riso, C., and Cesnik, C. E. S., "Inflow Model Effects on Propeller Whirl Flutter," 80 VFS Annual
+      Forum, Montreal, Quebec, CA, 2024, pp. 1-10. https://doi.org/10.4050/F-0080-2024-1156, paper 1156.
+
+[37] Bielawa, R., Rotary Wing Structural Dynamics and Aeroelasticity, AIAA education series, American Institute of Aeronautics
+      and Astronautics, 2006.
+
+[38] Houbolt, J. C., and Reed, W. H., "Propeller-Nacelle Whirl Flutter," Journal of the Aerospace Sciences, Vol. 29, No. 3, 1962, pp.
+      333-346. https://doi.org/10.2514/8.9417.
+
+[39] Reddy, J. N., Introduction to the Finite Element Method, McGraw-Hill Education, 2019.
+[40] Zienkiewicz, O., and Taylor, R., The Finite Element Method, The Finite Element Method, Butterworth Heinemann, 2000. URL
+
+      https://books.google.com.br/books?id=S_amjgEACAAJ.
+[41] Katsikadelis, J., Dynamic Analysis of Structures, Elsevier Science, 2020.
+[42] Peters, D. A., Karunamoorthy, S., and Cao, W.-M., "Finite state induced flow models. I - Two-dimensional thin airfoil," Journal
+
+      of Aircraft, Vol. 32, No. 2, 1995, pp. 313-322. https://doi.org/10.2514/3.46718.
+[43] Ferlisi, C., "Rotor Wake Modelling Using the Vortex-Lattice Method," Master's thesis, École Polytechnique de Montréal, April
+
+      2018.
+[44] Dayhoum, A., Zakaria, M. Y., and Abdelhamid, O. E., "Unsteady Aerodynamic Modeling and Analysis of Load Distribution for
+
+      Helicopter Rotor Blades," Journal of Aerospace Engineering, Vol. 35, No. 1, 2022, p. 04021106. https://doi.org/10.1061/
+      (ASCE)AS.1943-5525.0001355.
+[45] Maraniello, S., and Palacios, R., "State-space realizations and internal balancing in potential-flow aerodynamics with arbitrary
+      kinematics," AIAA Journal, Vol. 57, No. 6, 2019, pp. 2308-2321. https://doi.org/10.2514/1.J058153.
+
+                                                                     26
+[46] Hente, C., Roccia, B. A., Rolfes, R., and Gebhardt, C. G., "Analytical Linearization of Aerodynamic Loads in Unsteady
+      Vortex-Lattice Method for Nonlinear Aeroelastic Applications," AIAA Journal, Vol. 62, No. 10, 2024, pp. 3857-3880.
+      https://doi.org/10.2514/1.J063693.
+
+[47] Goizueta, N., Wynn, A., Palacios, R., Drachinsky, A., and Raveh, D. E., "Flutter Predictions for Very Flexible Wing Wind
+      Tunnel Test," Journal of Aircraft, Vol. 59, No. 4, 2022, pp. 1082-1097. https://doi.org/10.2514/1.C036710.
+
+[48] del Carre, A., "Aeroelasticity of very flexible aircraft at low altitudes," Ph.D. thesis, Imperial College London, UK, March 2021.
+
+[49] Murua, J., "Flexible Aircraft Dynamics with a Geometrically-Nonlinear Description of the Unsteady Aerodynamics," Ph.D.
+      thesis, Department of Aeronautics, Imperial College London, June 2012.
+
+[50] Teixeira, P. C., and Cesnik, C. E. S., "Propeller Effects on the Response of High-Altitude Long-Endurance Aircraft," AIAA
+      Journal, Vol. 57, No. 10, 2019, pp. 4328-4342. https://doi.org/10.2514/1.J057575.
+
+[51] Prandtl, L., Mutual Influence of Wings and Propellers, National Advisory Committee for Aeronautics, National Advisory
+      Committee for Aeronautics, 1921. URL https://books.google.com.br/books?id=KDIccgAACAAJ.
+
+[52] Hammond, C. E., and Doggett, R. V. J., "Determination of Subcritical Damping by Moving-Block/Randomdec Applications,"
+      Tech. rep., National Aeronautics and Space Administration, 1975. NASA-SP-415.
+
+[53] Bousman, W. G., and Winkler, D. J., "Application of the Moving-Block Analysis," AIAA/ASME/ASCE/AHS Structures, Structural
+      Dynamics, and Materials Conference, Atlanta, GA, 1981, pp. 1-9. https://doi.org/10.2514/6.1981-653, AIAA-81-0653.
+
+[54] Yeo, H., Potsdam, M., and Ormiston, R. A., "Rotor Aeroelastic Stability Analysis Using Coupled Computational Fluid
+      Dynamics/Computational Structural Dynamics," Journal of the American Helicopter Society, Vol. 56, No. 4, 2011, pp. 1--16.
+      https://doi.org/10.4050/JAHS.56.042003.
+
+[55] Riso, C., "Evaluation of Whirl Flutter Prediction Methods for a System with Hardening or Softening Structural Nonlinearities,"
+      Journal of the American Helicopter Society, Vol. 70, No. January, 2025, pp. 022001-1-15. https://doi.org/10.4050/JAHS.70.
+      022001.
+
+[56] Mair, C., Rezgui, D., and Titurus, B., "Nonlinear Stability Analysis of Whirl Flutter in a Rotor-Nacelle System," Nonlinear
+      Dynamics, Vol. 94, 2018, pp. 2013--2032. https://doi.org/10.1007/s11071-018-4472-y.
+
+[57] He, C., and Zhao, J., "Modeling Rotor Wake Dynamics with Viscous Vortex Particle Method," AIAA Journal, Vol. 47, No. 4,
+      2009, pp. 902-915. https://doi.org/10.2514/1.36466.
+
+[58] Böhnisch, N., Kantzidis, P., Masarati, P., and Muscarello, V., "Assessment of Aerodynamic Torque on Propeller Whirl Flutter
+      and Its Control," Journal of Aircraft, Vol. 62, No. 6, 2025, pp. 1490-1503. https://doi.org/10.2514/1.C038128.
+
+[59] Avin, O., Raveh, D., Drachinsky, A., Ben-Shmuel, Y., and Tur, M., "Experimental Aeroelastic Benchmark of a Very Flexible
+      Wing," AIAA Journal, Vol. 60, 2022, pp. 1-24. https://doi.org/10.2514/1.J060621.
+
+                                                                     27
+[60] Riso, C., and Cesnik, C. E. S., "Impact of Low-Order Modeling on Aeroelastic Predictions for Very Flexible Wings," Journal of
+      Aircraft, 2023, pp. 1-26. https://doi.org/https://doi.org/10.2514/1.C036869.
+
+[61] Kreshock, A. R., Thornburgh, R., Wilbur, M., Kang, H., Piatak, D. J., and Sekula, M. K., "Initial Whirl-Flutter Characterization
+      of the TiltRotor Aeroelastic Stability Testbed," Vertical Flight Society Forum, West Palm, FL, 2023, pp. 1-18. Paper 137.
+
+[62] Riso, C., and Cesnik, C. E. S., "Geometrically Nonlinear Effects in Wing Aeroelastic Dynamics at Large Deflections," Journal
+      of Fluids and Structures, 2023.
+
+                                                                     28
+

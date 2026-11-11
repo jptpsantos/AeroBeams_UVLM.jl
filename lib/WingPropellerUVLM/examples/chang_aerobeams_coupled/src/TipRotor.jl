@@ -40,13 +40,14 @@ function TipRotor(reference,ip::Integer,node::Integer;
     1 <= ip <= p.Npropellers || throw(ArgumentError("invalid propeller index $ip"))
     node >= 1 || throw(ArgumentError("attachment node must be positive"))
     m = Float64(isnothing(rotor_mass) ?
-        c.propeller.blades*c.structural.blade_mass_kg : rotor_mass)
+                c.propeller.blades * c.structural.blade_mass_kg : rotor_mass)
     Js = Float64(isnothing(spin_inertia) ? p.Ix_prop : spin_inertia)
     isfinite(m) && m > 0 || throw(ArgumentError("rotor/nacelle mass must be positive and finite"))
     isfinite(Js) && Js > 0 || throw(ArgumentError("spin inertia must be positive and finite"))
     if isnothing(inertia_tensor)
         Ja = isnothing(axial_inertia) ? Js : Float64(axial_inertia)
-        Jt = isnothing(transverse_inertia) ? (Js/2,Js/2) :
+        Jt =
+            isnothing(transverse_inertia) ? (Js / 2,Js / 2) :
             transverse_inertia isa Real ? (transverse_inertia,transverse_inertia) : transverse_inertia
         length(Jt) == 2 || throw(DimensionMismatch("provide one transverse inertia or a pair"))
         J = Matrix(Diagonal(Float64[Ja,Jt[1],Jt[2]]))
@@ -57,12 +58,12 @@ function TipRotor(reference,ip::Integer,node::Integer;
         J = Matrix{Float64}(inertia_tensor)
     end
     all(isfinite,J) || throw(ArgumentError("inertia tensor must be finite"))
-    isapprox(J,J';rtol=1e-12,atol=0.0) || throw(ArgumentError("inertia tensor must be symmetric"))
+    isapprox(J,J'; rtol=1e-12,atol=0.0) || throw(ArgumentError("inertia tensor must be symmetric"))
     principal = eigvals(Symmetric(J))
     minimum(principal) > 0 || throw(ArgumentError("inertia tensor must be positive definite"))
-    maximum(principal) <= sum(principal)/2+1e-12*maximum(principal) ||
+    maximum(principal) <= sum(principal) / 2 + 1e-12 * maximum(principal) ||
         throw(ArgumentError("principal inertias violate the rigid-body triangle inequality"))
-    h = Float64(spin_scale*Js*p.Ω)
+    h = Float64(spin_scale * Js * p.Ω)
     isfinite(h) || throw(ArgumentError("spin angular momentum must be finite"))
     return TipRotor(m,J,Js,h,Int(node),Int(ip))
 end
@@ -78,7 +79,7 @@ function rotor_mass_data(rotor::TipRotor,eta::AbstractVector=Float64[])
     _tip_rotor_empty_coordinates(eta)
     T = eltype(rotor.matrix_J)
     M = zeros(T,6,6)
-    M[1:3,1:3] .= rotor.mass*Matrix{T}(I,3,3)
+    M[1:3,1:3] .= rotor.mass * Matrix{T}(I,3,3)
     M[4:6,4:6] .= rotor.matrix_J
     return (; M,derivatives=(),c=zeros(T,3))
 end
@@ -115,22 +116,22 @@ function rotor_mechanics(rotor::TipRotor,R::AbstractMatrix,
     eta::AbstractVector,eta_dot::AbstractVector,eta_ddot::AbstractVector;
     gravity::AbstractVector=zeros(3))
     _tip_rotor_empty_coordinates(eta,eta_dot,eta_ddot)
-    wb = R'*omega
-    Jworld = R*rotor.matrix_J*R'
+    wb = R' * omega
+    Jworld = R * rotor.matrix_J * R'
     spin = rotor_spin_data(rotor)
-    Hworld = R*spin.H
-    gyro_moment = cross(omega,Hworld)
-    force = rotor.mass*(a-gravity)
-    moment = Jworld*alpha+cross(omega,Jworld*omega)+gyro_moment
+    Hworld = R * spin.H
+    gyroMoment = cross(omega,Hworld)
+    force = rotor.mass * (a - gravity)
+    moment = Jworld * alpha + cross(omega,Jworld * omega) + gyroMoment
     base_wrench = vcat(force,moment)
-    vb = R'*v
+    vb = R' * v
     body_velocity = vcat(vb,wb)
     mass_matrix = rotor_mass_data(rotor).M
     return (; base_wrench,eta_residual=Vector{eltype(base_wrench)}(),
-        kinetic_energy=rotor.mass*dot(v,v)/2+dot(wb,rotor.matrix_J*wb)/2,
+        kinetic_energy=rotor.mass * dot(v,v) / 2 + dot(wb,rotor.matrix_J * wb) / 2,
         mount_potential=zero(eltype(base_wrench)),
-        damping_power=zero(eltype(base_wrench)),gyro_power=dot(omega,gyro_moment),
-        body_velocity,body_momentum=mass_matrix*body_velocity,
+        damping_power=zero(eltype(base_wrench)),gyro_power=dot(omega,gyroMoment),
+        body_velocity,body_momentum=mass_matrix * body_velocity,
         mass_matrix,gyro_matrix=spin.G,cm_body=zeros(eltype(base_wrench),3),
         spin_momentum=Hworld)
 end

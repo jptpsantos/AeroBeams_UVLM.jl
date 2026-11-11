@@ -301,8 +301,8 @@ scalar extraction. Pazy itself has no propeller DOFs.
 ## Verification and reference scope
 
 ```powershell
-julia --startup-file=no --compiled-modules=existing --project=. lib/WingPropellerUVLM/examples/pazy_aerobeams_coupled/test_pazy_bifurcation_plots.jl --keep-output
-julia --startup-file=no --compiled-modules=existing --project=. lib/WingPropellerUVLM/examples/pazy_aerobeams_coupled/test_pazy_bifurcation.jl --parallel
+julia --startup-file=no --compiled-modules=existing --project=. lib/WingPropellerUVLM/examples/pazy_aerobeams_coupled/test/test_pazy_bifurcation_plots.jl --keep-output
+julia --startup-file=no --compiled-modules=existing --project=. lib/WingPropellerUVLM/examples/pazy_aerobeams_coupled/test/test_pazy_bifurcation.jl --parallel
 julia --startup-file=no --compiled-modules=existing --project=. lib/WingPropellerUVLM/examples/wing_propeller_aeroelastic/validation/test_bifurcation.jl
 ```
 

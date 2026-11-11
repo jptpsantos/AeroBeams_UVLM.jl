@@ -14,7 +14,7 @@ include(joinpath(
     "examples",
     "chang_linear_aeroelastic",
     "src",
-    "chang_structural_matrices.jl",
+    "chang_structural_matrices.jl"
 ))
 
 @testset "WingPropellerUVLM" begin
@@ -41,14 +41,14 @@ include(joinpath(
         @test angle(1.0) ≈ 19.98986 atol = 1e-5
         @test angle(0.75) ≈ 30.98428 atol = 1e-5
 
-        for panels in (4, 16, 32)
-            radii, _, twists = get_nodal_properties_chang(panels)
+        for panels in (4,16,32)
+            radii,_,twists = get_nodal_properties_chang(panels)
             @test length(twists) == panels + 1
             @test twists[1] ≈ 63.96755 atol = 1e-5
             @test twists[end] ≈ 19.98986 atol = 1e-5
-            @test twists[3panels ÷ 4 + 1] ≈ 30.98428 atol = 1e-5
+            @test twists[3panels÷4+1] ≈ 30.98428 atol = 1e-5
             @test all(diff(twists) .< 0)
-            @test radii[[1, end]] == [0.0, 1.0]
+            @test radii[[1,end]] == [0.0,1.0]
         end
     end
 
@@ -58,91 +58,91 @@ include(joinpath(
         # A finite-core segment must approach zero velocity, rather than the
         # singular 1/r behavior, when a point approaches the filament near
         # the segment midpoint.
-        distances = (1.0e-1, 1.0e-2, 1.0e-3)
+        distances = (1.0e-1,1.0e-2,1.0e-3)
         speeds = map(distances) do distance
-            r1 = @SVector [0.5, distance, 0.0]
-            r2 = @SVector [-0.5, distance, 0.0]
+            r1 = @SVector [0.5,distance,0.0]
+            r2 = @SVector [-0.5,distance,0.0]
             velocity = WingPropellerUVLM.bound_induced_velocity(
                 r1,
                 r2,
                 true,
-                core_size,
+                core_size
             )
-            @test all(isfinite, velocity)
+            @test all(isfinite,velocity)
             norm(velocity)
         end
         @test speeds[3] < speeds[2] < speeds[1]
         @test speeds[3] / speeds[2] ≈ 0.1 rtol = 0.02
 
         centerline_velocity = WingPropellerUVLM.bound_induced_velocity(
-            (@SVector [0.5, 0.0, 0.0]),
-            (@SVector [-0.5, 0.0, 0.0]),
+            (@SVector [0.5,0.0,0.0]),
+            (@SVector [-0.5,0.0,0.0]),
             true,
-            core_size,
+            core_size
         )
-        @test centerline_velocity == @SVector [0.0, 0.0, 0.0]
+        @test centerline_velocity == @SVector [0.0,0.0,0.0]
         @test WingPropellerUVLM.bound_induced_velocity(
-            (@SVector [1.0, 2.0, 3.0]),
-            (@SVector [1.0, 2.0, 3.0]),
+            (@SVector [1.0,2.0,3.0]),
+            (@SVector [1.0,2.0,3.0]),
             true,
-            core_size,
-        ) == @SVector [0.0, 0.0, 0.0]
+            core_size
+        ) == @SVector [0.0,0.0,0.0]
 
         # Away from the filament, the regularized kernel must recover the
         # singular Biot--Savart result as the core radius tends to zero.
-        r1 = @SVector [0.2, 0.7, 0.3]
-        r2 = @SVector [-0.8, 0.7, 0.3]
-        regularized = WingPropellerUVLM.bound_induced_velocity(r1, r2, true, 1.0e-8)
-        singular = WingPropellerUVLM.bound_induced_velocity(r1, r2, false, 0.0)
+        r1 = @SVector [0.2,0.7,0.3]
+        r2 = @SVector [-0.8,0.7,0.3]
+        regularized = WingPropellerUVLM.bound_induced_velocity(r1,r2,true,1.0e-8)
+        singular = WingPropellerUVLM.bound_induced_velocity(r1,r2,false,0.0)
         @test regularized ≈ singular rtol = 1.0e-12
 
         # The semi-infinite trailing-vortex form must also be finite at its
         # endpoint and on both directions of its centerline.
-        xhat = @SVector [1.0, 0.0, 0.0]
+        xhat = @SVector [1.0,0.0,0.0]
         for r in (
-            @SVector([0.0, 0.0, 0.0]),
-            @SVector([1.0, 0.0, 0.0]),
-            @SVector([-1.0, 0.0, 0.0]),
+            @SVector([0.0,0.0,0.0]),
+            @SVector([1.0,0.0,0.0]),
+            @SVector([-1.0,0.0,0.0])
         )
             velocity = WingPropellerUVLM.trailing_induced_velocity(
                 r,
                 xhat,
                 true,
-                core_size,
+                core_size
             )
-            @test velocity == @SVector [0.0, 0.0, 0.0]
+            @test velocity == @SVector [0.0,0.0,0.0]
         end
     end
 
     @testset "Finite-core segment-length rotation invariance" begin
-        grid, _ = wing_to_grid(
-            [0.0, 0.0],
-            [0.0, 1.0],
-            [0.0, 0.0],
+        grid,_ = wing_to_grid(
+            [0.0,0.0],
+            [0.0,1.0],
+            [0.0,0.0],
             ones(2),
             zeros(2),
             zeros(2),
             1,
-            1,
+            1
         )
-        _, _, surface = grid_to_surface_panels(grid; fcore = (c, Δs) -> Δs)
-        base_core = WingPropellerUVLM.get_core_size(surface[1, 1])
+        _,_,surface = grid_to_surface_panels(grid; fcore=(c,Δs) -> Δs)
+        base_core = WingPropellerUVLM.get_core_size(surface[1,1])
 
         angle = pi / 3
         rotation = @SMatrix [
             cos(angle) -sin(angle) 0.0
-            sin(angle)  cos(angle) 0.0
-            0.0         0.0        1.0
+            sin(angle) cos(angle) 0.0
+            0.0 0.0 1.0
         ]
         rotated_grid = similar(grid)
-        for index in CartesianIndices((size(grid, 2), size(grid, 3)))
-            rotated_grid[:, index[1], index[2]] .= rotation * grid[:, index[1], index[2]]
+        for index in CartesianIndices((size(grid,2),size(grid,3)))
+            rotated_grid[:,index[1],index[2]] .= rotation * grid[:,index[1],index[2]]
         end
-        _, _, rotated_surface = grid_to_surface_panels(
+        _,_,rotated_surface = grid_to_surface_panels(
             rotated_grid;
-            fcore = (c, Δs) -> Δs,
+            fcore=(c,Δs) -> Δs
         )
-        rotated_core = WingPropellerUVLM.get_core_size(rotated_surface[1, 1])
+        rotated_core = WingPropellerUVLM.get_core_size(rotated_surface[1,1])
 
         @test base_core ≈ 1.0
         @test rotated_core ≈ base_core
@@ -151,44 +151,44 @@ include(joinpath(
     @testset "Finite-core kernel consistency and physical scaling" begin
         segment = WingPropellerUVLM.bound_induced_velocity
         trailing = WingPropellerUVLM.trailing_induced_velocity
-        direction = SVector(1.0, 0.0, 0.0)
+        direction = SVector(1.0,0.0,0.0)
         radius = 0.15
-        for point in (SVector(0.03, 0.02, 0.01), SVector(-0.04, 0.02, 0.0),
-                      SVector(1.0, 0.5, 0.2))
+        for point in (SVector(0.03,0.02,0.01),SVector(-0.04,0.02,0.0),
+            SVector(1.0,0.5,0.2))
             # A trailing filament is the long-segment limit in the same direction.
-            @test trailing(point, direction, true, radius) ≈
-                segment(point, point - 1e5 * direction, true, radius) rtol = 1e-8
+            @test trailing(point,direction,true,radius) ≈
+                  segment(point,point - 1e5 * direction,true,radius) rtol = 1e-8
         end
-        r1, r2 = SVector(0.2, 0.07, 0.03), SVector(-0.8, 0.07, 0.03)
-        velocity = segment(r1, r2, true, radius)
-        @test segment(r2, r1, true, radius) ≈ -velocity
-        @test segment(100r1, 100r2, true, 100radius) ≈ velocity / 100
+        r1,r2 = SVector(0.2,0.07,0.03),SVector(-0.8,0.07,0.03)
+        velocity = segment(r1,r2,true,radius)
+        @test segment(r2,r1,true,radius) ≈ -velocity
+        @test segment(100r1,100r2,true,100radius) ≈ velocity / 100
         # Independent midpoint integration of the softened Biot--Savart law.
         line = r1 - r2
         numerical = sum(begin
             r = r1 - ((i - 0.5) / 10000) * line
-            cross(line, r) / (dot(r, r) + radius^2)^(3/2)
-        end for i in 1:10000) / (4pi * 10000)
+            cross(line,r) / (dot(r,r) + radius^2)^(3 / 2)
+        end for i = 1:10000) / (4pi * 10000)
         @test velocity ≈ numerical rtol = 1e-7
 
         # A fraction of full local chord is independent of both panel counts.
-        for (ns, nc) in ((2, 2), (4, 2), (2, 8))
-            grid, _ = wing_to_grid([0.0,0.0], [0.0,1.0], [0.0,0.0],
-                [2.0,2.0], zeros(2), zeros(2), ns, nc)
-            _, _, surface = grid_to_surface_panels(grid; fcore = (c, ds) -> 0.01c)
-            @test all(panel -> isapprox(panel.core_size, 0.02), surface)
+        for (ns,nc) in ((2,2),(4,2),(2,8))
+            grid,_ = wing_to_grid([0.0,0.0],[0.0,1.0],[0.0,0.0],
+                [2.0,2.0],zeros(2),zeros(2),ns,nc)
+            _,_,surface = grid_to_surface_panels(grid; fcore=(c,ds) -> 0.01c)
+            @test all(panel -> isapprox(panel.core_size,0.02),surface)
         end
     end
 
     @testset "Reusable interpolation and deformed wing grid" begin
-        @test linear_interpolate_1d([0.0, 1.0], [2.0, 4.0], [-1.0, 0.5, 2.0]) ==
-            [2.0, 3.0, 4.0]
-        @test_throws ArgumentError linear_interpolate_1d([0.0, 0.0], [1.0, 2.0], [0.0])
+        @test linear_interpolate_1d([0.0,1.0],[2.0,4.0],[-1.0,0.5,2.0]) ==
+              [2.0,3.0,4.0]
+        @test_throws ArgumentError linear_interpolate_1d([0.0,0.0],[1.0,2.0],[0.0])
 
         grid = generate_panel_grid_and_interpolate(
             1.0,
-            [1.0, 1.0],
-            [0.0, 0.0],
+            [1.0,1.0],
+            [0.0,0.0],
             1,
             1,
             zeros(2),
@@ -197,10 +197,10 @@ include(joinpath(
             zeros(2),
             zeros(2),
             zeros(2);
-            elastic_axis_fraction = 0.30,
+            elastic_axis_fraction=0.30
         )
-        @test grid[:, 1, 1] ≈ @SVector [0.0, 0.0, 0.0]
-        @test grid[:, 2, 2] ≈ @SVector [1.0, 1.0, 0.0]
+        @test grid[:,1,1] ≈ @SVector [0.0,0.0,0.0]
+        @test grid[:,2,2] ≈ @SVector [1.0,1.0,0.0]
     end
 
     @testset "Generalized-alpha integration" begin
@@ -210,9 +210,9 @@ include(joinpath(
         @test_throws ArgumentError generalized_alpha_parameters(1.1)
 
         correction = generalized_alpha_corrector(
-            ones(1, 1),
-            zeros(1, 1),
-            ones(1, 1),
+            ones(1,1),
+            zeros(1,1),
+            ones(1,1),
             zeros(1),
             zeros(1),
             zeros(1),
@@ -221,22 +221,22 @@ include(joinpath(
             zeros(1),
             zeros(1),
             0.01,
-            parameters,
+            parameters
         )
-        @test all(isfinite, correction.displacement)
+        @test all(isfinite,correction.displacement)
         @test correction.equilibrium_residual <= eps(Float64)
 
         options = PartitionedCouplingOptions(
-            maximum_iterations = 4,
-            state_tolerance = 1.0e-8,
-            load_tolerance = 1.0e-8,
-            equilibrium_tolerance = 1.0e-12,
-            relaxation = 1.0,
+            maximum_iterations=4,
+            state_tolerance=1.0e-8,
+            load_tolerance=1.0e-8,
+            equilibrium_tolerance=1.0e-12,
+            relaxation=1.0
         )
         step = partitioned_generalized_alpha_step(
-            ones(1, 1),
-            zeros(1, 1),
-            ones(1, 1),
+            ones(1,1),
+            zeros(1,1),
+            ones(1,1),
             zeros(1),
             zeros(1),
             zeros(1),
@@ -247,24 +247,24 @@ include(joinpath(
             parameters,
             _ -> zeros(1);
             options,
-            require_load_convergence = false,
+            require_load_convergence=false
         )
         @test step.converged
         @test step.iterations == 1
 
         last_aerodynamic_state = Ref(NaN)
         coupled_options = PartitionedCouplingOptions(
-            maximum_iterations = 20,
-            state_tolerance = 1.0e-10,
-            load_tolerance = 1.0e-10,
-            equilibrium_tolerance = 1.0e-12,
-            coupled_equilibrium_tolerance = 1.0e-10,
-            relaxation = 1.0,
+            maximum_iterations=20,
+            state_tolerance=1.0e-10,
+            load_tolerance=1.0e-10,
+            equilibrium_tolerance=1.0e-12,
+            coupled_equilibrium_tolerance=1.0e-10,
+            relaxation=1.0
         )
         coupled_step = partitioned_generalized_alpha_step(
-            ones(1, 1),
-            zeros(1, 1),
-            2.0 .* ones(1, 1),
+            ones(1,1),
+            zeros(1,1),
+            2.0 .* ones(1,1),
             zeros(1),
             zeros(1),
             zeros(1),
@@ -277,20 +277,20 @@ include(joinpath(
                 last_aerodynamic_state[] = only(state)
                 return 0.2 .* state
             end;
-            options = coupled_options,
-            state_scale = [0.1],
-            load_scale = [1.0],
+            options=coupled_options,
+            state_scale=[0.1],
+            load_scale=[1.0]
         )
         @test coupled_step.converged
         @test only(coupled_step.displacement) == last_aerodynamic_state[]
         @test coupled_step.trial_load ≈ 0.2 .* coupled_step.displacement
         @test coupled_step.coupled_equilibrium_residual <=
-            coupled_options.coupled_equilibrium_tolerance
+              coupled_options.coupled_equilibrium_tolerance
 
         failed_step = partitioned_generalized_alpha_step(
-            ones(1, 1),
-            zeros(1, 1),
-            ones(1, 1),
+            ones(1,1),
+            zeros(1,1),
+            ones(1,1),
             zeros(1),
             zeros(1),
             zeros(1),
@@ -300,21 +300,21 @@ include(joinpath(
             0.05,
             parameters,
             _ -> zeros(1);
-            options = PartitionedCouplingOptions(
-                maximum_iterations = 1,
-                state_tolerance = 1.0e-14,
-                load_tolerance = 1.0e-14,
-                equilibrium_tolerance = 1.0e-12,
-                coupled_equilibrium_tolerance = 1.0e-14,
-                relaxation = 1.0,
+            options=PartitionedCouplingOptions(
+                maximum_iterations=1,
+                state_tolerance=1.0e-14,
+                load_tolerance=1.0e-14,
+                equilibrium_tolerance=1.0e-12,
+                coupled_equilibrium_tolerance=1.0e-14,
+                relaxation=1.0
             ),
-            require_load_convergence = false,
+            require_load_convergence=false
         )
         @test !failed_step.converged
         @test_throws DimensionMismatch partitioned_generalized_alpha_step(
-            ones(1, 1), zeros(1, 1), ones(1, 1), zeros(1), zeros(1), zeros(1),
-            zeros(1), zeros(1), zeros(1), 0.05, parameters, _ -> zeros(1);
-            state_scale = ones(2),
+            ones(1,1),zeros(1,1),ones(1,1),zeros(1),zeros(1),zeros(1),
+            zeros(1),zeros(1),zeros(1),0.05,parameters,_ -> zeros(1);
+            state_scale=ones(2)
         )
     end
 
@@ -323,13 +323,13 @@ include(joinpath(
         @test newmark.alpha == 0.05
         @test newmark.gamma == 0.55
         @test newmark.beta == 0.275625
-        @test newmark_beta_coefficients(0.02, newmark).a7 ≈ 0.011
+        @test newmark_beta_coefficients(0.02,newmark).a7 ≈ 0.011
         @test_throws ErrorException validate_structural_time_integrator(:unknown)
         @test_throws ErrorException validate_aeroelastic_coupling_scheme(:unknown)
 
-        M = reshape([1.5], 1, 1)
-        C = reshape([0.1], 1, 1)
-        K = reshape([2.0], 1, 1)
+        M = reshape([1.5],1,1)
+        C = reshape([0.1],1,1)
+        K = reshape([2.0],1,1)
         displacement_n = [0.01]
         velocity_n = [-0.02]
         acceleration_n = [0.03]
@@ -338,22 +338,22 @@ include(joinpath(
         external_np1 = [0.015]
         dt = 0.02
         options = PartitionedCouplingOptions(
-            maximum_iterations = 30,
-            state_tolerance = 1.0e-10,
-            load_tolerance = 1.0e-10,
-            equilibrium_tolerance = 1.0e-12,
-            coupled_equilibrium_tolerance = 1.0e-10,
-            relaxation = 1.0,
+            maximum_iterations=30,
+            state_tolerance=1.0e-10,
+            load_tolerance=1.0e-10,
+            equilibrium_tolerance=1.0e-12,
+            coupled_equilibrium_tolerance=1.0e-10,
+            relaxation=1.0
         )
 
         for method in STRUCTURAL_TIME_INTEGRATORS
             parameters = structural_integration_parameters(
                 method;
-                newmark_alpha = 0.05,
-                generalized_alpha_rho_infinity = 0.8,
+                newmark_alpha=0.05,
+                generalized_alpha_rho_infinity=0.8
             )
             original_state = (
-                copy(displacement_n), copy(velocity_n), copy(acceleration_n),
+                copy(displacement_n),copy(velocity_n),copy(acceleration_n)
             )
 
             # Loose coupling performs one aerodynamic evaluation outside the
@@ -364,34 +364,34 @@ include(joinpath(
                 [0.05 + 0.1 * only(displacement_n)]
             end
             explicit_step = loose_explicit_aeroelastic_step(
-                method, M, C, K,
-                displacement_n, velocity_n, acceleration_n,
-                explicit_load, load_n, external_np1, external_n, dt, parameters;
-                options, load_scale = [1.0],
+                method,M,C,K,
+                displacement_n,velocity_n,acceleration_n,
+                explicit_load,load_n,external_np1,external_n,dt,parameters;
+                options,load_scale=[1.0]
             )
             @test aerodynamic_evaluations[] == 1
             @test explicit_step.iterations == 1
             @test explicit_step.converged
             @test explicit_step.coupled_equilibrium_residual <=
-                options.coupled_equilibrium_tolerance
-            @test all(isfinite, explicit_step.displacement)
+                  options.coupled_equilibrium_tolerance
+            @test all(isfinite,explicit_step.displacement)
 
             # Implicit coupling calls the same load law repeatedly at trial
             # n+1 states until that state and its load form a fixed point.
             aerodynamic_evaluations[] = 0
             last_trial_state = Ref(NaN)
             implicit_step = partitioned_aeroelastic_step(
-                method, M, C, K,
-                displacement_n, velocity_n, acceleration_n,
-                load_n, external_np1, external_n, dt, parameters,
+                method,M,C,K,
+                displacement_n,velocity_n,acceleration_n,
+                load_n,external_np1,external_n,dt,parameters,
                 state -> begin
                     aerodynamic_evaluations[] += 1
                     last_trial_state[] = only(state)
                     return [0.05 + 0.1 * only(state)]
                 end;
                 options,
-                state_scale = [0.1],
-                load_scale = [1.0],
+                state_scale=[0.1],
+                load_scale=[1.0]
             )
             @test aerodynamic_evaluations[] == implicit_step.iterations
             @test implicit_step.iterations > 1
@@ -399,8 +399,8 @@ include(joinpath(
             @test only(implicit_step.displacement) == last_trial_state[]
             @test implicit_step.trial_load ≈ 0.05 .+ 0.1 .* implicit_step.displacement
             @test implicit_step.coupled_equilibrium_residual <=
-                options.coupled_equilibrium_tolerance
-            @test all(isfinite, implicit_step.displacement)
+                  options.coupled_equilibrium_tolerance
+            @test all(isfinite,implicit_step.displacement)
 
             # Coupling iterations must not overwrite the accepted n state.
             @test displacement_n == original_state[1]
@@ -410,62 +410,63 @@ include(joinpath(
 
         # The coefficients are rebuilt from the actual step size.
         correction_short = newmark_beta_corrector(
-            M, C, K, displacement_n, velocity_n, acceleration_n,
-            [0.05], external_np1, 0.01, newmark,
+            M,C,K,displacement_n,velocity_n,acceleration_n,
+            [0.05],external_np1,0.01,newmark
         )
         correction_long = newmark_beta_corrector(
-            M, C, K, displacement_n, velocity_n, acceleration_n,
-            [0.05], external_np1, 0.03, newmark,
+            M,C,K,displacement_n,velocity_n,acceleration_n,
+            [0.05],external_np1,0.03,newmark
         )
         @test correction_short.displacement != correction_long.displacement
     end
 
     @testset "Chang point-mass parallel-axis correction" begin
         mass = 2.0
-        center_of_mass_inertia = Matrix(Diagonal([100.0, 110.0, 120.0]))
-        offset = [0.4, -0.2, 0.1]
+        center_of_mass_inertia = Matrix(Diagonal([100.0,110.0,120.0]))
+        offset = [0.4,-0.2,0.1]
         skew_offset = chang_tilde(offset)
-        corrected = chang_point_mass_matrix(mass, center_of_mass_inertia, offset)
+        corrected = chang_point_mass_matrix(mass,center_of_mass_inertia,offset)
         legacy = chang_point_mass_matrix(
             mass,
             center_of_mass_inertia,
             offset;
-            inertia_reference = :beam_axis,
+            inertia_reference=:beam_axis
         )
 
-        @test corrected[4:6, 4:6] ≈
-            center_of_mass_inertia - mass .* (skew_offset * skew_offset)
-        @test legacy[4:6, 4:6] == center_of_mass_inertia
+        @test corrected[4:6,4:6] ≈
+              center_of_mass_inertia - mass .* (skew_offset * skew_offset)
+        @test legacy[4:6,4:6] == center_of_mass_inertia
         @test corrected ≈ corrected'
 
-        translational_velocity = [1.2, -0.5, 0.7]
-        angular_velocity = [0.1, -0.2, 0.3]
+        translational_velocity = [1.2,-0.5,0.7]
+        angular_velocity = [0.1,-0.2,0.3]
         generalized_velocity = [translational_velocity; angular_velocity]
         center_of_mass_velocity = translational_velocity - skew_offset * angular_velocity
-        expected_kinetic_energy = 0.5 * mass * dot(center_of_mass_velocity, center_of_mass_velocity) +
-            0.5 * dot(angular_velocity, center_of_mass_inertia * angular_velocity)
-        @test 0.5 * dot(generalized_velocity, corrected * generalized_velocity) ≈
-            expected_kinetic_energy
+        expected_kinetic_energy =
+            0.5 * mass * dot(center_of_mass_velocity,center_of_mass_velocity) +
+            0.5 * dot(angular_velocity,center_of_mass_inertia * angular_velocity)
+        @test 0.5 * dot(generalized_velocity,corrected * generalized_velocity) ≈
+              expected_kinetic_energy
         @test_throws ArgumentError chang_point_mass_matrix(
             mass,
             center_of_mass_inertia,
             offset;
-            inertia_reference = :unknown,
+            inertia_reference=:unknown
         )
     end
 
     @testset "Smooth pulse excitation" begin
-        @test smooth_hann_pulse(0.0; start_time = 1.0, duration = 2.0) == 0.0
-        @test smooth_hann_pulse(2.0; start_time = 1.0, duration = 2.0) ≈ 1.0
+        @test smooth_hann_pulse(0.0; start_time=1.0,duration=2.0) == 0.0
+        @test smooth_hann_pulse(2.0; start_time=1.0,duration=2.0) ≈ 1.0
         pulse_load = smooth_hann_pulse_load(
             2.0,
             4,
-            [2, 4];
-            magnitude = 3.0,
-            start_time = 1.0,
-            duration = 2.0,
+            [2,4];
+            magnitude=3.0,
+            start_time=1.0,
+            duration=2.0
         )
-        @test pulse_load == [0.0, 3.0, 0.0, 3.0]
+        @test pulse_load == [0.0,3.0,0.0,3.0]
     end
 
     @testset "Wake-row commit" begin
@@ -487,16 +488,16 @@ include(joinpath(
         r1 = @SVector [0.0,0.0,0.0]
         r2 = @SVector [0.0,2.0,0.0]
         @test WingPropellerUVLM.imperial_segment_force(velocity,r1,r2,-3.0,1.2) ≈
-            @SVector [0.0,0.0,-72.0]
+              @SVector [0.0,0.0,-72.0]
 
         grid,_ = wing_to_grid(
-            [0.0,0.0],[0.0,1.0],[0.0,0.0],ones(2),zeros(2),zeros(2),1,1,
+            [0.0,0.0],[0.0,1.0],[0.0,0.0],ones(2),zeros(2),zeros(2),1,1
         )
         _,_,surface = grid_to_surface_panels(grid)
         panel = surface[1,1]
         @test WingPropellerUVLM.imperial_panel_area(panel) ≈ 0.75
         @test WingPropellerUVLM.imperial_unsteady_panel_force(panel,4.0,1.2) ≈
-            @SVector [0.0,0.0,-3.6]
+              @SVector [0.0,0.0,-3.6]
     end
 
     @testset "Imperial force-to-node transfer" begin
@@ -509,16 +510,16 @@ include(joinpath(
         unsteady[1,1] = @SVector [8.0,10.0,12.0]
 
         nodal = imperial_nodal_forces(span,chord,unsteady)
-        @test nodal[1,1] ≈ span[1,1]/2 + chord[1,1]/2 + unsteady[1,1]/4
-        @test nodal[1,2] ≈ span[1,1]/2 + chord[1,2]/2 + unsteady[1,1]/4
-        @test nodal[2,1] ≈ chord[1,1]/2 + unsteady[1,1]/4
-        @test nodal[2,2] ≈ chord[1,2]/2 + unsteady[1,1]/4
+        @test nodal[1,1] ≈ span[1,1] / 2 + chord[1,1] / 2 + unsteady[1,1] / 4
+        @test nodal[1,2] ≈ span[1,1] / 2 + chord[1,2] / 2 + unsteady[1,1] / 4
+        @test nodal[2,1] ≈ chord[1,1] / 2 + unsteady[1,1] / 4
+        @test nodal[2,2] ≈ chord[1,2] / 2 + unsteady[1,1] / 4
         @test sum(nodal) ≈ sum(span) + sum(chord) + sum(unsteady)
 
         # The normalized PanelProperties representation must conserve the
         # same complete unsteady force for a trailing-edge panel.
         grid,_ = wing_to_grid(
-            [0.0,0.0],[0.0,1.0],[0.0,0.0],ones(2),zeros(2),zeros(2),1,1,
+            [0.0,0.0],[0.0,1.0],[0.0,0.0],ones(2),zeros(2),zeros(2),1,1
         )
         _,_,surface = grid_to_surface_panels(grid)
         system = System([grid]; nw=[0])
@@ -535,10 +536,10 @@ include(joinpath(
             fill(zero_force,1,2),
             panel_unsteady,
             fill(zero_force,1,1),
-            reference,
+            reference
         )
         panel_properties = system.properties[1][1,1]
-        dynamic_pressure_area = reference.rho*reference.V^2*reference.S/2
+        dynamic_pressure_area = reference.rho * reference.V^2 * reference.S / 2
         @test dynamic_pressure_area * (
             panel_properties.cfb + panel_properties.cfl + panel_properties.cfr
         ) ≈ panel_unsteady[1,1]
@@ -546,7 +547,7 @@ include(joinpath(
 
     @testset "Imperial vortex-node positions" begin
         grid,_ = wing_to_grid(
-            [0.0,0.0],[0.0,2.0],[0.0,0.0],ones(2),zeros(2),zeros(2),2,2,
+            [0.0,0.0],[0.0,2.0],[0.0,0.0],ones(2),zeros(2),zeros(2),2,2
         )
         _,_,surface = grid_to_surface_panels(grid)
         positions = imperial_nodal_positions(surface)
@@ -564,17 +565,17 @@ include(joinpath(
         speed = 20.0
         density = 1.225
         grid,_ = wing_to_grid(
-            [0.0,0.0],[-span/2,span/2],[0.0,0.0],fill(chord,2),
-            zeros(2),zeros(2),4,2,
+            [0.0,0.0],[-span / 2,span / 2],[0.0,0.0],fill(chord,2),
+            zeros(2),zeros(2),4,2
         )
-        reference = Reference(span*chord,chord,span,zeros(3),speed,density)
+        reference = Reference(span * chord,chord,span,zeros(3),speed,density)
         freestream = Freestream(speed,deg2rad(5.0),0.0,zeros(3))
-        system = steady_analysis([grid],reference,freestream;derivatives=false)
+        system = steady_analysis([grid],reference,freestream; derivatives=false)
 
         coefficient,_ = body_forces(system)
         dimensional = sum(imperial_nodal_forces(system)[1])
-        dynamic_pressure_area = density*speed^2*reference.S/2
-        @test dimensional ≈ dynamic_pressure_area*coefficient
+        dynamic_pressure_area = density * speed^2 * reference.S / 2
+        @test dimensional ≈ dynamic_pressure_area * coefficient
         @test coefficient[3] > 0
 
         # Density is owned by Reference. Circulation and nondimensional
@@ -582,36 +583,36 @@ include(joinpath(
         # Imperial load scales linearly with it. The Trefftz path must use the
         # same reference density so that its coefficient also remains invariant.
         denser_reference = Reference(
-            span*chord, chord, span, zeros(3), speed, 2*density,
+            span * chord,chord,span,zeros(3),speed,2 * density
         )
         denser_system = steady_analysis(
-            [grid], denser_reference, freestream; derivatives=false,
+            [grid],denser_reference,freestream; derivatives=false
         )
         denser_coefficient,_ = body_forces(denser_system)
         denser_dimensional = sum(imperial_nodal_forces(denser_system)[1])
         @test denser_coefficient ≈ coefficient
-        @test denser_dimensional ≈ 2*dimensional
+        @test denser_dimensional ≈ 2 * dimensional
         @test far_field_drag(denser_system) ≈ far_field_drag(system)
 
         @test_throws ArgumentError steady_analysis(
-            [grid],reference,freestream;derivatives=true,
+            [grid],reference,freestream; derivatives=true
         )
     end
 
     @testset "Default control-point ratios" begin
         grid,_ = wing_to_grid(
-            [0.0,0.0],[0.0,1.0],[0.0,0.0],ones(2),zeros(2),zeros(2),3,2,
+            [0.0,0.0],[0.0,1.0],[0.0,0.0],ones(2),zeros(2),zeros(2),3,2
         )
         system = System([grid])
 
-        @test all(isfinite, system.ratios[1])
-        @test all(==(0.5), @view system.ratios[1][1,:,:])
-        @test all(==(0.75), @view system.ratios[1][2,:,:])
+        @test all(isfinite,system.ratios[1])
+        @test all(==(0.5),@view system.ratios[1][1,:,:])
+        @test all(==(0.75),@view system.ratios[1][2,:,:])
     end
 
     @testset "Legacy Imperial segment-force selection" begin
         grid,_ = wing_to_grid(
-            [0.0,0.0],[0.0,1.0],[0.0,0.0],ones(2),zeros(2),zeros(2),2,2,
+            [0.0,0.0],[0.0,1.0],[0.0,0.0],ones(2),zeros(2),zeros(2),2,2
         )
         _,ratios,surface = grid_to_surface_panels(grid)
         system = System([grid]; nw=[0])
@@ -633,15 +634,15 @@ include(joinpath(
             near_field_analysis=true,
             near_field_force_function=legacy_imperial_segment_forces!,
             derivatives=false,
-            advance_wake=false,
+            advance_wake=false
         )
 
-        @test all(all(isfinite, force) for force in system.chord_seg_forces[1])
-        @test all(all(isfinite, force) for force in system.span_seg_forces[1])
-        @test all(all(isfinite, force) for force in system.unsteady_forces[1])
-        @test sum(norm, system.chord_seg_forces[1]) +
-            sum(norm, system.span_seg_forces[1]) > 0
-        @test all(isfinite, sum(imperial_nodal_forces(system)[1]))
+        @test all(all(isfinite,force) for force in system.chord_seg_forces[1])
+        @test all(all(isfinite,force) for force in system.span_seg_forces[1])
+        @test all(all(isfinite,force) for force in system.unsteady_forces[1])
+        @test sum(norm,system.chord_seg_forces[1]) +
+              sum(norm,system.span_seg_forces[1]) > 0
+        @test all(isfinite,sum(imperial_nodal_forces(system)[1]))
 
         force_keywords = (
             dΓdt=system.dΓdt,
@@ -656,9 +657,9 @@ include(joinpath(
             trailing_vortices=system.trailing_vortices,
             xhat=system.xhat[],
             interaction_id=system.surface_id,
-            interaction=true,
+            interaction=true
         )
-        _, chord_serial, span_serial, unsteady_serial =
+        _,chord_serial,span_serial,unsteady_serial =
             legacy_imperial_segment_forces!(
                 system.properties,
                 system.surfaces,
@@ -667,9 +668,9 @@ include(joinpath(
                 system.freestream[],
                 system.Γ;
                 force_keywords...,
-                threaded=false,
+                threaded=false
             )
-        _, chord_threaded, span_threaded, unsteady_threaded =
+        _,chord_threaded,span_threaded,unsteady_threaded =
             legacy_imperial_segment_forces!(
                 system.properties,
                 system.surfaces,
@@ -678,16 +679,16 @@ include(joinpath(
                 system.freestream[],
                 system.Γ;
                 force_keywords...,
-                threaded=true,
+                threaded=true
             )
-        _, chord_direct, span_direct, unsteady_direct = near_field_forces!(
+        _,chord_direct,span_direct,unsteady_direct = near_field_forces!(
             deepcopy(system.properties),
             system.surfaces,
             system.wakes,
             system.reference[],
             system.freestream[],
             system.Γ;
-            force_keywords...,
+            force_keywords...
         )
         @test chord_serial == system.chord_seg_forces
         @test span_serial == system.span_seg_forces
@@ -720,7 +721,7 @@ include(joinpath(
 
         snapshot = snapshot_uvlm(system)
         system.Γ .= 3.0
-        system.surfaces[1][1] = translate(system.surfaces[1][1],[1.0;0.0;0.0])
+        system.surfaces[1][1] = translate(system.surfaces[1][1],[1.0; 0.0; 0.0])
         restore_uvlm!(system,snapshot)
 
         @test system.Γ == snapshot.Γ
@@ -730,14 +731,14 @@ include(joinpath(
         repeatedPoints = repeated_trailing_edge_points(system.surfaces)
         advance_uvlm_trial!(system,snapshot,system.freestream[],0.01;
             repeatedPoints=repeatedPoints,
-            activeWakeRows=activeWakeRows,
+            activeWakeRows=activeWakeRows
         )
         ΓFirst = copy(system.Γ)
         wakesFirst = deepcopy(system.wakes)
 
         advance_uvlm_trial!(system,snapshot,system.freestream[],0.01;
             repeatedPoints=repeatedPoints,
-            activeWakeRows=activeWakeRows,
+            activeWakeRows=activeWakeRows
         )
         @test system.Γ ≈ ΓFirst
         @test system.wakes == wakesFirst
@@ -754,7 +755,7 @@ include(joinpath(
             system.freestream[],
             0.01;
             repeatedPoints=repeatedPoints,
-            activeWakeRows=activeWakeRows,
+            activeWakeRows=activeWakeRows
         )
         ΓFull = copy(system.Γ)
         dΓdtFull = copy(system.dΓdt)
@@ -772,7 +773,7 @@ include(joinpath(
             0.01;
             repeatedPoints=repeatedPoints,
             activeWakeRows=activeWakeRows,
-            advanceWake=false,
+            advanceWake=false
         )
         @test system.Γ == ΓFull
         @test system.dΓdt == dΓdtFull
@@ -787,7 +788,7 @@ include(joinpath(
             system.freestream[],
             0.01;
             repeated_points=repeatedPoints,
-            nwake=activeWakeRows,
+            nwake=activeWakeRows
         )
         @test system.V == wakeVelocitiesFull
         @test system.wakes == wakesFull

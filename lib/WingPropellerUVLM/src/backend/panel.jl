@@ -16,14 +16,14 @@ Lifting surface panel with attached vortex ring
  - `chord`: panel chord length (for determining unsteady forces)
 """
 struct SurfacePanel{TF}
-    rtl::SVector{3, TF}
-    rtc::SVector{3, TF}
-    rtr::SVector{3, TF}
-    rbl::SVector{3, TF}
-    rbc::SVector{3, TF}
-    rbr::SVector{3, TF}
-    rcp::SVector{3, TF}
-    ncp::SVector{3, TF}
+    rtl::SVector{3,TF}
+    rtc::SVector{3,TF}
+    rtr::SVector{3,TF}
+    rbl::SVector{3,TF}
+    rbc::SVector{3,TF}
+    rbr::SVector{3,TF}
+    rcp::SVector{3,TF}
+    ncp::SVector{3,TF}
     core_size::TF
     chord::TF
 end
@@ -49,28 +49,28 @@ Construct and return a vortex ring panel.
 """
 SurfacePanel(args...; kwargs...)
 
-function SurfacePanel(rtl, rtr, rbl, rbr, rcp, ncp, core_size, chord;
-    rtc = (rtl+rtr)/2, # default to average of corners
-    rbc = (rbl+rbr)/2) # default to average of corners
+function SurfacePanel(rtl,rtr,rbl,rbr,rcp,ncp,core_size,chord;
+    rtc=(rtl + rtr) / 2,# default to average of corners
+    rbc=(rbl + rbr) / 2) # default to average of corners
 
-    return SurfacePanel(rtl, rtc, rtr, rbl, rbc, rbr, rcp, ncp, core_size, chord)
+    return SurfacePanel(rtl,rtc,rtr,rbl,rbc,rbr,rcp,ncp,core_size,chord)
 end
 
-function SurfacePanel(rtl, rtc, rtr, rbl, rbc, rbr, rcp, ncp, core_size, chord)
+function SurfacePanel(rtl,rtc,rtr,rbl,rbc,rbr,rcp,ncp,core_size,chord)
 
-    TF = promote_type(eltype(rtl), eltype(rtc), eltype(rtr), eltype(rbl), eltype(rbc),
-        eltype(rbr), eltype(rcp), eltype(ncp), typeof(core_size), typeof(chord))
+    TF = promote_type(eltype(rtl),eltype(rtc),eltype(rtr),eltype(rbl),eltype(rbc),
+        eltype(rbr),eltype(rcp),eltype(ncp),typeof(core_size),typeof(chord))
 
-    return SurfacePanel{TF}(rtl, rtc, rtr, rbl, rbc, rbr, rcp, ncp, core_size, chord)
+    return SurfacePanel{TF}(rtl,rtc,rtr,rbl,rbc,rbr,rcp,ncp,core_size,chord)
 end
 
 
-Base.eltype(::Type{SurfacePanel{TF}}) where TF = TF
-Base.eltype(::SurfacePanel{TF}) where TF = TF
+Base.eltype(::Type{SurfacePanel{TF}}) where {TF} = TF
+Base.eltype(::SurfacePanel{TF}) where {TF} = TF
 
-SurfacePanel{TF}(p::SurfacePanel) where TF = SurfacePanel{TF}(p.rtl, p.rtc, p.rtr,
-    p.rbl, p.rbc, p.rbr, p.rcp, p.ncp, p.core_size, p.chord)
-Base.convert(::Type{SurfacePanel{TF}}, p::SurfacePanel) where {TF} = SurfacePanel{TF}(p)
+SurfacePanel{TF}(p::SurfacePanel) where {TF} = SurfacePanel{TF}(p.rtl,p.rtc,p.rtr,
+    p.rbl,p.rbc,p.rbr,p.rcp,p.ncp,p.core_size,p.chord)
+Base.convert(::Type{SurfacePanel{TF}},p::SurfacePanel) where {TF} = SurfacePanel{TF}(p)
 
 """
     top_left(panel::SurfacePanel)
@@ -141,7 +141,7 @@ get_core_size(panel::SurfacePanel) = panel.core_size
 
 Return a copy of `panel` translated the distance specified by vector `r`
 """
-function translate(panel::SurfacePanel, r)
+function translate(panel::SurfacePanel,r)
 
     rtl = panel.rtl + r
     rtc = panel.rtc + r
@@ -154,7 +154,7 @@ function translate(panel::SurfacePanel, r)
     core_size = panel.core_size
     chord = panel.chord
 
-    return SurfacePanel(rtl, rtc, rtr, rbl, rbc, rbr, rcp, ncp, core_size, chord)
+    return SurfacePanel(rtl,rtc,rtr,rbl,rbc,rbr,rcp,ncp,core_size,chord)
 end
 
 """
@@ -162,17 +162,17 @@ end
 
 Return a copy of the panels in `surface` translated the distance specified by vector `r`
 """
-translate(surface::AbstractMatrix, r) = translate.(surface, Ref(r))
+translate(surface::AbstractMatrix,r) = translate.(surface,Ref(r))
 
 """
     translate!(surface, r)
 
 Translate the panels in `surface` the distance specified by vector `r`
 """
-function translate!(surface::AbstractMatrix, r)
+function translate!(surface::AbstractMatrix,r)
 
     for i in eachindex(surface)
-        surface[i] = translate(surface[i], r)
+        surface[i] = translate(surface[i],r)
     end
 
     return surface
@@ -183,17 +183,17 @@ end
 
 Return a copy of the surfaces in `surfaces` translated the distance specified by vector `r`
 """
-translate(surfaces::AbstractVector{<:AbstractMatrix}, r) = translate.(surfaces, Ref(r))
+translate(surfaces::AbstractVector{<:AbstractMatrix},r) = translate.(surfaces,Ref(r))
 
 """
     translate!(surfaces, r)
 
 Translate the surfaces in `surfaces` the distance specified by vector `r`
 """
-function translate!(surfaces::AbstractVector{AbstractMatrix}, r)
+function translate!(surfaces::AbstractVector{AbstractMatrix},r)
 
     for i in eachindex(surfaces)
-        surfaces[i] = translate!(surfaces[i], r)
+        surfaces[i] = translate!(surfaces[i],r)
     end
 
     return surfaces
@@ -204,20 +204,20 @@ end
 
 Return a copy of `panel` rotated about point `r` using the rotation matrix `R`
 """
-function rotate(panel::SurfacePanel, R, r = (@SVector zeros(3)))
+function rotate(panel::SurfacePanel,R,r=(@SVector zeros(3)))
 
-    rtl = R*(panel.rtl - r) + r
-    rtc = R*(panel.rtc - r) + r
-    rtr = R*(panel.rtr - r) + r
-    rbl = R*(panel.rbl - r) + r
-    rbc = R*(panel.rbc - r) + r
-    rbr = R*(panel.rbr - r) + r
-    rcp = R*(panel.rcp - r) + r
-    ncp = R*panel.ncp
+    rtl = R * (panel.rtl - r) + r
+    rtc = R * (panel.rtc - r) + r
+    rtr = R * (panel.rtr - r) + r
+    rbl = R * (panel.rbl - r) + r
+    rbc = R * (panel.rbc - r) + r
+    rbr = R * (panel.rbr - r) + r
+    rcp = R * (panel.rcp - r) + r
+    ncp = R * panel.ncp
     core_size = panel.core_size
     chord = panel.chord
 
-    return SurfacePanel(rtl, rtc, rtr, rbl, rbc, rbr, rcp, ncp, core_size, chord)
+    return SurfacePanel(rtl,rtc,rtr,rbl,rbc,rbr,rcp,ncp,core_size,chord)
 end
 
 """
@@ -225,17 +225,17 @@ end
 
 Return a copy of the panels in `surface` rotated about point `r` using the rotation matrix `R`
 """
-rotate(surface::AbstractMatrix, R, r = (@SVector zeros(3))) = rotate.(surface, Ref(R), Ref(r))
+rotate(surface::AbstractMatrix,R,r=(@SVector zeros(3))) = rotate.(surface,Ref(R),Ref(r))
 
 """
     rotate!(surface, R, r = [0,0,0])
 
 Rotate the panels in `surface` about point `r` using the rotation matrix `R`
 """
-function rotate!(surface::AbstractMatrix, R, r = (@SVector zeros(3)))
+function rotate!(surface::AbstractMatrix,R,r=(@SVector zeros(3)))
 
     for i in eachindex(surface)
-        surface[i] = rotate(surface[i], R, r)
+        surface[i] = rotate(surface[i],R,r)
     end
 
     return surface
@@ -247,18 +247,18 @@ end
 Return a copy of the surfaces in `surfaces` rotated about point `r` using the
 rotation matrix `R`
 """
-rotate(surfaces::AbstractVector{<:AbstractMatrix}, R, r = (@SVector zeros(3))) =
-    rotate.(surfaces, Ref(R), Ref(r))
+rotate(surfaces::AbstractVector{<:AbstractMatrix},R,r=(@SVector zeros(3))) =
+    rotate.(surfaces,Ref(R),Ref(r))
 
 """
     rotate!(surfaces, R, r = [0,0,0])
 
 Rotate the surfaces in `surfaces` about point `r` using the rotation matrix `R`
 """
-function rotate!(surfaces::AbstractVector{AbstractMatrix}, R, r = (@SVector zeros(3)))
+function rotate!(surfaces::AbstractVector{AbstractMatrix},R,r=(@SVector zeros(3)))
 
     for i in eachindex(surfaces)
-        surfaces[i] = rotate!(surfaces[i], R, r)
+        surfaces[i] = rotate!(surfaces[i],R,r)
     end
 
     return surfaces
@@ -282,7 +282,7 @@ function reflect(panel::SurfacePanel)
     core_size = panel.core_size
     chord = panel.chord
 
-    return SurfacePanel(rtl, rtc, rtr, rbl, rbc, rbr, rcp, ncp, core_size, chord)
+    return SurfacePanel(rtl,rtc,rtr,rbl,rbc,rbr,rcp,ncp,core_size,chord)
 end
 
 """
@@ -290,15 +290,15 @@ end
 
 Reflects the panels in `surface` across the X-Z plane
 """
-reflect(surface::AbstractMatrix) = reflect.(reverse(surface, dims=2))
+reflect(surface::AbstractMatrix) = reflect.(reverse(surface,dims=2))
 
 """
     set_normal(panel::SurfacePanel, ncp)
 
 Return a copy of `panel` with the new normal vector `ncp`
 """
-set_normal(panel::SurfacePanel, ncp) = SurfacePanel(panel.rtl, panel.rtc,
-    panel.rtr, panel.rbl, panel.rbc, panel.rbr, panel.rcp, ncp, panel.core_size,
+set_normal(panel::SurfacePanel,ncp) = SurfacePanel(panel.rtl,panel.rtc,
+    panel.rtr,panel.rbl,panel.rbc,panel.rbr,panel.rcp,ncp,panel.core_size,
     panel.chord)
 
 """
@@ -306,14 +306,14 @@ set_normal(panel::SurfacePanel, ncp) = SurfacePanel(panel.rtl, panel.rtc,
 
 Return the center of the left bound vortex of the vortex ring associated with `panel`
 """
-left_center(panel::SurfacePanel) = (top_left(panel) + bottom_left(panel))/2
+left_center(panel::SurfacePanel) = (top_left(panel) + bottom_left(panel)) / 2
 
 """
     right_center(panel::SurfacePanel)
 
 Return the center of the right bound vortex of the vortex ring associated with `panel`
 """
-right_center(panel::SurfacePanel) = (top_right(panel) + bottom_right(panel))/2
+right_center(panel::SurfacePanel) = (top_right(panel) + bottom_right(panel)) / 2
 
 """
     top_vector(panel::SurfacePanel)
@@ -357,10 +357,10 @@ SurfacePanel used for modeling wakes.
  - `gamma`: circulation strength of the panel
 """
 struct WakePanel{TF}
-    rtl::SVector{3, TF}
-    rtr::SVector{3, TF}
-    rbl::SVector{3, TF}
-    rbr::SVector{3, TF}
+    rtl::SVector{3,TF}
+    rtr::SVector{3,TF}
+    rbl::SVector{3,TF}
+    rbr::SVector{3,TF}
     core_size::TF
     gamma::TF
 end
@@ -380,18 +380,18 @@ Construct and return a wake panel.
 """
 WakePanel(args...; kwargs...)
 
-function WakePanel(rtl, rtr, rbl, rbr, core_size, gamma)
+function WakePanel(rtl,rtr,rbl,rbr,core_size,gamma)
 
-    TF = promote_type(eltype(rtl), eltype(rtr), eltype(rbl), eltype(rbr), typeof(core_size), typeof(gamma))
+    TF = promote_type(eltype(rtl),eltype(rtr),eltype(rbl),eltype(rbr),typeof(core_size),typeof(gamma))
 
-    return WakePanel{TF}(rtl, rtr, rbl, rbr, core_size, gamma)
+    return WakePanel{TF}(rtl,rtr,rbl,rbr,core_size,gamma)
 end
 
-Base.eltype(::Type{WakePanel{TF}}) where TF = TF
-Base.eltype(::WakePanel{TF}) where TF = TF
+Base.eltype(::Type{WakePanel{TF}}) where {TF} = TF
+Base.eltype(::WakePanel{TF}) where {TF} = TF
 
-WakePanel{TF}(p::WakePanel) where TF = WakePanel{TF}(p.rtl, p.rtr, p.rbl, p.rbr, p.core_size, p.gamma)
-Base.convert(::Type{WakePanel{TF}}, p::WakePanel) where {TF} = WakePanel{TF}(p)
+WakePanel{TF}(p::WakePanel) where {TF} = WakePanel{TF}(p.rtl,p.rtr,p.rbl,p.rbr,p.core_size,p.gamma)
+Base.convert(::Type{WakePanel{TF}},p::WakePanel) where {TF} = WakePanel{TF}(p)
 
 top_left(panel::WakePanel) = panel.rtl
 
@@ -415,7 +415,7 @@ circulation_strength(panel::WakePanel) = panel.gamma
 
 Return a copy of `panel` with the circulation strength `gamma`
 """
-function set_circulation_strength(panel::WakePanel, gamma)
+function set_circulation_strength(panel::WakePanel,gamma)
 
     rtl = panel.rtl
     rtr = panel.rtr
@@ -423,10 +423,10 @@ function set_circulation_strength(panel::WakePanel, gamma)
     rbr = panel.rbr
     core_size = panel.core_size
 
-    return WakePanel(rtl, rtr, rbl, rbr, core_size, gamma)
+    return WakePanel(rtl,rtr,rbl,rbr,core_size,gamma)
 end
 
-function translate(panel::WakePanel, r)
+function translate(panel::WakePanel,r)
 
     rtl = panel.rtl + r
     rtr = panel.rtr + r
@@ -435,7 +435,7 @@ function translate(panel::WakePanel, r)
     core_size = panel.core_size
     gamma = panel.gamma
 
-    return WakePanel(rtl, rtr, rbl, rbr, core_size, gamma)
+    return WakePanel(rtl,rtr,rbl,rbr,core_size,gamma)
 end
 
 function reflect(panel::WakePanel)
@@ -447,7 +447,7 @@ function reflect(panel::WakePanel)
     core_size = panel.core_size
     gamma = panel.gamma
 
-    return Ring(rtl, rtr, rbl, rbr, core_size, gamma)
+    return Ring(rtl,rtr,rbl,rbr,core_size,gamma)
 end
 
 """
@@ -462,8 +462,8 @@ struct TrefftzPanel{TF}
     Γ::TF
 end
 
-Base.eltype(::Type{TrefftzPanel{TF}}) where TF = TF
-Base.eltype(::TrefftzPanel{TF}) where TF = TF
+Base.eltype(::Type{TrefftzPanel{TF}}) where {TF} = TF
+Base.eltype(::TrefftzPanel{TF}) where {TF} = TF
 
 """
     normal(panel::TrefftzPanel)
@@ -478,7 +478,7 @@ function normal(panel::TrefftzPanel)
     dy = rr[2] - rl[2]
     dz = rr[3] - rl[3]
 
-    nhat = SVector(0, -dz, dy)
+    nhat = SVector(0,-dz,dy)
 
     return nhat
 end
@@ -490,30 +490,30 @@ Constructs a set of panels for Trefftz plane calculations
 """
 trefftz_panels
 
-function trefftz_panels(surface::AbstractMatrix, fs, Γ)
+function trefftz_panels(surface::AbstractMatrix,fs,Γ)
 
     TF = eltype(eltype(panels))
 
-    panels = Vector{TrefftzPanel{TF}}(undef, size(surface, 2))
+    panels = Vector{TrefftzPanel{TF}}(undef,size(surface,2))
 
-    return trefftz_panels!(panels, surface, fs, Γ)
+    return trefftz_panels!(panels,surface,fs,Γ)
 end
 
-function trefftz_panels(surfaces::AbstractVector{<:AbstractMatrix}, fs, Γ)
+function trefftz_panels(surfaces::AbstractVector{<:AbstractMatrix},fs,Γ)
 
     TF = eltype(eltype(eltype(surfaces)))
 
-    panels = [Vector{TrefftzPanel{TF}}(undef, size(surfaces[i], 2)) for i = 1:length(surfaces)]
+    panels = [Vector{TrefftzPanel{TF}}(undef,size(surfaces[i],2)) for i = 1:length(surfaces)]
 
-    return trefftz_panels!(panels, surfaces, fs, Γ)
+    return trefftz_panels!(panels,surfaces,fs,Γ)
 end
 
 # single surface
-function trefftz_panels!(panels, surface::AbstractMatrix, fs, Γ)
+function trefftz_panels!(panels,surface::AbstractMatrix,fs,Γ)
 
-    n1, n2 = size(surface)
+    n1,n2 = size(surface)
 
-    rΓ = reshape(Γ, n1, n2)
+    rΓ = reshape(Γ,n1,n2)
 
     R = body_to_wind(fs)
 
@@ -527,23 +527,23 @@ function trefftz_panels!(panels, surface::AbstractMatrix, fs, Γ)
         Γt = rΓ[end,j]
 
         # rotate into Trefftz plane frame of reference
-        rl = R*rl
-        rc = R*rc
-        rr = R*rr
+        rl = R * rl
+        rc = R * rc
+        rr = R * rr
 
         # zero out x-components
-        rl = SVector(0, rl[2], rl[3])
-        rc = SVector(0, rc[2], rc[3])
-        rr = SVector(0, rr[2], rr[3])
+        rl = SVector(0,rl[2],rl[3])
+        rc = SVector(0,rc[2],rc[3])
+        rr = SVector(0,rr[2],rr[3])
 
-        panels[j] = TrefftzPanel(rl, rc, rr, Γt)
+        panels[j] = TrefftzPanel(rl,rc,rr,Γt)
     end
 
     return panels
 end
 
 # multiple surfaces
-function trefftz_panels!(panels, surfaces::AbstractVector{<:AbstractMatrix}, fs, Γ)
+function trefftz_panels!(panels,surfaces::AbstractVector{<:AbstractMatrix},fs,Γ)
 
     nsurf = length(surfaces)
 
@@ -557,10 +557,10 @@ function trefftz_panels!(panels, surfaces::AbstractVector{<:AbstractMatrix}, fs,
         n = length(surfaces[i])
 
         # create view into `panels` and `Γ` vector
-        vΓ = view(Γ, iΓ+1:iΓ+n)
+        vΓ = view(Γ,iΓ+1:iΓ+n)
 
         # populate vector of Trefftz panels
-        trefftz_panels!(panels[i], surfaces[i], fs, vΓ)
+        trefftz_panels!(panels[i],surfaces[i],fs,vΓ)
 
         # increment position in circulation index
         iΓ += n
@@ -581,7 +581,7 @@ Induced drag on `receiving` panel induced by `sending` panel.
  - `rho`: Fluid density from the analysis [`Reference`](@ref)
 """
 function trefftz_panel_induced_drag(receiving::TrefftzPanel,
-    sending::TrefftzPanel; symmetric, rho)
+    sending::TrefftzPanel; symmetric,rho)
 
     rl = sending.rl
     rr = sending.rr
@@ -591,11 +591,11 @@ function trefftz_panel_induced_drag(receiving::TrefftzPanel,
     nc = normal(receiving)
     Γr = receiving.Γ
 
-    Di = vortex_induced_drag(rl, -Γs, rc, Γr, nc, rho)
-    Di += vortex_induced_drag(rr, Γs, rc, Γr, nc, rho)
+    Di = vortex_induced_drag(rl,-Γs,rc,Γr,nc,rho)
+    Di += vortex_induced_drag(rr,Γs,rc,Γr,nc,rho)
     if symmetric
-        Di += vortex_induced_drag(flipy(rr), -Γs, rc, Γr, nc, rho)
-        Di += vortex_induced_drag(flipy(rl), Γs, rc, Γr, nc, rho)
+        Di += vortex_induced_drag(flipy(rr),-Γs,rc,Γr,nc,rho)
+        Di += vortex_induced_drag(flipy(rl),Γs,rc,Γr,nc,rho)
     end
 
     return Di
@@ -606,13 +606,13 @@ end
 
 Return induced drag from vortex `j` induced on panel `i`
 """
-function vortex_induced_drag(rj, Γj, ri, Γi, ni, rho)
+function vortex_induced_drag(rj,Γj,ri,Γi,ni,rho)
 
     rij = ri - rj
-    Vthetai = SVector(0, -Γj*rij[3], Γj*rij[2]) / (2*pi*(rij[2]^2 + rij[3]^2))
-    Vn = -dot(Vthetai, ni)
+    Vthetai = SVector(0,-Γj * rij[3],Γj * rij[2]) / (2 * pi * (rij[2]^2 + rij[3]^2))
+    Vn = -dot(Vthetai,ni)
 
-    Di = rho/2.0*Γi*Vn
+    Di = rho / 2.0 * Γi * Vn
 
     return Di
 end

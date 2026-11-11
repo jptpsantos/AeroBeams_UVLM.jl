@@ -1,5 +1,10 @@
 # WingPropellerUVLM
 
+Custom source, studies, examples and tests follow the
+[AeroBeams notation and coding conventions](CODE_STYLE.md), while retaining
+existing public names and saved-file schemas. AeroBeams files remain the
+read-only reference.
+
 `WingPropellerUVLM` is the in-repository Julia package containing the modified
 VortexLattice backend and the reusable wing--propeller UVLM routines used by the
 AeroBeams coupling work.

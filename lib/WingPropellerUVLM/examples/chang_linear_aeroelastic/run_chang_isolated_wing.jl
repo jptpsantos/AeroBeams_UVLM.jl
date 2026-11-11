@@ -1,12 +1,12 @@
 # Bare Chang wing: edit chang_isolated_wing_case.jl, then run this script.
-if Base.active_project() != normpath(joinpath(@__DIR__, "..", "..", "Project.toml"))
+if Base.active_project() != normpath(joinpath(@__DIR__,"..","..","Project.toml"))
     import Pkg
-    Pkg.activate(normpath(joinpath(@__DIR__, "..", "..")))
+    Pkg.activate(normpath(joinpath(@__DIR__,"..","..")))
 end
 
-if !isdefined(@__MODULE__, :ChangAeroelastic) ||
-        !isdefined(ChangAeroelastic, :load_chang_isolated_wing_configuration)
-    include(joinpath(@__DIR__, "src", "ChangAeroelastic.jl"))
+if !isdefined(@__MODULE__,:ChangAeroelastic) ||
+   !isdefined(ChangAeroelastic,:load_chang_isolated_wing_configuration)
+    include(joinpath(@__DIR__,"src","ChangAeroelastic.jl"))
 end
 using .ChangAeroelastic
 

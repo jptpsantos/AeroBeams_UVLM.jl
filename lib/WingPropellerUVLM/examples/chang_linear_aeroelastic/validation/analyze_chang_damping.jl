@@ -4,27 +4,27 @@ using DelimitedFiles
 using Statistics
 
 length(ARGS) >= 1 || error(
-    "Usage: julia analyze_chang_damping.jl HISTORY.csv [fit_start_s] [fit_end_s]",
+    "Usage: julia analyze_chang_damping.jl HISTORY.csv [fit_start_s] [fit_end_s]"
 )
 history_path = abspath(ARGS[1])
-fit_start = length(ARGS) >= 2 ? parse(Float64, ARGS[2]) : 0.7
-fit_end = length(ARGS) >= 3 ? parse(Float64, ARGS[3]) : Inf
+fit_start = length(ARGS) >= 2 ? parse(Float64,ARGS[2]) : 0.7
+fit_end = length(ARGS) >= 3 ? parse(Float64,ARGS[3]) : Inf
 fit_end >= fit_start || error("fit_end_s must not precede fit_start_s")
 
-raw, header = readdlm(history_path, ',', header = true)
+raw,header = readdlm(history_path,',',header=true)
 names = vec(String.(header))
-time_index = findfirst(==("time_s"), names)
-pitch_index = findfirst(==("propeller_1_pitch_deg"), names)
+time_index = findfirst(==("time_s"),names)
+pitch_index = findfirst(==("propeller_1_pitch_deg"),names)
 isnothing(time_index) && error("time_s column not found")
 isnothing(pitch_index) && error("propeller_1_pitch_deg column not found")
 
-time = Float64.(raw[:, time_index])
-pitch = Float64.(raw[:, pitch_index])
+time = Float64.(raw[:,time_index])
+pitch = Float64.(raw[:,pitch_index])
 peak_indices = Int[]
-for i in 2:(length(pitch) - 1)
+for i = 2:(length(pitch)-1)
     if fit_start <= time[i] <= fit_end &&
-            pitch[i] > pitch[i - 1] && pitch[i] >= pitch[i + 1]
-        push!(peak_indices, i)
+       pitch[i] > pitch[i-1] && pitch[i] >= pitch[i+1]
+        push!(peak_indices,i)
     end
 end
 length(peak_indices) >= 3 || error("At least three positive peaks are required after $fit_start s")
@@ -35,13 +35,13 @@ valid = peak_values .> eps(Float64)
 peak_times = peak_times[valid]
 peak_values = peak_values[valid]
 
-design = hcat(ones(length(peak_times)), peak_times)
+design = hcat(ones(length(peak_times)),peak_times)
 coefficients = design \ log.(peak_values)
 growth_rate = coefficients[2]
 frequency = 1 / mean(diff(peak_times))
 fitted = design * coefficients
-ss_residual = sum(abs2, log.(peak_values) .- fitted)
-ss_total = sum(abs2, log.(peak_values) .- mean(log.(peak_values)))
+ss_residual = sum(abs2,log.(peak_values) .- fitted)
+ss_total = sum(abs2,log.(peak_values) .- mean(log.(peak_values)))
 r_squared = ss_total > 0 ? 1 - ss_residual / ss_total : 1.0
 
 println("history = $history_path")

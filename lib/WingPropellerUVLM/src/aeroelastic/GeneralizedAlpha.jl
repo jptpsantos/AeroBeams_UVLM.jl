@@ -13,7 +13,7 @@ function generalized_alpha_parameters(rho_infinity::Real)
     alpha_f = rho / (rho + 1.0)
     gamma = 0.5 - alpha_m + alpha_f
     beta = 0.25 * (1.0 - alpha_m + alpha_f)^2
-    return (; rho_infinity = rho, rho_inf = rho, alpha_m, alpha_f, gamma, beta)
+    return (; rho_infinity=rho,rho_inf=rho,alpha_m,alpha_f,gamma,beta)
 end
 
 """
@@ -31,7 +31,7 @@ function generalized_alpha_kinematics(
     velocity_n,
     acceleration_n,
     dt::Real,
-    parameters,
+    parameters
 )
     dt > 0 || throw(ArgumentError("The generalized-alpha time step must be positive"))
     beta = parameters.beta
@@ -40,30 +40,30 @@ function generalized_alpha_kinematics(
     a2 = 1.0 / (beta * dt)
     a3 = 1.0 / (2.0 * beta) - 1.0
     acceleration = a0 .* (displacement_np1 .- displacement_n) .-
-        a2 .* velocity_n .- a3 .* acceleration_n
+                   a2 .* velocity_n .- a3 .* acceleration_n
     velocity = velocity_n .+ dt .* (1.0 - gamma) .* acceleration_n .+
-        gamma .* dt .* acceleration
-    return (; velocity, acceleration)
+               gamma .* dt .* acceleration
+    return (; velocity,acceleration)
 end
 
-function _validate_residual_scale(scale, expected_length::Int, name::AbstractString)
+function _validate_residual_scale(scale,expectedLength::Int,name::AbstractString)
     isnothing(scale) && return nothing
-    length(scale) == expected_length || throw(DimensionMismatch(
-        "$name must contain $expected_length entries",
+    length(scale) == expectedLength || throw(DimensionMismatch(
+        "$name must contain $expectedLength entries"
     ))
-    all(isfinite, scale) || throw(ArgumentError("$name must contain only finite values"))
-    all(>(0), scale) || throw(ArgumentError("$name entries must be positive"))
+    all(isfinite,scale) || throw(ArgumentError("$name must contain only finite values"))
+    all(>(0),scale) || throw(ArgumentError("$name entries must be positive"))
     return scale
 end
 
-function _scaled_relative_residual(delta, reference, scale)
-    validated_scale = _validate_residual_scale(scale, length(delta), "residual scale")
-    if isnothing(validated_scale)
-        return norm(delta, Inf) / max(norm(reference, Inf), 1.0)
+function _scaled_relative_residual(delta,reference,scale)
+    validatedScale = _validate_residual_scale(scale,length(delta),"residual scale")
+    if isnothing(validatedScale)
+        return norm(delta,Inf) / max(norm(reference,Inf),1.0)
     end
-    scaled_delta = delta ./ validated_scale
-    scaled_reference = reference ./ validated_scale
-    return norm(scaled_delta, Inf) / max(norm(scaled_reference, Inf), 1.0)
+    scaledDelta = delta ./ validatedScale
+    scaledReference = reference ./ validatedScale
+    return norm(scaledDelta,Inf) / max(norm(scaledReference,Inf),1.0)
 end
 
 """
@@ -90,20 +90,20 @@ function generalized_alpha_equilibrium_residual(
     external_np1,
     external_n,
     parameters;
-    load_scale = nothing,
+    load_scale=nothing
 )
     alpha_m = parameters.alpha_m
     alpha_f = parameters.alpha_f
-    acceleration_alpha = (1.0 - alpha_m) .* acceleration_np1 .+
-        alpha_m .* acceleration_n
-    velocity_alpha = (1.0 - alpha_f) .* velocity_np1 .+ alpha_f .* velocity_n
-    displacement_alpha = (1.0 - alpha_f) .* displacement_np1 .+
-        alpha_f .* displacement_n
-    force_alpha = (1.0 - alpha_f) .* (force_np1 .+ external_np1) .+
-        alpha_f .* (force_n .+ external_n)
-    residual = M * acceleration_alpha .+ C * velocity_alpha .+
-        K * displacement_alpha .- force_alpha
-    return _scaled_relative_residual(residual, force_alpha, load_scale)
+    accelerationAlpha = (1.0 - alpha_m) .* acceleration_np1 .+
+                        alpha_m .* acceleration_n
+    velocityAlpha = (1.0 - alpha_f) .* velocity_np1 .+ alpha_f .* velocity_n
+    displacementAlpha = (1.0 - alpha_f) .* displacement_np1 .+
+                        alpha_f .* displacement_n
+    forceAlpha = (1.0 - alpha_f) .* (force_np1 .+ external_np1) .+
+                 alpha_f .* (force_n .+ external_n)
+    residual = M * accelerationAlpha .+ C * velocityAlpha .+
+               K * displacementAlpha .- forceAlpha
+    return _scaled_relative_residual(residual,forceAlpha,load_scale)
 end
 
 """
@@ -114,10 +114,10 @@ Perform one linear generalized-alpha structural correction. The returned
 named tuple contains the displacement, velocity, acceleration, and normalized
 effective-equilibrium residual at `n + 1`.
 """
-function generalized_alpha_corrector(M, C, K, u_n, v_n, a_n,
-    force_np1, force_n, external_np1, external_n, dt::Real, parameters;
-    effective_stiffness = nothing,
-    effective_factorization = nothing,
+function generalized_alpha_corrector(M,C,K,u_n,v_n,a_n,
+    force_np1,force_n,external_np1,external_n,dt::Real,parameters;
+    effective_stiffness=nothing,
+    effective_factorization=nothing
 )
 
     dt > 0 || throw(ArgumentError("The generalized-alpha time step must be positive"))
@@ -131,33 +131,35 @@ function generalized_alpha_corrector(M, C, K, u_n, v_n, a_n,
     a3 = 1.0 / (2.0 * beta) - 1.0
     a6 = dt * (1.0 - gamma)
     a7 = gamma * dt
-    velocity_coefficient = a7 * a0
+    velocityCoefficient = a7 * a0
 
-    constant_acceleration = -a0 .* u_n .- a2 .* v_n .- a3 .* a_n
-    constant_velocity = v_n .+ a6 .* a_n .+ a7 .* constant_acceleration
-    force_alpha = (1.0 - alpha_f) .* (force_np1 .+ external_np1) .+
-        alpha_f .* (force_n .+ external_n)
+    constantAcceleration = -a0 .* u_n .- a2 .* v_n .- a3 .* a_n
+    constantVelocity = v_n .+ a6 .* a_n .+ a7 .* constantAcceleration
+    forceAlpha = (1.0 - alpha_f) .* (force_np1 .+ external_np1) .+
+                 alpha_f .* (force_n .+ external_n)
 
     if isnothing(effective_stiffness)
-        effective_stiffness = (1.0 - alpha_m) .* a0 .* M .+
-            (1.0 - alpha_f) .* velocity_coefficient .* C .+
+        effective_stiffness =
+            (1.0 - alpha_m) .* a0 .* M .+
+            (1.0 - alpha_f) .* velocityCoefficient .* C .+
             (1.0 - alpha_f) .* K
     end
-    right_hand_side = force_alpha .-
-        M * ((1.0 - alpha_m) .* constant_acceleration .+ alpha_m .* a_n) .-
-        C * ((1.0 - alpha_f) .* constant_velocity .+ alpha_f .* v_n) .-
+    rightHandSide =
+        forceAlpha .-
+        M * ((1.0 - alpha_m) .* constantAcceleration .+ alpha_m .* a_n) .-
+        C * ((1.0 - alpha_f) .* constantVelocity .+ alpha_f .* v_n) .-
         K * (alpha_f .* u_n)
 
-    effective_solver = isnothing(effective_factorization) ?
-        effective_stiffness : effective_factorization
-    displacement = effective_solver \ right_hand_side
-    equilibrium_residual = norm(effective_stiffness * displacement .- right_hand_side) /
-        max(norm(right_hand_side), 1.0)
-    kinematics = generalized_alpha_kinematics(displacement, u_n, v_n, a_n, dt, parameters)
+    effectiveSolver = isnothing(effective_factorization) ?
+                      effective_stiffness : effective_factorization
+    displacement = effectiveSolver \ rightHandSide
+    equilibrium_residual = norm(effective_stiffness * displacement .- rightHandSide) /
+                           max(norm(rightHandSide),1.0)
+    kinematics = generalized_alpha_kinematics(displacement,u_n,v_n,a_n,dt,parameters)
     acceleration = kinematics.acceleration
     velocity = kinematics.velocity
 
-    return (; displacement, velocity, acceleration, equilibrium_residual)
+    return (; displacement,velocity,acceleration,equilibrium_residual)
 end
 
 Base.@kwdef struct PartitionedCouplingOptions{T<:Real}
@@ -208,10 +210,10 @@ function partitioned_generalized_alpha_step(
     dt::Real,
     parameters,
     load_at_state;
-    options::PartitionedCouplingOptions = PartitionedCouplingOptions(),
-    require_load_convergence::Bool = true,
-    state_scale = nothing,
-    load_scale = nothing,
+    options::PartitionedCouplingOptions=PartitionedCouplingOptions(),
+    require_load_convergence::Bool=true,
+    state_scale=nothing,
+    load_scale=nothing
 )
     return partitioned_aeroelastic_step(:generalized_alpha,
         M,C,K,displacement_n,velocity_n,acceleration_n,load_n,

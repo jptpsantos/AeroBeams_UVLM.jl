@@ -7,7 +7,7 @@
 
 Return the total force and moment coefficients after a near-field analysis.
 """
-function body_forces(system::System; frame = Body())
+function body_forces(system::System; frame=Body())
     @assert system.near_field_analysis[] "Near field analysis required"
     return body_forces(
         system.surfaces,
@@ -15,7 +15,7 @@ function body_forces(system::System; frame = Body())
         system.reference[],
         system.freestream[],
         system.symmetric,
-        frame,
+        frame
     )
 end
 
@@ -24,50 +24,50 @@ end
 
 Reduce normalized panel forces to total force and moment coefficients.
 """
-function body_forces(surfaces, properties, reference, freestream, symmetric, frame)
-    scalar_type = eltype(eltype(eltype(properties)))
-    total_force = zero(SVector{3, scalar_type})
-    total_moment = zero(SVector{3, scalar_type})
+function body_forces(surfaces,properties,reference,freestream,symmetric,frame)
+    scalarType = eltype(eltype(eltype(properties)))
+    totalForce = zero(SVector{3,scalarType})
+    totalMoment = zero(SVector{3,scalarType})
 
     for surface_index in eachindex(surfaces)
-        surface_force = zero(total_force)
-        surface_moment = zero(total_moment)
+        surfaceForce = zero(totalForce)
+        surfaceMoment = zero(totalMoment)
 
         for panel_index in eachindex(surfaces[surface_index])
             panel = surfaces[surface_index][panel_index]
             panel_properties = properties[surface_index][panel_index]
 
-            for (location, force) in (
-                (top_center(panel), panel_properties.cfb),
-                (left_center(panel), panel_properties.cfl),
-                (right_center(panel), panel_properties.cfr),
+            for (location,force) in (
+                (top_center(panel),panel_properties.cfb),
+                (left_center(panel),panel_properties.cfl),
+                (right_center(panel),panel_properties.cfr)
             )
-                surface_force += force
-                surface_moment += cross(location - reference.r, force)
+                surfaceForce += force
+                surfaceMoment += cross(location - reference.r,force)
             end
         end
 
         if symmetric[surface_index]
-            surface_force = SVector(
-                2 * surface_force[1],
-                zero(scalar_type),
-                2 * surface_force[3],
+            surfaceForce = SVector(
+                2 * surfaceForce[1],
+                zero(scalarType),
+                2 * surfaceForce[3]
             )
-            surface_moment = SVector(
-                zero(scalar_type),
-                2 * surface_moment[2],
-                zero(scalar_type),
+            surfaceMoment = SVector(
+                zero(scalarType),
+                2 * surfaceMoment[2],
+                zero(scalarType)
             )
         end
 
-        total_force += surface_force
-        total_moment += surface_moment
+        totalForce += surfaceForce
+        totalMoment += surfaceMoment
     end
 
-    reference_length = SVector(reference.b, reference.c, reference.b)
-    total_moment = total_moment ./ reference_length
-    total_moment = total_moment .* SVector(-1, 1, -1)
-    return body_to_frame(total_force, total_moment, reference, freestream, frame)
+    referenceLength = SVector(reference.b,reference.c,reference.b)
+    totalMoment = totalMoment ./ referenceLength
+    totalMoment = totalMoment .* SVector(-1,1,-1)
+    return body_to_frame(totalForce,totalMoment,reference,freestream,frame)
 end
 
 """
@@ -81,20 +81,20 @@ function body_forces_derivatives(system::System)
 
     reference = system.reference[]
     freestream = system.freestream[]
-    arguments = (system.surfaces, reference, freestream, system.symmetric, Body())
-    force, moment = body_forces(system.surfaces, system.properties,
-        reference, freestream, system.symmetric, Body())
+    arguments = (system.surfaces,reference,freestream,system.symmetric,Body())
+    force,moment = body_forces(system.surfaces,system.properties,
+        reference,freestream,system.symmetric,Body())
     # Preserve the historical derivative API: its base moment precedes the
     # roll/yaw convention change applied by `body_forces`, while each stored
     # moment derivative includes that convention change.
-    moment = moment .* SVector(-1, 1, -1)
+    moment = moment .* SVector(-1,1,-1)
 
-    derivative_results = map(system.dproperties) do derivative_properties
-        body_forces(system.surfaces, derivative_properties, arguments[2:end]...)
+    derivativeResults = map(system.dproperties) do derivativeProperties
+        body_forces(system.surfaces,derivativeProperties,arguments[2:end]...)
     end
-    force_derivatives = Tuple(first(result) for result in derivative_results)
-    moment_derivatives = Tuple(last(result) for result in derivative_results)
-    return force, moment, force_derivatives, moment_derivatives
+    forceDerivatives = Tuple(first(result) for result in derivativeResults)
+    momentDerivatives = Tuple(last(result) for result in derivativeResults)
+    return force,moment,forceDerivatives,momentDerivatives
 end
 
 """
@@ -106,26 +106,26 @@ function body_forces_history(
     system,
     surface_history::AbstractVector{<:AbstractVector{<:AbstractMatrix}},
     property_history;
-    frame = Body(),
+    frame=Body()
 )
-    number_of_steps = length(property_history)
+    nSteps = length(property_history)
     freestream_history = system.freestream[] isa Freestream ?
-        fill(system.freestream[], number_of_steps) : system.freestream[]
-    scalar_type = eltype(system)
-    force_history = Vector{SVector{3, scalar_type}}(undef, number_of_steps)
-    moment_history = similar(force_history)
+                         fill(system.freestream[],nSteps) : system.freestream[]
+    scalarType = eltype(system)
+    forceHistory = Vector{SVector{3,scalarType}}(undef,nSteps)
+    momentHistory = similar(forceHistory)
 
     for step in eachindex(property_history)
-        force_history[step], moment_history[step] = body_forces(
+        forceHistory[step],momentHistory[step] = body_forces(
             surface_history[step],
             property_history[step],
             system.reference[],
             freestream_history[step],
             system.symmetric,
-            frame,
+            frame
         )
     end
-    return force_history, moment_history
+    return forceHistory,momentHistory
 end
 
 """
@@ -133,22 +133,22 @@ end
 
 Return force and moment coefficients per unit span for each lifting line.
 """
-function lifting_line_coefficients(system, positions, chords; frame = Body())
-    scalar_type = promote_type(
+function lifting_line_coefficients(system,positions,chords; frame=Body())
+    scalarType = promote_type(
         eltype(system),
         eltype(eltype(positions)),
-        eltype(eltype(chords)),
+        eltype(eltype(chords))
     )
-    number_of_surfaces = length(system.surfaces)
-    force_coefficients = Vector{Matrix{scalar_type}}(undef, number_of_surfaces)
+    nSurfaces = length(system.surfaces)
+    force_coefficients = Vector{Matrix{scalarType}}(undef,nSurfaces)
     moment_coefficients = similar(force_coefficients)
 
     for surface_index in eachindex(system.surfaces)
-        number_spanwise = size(system.surfaces[surface_index], 2)
+        numberSpanwise = size(system.surfaces[surface_index],2)
         force_coefficients[surface_index] =
-            Matrix{scalar_type}(undef, 3, number_spanwise)
+            Matrix{scalarType}(undef,3,numberSpanwise)
         moment_coefficients[surface_index] =
-            Matrix{scalar_type}(undef, 3, number_spanwise)
+            Matrix{scalarType}(undef,3,numberSpanwise)
     end
     return lifting_line_coefficients!(
         force_coefficients,
@@ -156,13 +156,13 @@ function lifting_line_coefficients(system, positions, chords; frame = Body())
         system,
         positions,
         chords;
-        frame,
+        frame
     )
 end
 
-function lifting_line_coefficients(system; frame = Body(), xc = 0.25)
-    positions, chords = lifting_line_geometry(system.grids, xc)
-    return lifting_line_coefficients(system, positions, chords; frame)
+function lifting_line_coefficients(system; frame=Body(),xc=0.25)
+    positions,chords = lifting_line_geometry(system.grids,xc)
+    return lifting_line_coefficients(system,positions,chords; frame)
 end
 
 """
@@ -177,7 +177,7 @@ function lifting_line_coefficients!(
     system,
     positions,
     chords;
-    frame = Body(),
+    frame=Body()
 )
     @assert system.near_field_analysis[] "Near field analysis required"
     reference = system.reference[]
@@ -186,69 +186,69 @@ function lifting_line_coefficients!(
     for surface_index in eachindex(system.surfaces)
         panels = system.surfaces[surface_index]
         properties = system.properties[surface_index]
-        number_chordwise, number_spanwise = size(panels)
+        numberChordwise,numberSpanwise = size(panels)
 
-        for spanwise_index in 1:number_spanwise
-            left_position = SVector(
-                positions[surface_index][1, spanwise_index],
-                positions[surface_index][2, spanwise_index],
-                positions[surface_index][3, spanwise_index],
+        for spanwiseIndex = 1:numberSpanwise
+            leftPosition = SVector(
+                positions[surface_index][1,spanwiseIndex],
+                positions[surface_index][2,spanwiseIndex],
+                positions[surface_index][3,spanwiseIndex]
             )
-            right_position = SVector(
-                positions[surface_index][1, spanwise_index + 1],
-                positions[surface_index][2, spanwise_index + 1],
-                positions[surface_index][3, spanwise_index + 1],
+            rightPosition = SVector(
+                positions[surface_index][1,spanwiseIndex+1],
+                positions[surface_index][2,spanwiseIndex+1],
+                positions[surface_index][3,spanwiseIndex+1]
             )
-            segment_length = norm(right_position - left_position)
-            reference_position = (left_position + right_position) / 2
+            segmentLength = norm(rightPosition - leftPosition)
+            referencePosition = (leftPosition + rightPosition) / 2
             reference_chord = (
-                chords[surface_index][spanwise_index] +
-                chords[surface_index][spanwise_index + 1]
+                chords[surface_index][spanwiseIndex] +
+                chords[surface_index][spanwiseIndex+1]
             ) / 2
-            section_force = zero(SVector{3, eltype(force_coefficients[surface_index])})
-            section_moment = zero(section_force)
+            sectionForce = zero(SVector{3,eltype(force_coefficients[surface_index])})
+            sectionMoment = zero(sectionForce)
 
-            for chordwise_index in 1:number_chordwise
-                panel = panels[chordwise_index, spanwise_index]
-                panel_properties = properties[chordwise_index, spanwise_index]
-                for (location, force) in (
-                    (top_center(panel), panel_properties.cfb),
-                    (left_center(panel), panel_properties.cfl),
-                    (right_center(panel), panel_properties.cfr),
+            for chordwiseIndex = 1:numberChordwise
+                panel = panels[chordwiseIndex,spanwiseIndex]
+                panel_properties = properties[chordwiseIndex,spanwiseIndex]
+                for (location,force) in (
+                    (top_center(panel),panel_properties.cfb),
+                    (left_center(panel),panel_properties.cfl),
+                    (right_center(panel),panel_properties.cfr)
                 )
-                    section_force += force
-                    section_moment += cross(location - reference_position, force)
+                    sectionForce += force
+                    sectionMoment += cross(location - referencePosition,force)
                 end
             end
 
-            section_force *= reference.S / (segment_length * reference_chord)
-            section_moment *= reference.S /
-                (segment_length * reference_chord^2)
-            section_force, section_moment = body_to_frame(
-                section_force,
-                section_moment,
+            sectionForce *= reference.S / (segmentLength * reference_chord)
+            sectionMoment *= reference.S /
+                             (segmentLength * reference_chord^2)
+            sectionForce,sectionMoment = body_to_frame(
+                sectionForce,
+                sectionMoment,
                 reference,
                 freestream,
-                frame,
+                frame
             )
-            force_coefficients[surface_index][:, spanwise_index] = section_force
-            moment_coefficients[surface_index][:, spanwise_index] = section_moment
+            force_coefficients[surface_index][:,spanwiseIndex] = sectionForce
+            moment_coefficients[surface_index][:,spanwiseIndex] = sectionMoment
         end
     end
-    return force_coefficients, moment_coefficients
+    return force_coefficients,moment_coefficients
 end
 
-body_to_frame(force, moment, reference, freestream, ::Body) = force, moment
+body_to_frame(force,moment,reference,freestream,::Body) = force,moment
 
-function body_to_frame(force, moment, reference, freestream, ::Stability)
+function body_to_frame(force,moment,reference,freestream,::Stability)
     rotation = body_to_stability(freestream)
-    return rotation * force, rotation * moment
+    return rotation * force,rotation * moment
 end
 
-function body_to_frame(force, moment, reference, freestream, ::Wind)
-    reference_length = SVector(reference.b, reference.c, reference.b)
+function body_to_frame(force,moment,reference,freestream,::Wind)
+    referenceLength = SVector(reference.b,reference.c,reference.b)
     rotation = body_to_wind(freestream)
-    transformed_force = rotation * force
-    transformed_moment = rotation * (moment .* reference_length)
-    return transformed_force, transformed_moment ./ reference_length
+    transformedForce = rotation * force
+    transformedMoment = rotation * (moment .* referenceLength)
+    return transformedForce,transformedMoment ./ referenceLength
 end

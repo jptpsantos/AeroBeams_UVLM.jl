@@ -1,4 +1,4 @@
-using Test, LinearAlgebra
+using Test,LinearAlgebra
 BLAS.set_num_threads(1)
 ENV["GKSwstype"] = "100"
 

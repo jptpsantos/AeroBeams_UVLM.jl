@@ -217,6 +217,13 @@ The default case uses a 30-by-10 wing grid, a 10-by-10 grid per propeller blade,
 a text summary, and (by default) a PNG under `output/`. Wake animation is off
 by default because retained geometry and GIF files can be large.
 
+`export_chang_organized_history(chang_run)` optionally writes the one- or
+two-propeller CSV/text layout under `<configured output directory>/multi_prop/`.
+It uses plain file output and requires no CSV/DataFrames packages. The returned
+`df` is a NamedTuple of column vectors, so access such as `df.time_s` remains
+available; DataFrame-specific indexing requires an explicit conversion by the
+caller.
+
 For a quick path and coupling check:
 
 ```powershell

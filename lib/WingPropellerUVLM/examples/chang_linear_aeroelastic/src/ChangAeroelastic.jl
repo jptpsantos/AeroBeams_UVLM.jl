@@ -3,41 +3,41 @@ module ChangAeroelastic
 using LinearAlgebra
 using StaticArrays
 using WingPropellerUVLM:
-    Uniform, Freestream, Reference, RotationMatrix,
-    initialize_wing_propeller_uvlm_system, get_nodal_properties_chang,
-    grid_to_surface_panels, generate_panel_grid_and_interpolate, linear_interpolate_1d,
-    copy_surfaces_to_previous!, propagate_system!, advance_wake!, snapshot_uvlm, restore_uvlm!,
-    near_field_forces!, legacy_imperial_segment_forces!, imperial_nodal_forces, imperial_nodal_positions,
-    generalized_alpha_parameters, newmark_beta_parameters,
-    validate_structural_time_integrator, validate_aeroelastic_coupling_scheme,
-    structural_integration_parameters, PartitionedCouplingOptions,
-    loose_explicit_aeroelastic_step, partitioned_aeroelastic_step, smooth_hann_pulse_load
+    Uniform,Freestream,Reference,RotationMatrix,
+    initialize_wing_propeller_uvlm_system,get_nodal_properties_chang,
+    grid_to_surface_panels,generate_panel_grid_and_interpolate,linear_interpolate_1d,
+    copy_surfaces_to_previous!,propagate_system!,advance_wake!,snapshot_uvlm,restore_uvlm!,
+    near_field_forces!,legacy_imperial_segment_forces!,imperial_nodal_forces,imperial_nodal_positions,
+    generalized_alpha_parameters,newmark_beta_parameters,
+    validate_structural_time_integrator,validate_aeroelastic_coupling_scheme,
+    structural_integration_parameters,PartitionedCouplingOptions,
+    loose_explicit_aeroelastic_step,partitioned_aeroelastic_step,smooth_hann_pulse_load
 using WingPropellerUVLM: add_direct_node_wrench!
 
-export chang_case_defaults, load_chang_configuration, ChangModel,
-       chang_isolated_wing_case_defaults, load_chang_isolated_wing_configuration,
-       build_chang_model, build_chang_workspace, run_chang,
-    assemble_structural_model, update_aero_geometry_for_state!,
-    assemble_structural_aero_load!, aero_load_for_state!
+export chang_case_defaults,load_chang_configuration,ChangModel,
+    chang_isolated_wing_case_defaults,load_chang_isolated_wing_configuration,
+    build_chang_model,build_chang_workspace,run_chang,
+    assemble_structural_model,update_aero_geometry_for_state!,
+    assemble_structural_aero_load!,aero_load_for_state!
 
 # Includes define functions only. A case is constructed explicitly below.
 # Read the interactive case only when defaults are requested. Callers passing
 # an explicit configuration (including convergence studies) never read it.
 function chang_case_defaults()
     scope = Module(gensym(:ChangCaseDefaults))
-    Base.include(scope, joinpath(@__DIR__, "..", "chang_case.jl"))
+    Base.include(scope,joinpath(@__DIR__,"..","chang_case.jl"))
     return Base.invokelatest(scope.chang_case_defaults)
 end
 
 """Read the separate bare-wing case, leaving the wing-propeller inputs unchanged."""
 function chang_isolated_wing_case_defaults()
     scope = Module(gensym(:ChangIsolatedWingDefaults))
-    Base.include(scope, joinpath(@__DIR__, "..", "chang_isolated_wing_case.jl"))
-    return Base.invokelatest(scope.chang_isolated_wing_case_defaults, chang_case_defaults())
+    Base.include(scope,joinpath(@__DIR__,"..","chang_isolated_wing_case.jl"))
+    return Base.invokelatest(scope.chang_isolated_wing_case_defaults,chang_case_defaults())
 end
 
 function load_chang_isolated_wing_configuration(
-    defaults = chang_isolated_wing_case_defaults(); env = ENV,
+    defaults=chang_isolated_wing_case_defaults(); env=ENV
 )
     isempty(defaults.propeller.attachment_eta) ||
         error("The isolated-wing variant must have no propeller attachments")
@@ -71,21 +71,22 @@ function build_chang_model(config)
     parameters = build_chang_model_parameters(config)
     structural = assemble_structural_model(parameters)
     aerodynamic_options = chang_aerodynamic_options(config)
-    force_function = config.simulation.near_field_force_model == :legacy_imperial_segments ?
+    forceFunction =
+        config.simulation.near_field_force_model == :legacy_imperial_segments ?
         legacy_imperial_segment_forces! : near_field_forces!
-    return ChangModel(config, parameters, structural, aerodynamic_options, force_function)
+    return ChangModel(config,parameters,structural,aerodynamic_options,forceFunction)
 end
 
 # Plotting dependencies are loaded only for runs requesting visual output.
 function load_chang_visualization(output)
     if output.plot_results || output.animate_wake
-        isdefined(@__MODULE__, :Plots) || (@eval using Plots)
+        isdefined(@__MODULE__,:Plots) || (@eval using Plots)
     end
-    if output.plot_results && !isdefined(@__MODULE__, :plot_chang_time_histories)
-        include(joinpath(@__DIR__, "chang_plotting.jl"))
+    if output.plot_results && !isdefined(@__MODULE__,:plot_chang_time_histories)
+        include(joinpath(@__DIR__,"chang_plotting.jl"))
     end
-    if output.animate_wake && !isdefined(@__MODULE__, :record_chang_animation_frame!)
-        include(joinpath(@__DIR__, "chang_animation.jl"))
+    if output.animate_wake && !isdefined(@__MODULE__,:record_chang_animation_frame!)
+        include(joinpath(@__DIR__,"chang_animation.jl"))
     end
     return nothing
 end
@@ -97,16 +98,16 @@ Build a fresh model/workspace, solve the response, and save the requested output
 Return (; config, model, workspace, solution, results) for inspection or audits.
 The supplied configuration is copied so separate runs own their settings.
 """
-function run_chang(config = load_chang_configuration())
+function run_chang(config=load_chang_configuration())
     load_chang_visualization(config.output)
     # Optional plotting methods may have been defined during this call.
-    return Base.invokelatest(run_chang_case, config)
+    return Base.invokelatest(run_chang_case,config)
 end
 
 function run_chang_case(config; model=build_chang_model(config))
     # 1. Build and check the physical and aerodynamic models.
     config = model.config
-    parameters, structural = model.parameters, model.structural
+    parameters,structural = model.parameters,model.structural
     println("Aeroelastic near-field force model: $(config.simulation.near_field_force_model)")
     if parameters.Npropellers == 0
         println("Isolated wing: no propeller/pylon structural or aerodynamic contributions")
@@ -118,40 +119,40 @@ function run_chang_case(config; model=build_chang_model(config))
     if isnothing(config.aerodynamic.core_radius_m)
         println(
             "Finite-core radius: max($(config.aerodynamic.segment_core_factor) Δs, " *
-            "$(config.aerodynamic.chord_core_factor) c)",
+            "$(config.aerodynamic.chord_core_factor) c)"
         )
     else
         println("Fixed finite-core radius: $(config.aerodynamic.core_radius_m) m")
     end
     workspace = build_chang_workspace(model)
-    wake = chang_wake_context(workspace; interaction_on = config.simulation.interaction_on)
-    animation = chang_animation_options(workspace.system, workspace.iwake, config.output)
-    excitation = chang_excitation_options(config, parameters)
-    integration = chang_integration_options(config, structural, parameters)
-    report_chang_solver_options(excitation, integration)
-    output_directory, output_label = chang_output_paths(config.output)
+    wake = chang_wake_context(workspace; interaction_on=config.simulation.interaction_on)
+    animation = chang_animation_options(workspace.system,workspace.iwake,config.output)
+    excitation = chang_excitation_options(config,parameters)
+    integration = chang_integration_options(config,structural,parameters)
+    report_chang_solver_options(excitation,integration)
+    output_directory,output_label = chang_output_paths(config.output)
 
     # 2. Converge each structural/aerodynamic step, then advance its wake once.
-    aerodynamic_load = (snapshot, state, step) ->
-        aero_load_for_state!(model, workspace, snapshot, state, step)
+    aerodynamic_load = (snapshot,state,step) ->
+        aero_load_for_state!(model,workspace,snapshot,state,step)
     solution = solve_chang_aeroelastic!(
-        workspace.system, structural;
-        time = parameters.t,
-        time_steps = parameters.dt,
-        freestream_history = workspace.fs_vec,
-        aerodynamic_load, wake, excitation, integration, animation,
+        workspace.system,structural;
+        time=parameters.t,
+        time_steps=parameters.dt,
+        freestream_history=workspace.fs_vec,
+        aerodynamic_load,wake,excitation,integration,animation
     )
 
     # 3. Extract the accepted response and write the selected output.
     results = write_chang_results(
         solution;
-        wing = config.wing, propeller = config.propeller, simulation = config.simulation,
-        time = parameters.t, time_steps = parameters.dt,
-        wing_node_count = parameters.nnodes, dofs_per_node = parameters.ndof,
-        density = parameters.ref.rho, visualization = config.output,
-        output_directory, output_label,
+        wing=config.wing,propeller=config.propeller,simulation=config.simulation,
+        time=parameters.t,time_steps=parameters.dt,
+        wing_node_count=parameters.nnodes,dofs_per_node=parameters.ndof,
+        density=parameters.ref.rho,visualization=config.output,
+        output_directory,output_label
     )
-    return (; config, model, workspace, solution, results)
+    return (; config,model,workspace,solution,results)
 end
 
 end # module

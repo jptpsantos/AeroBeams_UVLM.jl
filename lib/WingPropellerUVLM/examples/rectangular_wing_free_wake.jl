@@ -4,7 +4,7 @@ import Pkg
 # `julia path/to/rectangular_wing_free_wake.jl`. The package is local to this
 # repository and is therefore activated by path rather than installed from a
 # registry.
-Pkg.activate(normpath(joinpath(@__DIR__, "..")))
+Pkg.activate(normpath(joinpath(@__DIR__,"..")))
 
 using DelimitedFiles
 using WingPropellerUVLM
@@ -28,7 +28,7 @@ Base.@kwdef struct RectangularWingCase
     convectiveTimes::Float64 = 15.0
     averagingConvectiveTimes::Float64 = 5.0
     vtkStride::Int = 5
-    outputDirectory::String = joinpath(@__DIR__, "output", "rectangular_wing_free_wake")
+    outputDirectory::String = joinpath(@__DIR__,"output","rectangular_wing_free_wake")
 end
 
 readEnv(::Type{T},name,default) where {T} = parse(T,get(ENV,name,string(default)))
@@ -47,7 +47,7 @@ function caseFromEnvironment()
         convectiveTimes=readEnv(Float64,"UVLM_RECT_CONVECTIVE_TIMES",defaults.convectiveTimes),
         averagingConvectiveTimes=readEnv(Float64,"UVLM_RECT_AVERAGING_TIMES",defaults.averagingConvectiveTimes),
         vtkStride=readEnv(Int,"UVLM_RECT_VTK_STRIDE",defaults.vtkStride),
-        outputDirectory=get(ENV,"UVLM_RECT_OUTPUT_DIR",defaults.outputDirectory),
+        outputDirectory=get(ENV,"UVLM_RECT_OUTPUT_DIR",defaults.outputDirectory)
     )
 end
 
@@ -67,7 +67,7 @@ function validate(case::RectangularWingCase)
 end
 
 function initializeSystem(case::RectangularWingCase,maximumWakeRows::Int)
-    halfSpan = case.span/2
+    halfSpan = case.span / 2
     xle = [0.0,0.0]
     yle = [-halfSpan,halfSpan]
     zle = [0.0,0.0]
@@ -79,11 +79,11 @@ function initializeSystem(case::RectangularWingCase,maximumWakeRows::Int)
         xle,yle,zle,chord,twist,dihedral,
         case.spanwisePanels,case.chordwisePanels;
         spacing_s=Cosine(),
-        spacing_c=Uniform(),
+        spacing_c=Uniform()
     )
-    _,returnedRatios,surface = grid_to_surface_panels(grid;ratios)
+    _,returnedRatios,surface = grid_to_surface_panels(grid; ratios)
 
-    system = System([grid];nw=[maximumWakeRows])
+    system = System([grid]; nw=[maximumWakeRows])
     system.ratios[1] .= returnedRatios
     system.surfaces[1] .= surface
     system.previous_surfaces[1] .= surface
@@ -93,18 +93,18 @@ function initializeSystem(case::RectangularWingCase,maximumWakeRows::Int)
     system.trailing_vortices .= false
 
     reference = Reference(
-        case.span*case.chord,
+        case.span * case.chord,
         case.chord,
         case.span,
-        [case.chord/4,0.0,0.0],
+        [case.chord / 4,0.0,0.0],
         case.freestreamSpeed,
-        case.airDensity,
+        case.airDensity
     )
     freestream = Freestream(
         case.freestreamSpeed,
         deg2rad(case.angleOfAttackDegrees),
         0.0,
-        zeros(3),
+        zeros(3)
     )
     system.reference[] = reference
     system.freestream[] = freestream
@@ -114,7 +114,7 @@ function initializeSystem(case::RectangularWingCase,maximumWakeRows::Int)
 end
 
 function meanRows(values,rows)
-    return vec(sum(view(values,rows,:);dims=1))/length(rows)
+    return vec(sum(view(values,rows,:); dims=1)) / length(rows)
 end
 
 function writeCsv(path,header,columns...)
@@ -123,7 +123,7 @@ function writeCsv(path,header,columns...)
         error("CSV columns must have equal length")
     open(path,"w") do io
         println(io,join(header,','))
-        for i in 1:count
+        for i = 1:count
             println(io,join((column[i] for column in columns),','))
         end
     end
@@ -138,41 +138,74 @@ end
 function writeLiftPlot(path,yCoordinates,meanLiftPerSpan,case)
     width,height = 960,600
     left,right,top,bottom = 105,35,70,90
-    plotWidth = width-left-right
-    plotHeight = height-top-bottom
+    plotWidth = width - left - right
+    plotHeight = height - top - bottom
     xMinimum,xMaximum = extrema(yCoordinates)
     rawMinimum,rawMaximum = extrema(meanLiftPerSpan)
-    yMinimum = min(0.0,1.05*rawMinimum)
-    yMaximum = max(0.0,1.10*rawMaximum)
-    yMaximum > yMinimum || (yMaximum = yMinimum+1)
-    xMap(x) = left+(x-xMinimum)/(xMaximum-xMinimum)*plotWidth
-    yMap(y) = top+(yMaximum-y)/(yMaximum-yMinimum)*plotHeight
+    yMinimum = min(0.0,1.05 * rawMinimum)
+    yMaximum = max(0.0,1.10 * rawMaximum)
+    yMaximum > yMinimum || (yMaximum = yMinimum + 1)
+    xMap(x) = left + (x - xMinimum) / (xMaximum - xMinimum) * plotWidth
+    yMap(y) = top + (yMaximum - y) / (yMaximum - yMinimum) * plotHeight
     points = svgPolyline(yCoordinates,meanLiftPerSpan,xMap,yMap)
 
-    xTicks = range(xMinimum,xMaximum;length=7)
-    yTicks = range(yMinimum,yMaximum;length=6)
+    xTicks = range(xMinimum,xMaximum; length=7)
+    yTicks = range(yMinimum,yMaximum; length=6)
     open(path,"w") do io
-        println(io,"<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"$width\" height=\"$height\" viewBox=\"0 0 $width $height\">")
+        println(
+            io,
+            "<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"$width\" height=\"$height\" viewBox=\"0 0 $width $height\">"
+        )
         println(io,"<rect width=\"100%\" height=\"100%\" fill=\"white\"/>")
-        println(io,"<text x=\"$(width/2)\" y=\"32\" text-anchor=\"middle\" font-family=\"sans-serif\" font-size=\"22\">Mean spanwise lift distribution</text>")
-        println(io,"<text x=\"$(width/2)\" y=\"55\" text-anchor=\"middle\" font-family=\"sans-serif\" font-size=\"14\">Rectangular wing: b=$(case.span) m, c=$(case.chord) m, alpha=$(case.angleOfAttackDegrees) deg, V=$(case.freestreamSpeed) m/s</text>")
+        println(
+            io,
+            "<text x=\"$(width/2)\" y=\"32\" text-anchor=\"middle\" font-family=\"sans-serif\" font-size=\"22\">Mean spanwise lift distribution</text>"
+        )
+        println(
+            io,
+            "<text x=\"$(width/2)\" y=\"55\" text-anchor=\"middle\" font-family=\"sans-serif\" font-size=\"14\">Rectangular wing: b=$(case.span) m, c=$(case.chord) m, alpha=$(case.angleOfAttackDegrees) deg, V=$(case.freestreamSpeed) m/s</text>"
+        )
         for value in yTicks
             pixel = yMap(value)
-            println(io,"<line x1=\"$left\" y1=\"$pixel\" x2=\"$(left+plotWidth)\" y2=\"$pixel\" stroke=\"#dddddd\" stroke-width=\"1\"/>")
-            println(io,"<text x=\"$(left-12)\" y=\"$(pixel+5)\" text-anchor=\"end\" font-family=\"sans-serif\" font-size=\"13\">$(round(value;digits=1))</text>")
+            println(
+                io,
+                "<line x1=\"$left\" y1=\"$pixel\" x2=\"$(left+plotWidth)\" y2=\"$pixel\" stroke=\"#dddddd\" stroke-width=\"1\"/>"
+            )
+            println(
+                io,
+                "<text x=\"$(left-12)\" y=\"$(pixel+5)\" text-anchor=\"end\" font-family=\"sans-serif\" font-size=\"13\">$(round(value;digits=1))</text>"
+            )
         end
         for value in xTicks
             pixel = xMap(value)
-            println(io,"<line x1=\"$pixel\" y1=\"$top\" x2=\"$pixel\" y2=\"$(top+plotHeight)\" stroke=\"#eeeeee\" stroke-width=\"1\"/>")
-            println(io,"<text x=\"$pixel\" y=\"$(top+plotHeight+25)\" text-anchor=\"middle\" font-family=\"sans-serif\" font-size=\"13\">$(round(value;digits=2))</text>")
+            println(
+                io,
+                "<line x1=\"$pixel\" y1=\"$top\" x2=\"$pixel\" y2=\"$(top+plotHeight)\" stroke=\"#eeeeee\" stroke-width=\"1\"/>"
+            )
+            println(
+                io,
+                "<text x=\"$pixel\" y=\"$(top+plotHeight+25)\" text-anchor=\"middle\" font-family=\"sans-serif\" font-size=\"13\">$(round(value;digits=2))</text>"
+            )
         end
-        println(io,"<rect x=\"$left\" y=\"$top\" width=\"$plotWidth\" height=\"$plotHeight\" fill=\"none\" stroke=\"black\" stroke-width=\"1.5\"/>")
-        println(io,"<polyline points=\"$points\" fill=\"none\" stroke=\"#005f9e\" stroke-width=\"3\" stroke-linejoin=\"round\"/>")
+        println(
+            io,
+            "<rect x=\"$left\" y=\"$top\" width=\"$plotWidth\" height=\"$plotHeight\" fill=\"none\" stroke=\"black\" stroke-width=\"1.5\"/>"
+        )
+        println(
+            io,
+            "<polyline points=\"$points\" fill=\"none\" stroke=\"#005f9e\" stroke-width=\"3\" stroke-linejoin=\"round\"/>"
+        )
         for (x,y) in zip(yCoordinates,meanLiftPerSpan)
             println(io,"<circle cx=\"$(xMap(x))\" cy=\"$(yMap(y))\" r=\"3\" fill=\"#005f9e\"/>")
         end
-        println(io,"<text x=\"$(left+plotWidth/2)\" y=\"$(height-28)\" text-anchor=\"middle\" font-family=\"sans-serif\" font-size=\"16\">Spanwise coordinate, y (m)</text>")
-        println(io,"<text x=\"27\" y=\"$(top+plotHeight/2)\" text-anchor=\"middle\" transform=\"rotate(-90 27 $(top+plotHeight/2))\" font-family=\"sans-serif\" font-size=\"16\">Mean lift per unit span (N/m)</text>")
+        println(
+            io,
+            "<text x=\"$(left+plotWidth/2)\" y=\"$(height-28)\" text-anchor=\"middle\" font-family=\"sans-serif\" font-size=\"16\">Spanwise coordinate, y (m)</text>"
+        )
+        println(
+            io,
+            "<text x=\"27\" y=\"$(top+plotHeight/2)\" text-anchor=\"middle\" transform=\"rotate(-90 27 $(top+plotHeight/2))\" font-family=\"sans-serif\" font-size=\"16\">Mean lift per unit span (N/m)</text>"
+        )
         println(io,"</svg>")
     end
     return path
@@ -180,51 +213,51 @@ end
 
 function saveResults(
     case,system,grid,time,clHistory,sectionClHistory,surfaceHistory,
-    propertyHistory,wakeHistory,vtkTimeSteps,Δt,averageRows,
+    propertyHistory,wakeHistory,vtkTimeSteps,Δt,averageRows
 )
     mkpath(case.outputDirectory)
     liftingLineCoordinates,liftingLineChords = lifting_line_geometry([grid])
     yEdges = vec(liftingLineCoordinates[1][2,:])
-    yCenters = (yEdges[1:end-1]+yEdges[2:end])/2
+    yCenters = (yEdges[1:end-1] + yEdges[2:end]) / 2
     panelWidths = diff(yEdges)
-    localChord = (liftingLineChords[1][1:end-1]+liftingLineChords[1][2:end])/2
+    localChord = (liftingLineChords[1][1:end-1] + liftingLineChords[1][2:end]) / 2
     meanSectionCl = meanRows(sectionClHistory,averageRows)
 
-    dynamicPressure = 0.5*case.airDensity*case.freestreamSpeed^2
-    meanLiftPerSpan = dynamicPressure.*localChord.*meanSectionCl
-    liftHistory = dynamicPressure*(case.span*case.chord).*clHistory
-    meanCl = sum(@view(clHistory[averageRows]))/length(averageRows)
-    integratedMeanLift = sum(meanLiftPerSpan.*panelWidths)
-    integratedMeanCl = integratedMeanLift/(dynamicPressure*case.span*case.chord)
+    dynamicPressure = 0.5 * case.airDensity * case.freestreamSpeed^2
+    meanLiftPerSpan = dynamicPressure .* localChord .* meanSectionCl
+    liftHistory = dynamicPressure * (case.span * case.chord) .* clHistory
+    meanCl = sum(@view(clHistory[averageRows])) / length(averageRows)
+    integratedMeanLift = sum(meanLiftPerSpan .* panelWidths)
+    integratedMeanCl = integratedMeanLift / (dynamicPressure * case.span * case.chord)
 
     writeCsv(
         joinpath(case.outputDirectory,"lift_history.csv"),
         ("time_s","CL","lift_N"),
-        time,clHistory,liftHistory,
+        time,clHistory,liftHistory
     )
     writeCsv(
         joinpath(case.outputDirectory,"mean_lift_distribution.csv"),
         ("y_m","two_y_over_span","mean_section_cl","mean_lift_per_span_N_per_m"),
-        yCenters,2 .* yCenters ./ case.span,meanSectionCl,meanLiftPerSpan,
+        yCenters,2 .* yCenters ./ case.span,meanSectionCl,meanLiftPerSpan
     )
     writeLiftPlot(
         joinpath(case.outputDirectory,"mean_lift_distribution.svg"),
-        yCenters,meanLiftPerSpan,case,
+        yCenters,meanLiftPerSpan,case
     )
 
     savedSteps = findall(vtkTimeSteps)
-    vtkIntervals = diff(vcat(0,savedSteps)).*Δt
+    vtkIntervals = diff(vcat(0,savedSteps)) .* Δt
     vtkBase = joinpath(case.outputDirectory,"rectangular_wing_free_wake")
     metadata = Dict(
-        "span_m"=>case.span,
-        "chord_m"=>case.chord,
-        "alpha_deg"=>case.angleOfAttackDegrees,
-        "freestream_mps"=>case.freestreamSpeed,
-        "air_density_kgpm3"=>case.airDensity,
+        "span_m" => case.span,
+        "chord_m" => case.chord,
+        "alpha_deg" => case.angleOfAttackDegrees,
+        "freestream_mps" => case.freestreamSpeed,
+        "air_density_kgpm3" => case.airDensity
     )
     write_vtk(
         vtkBase,surfaceHistory,propertyHistory,wakeHistory,vtkIntervals;
-        symmetric=[false],metadata,
+        symmetric=[false],metadata
     )
 
     summaryPath = joinpath(case.outputDirectory,"summary.txt")
@@ -254,16 +287,16 @@ function saveResults(
         integratedMeanCl,
         integratedMeanLift,
         summaryPath,
-        vtkBase,
+        vtkBase
     )
 end
 
 function run(case::RectangularWingCase=caseFromEnvironment())
     validate(case)
-    convectiveTime = case.chord/case.freestreamSpeed
-    Δt = convectiveTime/case.stepsPerConvectiveTime
-    numberOfSteps = round(Int,case.convectiveTimes*case.stepsPerConvectiveTime)
-    averageStepCount = round(Int,case.averagingConvectiveTimes*case.stepsPerConvectiveTime)
+    convectiveTime = case.chord / case.freestreamSpeed
+    Δt = convectiveTime / case.stepsPerConvectiveTime
+    numberOfSteps = round(Int,case.convectiveTimes * case.stepsPerConvectiveTime)
+    averageStepCount = round(Int,case.averagingConvectiveTimes * case.stepsPerConvectiveTime)
     averageRows = (numberOfSteps-averageStepCount+1):numberOfSteps
     maximumWakeRows = numberOfSteps
 
@@ -271,7 +304,7 @@ function run(case::RectangularWingCase=caseFromEnvironment())
     repeatedPoints = repeated_trailing_edge_points(system.surfaces)
     activeWakeRows = [0]
     maximumWakeRowsBySurface = [maximumWakeRows]
-    time = collect(1:numberOfSteps).*Δt
+    time = collect(1:numberOfSteps) .* Δt
     clHistory = zeros(numberOfSteps)
     sectionClHistory = zeros(numberOfSteps,case.spanwisePanels)
 
@@ -284,7 +317,7 @@ function run(case::RectangularWingCase=caseFromEnvironment())
     println("  lattice: $(case.chordwisePanels) chordwise x $(case.spanwisePanels) spanwise panels")
     println("  dt = $Δt s, steps = $numberOfSteps, wake rows = $maximumWakeRows")
 
-    for step in 1:numberOfSteps
+    for step = 1:numberOfSteps
         # This is the accepted-state pattern used by the run_chang partitioned
         # drivers. A coupled structural iteration may call advance_uvlm_trial!
         # repeatedly from this snapshot; only the accepted call is retained.
@@ -297,13 +330,13 @@ function run(case::RectangularWingCase=caseFromEnvironment())
             η=0.1,
             calculateInfluenceMatrix=true,
             nearFieldAnalysis=true,
-            derivatives=false,
+            derivatives=false
         )
         commit_wake_rows!(activeWakeRows,maximumWakeRowsBySurface)
         system.nwake .= activeWakeRows
 
-        totalForceCoefficient,_ = body_forces(system;frame=Wind())
-        sectionalForceCoefficient,_ = lifting_line_coefficients(system;frame=Wind())
+        totalForceCoefficient,_ = body_forces(system; frame=Wind())
+        sectionalForceCoefficient,_ = lifting_line_coefficients(system; frame=Wind())
         clHistory[step] = totalForceCoefficient[3]
         sectionClHistory[step,:] .= sectionalForceCoefficient[1][3,:]
 
@@ -316,13 +349,15 @@ function run(case::RectangularWingCase=caseFromEnvironment())
         end
 
         if step == 1 || step % max(1,div(numberOfSteps,10)) == 0 || step == numberOfSteps
-            println("  step $step/$numberOfSteps: t=$(round(time[step];digits=5)) s, CL=$(round(clHistory[step];digits=6)), wake rows=$(activeWakeRows[1])")
+            println(
+                "  step $step/$numberOfSteps: t=$(round(time[step];digits=5)) s, CL=$(round(clHistory[step];digits=6)), wake rows=$(activeWakeRows[1])"
+            )
         end
     end
 
     results = saveResults(
         case,system,grid,time,clHistory,sectionClHistory,surfaceHistory,
-        propertyHistory,wakeHistory,vtkTimeSteps,Δt,averageRows,
+        propertyHistory,wakeHistory,vtkTimeSteps,Δt,averageRows
     )
     println("Completed: mean CL = $(results.meanCl)")
     println("Integrated sectional mean CL = $(results.integratedMeanCl)")
