@@ -162,7 +162,7 @@ end
                         r"joinpath\(@__DIR__,\s*\"output\",\s*output_name\)" => repr(legacy))
                     callsBefore = length(LCOSweepOutputHarness.requested_angles)
                     Base.include_string(LCOSweepOutputHarness,source,path)
-                    result = LCOSweepOutputHarness.pulse_lco_results
+                    result = Base.invokelatest(getproperty,LCOSweepOutputHarness,:pulse_lco_results)
                     expected = joinpath(legacy,"AoA$(Int(degrees))","run_" * lpad(string(runNumber),3,'0'))
                     @test result.output_directory == expected
                     angles = LCOSweepOutputHarness.requested_angles[callsBefore+1:end]
@@ -180,12 +180,12 @@ end
                                 expected_rate; atol=1e-12)
                         )
                     end
-                    @test LCOSweepOutputHarness.pulse_start ≈ (high - 49.0) / 0.85
+                    @test Base.invokelatest(getproperty,LCOSweepOutputHarness,:pulse_start) ≈ (high - 49.0) / 0.85
 
                     # Plot-only must resolve this angle's existing run, not allocate one.
                     plotSource = replace(source,"plot_only = false" => "plot_only = true")
                     Base.include_string(LCOSweepOutputHarness,plotSource,path)
-                    @test LCOSweepOutputHarness.output_directory == expected
+                    @test Base.invokelatest(getproperty,LCOSweepOutputHarness,:output_directory) == expected
                     @test length(LCOSweepOutputHarness.requested_angles) == callsBefore + 4
                 end
             end

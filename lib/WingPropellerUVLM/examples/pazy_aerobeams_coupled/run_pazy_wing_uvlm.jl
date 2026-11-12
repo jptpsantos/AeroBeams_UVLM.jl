@@ -5,9 +5,9 @@ include(joinpath(@__DIR__,"..","..","studies","src","MovingBlockDamping.jl"))
 using .MovingBlockDamping: moving_block_damping
 
 # Flight conditions
-airspeed = 75                       # m/s
+airspeed = 45                       # m/s
 density = 1.225                       # kg/m^3
-angle_of_attack = deg2rad(0.0)
+angle_of_attack = deg2rad(3.0)
 sideslip = deg2rad(0.0)               # use symmetric_wing=false for nonzero sideslip
 
 # Smooth startup: ramp from 5% to 100% airspeed, then hold before the tip pulse.
@@ -67,7 +67,7 @@ coupling_display_iterations = false    # true: print every inner FSI iteration
 
 duration = 2.0                        # total simulated time, approximately [s]
 settling_time = 1.0                   # time at which the tip pulse starts [s]
-perturbation_amplitude = 10.0         # tip-force multiplier [N]
+perturbation_amplitude = 0.0         # tip-force multiplier [N]
 perturbation_duration = 0.1          # pulse duration [s]
 progress_frequency = 1                # 1: print every step; 100: every 100 steps
 

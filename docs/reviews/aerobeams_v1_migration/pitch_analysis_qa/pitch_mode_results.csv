@@ -1,0 +1,2 @@
+case,frequency_hz,growth_rate_per_s,wing_amplitude_deg,propeller_amplitude_deg,wing_to_propeller_amplitude_ratio,wing_minus_propeller_phase_deg,wing_nrmse,propeller_nrmse,wing_independent_frequency_hz,propeller_independent_frequency_hz,split_phase_difference_deg,split_ratio_relative_change,reliable,quality_notes
+V = 83 m/s,3.9495488,0.026592,0.12594526737743506,5.301735649217811,0.02375547852824694,-6.906077921118879,0.0022281689845928434,0.000452083451441135,3.94,3.94,0.00026503098712282736,0.00015261500928610144,true,
