@@ -1,11 +1,12 @@
 # Pazy verification
 
 From the repository root, with the AeroBeams and WingPropellerUVLM environments
-already instantiated:
+and the shared `lib/WingPropellerUVLM/examples` environment instantiated under
+Julia 1.13 or newer:
 
 ```powershell
-julia --project=lib/WingPropellerUVLM lib/WingPropellerUVLM/examples/pazy_aerobeams_coupled/test/runtests.jl
-julia --project=lib/WingPropellerUVLM lib/WingPropellerUVLM/examples/pazy_aerobeams_coupled/test/runtests.jl --full
+julia +1.13 --project=lib/WingPropellerUVLM/examples lib/WingPropellerUVLM/examples/pazy_aerobeams_coupled/test/runtests.jl
+julia +1.13 --project=lib/WingPropellerUVLM/examples lib/WingPropellerUVLM/examples/pazy_aerobeams_coupled/test/runtests.jl --full
 ```
 
 The default suite checks coordinate and load transfer, virtual work, Newton

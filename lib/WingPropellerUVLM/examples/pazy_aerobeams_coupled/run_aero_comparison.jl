@@ -88,15 +88,13 @@ function comparison_tip_force(t,start_time,pulse_duration,amplitude)
 end
 
 function comparison_newton_solver()
-    return AeroBeams.create_NewtonRaphson(
-        maximumIterations=newton_maximum_iterations,
-        absoluteTolerance=newton_absolute_tolerance,
-        relativeTolerance=newton_relative_tolerance,
+    return AeroBeams.create_NewtonRaphson(maxIter=newton_maximum_iterations,
+        absTol=newton_absolute_tolerance,
+        relTol=newton_relative_tolerance,
         displayStatus=newton_display_iterations,
-        alwaysUpdateJacobian=newton_always_update_jacobian,
+        method=(newton_always_update_jacobian ? :Newton : :NewtonChord),
         minConvRateAeroJacUpdate=1.2,
-        minConvRateJacUpdate=1.2
-    )
+        minConvRateJacUpdate=1.2)
 end
 
 """Run the nonlinear AeroBeams model with its Indicial strip aerodynamics."""
@@ -104,28 +102,23 @@ function run_strip_comparison(time_vector)
     n_elements,span,_,_ = AeroBeams.geometrical_properties_Pazy()
 
     # create_Pazy replaces this dummy beam with the actual Pazy beam.
-    dummyBeam = AeroBeams.create_Beam(
-        length=span,
+    dummyBeam = AeroBeams.create_Beam(length=span,
         nElements=n_elements,
-        S=[AeroBeams.isotropic_stiffness_matrix()]
-    )
-    tipPulse = AeroBeams.create_BC(
-        name="comparison tip pulse",
+        S=[AeroBeams.isotropic_stiffness_matrix()])
+    tipPulse = AeroBeams.create_BC(name="comparison tip pulse",
         beam=dummyBeam,
         node=n_elements + 1,
-        types=["F1A"],
-        values=[t -> comparison_tip_force(
-            t,settling_time,perturbation_duration,perturbation_amplitude)]
-    )
+        conditions=Dict(Symbol.(["F1A"]) .=> [t -> comparison_tip_force(
+            t,settling_time,perturbation_duration,perturbation_amplitude)]))
     speed = t -> comparison_airspeed(
         t,airspeed,initial_airspeed_fraction,airspeed_ramp_duration)
 
     model,_,_,_,_ = AeroBeams.create_Pazy(
         aeroSolver=AeroBeams.Indicial(),
         upright=true,
-        θ=angle_of_attack,
+        pitchAngle=angle_of_attack,
         airspeed=speed,
-        g=0.0,
+        gravityVector=zeros(3),
         withSkin=true,
         sweepStructuralCorrections=false,
         GAy=1e16,
@@ -135,35 +128,34 @@ function run_strip_comparison(time_vector)
         tipLossFunctionIsAirspeedDependent=true,
         additionalBCs=[tipPulse]
     )
-    model.atmosphere.ρ = density
+    atmosphere = model.atmosphere
+    model.atmosphere = AeroBeams.Atmosphere(altitude=atmosphere.altitude,ρ=density,
+        μ=atmosphere.μ,a=atmosphere.a,g=atmosphere.g)
 
-    problem = AeroBeams.create_DynamicProblem(
-        model=model,
+    problem = AeroBeams.create_DynamicProblem(model=model,
         timeVector=time_vector,
         systemSolver=comparison_newton_solver(),
         trackingTimeSteps=true,
         trackingFrequency=1,
         displayProgress=true,
-        displayFrequency=progress_frequency,
-        saveInitialSolution=true
-    )
+        displayFrequency=progress_frequency)
     AeroBeams.solve!(problem)
-    length(problem.savedTimeVector) == length(time_vector) ||
+    problem.solutionHistory.index - 1 == length(time_vector) ||
         error("AeroBeams strip solution stopped before the requested final time")
 
-    tipBending = [-states[n_elements].u_n2[1]
-                  for states in problem.nodalStatesOverTime]
+    tipBending = [-states[n_elements].u2[1]
+                  for states in problem.solutionHistory.states]
     tip_twist = [
         begin
-            rotation,_ = AeroBeams.rotation_tensor_WM(states[n_elements].p_n2_b)
+            rotation = AeroBeams.rotation_tensor_WM(states[n_elements].p2_b)
             chordDirection = rotation * [0.0; 1.0; 0.0]
             asind(clamp(chordDirection[3],-1.0,1.0))
-        end for states in problem.nodalStatesOverTime
+        end for states in problem.solutionHistory.states
     ]
 
     return (
         problem=problem,
-        time=copy(problem.savedTimeVector),
+        time=copy(problem.solutionHistory.t),
         tip_bending_displacement=tipBending,
         tip_twist_degrees=tip_twist
     )

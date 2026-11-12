@@ -13,11 +13,11 @@ function pazy_continuous_airspeed(t; initial_speed,peak_speed,upsweep_duration,d
 end
 
 function pazy_continuous_response_row(t,speed,structure,angle_of_attack,gauge_y,gauge_z)
-    root = structure.model.elements[1].compStates
+    root = structure.model.assemblyData.elements[1].state.midpoint
     twist = wingtip_twist_degrees(structure.model)
     strain = 1e6 * (root.γ[1] + gauge_z * root.κ[2] - gauge_y * root.κ[3])
     return [t,speed,strain,root.γ[1],root.κ[2],root.κ[3],
-        -structure.model.elements[end].nodalStates.u_n2[1],twist,rad2deg(angle_of_attack) + twist]
+        -structure.model.assemblyData.elements[end].state.nodal.u2[1],twist,rad2deg(angle_of_attack) + twist]
 end
 
 function pazy_continuous_branch(history,indices,name)
@@ -118,8 +118,8 @@ function run_pazy_continuous_LCO(; initial_speed=35.0,peak_speed=52.0,
         history[i,:] .= pazy_continuous_response_row(t,profile(t),structure,
             angle_of_attack,gauge_y,gauge_z)
         if i == turnaroundIndex
-            turnaround[] = (; index=i,time=t,structural_state=copy(structure.x),
-                maximum_velocity=maximum(norm(vcat(e.states.V,e.states.Ω)) for e in structure.model.elements),
+            turnaround[] = (; index=i,time=t,structural_state=copy(structure.systemArrays.x),
+                maximum_velocity=maximum(norm(vcat(e.state.midpoint.V,e.state.midpoint.Ω)) for e in structure.model.assemblyData.elements),
                 aerodynamic_snapshot=UVLM.snapshot_uvlm(aerodynamic.state.system),
                 aerodynamic_time=aerodynamic.state.timeNow,step_index=aerodynamic.state.stepIndex)
             write_branch(1:i,"upsweep")

@@ -383,7 +383,11 @@ Changing this setting does not repair a session that already has failed type
 redefinitions. No solver tolerance or aerodynamic parameter adjustment is
 indicated by these messages.
 
-The coupling adapter prepends the local UVLM environment to `LOAD_PATH`. At
+Since the AeroBeams 1.0 migration, the coupling adapter uses the shared
+`examples/Project.toml` environment to resolve AeroBeams and UVLM together.
+Restart the Julia session after switching environments. The following records
+the earlier 0.8.1 investigation: the adapter prepended the local UVLM environment
+to `LOAD_PATH`. At
 the 24 October check, the root manifest selected PrettyTables 2.4.0 / Adapt
 3.7.2, while the UVLM manifest selected PrettyTables 3.4.8 / Adapt 4.7.0.
 A fresh adapter load used the latter versions and succeeded. This is a reason

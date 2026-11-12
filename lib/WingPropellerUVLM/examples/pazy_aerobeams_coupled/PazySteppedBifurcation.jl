@@ -343,7 +343,7 @@ function run_loaded(; U_min,U_max,dU,plateau_time,transient_time,sweep_order,
         for r in responses
             values[r][1] = getproperty(initialStatic,r)
         end
-        snapshots(structure,aerodynamic,t) = (; time=t,structural_state=copy(structure.x),
+        snapshots(structure,aerodynamic,t) = (; time=t,structural_state=copy(structure.systemArrays.x),
             aerodynamic_snapshot=B.UVLM.snapshot_uvlm(aerodynamic.state.system))
         function observe(i,t,structure,aerodynamic)
             step = i - 1
@@ -368,9 +368,9 @@ function run_loaded(; U_min,U_max,dU,plateau_time,transient_time,sweep_order,
                         global_time_s=t,accepted_step=step,aerodynamic_step=aerodynamic.state.stepIndex,
                         aerodynamic_time_s=aerodynamic.state.timeNow,
                         retained_wake_rows=aerodynamic.state.system.nwake[1],
-                        circulation_norm=norm(aerodynamic.state.system.Γ),structural_state_norm=norm(structure.x),
+                        circulation_norm=norm(aerodynamic.state.system.Γ),structural_state_norm=norm(structure.systemArrays.x),
                         maximum_section_velocity_norm=maximum(
-                            norm(vcat(e.states.V,e.states.Ω)) for e in structure.model.elements
+                            norm(vcat(e.state.midpoint.V,e.state.midpoint.Ω)) for e in structure.model.assemblyData.elements
                         ),
                         structural_problem_id=objectid(structure),aerodynamic_problem_id=objectid(aerodynamic))
                 )

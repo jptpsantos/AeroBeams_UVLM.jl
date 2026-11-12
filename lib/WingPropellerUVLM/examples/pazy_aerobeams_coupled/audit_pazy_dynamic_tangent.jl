@@ -3,14 +3,14 @@
 include(joinpath(@__DIR__,"replay_pazy_failure.jl"))
 
 function add_time_chain_rule!(p)
-    for e in p.model.elements
-        scale = e.Δℓ / p.Δt / p.model.forceScaling
-        dF = scale * AeroBeams.mul3(e.R_p1,e.R_p2,e.R_p3,e.R0 * e.compStates.P)
-        dM = scale * AeroBeams.mul3(e.R_p1,e.R_p2,e.R_p3,e.R0 * e.compStates.H)
-        p.jacobian[e.eqs_Fu1,e.DOF_p] .+= dF
-        p.jacobian[e.eqs_Fu2,e.DOF_p] .+= dF
-        p.jacobian[e.eqs_Fp1,e.DOF_p] .+= e.notHingedNode1Mat * dM
-        p.jacobian[e.eqs_Fp2,e.DOF_p] .+= dM
+    for e in p.model.assemblyData.elements
+        scale = e.geometry.Δℓ / p.time.state.Δt / p.model.assemblyData.forceScaling
+        dF = scale * AeroBeams.mul3(e.stateCache.rotationMatrices.R_p1,e.stateCache.rotationMatrices.R_p2,e.stateCache.rotationMatrices.R_p3,e.geometry.R0 * e.state.midpoint.P)
+        dM = scale * AeroBeams.mul3(e.stateCache.rotationMatrices.R_p1,e.stateCache.rotationMatrices.R_p2,e.stateCache.rotationMatrices.R_p3,e.geometry.R0 * e.state.midpoint.H)
+        p.systemArrays.jacobian[e.assemblyIndices.eqs_Fu1,e.assemblyIndices.DOF_p] .+= dF
+        p.systemArrays.jacobian[e.assemblyIndices.eqs_Fu2,e.assemblyIndices.DOF_p] .+= dF
+        p.systemArrays.jacobian[e.assemblyIndices.eqs_Fp1,e.assemblyIndices.DOF_p] .+= e.geometry.notHingedNode1Mat * dM
+        p.systemArrays.jacobian[e.assemblyIndices.eqs_Fp2,e.assemblyIndices.DOF_p] .+= dM
     end
 end
 
@@ -18,27 +18,29 @@ function tangent_audit(data)
     BLAS.set_num_threads(1)
     ctx = data.before
     p0 = deepcopy(ctx.structure)
-    AeroBeams.get_equivalent_states_rates!(p0)
+    AeroBeams.update_equivalent_states_rates!(p0)
     offsets = 2 .* ctx.offsets .- ctx.previous_offsets
     loads = beam_loads(UVLM.dimensional_loads(data.aerodynamic.workspace.system),offsets,ctx.weights)
-    apply_pazy_nodal_loads!(p0,loads,p0.timeNow)
-    p0.skipJacobianUpdate = false
-    AeroBeams.assemble_system_arrays!(p0)
-    println("Failing physical time: ",p0.timeNow)
-    println("Maximum element rotation-parameter norm: ",maximum(norm(e.states.p) for e in p0.model.elements))
-    original = copy(p0.jacobian)
+    apply_pazy_nodal_loads!(p0,loads,p0.time.state.timeNow)
+    p0.systemSolver.state.skipJacobianUpdate = false
+    AeroBeams.fj!(p0)
+    println("Failing physical time: ",p0.time.state.timeNow)
+    println("Maximum element rotation-parameter norm: ",maximum(norm(e.state.midpoint.p) for e in p0.model.assemblyData.elements))
+    original = copy(p0.systemArrays.jacobian)
     add_time_chain_rule!(p0)
-    corrected = copy(p0.jacobian)
-    ids = unique(vcat([e.DOF_p for e in p0.model.elements]...))
+    corrected = copy(p0.systemArrays.jacobian)
+    ids = unique(vcat([e.assemblyIndices.DOF_p for e in p0.model.assemblyData.elements]...))
     for seed = 1:3
-        direction = zeros(length(p0.x))
+        direction = zeros(length(p0.systemArrays.x))
         direction[ids] .= sin.(seed .* (1:length(ids)))
         direction ./= norm(direction)
         for h in (1e-5,1e-6,1e-7)
             plus,minus = deepcopy(p0),deepcopy(p0)
-            AeroBeams.assemble_system_arrays!(plus,p0.x .+ h .* direction)
-            AeroBeams.assemble_system_arrays!(minus,p0.x .- h .* direction)
-            fd = (plus.residual - minus.residual) / (2h)
+            plus.systemArrays.x .= p0.systemArrays.x .+ h .* direction
+            minus.systemArrays.x .= p0.systemArrays.x .- h .* direction
+            AeroBeams.fj!(plus)
+            AeroBeams.fj!(minus)
+            fd = (plus.systemArrays.residual - minus.systemArrays.residual) / (2h)
             println("Direction ",seed," h=",h," original error=",norm(fd - original * direction) / norm(fd),
                 " corrected error=",norm(fd - corrected * direction) / norm(fd))
         end
@@ -50,22 +52,22 @@ function tangent_audit(data)
         println("Newton with fresh tangent, chain-rule correction=",useCorrection," backtracking=",backtrack)
         limit = backtrack ? 60 : 20
         for k = 0:limit
-            p.skipJacobianUpdate = false
-            AeroBeams.assemble_system_arrays!(p)
-            r = norm(p.residual)
+            p.systemSolver.state.skipJacobianUpdate = false
+            AeroBeams.fj!(p)
+            r = norm(p.systemArrays.residual)
             println("  iteration=",k," reassembled residual=",r)
             r < 1e-6 && break
             k == limit && break
             useCorrection && add_time_chain_rule!(p)
-            increment = -(p.jacobian \ p.residual)
+            increment = -(p.systemArrays.jacobian \ p.systemArrays.residual)
             if backtrack
                 accepted = false
                 for j = 0:20
                     fraction = 2.0^(-j)
                     trial = deepcopy(p)
-                    trial.x .+= fraction .* increment
-                    AeroBeams.assemble_system_arrays!(trial)
-                    if norm(trial.residual) <= (1 - 1e-4 * fraction) * r
+                    trial.systemArrays.x .+= fraction .* increment
+                    AeroBeams.fj!(trial)
+                    if norm(trial.systemArrays.residual) <= (1 - 1e-4 * fraction) * r
                         println("    accepted Newton fraction=",fraction)
                         p = trial
                         accepted = true
@@ -77,7 +79,7 @@ function tangent_audit(data)
                     break
                 end
             else
-                p.x .+= increment
+                p.systemArrays.x .+= increment
             end
         end
     end

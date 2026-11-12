@@ -28,10 +28,15 @@ function sweep_aerobeams_boundary()
     root = normpath(joinpath(@__DIR__,"..","..","..",".."))
     angles = unique(vcat(collect(0:0.25:1),collect(1:0.5:7)))
     onset,offset = fill(NaN,length(angles)),fill(NaN,length(angles))
+    speeds = vcat(1e-3,collect(1:120))
+    # v1 stores one flattened, column-major damping matrix per pitch angle.
+    file = joinpath(root,"test","newTestDataGenerators","PazyWingFlutterPitchRange","damps.txt")
+    data = readdlm(file,Float64)
+    size(data,1) == length(angles) && iszero(size(data,2) % length(speeds)) ||
+        error("Unexpected AeroBeams Pazy damping reference layout")
     for (i,angle) in enumerate(angles)
-        file = joinpath(root,"test","newTestDataGenerators","PazyWingFlutterPitchRange","damps$i.txt")
-        damping = readdlm(file,Float64)
-        for crossing in sweep_crossings(collect(0:120),damping[:,3])
+        damping = reshape(data[i,:],:,length(speeds))
+        for crossing in sweep_crossings(speeds,damping[3,:])
             if crossing.kind == "onset" && isnan(onset[i])
                 onset[i] = crossing.speed
             elseif crossing.kind == "offset" && isnan(offset[i])

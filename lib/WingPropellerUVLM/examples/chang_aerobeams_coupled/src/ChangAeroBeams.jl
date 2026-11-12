@@ -4,15 +4,16 @@ using LinearAlgebra
 using SparseArrays
 using DelimitedFiles
 
-# Stack the two checked-out packages without changing either project/manifest.
-const REPOSITORY_ROOT = normpath(joinpath(@__DIR__,"..","..","..","..",".."))
-const UVLM_ROOT = normpath(joinpath(@__DIR__,"..","..",".."))
-for package_root in (REPOSITORY_ROOT,UVLM_ROOT)
-    package_root in LOAD_PATH || pushfirst!(LOAD_PATH,package_root)
-end
+# Resolve the two checked-out packages in the coupled-examples environment.
+const REPOSITORY_ROOT = rstrip(normpath(joinpath(@__DIR__,"..","..","..","..","..")),('/','\\'))
+const UVLM_ROOT = rstrip(normpath(joinpath(@__DIR__,"..","..","..")),('/','\\'))
+const COUPLED_ENVIRONMENT = rstrip(normpath(joinpath(@__DIR__,"..","..")),('/','\\'))
+COUPLED_ENVIRONMENT in LOAD_PATH || pushfirst!(LOAD_PATH,COUPLED_ENVIRONMENT)
 import AeroBeams as AB
 import WingPropellerUVLM as UVLM
 import ForwardDiff
+include(joinpath(@__DIR__,"..","..","AeroBeamsCoupling.jl"))
+using .AeroBeamsCoupling
 
 include(joinpath(@__DIR__,"..","..","chang_linear_aeroelastic","src","ChangAeroelastic.jl"))
 const Chang = ChangAeroelastic

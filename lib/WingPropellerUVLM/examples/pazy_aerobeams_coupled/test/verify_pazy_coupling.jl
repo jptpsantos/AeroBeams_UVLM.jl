@@ -9,13 +9,13 @@ include(joinpath(PAZY_EXAMPLE_DIR,"PazyWingUVLMCoupling.jl"))
 
 function audit_geometry()
     ne,span,chord,spar = AeroBeams.geometrical_properties_Pazy()
-    eta = AeroBeams.nodal_positions_Pazy()
+    eta = last(AeroBeams.geometrical_properties_Pazy())
     R0 = [0.0 0.0 -1.0; 0.0 1.0 0.0; 1.0 0.0 0.0]
     elements = [
-        (r_n1=[0.0,0.0,span * eta[e]],
-            r_n2=[0.0,0.0,span * eta[e+1]],R0_n1=R0,R0_n2=R0,
-            nodalStates=(u_n1=zeros(3),u_n2=zeros(3),p_n1=zeros(3),
-                p_n2=zeros(3),p_n2_b=zeros(3))) for e = 1:ne
+        (assemblyData=(r_n1=[0.0,0.0,span * eta[e]],
+            r_n2=[0.0,0.0,span * eta[e+1]]),geometry=(R0_n1=R0,R0_n2=R0),
+            state=(nodal=(u1=zeros(3),u2=zeros(3),p1=zeros(3),
+                p2=zeros(3),p2_b=zeros(3)),)) for e = 1:ne
     ]
     weights = zeros(16,ne + 1)
     for j = 1:16
@@ -25,7 +25,7 @@ function audit_geometry()
         weights[j,left] = 1 - fraction
         weights[j,left+1] = fraction
     end
-    return (elements=elements,),chord,spar,weights
+    return (assemblyData=(elements=elements,),),chord,spar,weights
 end
 
 function audit_vertices(model,chord,spar,weights; nc=4)
@@ -45,9 +45,9 @@ function virtual_work_check(weights)
     # Its chord points must not move, so this virtual motion does no aero work.
     # At p=0, the WM parameter increment equals the infinitesimal rotation.
     epsilon = 1e-6
-    model.elements[7].nodalStates.p_n2[2] = epsilon
+    model.assemblyData.elements[7].state.nodal.p2[2] = epsilon
     plus,_ = audit_vertices(model,chord,spar,weights)
-    model.elements[7].nodalStates.p_n2[2] = -epsilon
+    model.assemblyData.elements[7].state.nodal.p2[2] = -epsilon
     minus,_ = audit_vertices(model,chord,spar,weights)
     aerodynamic_work = sum(dot(forces[i],(plus[i] - minus[i]) / (2epsilon))
                            for i in eachindex(forces))
@@ -65,9 +65,9 @@ end
 
 function deformed_work_check(nc)
     model,chord,spar,weights = audit_geometry()
-    for (e,element) in enumerate(model.elements)
-        element.nodalStates.u_n2 .= [0.03sin(e / 9),0.01cos(e / 8),-0.04sin(e / 7)]
-        element.nodalStates.p_n2 .= [0.4sin(e / 9),-0.3cos(e / 8),0.2sin(e / 7)]
+    for (e,element) in enumerate(model.assemblyData.elements)
+        element.state.nodal.u2 .= [0.03sin(e / 9),0.01cos(e / 8),-0.04sin(e / 7)]
+        element.state.nodal.p2 .= [0.4sin(e / 9),-0.3cos(e / 8),0.2sin(e / 7)]
     end
     points,positions,offsets = audit_vertices(model,chord,spar,weights; nc)
     forces = [[sin(k + j),cos(2k + j),sin(k - 2j)]
@@ -79,16 +79,16 @@ function deformed_work_check(nc)
     epsilon = 1e-6
     plusModel,minusModel = deepcopy(model),deepcopy(model)
     structural_work = 0.0
-    for (e,element) in enumerate(model.elements)
+    for (e,element) in enumerate(model.assemblyData.elements)
         du = [0.01cos(e),0.02sin(e),0.01cos(2e)]
         dp = [0.2sin(e),0.1cos(e),-0.3sin(2e)]
-        plusModel.elements[e].nodalStates.u_n2 .+= epsilon .* du
-        minusModel.elements[e].nodalStates.u_n2 .-= epsilon .* du
-        plusModel.elements[e].nodalStates.p_n2 .+= epsilon .* dp
-        minusModel.elements[e].nodalStates.p_n2 .-= epsilon .* dp
-        R = first(AeroBeams.rotation_tensor_WM(element.nodalStates.p_n2))
-        Rp = first(AeroBeams.rotation_tensor_WM(plusModel.elements[e].nodalStates.p_n2))
-        Rm = first(AeroBeams.rotation_tensor_WM(minusModel.elements[e].nodalStates.p_n2))
+        plusModel.assemblyData.elements[e].state.nodal.u2 .+= epsilon .* du
+        minusModel.assemblyData.elements[e].state.nodal.u2 .-= epsilon .* du
+        plusModel.assemblyData.elements[e].state.nodal.p2 .+= epsilon .* dp
+        minusModel.assemblyData.elements[e].state.nodal.p2 .-= epsilon .* dp
+        R = AeroBeams.rotation_tensor_WM(element.state.nodal.p2)
+        Rp = AeroBeams.rotation_tensor_WM(plusModel.assemblyData.elements[e].state.nodal.p2)
+        Rm = AeroBeams.rotation_tensor_WM(minusModel.assemblyData.elements[e].state.nodal.p2)
         spin = ((Rp - Rm) / (2epsilon)) * R'
         dtheta = [spin[3,2] - spin[2,3],spin[1,3] - spin[3,1],spin[2,1] - spin[1,2]] / 2
         structural_work += dot(loads[1:3,e+1],du) + dot(loads[4:6,e+1],dtheta)
@@ -127,36 +127,41 @@ function retry_check()
     # Use the same numeric load BCs and active-model update as the Pazy loop.
     loads = zeros(6,5)
     loads[3,end] = 30.0
-    beam = AeroBeams.create_Beam(length=1.0,nElements=4,
+    beam = AeroBeams.create_Beam(length=1.0,
+        nElements=4,
         S=[Matrix(Diagonal([1e5,1e5,1e5,100.0,10.0,10.0]))])
-    clamp = AeroBeams.create_BC(beam=beam,node=1,
-        types=["u1A","u2A","u3A","p1A","p2A","p3A"],values=zeros(6))
+    clamp = AeroBeams.create_BC(beam=beam,
+        node=1,
+        conditions=Dict(Symbol.(["u1A","u2A","u3A","p1A","p2A","p3A"]) .=> zeros(6)))
     bcs = [clamp]
     for node = 1:5
         push!(
             bcs,
-            AeroBeams.create_BC(beam=beam,node=node,
-                types=["F1A","F2A","F3A","M1A","M2A","M3A"],values=zeros(6))
+            AeroBeams.create_BC(beam=beam,
+        node=node,
+        conditions=Dict(Symbol.(["F1A","F2A","F3A","M1A","M2A","M3A"]) .=> zeros(6)))
         )
     end
     model = AeroBeams.create_Model(beams=[beam],BCs=bcs)
-    solver = AeroBeams.create_NewtonRaphson(maximumIterations=4,
-        absoluteTolerance=1e-8,relativeTolerance=1e-8)
+    solver = AeroBeams.create_NewtonRaphson(maxIter=4,
+        absTol=1e-8,
+        relTol=1e-8)
     problem = AeroBeams.create_SteadyProblem(model=model,systemSolver=solver)
     apply_pazy_nodal_loads!(problem,loads,0.0)
     # This calls the same Newton retry implementation as solve_time_step!.
-    AeroBeams.solve_NewtonRaphson!(problem)
+    AeroBeams.solve_nonlinear_system!(problem)
     replaced = problem.model !== model
-    converged = solver.convergedFinalSolution
+    converged = solver.loadStepState.convergedFinalSolution
+    retried = solver.loadStepState.loadstep > 1
     loads[3,end] = 31.0
     apply_pazy_nodal_loads!(problem,loads,0.0)
-    solver_value = problem.model.BCs[end].currentValue[3]
-    special_node_value = problem.model.specialNodes[end].BCs[end].currentValue[3]
-    previousSolution = copy(problem.x)
-    AeroBeams.solve_NewtonRaphson!(problem)
-    return (; replaced,converged,live_value=loads[3,end],solver_value,
-        special_node_value,second_converged=solver.convergedFinalSolution,
-        solution_change=norm(problem.x - previousSolution))
+    solver_value = problem.model.BCs[end].state.currentValue[3]
+    special_node_value = problem.model.assemblyData.specialNodes[end].BCs[end].state.currentValue[3]
+    previousSolution = copy(problem.systemArrays.x)
+    AeroBeams.solve_nonlinear_system!(problem)
+    return (; replaced,retried,converged,live_value=loads[3,end],solver_value,
+        special_node_value,second_converged=solver.loadStepState.convergedFinalSolution,
+        solution_change=norm(problem.systemArrays.x - previousSolution))
 end
 
 @testset "Pazy coupling audit (failures identify implementation defects)" begin
@@ -200,7 +205,8 @@ end
     @testset "Newton retry preserves externally updated load BCs" begin
         check = retry_check()
         println("Newton recovery: ",check)
-        @test check.replaced # Confirm this exercise actually took the retry path.
+        @test check.retried # Confirm this exercise actually took the retry path.
+        @test !check.replaced # v1 retries in place, preserving active model aliases.
         @test check.converged
         @test check.solver_value == check.live_value
         @test check.special_node_value == check.live_value

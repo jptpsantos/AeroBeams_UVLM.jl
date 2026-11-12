@@ -7,11 +7,11 @@ include(joinpath(PAZY_EXAMPLE_DIR,"PazyWingUVLMCoupling.jl"))
     # Minimal beam outputs, with a deliberately small recovery error at the clamp.
     R0 = [0.0 0.0 -1.0; 0.0 1.0 0.0; 1.0 0.0 0.0]
     root_error = [0.0,0.0,1e-14]
-    node_states = (u_n1=root_error,p_n1=zeros(3),
-        u_n2=zeros(3),p_n2=zeros(3),p_n2_b=zeros(3))
-    element = (r_n1=zeros(3),r_n2=[0.0,0.0,0.55],
-        R0_n1=R0,R0_n2=R0,nodalStates=node_states)
-    model = (elements=[element],)
+    node_states = (u1=root_error,p1=zeros(3),
+        u2=zeros(3),p2=zeros(3),p2_b=zeros(3))
+    element = (assemblyData=(r_n1=zeros(3),r_n2=[0.0,0.0,0.55]),
+        geometry=(R0_n1=R0,R0_n2=R0),state=(nodal=node_states,))
+    model = (assemblyData=(elements=[element],),)
     weights = hcat(1 .- collect(0:15) ./ 15,collect(0:15) ./ 15)
     chord,spar = 0.0989,0.44096
     grid,positions,_ = wing_geometry(model,chord,spar,4,weights)
@@ -82,7 +82,7 @@ if "--dynamic" in ARGS
         @test all(result.coupling_iterations[2:end] .>= 2)
         @test all(result.coupling_geometry_residual[2:end] .<= 1e-5)
         @test all(result.coupling_load_residual[2:end] .<= 1e-3)
-        @test length(result.structural_problem.savedTimeVector) == length(result.time)
+        @test length(result.structural_problem.solutionHistory.t) == length(result.time)
         @test (length(result.time) - 1) % result.animation_stride != 0
         @test last(result.animation_time) == last(result.time)
         @test all(f -> all(isfinite,f),result.aerodynamic_problem.results.forceOverTime)

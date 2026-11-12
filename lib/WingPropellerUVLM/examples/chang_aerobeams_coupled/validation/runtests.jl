@@ -1,4 +1,6 @@
 using Test,LinearAlgebra
+const COUPLED_ENVIRONMENT = normpath(joinpath(@__DIR__,"..",".."))
+COUPLED_ENVIRONMENT in LOAD_PATH || pushfirst!(LOAD_PATH,COUPLED_ENVIRONMENT)
 BLAS.set_num_threads(1)
 ENV["GKSwstype"] = "100"
 

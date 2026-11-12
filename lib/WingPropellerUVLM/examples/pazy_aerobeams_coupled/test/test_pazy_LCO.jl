@@ -52,12 +52,12 @@ end
         @test up.result.structural_problem.model !== down.result.structural_problem.model
         @test up.equilibrium.structural_problem.model !== down.equilibrium.structural_problem.model
         @test !isapprox(down.result.initial_equilibrium_state.structural_state,
-            up.result.structural_problem.x; rtol=1e-5,atol=1e-9)
+            up.result.structural_problem.systemArrays.x; rtol=1e-5,atol=1e-9)
         for branch in (up,down)
             result,equilibrium = branch.result,branch.equilibrium
             initial = result.initial_equilibrium_state
             @test equilibrium.converged
-            @test initial.structural_state == equilibrium.structural_problem.x
+            @test initial.structural_state == equilibrium.structural_problem.systemArrays.x
             @test initial.maximum_velocity <= 1e-10
             @test result.structural_problem.model !== equilibrium.structural_problem.model
             @test initial.aerodynamic_snapshot.Γ == equilibrium.aerodynamic_problem.state.system.Γ
@@ -69,13 +69,13 @@ end
             @test result.aerodynamic_problem.state.timeNow ≈ last(result.time)
             @test result.aerodynamic_problem.state.stepIndex == length(result.time)
             @test all(isapprox.(diff(result.time),result.dt; rtol=1e-12))
-            root = result.structural_problem.model.elements[1].compStates
+            root = result.structural_problem.model.assemblyData.elements[1].state.midpoint
             fiberTangent = [1.0,0.0,0.0] + root.γ + cross(root.κ,[0.0,0.0,2.25e-3 / 2])
             @test last(branch.root_strain_ue) ≈ 1e6 * (fiberTangent[1] - 1) atol = 1e-8
             @test branch.root_strain_ue[1] < 0
             @test result.tip_twist_degrees[1] ≈ wingtip_twist_degrees(equilibrium.structural_problem.model)
-            @test result.tip_out_of_plane[1] ≈ -equilibrium.structural_problem.model.elements[end].nodalStates.u_n2[1]
-            @test result.root_axial_strain[1] ≈ equilibrium.structural_problem.model.elements[1].compStates.γ[1]
+            @test result.tip_out_of_plane[1] ≈ -equilibrium.structural_problem.model.assemblyData.elements[end].state.nodal.u2[1]
+            @test result.root_axial_strain[1] ≈ equilibrium.structural_problem.model.assemblyData.elements[1].state.midpoint.γ[1]
             history = readdlm(joinpath(directory,"pazy_linear_LCO_$(branch.name).csv"),',',Float64; skipstart=1)
             @test history[:,1] == result.time
             @test history[:,2] == result.airspeed_history
@@ -281,7 +281,7 @@ end
         @test result.aerodynamic_problem.state.system.nwake[1] ==
               min(length(result.time) - 1,size(result.aerodynamic_problem.state.system.wakes[1],1))
         @test result.aerodynamic_problem.state.system.nwake[1] > n
-        @test isempty(result.structural_problem.nodalStatesOverTime)
+        @test isempty(result.structural_problem.solutionHistory.states)
         @test sweep.aoa_histories[1][end] == sweep.aoa_histories[2][1]
         @test sweep.aoa_histories[2][end] == sweep.aoa_histories[3][1]
 
@@ -310,7 +310,7 @@ end
         @test constant.tip_out_of_plane ≈ result.tip_out_of_plane[1:n+1] rtol = 1e-9 atol = 1e-11
         prescribed = run_pazy_wing_uvlm(; base_options...,airspeed=30.0,
             airspeed_profile=t -> 30.0)
-        @test prescribed.structural_problem.x ≈ constant.structural_problem.x rtol = 1e-10 atol = 1e-12
+        @test prescribed.structural_problem.systemArrays.x ≈ constant.structural_problem.systemArrays.x rtol = 1e-10 atol = 1e-12
         @test prescribed.tip_twist_degrees ≈ constant.tip_twist_degrees rtol = 1e-10 atol = 1e-12
 
         history = readdlm(joinpath(directory,"pazy_LCO_continuous_history.csv"),',',Float64; skipstart=1)

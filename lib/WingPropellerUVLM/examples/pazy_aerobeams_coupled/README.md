@@ -1,5 +1,15 @@
 # Pazy wing: AeroBeams + UVLM
 
+Use AeroBeams 1.0 with Julia 1.13 or newer. From the repository root,
+instantiate `lib/WingPropellerUVLM/examples/Project.toml` once, then run:
+
+```powershell
+julia +1.13 --project=lib/WingPropellerUVLM/examples lib/WingPropellerUVLM/examples/pazy_aerobeams_coupled/run_pazy_wing_uvlm.jl
+```
+
+The shared environment keeps AeroBeams, UVLM and differentiation dependencies
+compatible. Restart existing Julia sessions when switching from the 0.8.1 baseline.
+
 Start with `run_pazy_wing_uvlm.jl`. All inputs are ordinary variables in that
 file: airspeed, angle of attack, chordwise/spanwise panel counts, wake length,
 duration, tip pulse and animation frame count. Run the whole file to simulate,

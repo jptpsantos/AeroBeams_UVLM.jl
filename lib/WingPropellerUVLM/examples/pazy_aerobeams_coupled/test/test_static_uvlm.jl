@@ -38,13 +38,13 @@ options = (; airspeed=15.0,density=1.225,angle_of_attack=deg2rad(3.0),
         @test all(iszero(v) for v in result.aerodynamic_problem.state.system.Vcp[1])
         @test all(result.history[:,14] .== 1)
         @test all(
-            bc.currentValue ≈ result.applied_nodal_loads[:,n]
+            bc.state.currentValue ≈ result.applied_nodal_loads[:,n]
             for (n,bc) in enumerate(result.structural_problem.model.BCs[2:end])
         )
-        @test length(result.structural_problem.nodalStatesOverσ) == 1
+        @test length(result.structural_problem.loadstepHistory.states) == 1
         # An independent geometric reconstruction: final wake and static shape agree.
         ne,_,chord,spar = AeroBeams.geometrical_properties_Pazy()
-        eta = AeroBeams.nodal_positions_Pazy()
+        eta = last(AeroBeams.geometrical_properties_Pazy())
         W = zeros(options.spanwise_panels + 1,ne + 1)
         for j in axes(W,1)
             station = (j - 1) / options.spanwise_panels

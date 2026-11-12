@@ -113,7 +113,7 @@ Generated response data and plots are written under this example's `output/`. It
 
 ### 3.2 How the packages are loaded
 
-`ChangAeroBeams.jl` places the repository root and local WingPropellerUVLM root on the process `LOAD_PATH`, imports the two packages, and includes the existing `ChangAeroelastic.jl` module under the alias `Chang`. The new source files are then included into `ChangAeroBeams`.
+`ChangAeroBeams.jl` places the shared `examples/Project.toml` environment on the process `LOAD_PATH`, imports the checked-out AeroBeams and WingPropellerUVLM packages, and includes the existing `ChangAeroelastic.jl` module under the alias `Chang`. This environment resolves both packages together; instantiate it before the first run. The new source files are then included into `ChangAeroBeams`.
 
 This is a local example-level extension. It does not install a package, edit an environment, or add a new global rotor type to the AeroBeams package.
 

@@ -26,14 +26,16 @@ export chang_case_defaults,load_chang_configuration,ChangModel,
 function chang_case_defaults()
     scope = Module(gensym(:ChangCaseDefaults))
     Base.include(scope,joinpath(@__DIR__,"..","chang_case.jl"))
-    return Base.invokelatest(scope.chang_case_defaults)
+    constructor = Base.invokelatest(getproperty,scope,:chang_case_defaults)
+    return Base.invokelatest(constructor)
 end
 
 """Read the separate bare-wing case, leaving the wing-propeller inputs unchanged."""
 function chang_isolated_wing_case_defaults()
     scope = Module(gensym(:ChangIsolatedWingDefaults))
     Base.include(scope,joinpath(@__DIR__,"..","chang_isolated_wing_case.jl"))
-    return Base.invokelatest(scope.chang_isolated_wing_case_defaults,chang_case_defaults())
+    constructor = Base.invokelatest(getproperty,scope,:chang_isolated_wing_case_defaults)
+    return Base.invokelatest(constructor,chang_case_defaults())
 end
 
 function load_chang_isolated_wing_configuration(

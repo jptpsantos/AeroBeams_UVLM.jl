@@ -3,6 +3,10 @@
 # The beam's right-handed section frame is b = (span, chord aft, down).
 const CHANG_WING_NAME = "Chang nonlinear wing"
 const CHANG_WING_R0 = [0.0 1.0 0.0; 1.0 0.0 0.0; 0.0 0.0 -1.0]
+# The reference is a pi rotation about (1,1,0)/sqrt(2). Specify its WM
+# parameters directly: v1's Euler-to-quaternion conversion can round the
+# quaternion vector norm above one at this exact half-turn.
+const CHANG_WING_P0 = [2sqrt(2.0),2sqrt(2.0),0.0]
 
 _wing_load_bc_name(node) = "Chang wing load node $node"
 
@@ -123,36 +127,49 @@ function build_wing(reference; time_vector=Float64.(reference.parameters.t),
     stiffness = _wing_element_stiffness(parameters,nodes; shear_stiffness)
     inertia,conservationError = _wing_element_inertias(
         Float64.(parameters.span_nodes),parameters.spatial_inertia_node_blocks,nodes)
-    beam = AB.create_Beam(name=CHANG_WING_NAME,length=parameters.span_length,
-        nElements=n_elements,normalizedNodalPositions=nodes ./ parameters.span_length,
-        S=stiffness,I=inertia,rotationParametrization="E321",p0=[pi / 2,0.0,pi],
-        initialPosition=[first(ea_x),0.0,0.0],aeroSurface=nothing)
-    isapprox(beam.R0,CHANG_WING_R0; atol=1e-13,rtol=0) ||
+    beam = AB.create_Beam(name=CHANG_WING_NAME,
+        length=parameters.span_length,
+        nElements=n_elements,
+        normalizedNodalPositions=nodes ./ parameters.span_length,
+        S=stiffness,
+        I=inertia,
+        p0=copy(CHANG_WING_P0),
+        firstNodeOffset=[first(ea_x),0.0,0.0],
+        surface=nothing)
+    isapprox(beam.geometry.R0,CHANG_WING_R0; atol=1e-13,rtol=0) ||
         error("Unexpected Chang AeroBeams reference frame")
-    clamp = AB.create_BC(name="Chang wing root clamp",beam=beam,node=1,
-        types=["u1A","u2A","u3A","p1A","p2A","p3A"],values=zeros(6))
+    clamp = AB.create_BC(name="Chang wing root clamp",
+        beam=beam,
+        node=1,
+        conditions=Dict(Symbol.(["u1A","u2A","u3A","p1A","p2A","p3A"]) .=> zeros(6)))
     bcs = [clamp]
     for node in eachindex(nodes)
         push!(
             bcs,
-            AB.create_BC(name=_wing_load_bc_name(node),beam=beam,node=node,
-                types=["F1A","F2A","F3A","M1A","M2A","M3A"],values=zeros(6))
+            AB.create_BC(name=_wing_load_bc_name(node),
+                beam=beam,
+                node=node,
+                conditions=Dict(Symbol.(["F1A","F2A","F3A","M1A","M2A","M3A"]) .=> zeros(6)))
         )
     end
     model = AB.create_Model(name="Chang wing with UVLM and hub subsystem",
         beams=[beam],BCs=bcs,gravityVector=zeros(3),v_A=t -> zeros(3),
         units=AB.create_UnitsSystem(frequency="Hz"))
-    newton = AB.create_NewtonRaphson(maximumIterations=newton_maximum_iterations,
-        absoluteTolerance=newton_absolute_tolerance,relativeTolerance=newton_relative_tolerance,
-        displayStatus=newton_display_iterations,alwaysUpdateJacobian=true,
-        trackingLoadSteps=false)
-    problem = AB.create_DynamicProblem(model=model,timeVector=times,systemSolver=newton,
-        trackingTimeSteps=tracking_time_steps,displayProgress=false,saveInitialSolution=false)
-    AB.precompute_distributed_loads!(problem)
+    newton = AB.create_NewtonRaphson(maxIter=newton_maximum_iterations,
+        absTol=newton_absolute_tolerance,
+        relTol=newton_relative_tolerance,
+        displayStatus=newton_display_iterations,
+        method=:Newton,
+        trackLoadSteps=false)
+    problem = AB.create_DynamicProblem(model=model,
+        timeVector=times,
+        systemSolver=newton,
+        trackingTimeSteps=tracking_time_steps,
+        displayProgress=false)
+    prepare_structural_problem!(problem)
     AB.solve_initial_dynamic!(problem)
-    # solve_initial_dynamic! solves a deep-copied problem and copies its states,
-    # but does not copy the temporary Newton solver's convergence flag.
-    all(isfinite,problem.x) || error("Nonfinite unloaded Chang wing initialization")
+    # Check initialized structural arrays independently of the startup solver flag.
+    all(isfinite,problem.systemArrays.x) || error("Nonfinite unloaded Chang wing initialization")
     poses = wing_node_poses(problem)
     maximum(abs.(poses.positions[2,:] .- nodes)) <= 1e-10 ||
         error("Chang AeroBeams span stations do not match the aerodynamic frame")
@@ -175,53 +192,53 @@ function _wing_beam(problem)
 end
 
 function _wing_special_node(problem,node)
-    1 <= node <= problem.model.nNodesTotal || throw(BoundsError(1:problem.model.nNodesTotal,node))
-    index = findfirst(s -> s.globalID == node,problem.model.specialNodes)
+    1 <= node <= problem.model.assemblyData.nNodesTotal || throw(BoundsError(1:problem.model.assemblyData.nNodesTotal,node))
+    index = findfirst(s -> s.assemblyData.globalID == node,problem.model.assemblyData.specialNodes)
     isnothing(index) && error("Wing node $node has no explicit special-node coordinates")
-    return problem.model.specialNodes[index]
+    return problem.model.assemblyData.specialNodes[index]
 end
 
 """Exact nodal displacements and WM parameters from the active mixed unknowns."""
 function wing_node_parameters(problem)
-    count = problem.model.nNodesTotal
+    count = problem.model.assemblyData.nNodesTotal
     u,p = zeros(3,count),zeros(3,count)
     for node = 1:count
         special = _wing_special_node(problem,node)
         # This adapter prescribes an exactly fixed root. Its unknowns are
         # reaction loads and must never be interpreted as displacements.
         node == 1 && continue
-        u[:,node] .= problem.x[special.DOF_uF]
-        p[:,node] .= problem.x[special.DOF_pM]
+        u[:,node] .= problem.systemArrays.x[special.assemblyData.DOF_uF]
+        p[:,node] .= problem.systemArrays.x[special.assemblyData.DOF_pM]
     end
     return (; u,p)
 end
 
 function set_wing_node_parameters!(problem,u,p)
-    count = problem.model.nNodesTotal
+    count = problem.model.assemblyData.nNodesTotal
     size(u) == size(p) == (3,count) || throw(DimensionMismatch(
         "Wing u and p must have size (3,$count)"))
     for node = 2:count
         special = _wing_special_node(problem,node)
-        problem.x[special.DOF_uF] .= u[:,node]
-        problem.x[special.DOF_pM] .= p[:,node]
+        problem.systemArrays.x[special.assemblyData.DOF_uF] .= u[:,node]
+        problem.systemArrays.x[special.assemblyData.DOF_pM] .= p[:,node]
     end
     return problem
 end
 
-"""Reference-axis positions and full section rotations b -> U, from problem.x."""
-function wing_node_poses(problem; nodes=1:problem.model.nNodesTotal)
+"""Reference-axis positions and full section rotations b -> U, from problem.systemArrays.x."""
+function wing_node_poses(problem; nodes=1:problem.model.assemblyData.nNodesTotal)
     parameters = wing_node_parameters(problem)
     count = length(nodes)
     positions = zeros(3,count)
     rotations = Matrix{Float64}[]
     for (j,node) in enumerate(nodes)
-        index = findfirst(e -> node in e.nodesGlobalID,problem.model.elements)
-        element = problem.model.elements[index]
-        firstSide = element.nodesGlobalID[1] == node
-        referencePosition = firstSide ? element.r_n1 : element.r_n2
-        reference_rotation = firstSide ? element.R0_n1 : element.R0_n2
+        index = findfirst(e -> node in e.assemblyData.nodesGlobalIDs,problem.model.assemblyData.elements)
+        element = problem.model.assemblyData.elements[index]
+        firstSide = element.assemblyData.nodesGlobalIDs[1] == node
+        referencePosition = firstSide ? element.assemblyData.r_n1 : element.assemblyData.r_n2
+        reference_rotation = firstSide ? element.geometry.R0_n1 : element.geometry.R0_n2
         positions[:,j] .= referencePosition .+ parameters.u[:,node]
-        R = AB.rotation_tensor_WM(parameters.p[:,node])[1]
+        R = AB.rotation_tensor_WM(parameters.p[:,node])
         push!(rotations,Matrix(R * reference_rotation))
     end
     return (; positions,rotations)
@@ -230,29 +247,28 @@ end
 """Special-node columns and physical force/moment balance rows for augmentation."""
 function wing_node_dof_map(problem,node)
     special = _wing_special_node(problem,node)
-    force_rows = unique(reduce(vcat,special.eqs_Fu; init=Int[]))
-    moment_rows = unique(reduce(vcat,special.eqs_Fp; init=Int[]))
+    force_rows = collect(special.assemblyData.eqs_Fu)
+    moment_rows = collect(special.assemblyData.eqs_Fp)
     return (; special_node=special,prescribed=node == 1,
-        displacement_columns=node == 1 ? Int[] : collect(special.DOF_uF),
-        rotation_columns=node == 1 ? Int[] : collect(special.DOF_pM),
-        columns=node == 1 ? Int[] : vcat(special.DOF_uF,special.DOF_pM),
+        displacement_columns=node == 1 ? Int[] : collect(special.assemblyData.DOF_uF),
+        rotation_columns=node == 1 ? Int[] : collect(special.assemblyData.DOF_pM),
+        columns=node == 1 ? Int[] : vcat(special.assemblyData.DOF_uF,special.assemblyData.DOF_pM),
         force_rows,moment_rows,
         equilibrium_rows=vcat(force_rows,moment_rows),
-        force_scaling=problem.model.forceScaling)
+        force_scaling=problem.model.assemblyData.forceScaling)
 end
 
 """Apply numeric spatial nodal wrenches [Fx,Fy,Fz,Mx,My,Mz] in frame U."""
-function set_wing_loads!(problem,loads,time=problem.timeNow)
-    count = problem.model.nNodesTotal
+function set_wing_loads!(problem,loads,time=problem.time.state.timeNow)
+    count = problem.model.assemblyData.nNodesTotal
     size(loads) == (6,count) || throw(DimensionMismatch(
         "Wing wrenches must have size (6,$count)"))
     all(isfinite,loads) || throw(ArgumentError("Nonfinite wing wrench"))
     for node = 1:count
-        index = findfirst(bc -> bc.name == _wing_load_bc_name(node),problem.model.BCs)
+        index = findfirst(bc -> bc.definition.name == _wing_load_bc_name(node),problem.model.BCs)
         isnothing(index) && error("Missing numeric load BC at wing node $node")
         bc = problem.model.BCs[index]
-        bc.values .= loads[:,node]
-        AB.update_BC_data!(bc,time)
+        set_nodal_wrench!(bc,view(loads,:,node),time)
     end
     return problem
 end
@@ -266,9 +282,9 @@ _wing_vee_skew(A) = [A[3,2] - A[2,3],A[1,3] - A[3,1],
 R(p) gives omega=vee(Rdot*R') and alpha=vee(Rddot*R'+Rdot*Rdot').
 """
 function wm_spatial_angular_kinematics(p,pdot,pddot)
-    R = AB.rotation_tensor_WM(p)[1]
+    R = AB.rotation_tensor_WM(p)
     rotationPath = t -> vec(AB.rotation_tensor_WM(
-        p .+ t .* pdot .+ (t^2 / 2) .* pddot)[1])
+        p .+ t .* pdot .+ (t^2 / 2) .* pddot))
     Rdot = reshape(AB.ForwardDiff.derivative(rotationPath,0.0),3,3)
     Rddot = reshape(AB.ForwardDiff.derivative(
             t -> AB.ForwardDiff.derivative(rotationPath,t),0.0),3,3)

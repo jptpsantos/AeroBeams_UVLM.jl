@@ -2,7 +2,7 @@
 # Copy the final onset and offset speeds for each pitch angle from
 # output/stability_sweep/damping_estimation.xlsx into pazy_boundaries below.
 
-let root = normpath(joinpath(@__DIR__,"..","..","..",".."))
+let root = normpath(joinpath(@__DIR__,".."))
     root in LOAD_PATH || pushfirst!(LOAD_PATH,root)
 end
 using Plots,DelimitedFiles,ColorSchemes

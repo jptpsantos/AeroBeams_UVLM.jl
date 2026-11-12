@@ -1,5 +1,5 @@
 # Run Pazy wing cases, estimate damping, and plot the stability boundary.
-let root = normpath(joinpath(@__DIR__,"..","..","..",".."))
+let root = normpath(joinpath(@__DIR__,".."))
     root in LOAD_PATH || pushfirst!(LOAD_PATH,root)
 end
 using Plots,DelimitedFiles,ColorSchemes

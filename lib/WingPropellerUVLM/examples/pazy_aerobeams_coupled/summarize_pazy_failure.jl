@@ -23,7 +23,7 @@ function summarize_history(io,data,name)
         t = block[:,1] .- mean(block[:,1])
         y = y - hcat(ones(n),t) * (hcat(ones(n),t) \ y)
         window = 0.5 .- 0.5 .* cos.(2pi .* (0:n-1) ./ (n - 1))
-        power = abs2.(AeroBeams.rfft(y .* window))
+        power = abs2.(AeroBeams.FFTW.rfft(y .* window))
         frequency = collect(0:length(power)-1) ./ (n * median(diff(block[:,1])))
         peak = frequency[argmax(power[2:end])+1]
         fraction = sum(power[frequency.>100]) / sum(power[2:end])

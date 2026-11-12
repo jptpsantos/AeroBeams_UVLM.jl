@@ -1,0 +1,46 @@
+name: UVLM and coupled examples
+on:
+  push:
+    branches: [main, update-aerobeams, aerobeams-v1-migration]
+  pull_request:
+  workflow_dispatch:
+jobs:
+  custom-tests:
+    runs-on: ubuntu-latest
+    timeout-minutes: 180
+    strategy:
+      fail-fast: false
+      matrix:
+        suite: [uvlm, studies, pazy, chang]
+    env:
+      GKSwstype: '100'
+      OPENBLAS_NUM_THREADS: '1'
+      JULIA_NUM_THREADS: '1'
+      JULIA_PKG_PRECOMPILE_AUTO: '0'
+      JULIA_PKG_GC_AUTO: 'false'
+    steps:
+      - uses: actions/checkout@v7
+      - uses: julia-actions/setup-julia@v3
+        with:
+          version: '1.13'
+      - uses: julia-actions/cache@v3
+      - name: Instantiate checked-out packages
+        run: |
+          julia --project=. -e 'using Pkg; Pkg.instantiate()'
+          julia --project=lib/WingPropellerUVLM -e 'using Pkg; Pkg.instantiate()'
+          julia --project=lib/WingPropellerUVLM/studies -e 'using Pkg; Pkg.instantiate()'
+          julia --project=lib/WingPropellerUVLM/examples -e 'using Pkg; Pkg.instantiate()'
+      - name: Standalone UVLM
+        if: matrix.suite == 'uvlm'
+        run: |
+          julia --project=lib/WingPropellerUVLM lib/WingPropellerUVLM/test/runtests.jl
+          julia --project=lib/WingPropellerUVLM/examples lib/WingPropellerUVLM/test/runtests.jl
+      - name: Studies and damping
+        if: matrix.suite == 'studies'
+        run: julia --project=lib/WingPropellerUVLM/studies lib/WingPropellerUVLM/studies/test/runtests.jl
+      - name: Pazy structural coupling
+        if: matrix.suite == 'pazy'
+        run: julia --project=lib/WingPropellerUVLM/examples lib/WingPropellerUVLM/examples/pazy_aerobeams_coupled/test/runtests.jl --full
+      - name: Chang structural coupling
+        if: matrix.suite == 'chang'
+        run: julia --project=lib/WingPropellerUVLM/examples lib/WingPropellerUVLM/examples/chang_aerobeams_coupled/validation/runtests.jl

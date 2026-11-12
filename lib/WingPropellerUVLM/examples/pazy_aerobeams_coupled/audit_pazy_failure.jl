@@ -23,12 +23,12 @@ source = read(source_path,String)
 source = replace(source,"function run_pazy_wing_uvlm(" => "function audit_run(")
 source = replace(
     source,
-    "        AeroBeams.get_equivalent_states_rates!(structure)" => "        audit_begin!(structure, aerodynamic, grid, previous_grid, vortex_offsets, previous_offsets, weights, i)\n        AeroBeams.get_equivalent_states_rates!(structure)"
+    "        AeroBeams.update_equivalent_states_rates!(structure)" => "        audit_begin!(structure, aerodynamic, grid, previous_grid, vortex_offsets, previous_offsets, weights, i)\n        AeroBeams.update_equivalent_states_rates!(structure)"
 )
 source = replace(source,"AeroBeams.solve_time_step!(structure)" => "audit_solve!(structure)")
 source = replace(
     source,
-    r"save_structural_history\s*&&\s*AeroBeams\.save_time_step_data!\(structure,\s*time\[i\]\)" => "audit_record!(structure,aerodynamic,candidate_grid,accepted_aerodynamic_loads,geometry_residual,coupling_iterations)"
+    r"save_structural_history\s*&&\s*AeroBeams\.save_time_step_data!\(structure\)" => "audit_record!(structure,aerodynamic,candidate_grid,accepted_aerodynamic_loads,geometry_residual,coupling_iterations)"
 )
 source = replace(source,r"save_wing_frame!\(aerodynamic,\s*surface_history,\s*wake_history,\s*animation_time\)" => "nothing")
 source = replace(
@@ -41,34 +41,34 @@ function audit_begin!(structure,aerodynamic,grid,previous_grid,offsets,previous_
     AUDIT_CONTEXT[] = (; structure,aerodynamic,grid,previous_grid,offsets,previous_offsets,weights,i)
     AUDIT_SOLVES[] = 0
     # Keep the accepted state before a late failure, including the wake at n.
-    if structure.timeNow >= 2.7 || i % 500 == 0
+    if structure.time.state.timeNow >= 2.7 || i % 500 == 0
         AUDIT_BEFORE[] = deepcopy(AUDIT_CONTEXT[])
     end
 end
 
 function residual_blocks(p)
-    elements = p.model.elements
-    ids(names) = unique(vcat([getproperty(e,name) for e in elements for name in names]...))
-    return (; force=norm(p.residual[ids((:eqs_Fu1,:eqs_Fu2))]),
-        moment=norm(p.residual[ids((:eqs_Fp1,:eqs_Fp2))]),
-        compatibility=norm(p.residual[ids((:eqs_FF1,:eqs_FF2,:eqs_FM1,:eqs_FM2))]),
-        velocity=norm(p.residual[ids((:eqs_FV,:eqs_FΩ))]))
+    elements = p.model.assemblyData.elements
+    ids(names) = unique(vcat([getproperty(e.assemblyIndices,name) for e in elements for name in names]...))
+    return (; force=norm(p.systemArrays.residual[ids((:eqs_Fu1,:eqs_Fu2))]),
+        moment=norm(p.systemArrays.residual[ids((:eqs_Fp1,:eqs_Fp2))]),
+        compatibility=norm(p.systemArrays.residual[ids((:eqs_FF1,:eqs_FF2,:eqs_FM1,:eqs_FM2))]),
+        velocity=norm(p.systemArrays.residual[ids((:eqs_FV,:eqs_FΩ))]))
 end
 
 function audit_solve!(p)
     AUDIT_SOLVES[] += 1
-    sample = AUDIT_SOLVES[] == 1 && (p.indexEndTimeStep % 200 == 0)
+    sample = AUDIT_SOLVES[] == 1 && (p.time.state.timeIndex % 200 == 0)
     if sample
         probe = deepcopy(p)
-        AeroBeams.assemble_system_arrays!(probe)
-        println(AUDIT_PROBES,"t=",p.timeNow," before=",norm(probe.residual)," ",residual_blocks(probe))
+        AeroBeams.fj!(probe)
+        println(AUDIT_PROBES,"t=",p.time.state.timeNow," before=",norm(probe.systemArrays.residual)," ",residual_blocks(probe))
     end
     AeroBeams.solve_time_step!(p)
-    if sample || !p.systemSolver.convergedFinalSolution
+    if sample || !p.systemSolver.loadStepState.convergedFinalSolution
         probe = deepcopy(p)
-        AeroBeams.assemble_system_arrays!(probe)
-        println(AUDIT_PROBES,"t=",p.timeNow," converged=",p.systemSolver.convergedFinalSolution,
-            " reported=",norm(p.residual)," reassembled=",norm(probe.residual)," ",residual_blocks(probe))
+        AeroBeams.fj!(probe)
+        println(AUDIT_PROBES,"t=",p.time.state.timeNow," converged=",p.systemSolver.loadStepState.convergedFinalSolution,
+            " reported=",norm(p.systemArrays.residual)," reassembled=",norm(probe.systemArrays.residual)," ",residual_blocks(probe))
         flush(AUDIT_PROBES)
     end
 end
@@ -92,18 +92,18 @@ function audit_record!(structure,aerodynamic,structuralGrid,loads,mismatch,itera
     workStructSurface = sum(dot(fa[k],structPoints[k] - oldStructPoints[k]) for k in eachindex(fa))
     # This is a displacement-based interface-work diagnostic, not exact beam
     # energy or a proof of fluid/structure energy conservation.
-    vals = (structure.timeNow,-structure.model.elements[end].nodalStates.u_n2[1],
+    vals = (structure.time.state.timeNow,-structure.model.assemblyData.elements[end].state.nodal.u2[1],
         wingtip_twist_degrees(structure.model),mismatch,iterations,
         maximum(norm,eachcol(loads[1:3,:])),maximum(norm,eachcol(loads[4:6,:])),
         maximum(abs,sys.Γ),maximum(abs,sys.dΓdt),maximum(norm,sys.Vcp[1]),
         maximum(norm,sys.V[1]),minimum(panel_area,sys.surfaces[1]),minimum(panel_area,wake),
-        maximum(norm(e.states.V) for e in structure.model.elements),
-        maximum(norm(e.states.Ω) for e in structure.model.elements),
-        norm(structure.residual),workAero,workStructSurface,workStructSurface - workAero)
+        maximum(norm(e.state.midpoint.V) for e in structure.model.assemblyData.elements),
+        maximum(norm(e.state.midpoint.Ω) for e in structure.model.assemblyData.elements),
+        norm(structure.systemArrays.residual),workAero,workStructSurface,workStructSurface - workAero)
     println(AUDIT_IO,join(vals,'\t'))
-    if structure.indexEndTimeStep % 200 == 0
+    if structure.time.state.timeIndex % 200 == 0
         flush(AUDIT_IO)
-        println("AUDIT t=",round(structure.timeNow; digits=4)," mismatch/c=",round(mismatch; sigdigits=4),
+        println("AUDIT t=",round(structure.time.state.timeNow; digits=4)," mismatch/c=",round(mismatch; sigdigits=4),
             " wall=",round(time() - AUDIT_START; digits=1)," s")
     end
 end

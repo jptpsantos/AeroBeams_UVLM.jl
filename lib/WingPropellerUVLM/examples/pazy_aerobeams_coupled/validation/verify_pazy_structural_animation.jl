@@ -11,17 +11,17 @@ function verify_animation(result)
     preview = deepcopy(result)
     problem = preview.structural_problem
     bcs = problem.model.BCs
-    surface = problem.model.beams[1].aeroSurface
-    elementAero = [e.aero for e in problem.model.elements]
-    bcTypes = [copy(bc.types) for bc in bcs]
-    bcValues = [copy(bc.values) for bc in bcs]
+    surface = problem.model.beams[1].attachments.surface
+    elementAero = [e.aero for e in problem.model.assemblyData.elements]
+    bcTypes = [copy(bc.definition.types) for bc in bcs]
+    bcValues = [copy(bc.definition.values) for bc in bcs]
     renderEnv = (get(ENV,"MKL_THREADING_LAYER",nothing),get(ENV,"MKL_NUM_THREADS",nothing))
     # The investigation checkpoint kept only initial structural history. Append
     # its actual final solved state for this preview (no interpolation).
-    if last(problem.savedTimeVector) < last(preview.time)
-        AeroBeams.save_time_step_data!(problem,last(preview.time))
+    if last(problem.solutionHistory.t) < last(preview.time)
+        AeroBeams.save_time_step_data!(problem)
     end
-    preview = merge(preview,(; animation_stride=max(1,length(problem.savedTimeVector) - 1)))
+    preview = merge(preview,(; animation_stride=max(1,length(problem.solutionHistory.t) - 1)))
     folder = joinpath(PAZY_EXAMPLE_DIR,"output","structural_style_preview")
     path = save_structural_animation(preview;
         output_path=joinpath(folder,"pazy_structure_preview.gif"),fps=1,
@@ -31,12 +31,12 @@ function verify_animation(result)
     @testset "Structural animation preserves the solution" begin
         @test isfile(path)
         @test problem.model.BCs === bcs
-        @test problem.model.beams[1].aeroSurface === surface
-        @test all(e.aero === original for (e,original) in zip(problem.model.elements,elementAero))
-        @test [bc.types for bc in bcs] == bcTypes
-        @test [bc.values for bc in bcs] == bcValues
-        @test problem.x == result.structural_problem.x
-        @test problem.savedTimeVector[end] == last(result.time)
+        @test problem.model.beams[1].attachments.surface === surface
+        @test all(e.aero === original for (e,original) in zip(problem.model.assemblyData.elements,elementAero))
+        @test [bc.definition.types for bc in bcs] == bcTypes
+        @test [bc.definition.values for bc in bcs] == bcValues
+        @test problem.systemArrays.x == result.structural_problem.systemArrays.x
+        @test problem.solutionHistory.t[end] == last(result.time)
         @test (get(ENV,"MKL_THREADING_LAYER",nothing),get(ENV,"MKL_NUM_THREADS",nothing)) == renderEnv
     end
     println("Preview only (first/last stored states), not a new simulation: ",folder)

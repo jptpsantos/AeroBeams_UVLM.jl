@@ -6,6 +6,13 @@ const DEFAULT_OUTPUT_DIRECTORY = joinpath(@__DIR__,"output")
 function path_for_aerobeams(absolutePath::String)
     root = abspath(REPOSITORY_ROOT)
     path = abspath(absolutePath)
+    rootKey = replace(root,'\\' => '/')
+    pathKey = replace(path,'\\' => '/')
+    if Sys.iswindows()
+        rootKey,pathKey = lowercase(rootKey),lowercase(pathKey)
+    end
+    (pathKey == rootKey || startswith(pathKey,rootKey * "/")) ||
+        throw(ArgumentError("AeroBeams animations must be saved inside the repository"))
     relativePath = relpath(path,root)
     (isabspath(relativePath) || first(splitpath(relativePath)) == "..") &&
         throw(ArgumentError("AeroBeams animations must be saved inside the repository"))
@@ -28,15 +35,15 @@ end
 
 function beam_node_positions(result,time_index)
     problem = result.structural_problem
-    isempty(problem.nodalStatesOverTime) && throw(ArgumentError(
+    isempty(problem.solutionHistory.states) && throw(ArgumentError(
         "Enable save_structural_history when generating structural animations"))
-    elements = problem.model.elements
-    states = problem.nodalStatesOverTime[time_index]
+    elements = problem.model.assemblyData.elements
+    states = problem.solutionHistory.states[time_index]
     positions = zeros(3,length(elements) + 1)
-    positions[:,1] = elements[1].r_n1
+    positions[:,1] = elements[1].assemblyData.r_n1
     for (elementIndex,element) in enumerate(elements)
         positions[:,elementIndex+1] =
-            element.r_n2 + states[element.globalID].u_n2
+            element.assemblyData.r_n2 + states[element.assemblyData.globalID].nodal.u2
     end
     return positions
 end
@@ -44,141 +51,77 @@ end
 """Create the usual AeroBeams nonlinear structural-deformation GIF."""
 function save_structural_animation(result;
     output_path::String=joinpath(DEFAULT_OUTPUT_DIRECTORY,"pazy_structure.gif"),
-    fps::Int=30,
-    deformation_scale::Real=1.0,
-    backend::Symbol=:gr,
-    camera=(45,45),
-    surface_alpha::Real=0.5,
-    elastic_axis_linewidth::Real=2.5,
-    show_clamped_root::Bool=true,
-    show_force_vectors::Bool=false,
-    show_moment_vectors::Bool=false,
-    force_vector_scale::Real=1.0)
+    fps::Int=30,deformation_scale::Real=1.0,backend::Symbol=:gr,camera=(45,45),
+    surface_alpha::Real=0.5,elastic_axis_linewidth::Real=2.5,
+    show_clamped_root::Bool=true,show_force_vectors::Bool=false,
+    show_moment_vectors::Bool=false,force_vector_scale::Real=1.0)
 
-    isempty(result.structural_problem.nodalStatesOverTime) && throw(ArgumentError(
+    problem = result.structural_problem
+    isempty(problem.solutionHistory.states) && throw(ArgumentError(
         "Enable save_structural_history when generating structural animations"))
     if (show_force_vectors || show_moment_vectors) && isempty(result.aerodynamic_nodal_load_history)
         throw(ArgumentError("Enable save_aerodynamic_load_history to draw load vectors"))
     end
+    backend in (:gr,:plotlyjs) || throw(ArgumentError(
+        "AeroBeams v1 structural animations support :gr and :plotlyjs"))
     mkpath(dirname(output_path))
-    stride = result.animation_stride
-    problem = result.structural_problem
 
-    # The structural model has no AeroBeams aerodynamic loads, because UVLM
-    # supplies them. Temporarily attach only the standard Pazy NACA 0018
-    # geometry so AeroBeams can draw its usual airfoil surfaces in the GIF.
+    # Build a display-only model with a surface at construction. The solved
+    # UVLM structure and its typed aerodynamic/state containers stay untouched.
+    originalBeam = problem.model.beams[1]
     _,span,chord,sparFraction = AeroBeams.geometrical_properties_Pazy()
-    beam = problem.model.beams[1]
-    originalSurface = beam.aeroSurface
-    originalElementAero = [element.aero for element in problem.model.elements]
-    originalBCs = problem.model.BCs
-    loadBCs = originalBCs[2:end]
-    originalLoadBCs = [(
-        types=bc.types,values=bc.values,toBeTrimmed=bc.toBeTrimmed,
-        Fmax=bc.Fmax,Mmax=bc.Mmax
-    ) for bc in loadBCs]
-    displaySurface = AeroBeams.create_AeroSurface(
-        airfoil=deepcopy(AeroBeams.NACA0018),c=chord,normSparPos=sparFraction)
-    try
-        beam.aeroSurface = displaySurface
-        for element in problem.model.elements
-            element.aero = AeroBeams.AeroProperties(
-                displaySurface,beam.rotationParametrization,element.R0,
-                element.x1,element.x1_norm,
-                element.x1_n1_norm,element.x1_n2_norm)
-        end
-
-        # Match AeroBeams' Pazy aerodynamic-load display: show only lift F1A
-        # and torsion M3A. The beam nodes lie on the elastic axis, so the
-        # circular M3A arrows are drawn about that axis.
-        if show_force_vectors || show_moment_vectors
-            components = Int[]
-            types = String[]
-            if show_force_vectors
-                push!(components,1)
-                push!(types,"F1A")
-            end
-            if show_moment_vectors
-                push!(components,6)
-                push!(types,"M3A")
-            end
-            history = result.aerodynamic_nodal_load_history
-            maximumLift = max(maximum(abs,@view history[1,:,:]),eps(Float64))
-            maximumTorsion = max(maximum(abs,@view history[6,:,:]),eps(Float64))
-            for (node,bc) in enumerate(loadBCs)
-                bc.types = copy(types)
-                bc.values = [
-                    let component = component,node = node
-                        time -> result.aerodynamic_nodal_load_history[
-                            component,node,force_history_index(result,time)]
-                    end for component in components
-                ]
-                bc.toBeTrimmed = falses(length(components))
-                # Global references make glyph sizes comparable between all
-                # nodes and all frames.
-                bc.Fmax = maximumLift
-                bc.Mmax = maximumTorsion
-            end
-        end
-
-        # Render the clamp independently of the aerodynamic-load arrows.
-        # Selecting only the root BC avoids displaying unrequested loads.
-        problem.model.BCs = show_clamped_root ? originalBCs[1:1] : originalBCs[1:0]
-        if show_force_vectors || show_moment_vectors
-            append!(problem.model.BCs,loadBCs)
-        end
-
-        # Match test/plotGenerators/PazyWingOMCGustPlotGenerator.jl: basis A,
-        # physical deformation scale, 0.01 s frame spacing (set by the run
-        # file), transparent blue airfoils, and the Pazy semispan limits.
-        # An explicit view keeps even the initial straight wing in 3D. The
-        # beam centerline is the elastic axis; thicken it behind the airfoil.
-        # NumPy's threaded MKL crashed while drawing 3D frames on Windows.
-        # Use its sequential renderer configuration; restore ENV afterward.
-        # This does not change Julia's structural-solver BLAS thread settings.
-        renderEnv =
-            backend == :pyplot && Sys.iswindows() ?
-            ("MKL_THREADING_LAYER" => "SEQUENTIAL","MKL_NUM_THREADS" => "1") : ()
-        withenv(renderEnv...) do
-            AeroBeams.plot_dynamic_deformation(
-                problem;
-                backendSymbol=backend,
-                refBasis="A",
-                view=camera,
-                plotFrequency=stride,
-                plotUndeformed=false,
-                plotBCs=show_clamped_root || show_force_vectors || show_moment_vectors,
-                plotDistLoads=false,
-                plotAeroSurf=true,
-                surfα=Float64(surface_alpha),
-                lw=elastic_axis_linewidth,
-                colorDef=:blue,
-                showTimeStamp=true,
-                showScale=true,
-                scale=deformation_scale,
-                loadsSizeScaler=force_vector_scale,
-                plotLimits=([-span / 2,span / 2],[-span / 2,span / 2],[0.0,span]),
-                fps=fps,
-                save=true,
-                savePath=path_for_aerobeams(output_path),
-                displayProgress=true
-            )
-        end
-    finally
-        problem.model.BCs = originalBCs
-        beam.aeroSurface = originalSurface
-        for (element,originalAero) in zip(problem.model.elements,originalElementAero)
-            element.aero = originalAero
-        end
-        for (bc,original) in zip(loadBCs,originalLoadBCs)
-            bc.types = original.types
-            bc.values = original.values
-            bc.toBeTrimmed = original.toBeTrimmed
-            bc.Fmax = original.Fmax
-            bc.Mmax = original.Mmax
-            AeroBeams.update_BC_data!(bc,last(result.time))
+    surface = AeroBeams.create_AeroSurface(airfoil=deepcopy(AeroBeams.NACA0018),
+        c=chord,normSparPos=sparFraction,ppSolver=AeroBeams.QuasiSteady())
+    beam = AeroBeams.create_Beam(name="Pazy UVLM visualization",length=span,
+        nElements=originalBeam.discretization.nElements,
+        normalizedNodalPositions=originalBeam.discretization.normalizedNodalPositions,
+        S=originalBeam.sectional.S,I=originalBeam.sectional.I,
+        p0=originalBeam.geometry.p0,surface=surface)
+    bcs = AeroBeams.BC[]
+    if show_clamped_root
+        push!(bcs,AeroBeams.create_BC(beam=beam,node=1,
+            conditions=Dict(type=>0.0 for type in (:u1A,:u2A,:u3A,:p1A,:p2A,:p3A))))
+    end
+    if show_force_vectors || show_moment_vectors
+        components = Int[]
+        show_force_vectors && push!(components,1)
+        show_moment_vectors && push!(components,6)
+        types = (:F1A,:F2A,:F3A,:M1A,:M2A,:M3A)
+        for node in axes(result.aerodynamic_nodal_load_history,2)
+            conditions = Dict(types[d] => let d=d,node=node
+                t -> result.aerodynamic_nodal_load_history[d,node,force_history_index(result,t)]
+            end for d in components)
+            push!(bcs,AeroBeams.create_BC(beam=beam,node=node,conditions=conditions))
         end
     end
+    model = AeroBeams.create_Model(beams=[beam],BCs=bcs)
+    history = problem.solutionHistory
+    savedCount = history.index - 1
+    savedCount >= 2 || throw(ArgumentError("Structural animation requires two saved states"))
+    frameIndices = unique(vcat(collect(1:result.animation_stride:savedCount),savedCount))
+    displayProblem = AeroBeams.create_DynamicProblem(model=model,
+        timeVector=history.t[frameIndices],trackingTimeSteps=true,displayProgress=false)
+    # Rendering reads selected accepted states, including the final frame.
+    # No structural/aerodynamic solve or mutation of the source history occurs.
+    for field in (:t,:states,:hacStates,:aeroVariables,:bliAeroVariables,:bloAeroVariables)
+        setfield!(displayProblem.solutionHistory,field,getfield(history,field)[frameIndices])
+    end
+    displayProblem.solutionHistory.index = length(frameIndices) + 1
+    model.kinematicsBasisA = deepcopy(problem.model.kinematicsBasisA)
+    timeIndices = 1 .+ (frameIndices .- 1) .* problem.trackingFrequency
+    for field in (:u_AVec,:v_AVec,:ω_AVec,:vdot_AVec,:ωdot_AVec,:R_AVec)
+        setfield!(model.kinematicsBasisA,field,
+            getfield(problem.model.kinematicsBasisA,field)[timeIndices])
+    end
+    AeroBeams.precompute_BCs_history!(displayProblem)
+    AeroBeams.plot_dynamic_deformation(displayProblem; backend=backend,follow=:basisA,
+        view=camera,plotFrequency=1,plotUndeformed=false,
+        plotBCs=show_clamped_root || show_force_vectors || show_moment_vectors,
+        plotDistLoads=false,plotAeroSurf=true,surfα=Float64(surface_alpha),
+        lw=elastic_axis_linewidth,colorDef=:blue,showTimeStamp=true,showScale=true,
+        scale=deformation_scale,loadsSizeScaler=force_vector_scale,
+        plotLimits=([-span/2,span/2],[-span/2,span/2],[0.0,span]),fps=fps,
+        save=true,savePath=path_for_aerobeams(output_path),displayProgress=true)
     println("Structural animation written to $(abspath(output_path))")
     return abspath(output_path)
 end
@@ -266,7 +209,7 @@ function save_wake_animation(result;
 
     isempty(result.animation_time) && throw(ArgumentError(
         "Enable save_animation_history when generating wake animations"))
-    structuralTimes = result.structural_problem.savedTimeVector
+    structuralTimes = result.structural_problem.solutionHistory.t
     if !isempty(structuralTimes)
         structural_frame_times = structuralTimes[1:result.animation_stride:end]
         length(structural_frame_times) == length(result.animation_time) ||
@@ -358,7 +301,7 @@ end
 function save_animations(result; output_directory::String=DEFAULT_OUTPUT_DIRECTORY,
     case_label::String="pazy_response",
     case_suffix::String="",
-    structure_backend::Symbol=:pyplot,
+    structure_backend::Symbol=:gr,
     structure_camera=(45,45),structure_surface_alpha::Real=0.5,
     structure_axis_linewidth::Real=2.5,show_clamped_root::Bool=true,
     fps::Int=30,show_force_vectors::Bool=false,

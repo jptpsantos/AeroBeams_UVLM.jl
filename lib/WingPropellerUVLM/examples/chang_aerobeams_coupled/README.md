@@ -1,16 +1,16 @@
 # Chang wing–propeller coupling with nonlinear AeroBeams
 
-This is an additive example. It reads the existing Chang reference data and
-UVLM implementation, and constructs a separate nonlinear AeroBeams structural
-model. It does not change the existing Chang, Pazy, convergence, or core solver
-files, projects, or manifests.
+This example reads the existing Chang reference data and UVLM implementation,
+and constructs a separate nonlinear AeroBeams 1.0 structural model. Use Julia
+1.13 or newer and instantiate the shared `examples/Project.toml` environment
+once; it resolves the checked-out AeroBeams and UVLM packages together.
 
 ## Run a case
 
 From the repository root:
 
 ```powershell
-julia --project=. lib/WingPropellerUVLM/examples/chang_aerobeams_coupled/run_chang_aerobeams.jl
+julia +1.13 --project=lib/WingPropellerUVLM/examples lib/WingPropellerUVLM/examples/chang_aerobeams_coupled/run_chang_aerobeams.jl
 ```
 
 Edit `chang_aerobeams_case.jl` for the physical configuration. Shared new solver,
@@ -25,11 +25,11 @@ control the new driver: use the top-level new `solver`, `initialization` and
 For the nonlinear beam-pylon variation:
 
 ```powershell
-julia --project=. lib/WingPropellerUVLM/examples/chang_aerobeams_coupled/run_chang_beam_pylon.jl
+julia +1.13 --project=lib/WingPropellerUVLM/examples lib/WingPropellerUVLM/examples/chang_aerobeams_coupled/run_chang_beam_pylon.jl
 ```
 
-The two local packages are loaded through a stacked `LOAD_PATH`. No package
-installation or environment mutation is performed. In a restricted environment
+The example adds the shared environment to `LOAD_PATH` when launched from
+another project. Running a case does not change any environment. In a restricted environment
 where Julia cannot write its normal compiled cache, add
 `--compiled-modules=existing` to the command. Initial compilation can take time.
 

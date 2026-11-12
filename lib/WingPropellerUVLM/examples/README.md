@@ -1,5 +1,17 @@
 # Examples
 
+The nonlinear Pazy and Chang examples use AeroBeams 1.0 and Julia 1.13 or
+newer. Instantiate their shared environment from the repository root:
+
+```powershell
+julia +1.13 --project=lib/WingPropellerUVLM/examples -e 'using Pkg; Pkg.instantiate()'
+```
+
+Run those coupled examples with `--project=lib/WingPropellerUVLM/examples`.
+This resolves AeroBeams, UVLM and automatic differentiation dependencies
+together. The standalone UVLM and linear Chang workflows retain their own
+package and study environments.
+
 For package architecture, the public API, and a line-by-line explanation of
 the UVLM transaction used by both examples, see the
 [WingPropellerUVLM library guide](../../../docs/src/wing-propeller-uvlm-library-guide.md).

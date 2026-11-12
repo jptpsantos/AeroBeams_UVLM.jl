@@ -20,12 +20,12 @@ const RESPONSE_DEFINITIONS = (
     tip_geometric_incidence_deg=(unit="deg",label="Root incidence + elastic tip twist",atol=1e-3))
 
 function model_responses(model,angle,span,gauge_y,gauge_z)
-    tip = model.elements[end].nodalStates
-    root = model.elements[1].compStates
+    tip = model.assemblyData.elements[end].state.nodal
+    root = model.assemblyData.elements[1].state.midpoint
     twist = wingtip_twist_degrees(model)
-    return (; tip_out_of_plane_m=-tip.u_n2[1],
-        tip_out_of_plane_percent=-100tip.u_n2[1] / span,
-        tip_in_plane_m=-tip.u_n2[2],tip_twist_deg=twist,
+    return (; tip_out_of_plane_m=-tip.u2[1],
+        tip_out_of_plane_percent=-100tip.u2[1] / span,
+        tip_in_plane_m=-tip.u2[2],tip_twist_deg=twist,
         root_strain_ue=1e6 * (root.γ[1] + gauge_z * root.κ[2] - gauge_y * root.κ[3]),
         tip_geometric_incidence_deg=rad2deg(angle) + twist)
 end
@@ -64,7 +64,7 @@ function simulate_pazy_speed(speed,options)
         model_responses(equilibrium.structural_problem.model,angle_of_attack,span,gauge_y,gauge_z)
     in_plane = Float64[isnothing(static) ? 0.0 : static.tip_in_plane_m]
     callback(i,time,structure,aerodynamic) = push!(in_plane,
-        -structure.model.elements[end].nodalStates.u_n2[2])
+        -structure.model.assemblyData.elements[end].state.nodal.u2[2])
     result = run_pazy_wing_uvlm(; dynamic_options...,common...,sideslip,
         initial_equilibrium=equilibrium,duration=simulation_time,
         initial_airspeed_fraction=1.0,airspeed_ramp_duration=0.0,

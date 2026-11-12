@@ -189,20 +189,17 @@ end
 
 function _special_node(problem,node)
     name = "Chang wing load node $node"
-    index = findfirst(s -> any(b -> b.name == name,s.BCs),problem.model.specialNodes)
+    index = findfirst(s -> any(b -> b.definition.name == name,s.BCs),problem.model.assemblyData.specialNodes)
     isnothing(index) && error("Missing explicit nodal load map for node $node")
-    return problem.model.specialNodes[index]
+    return problem.model.assemblyData.specialNodes[index]
 end
 
 function _insert_wrench_residual!(residual,problem,node,wrench)
     s = _special_node(problem,node)
-    scale = problem.model.forceScaling
-    for k in eachindex(s.eqs_Fu)
-        # Only the first connected element owns the shared equilibrium rows.
-        isempty(s.eqs_FF_sep[k]) || continue
-        residual[s.eqs_Fu[k]] .+= wrench[1:3] ./ scale
-        residual[s.eqs_Fp[k]] .+= wrench[4:6] ./ scale
-    end
+    scale = problem.model.assemblyData.forceScaling
+    # v1 assembles one three-component force/moment balance per shared node.
+    residual[s.assemblyData.eqs_Fu] .+= wrench[1:3] ./ scale
+    residual[s.assemblyData.eqs_Fp] .+= wrench[4:6] ./ scale
     return residual
 end
 
@@ -215,18 +212,18 @@ function _component_columns(coupled)
     columns = Int[]
     for rotor in coupled.rotors
         sn = _special_node(problem,rotor.attachment_node)
-        append!(columns,sn.DOF_uF[.!sn.uIsPrescribed])
-        append!(columns,sn.DOF_pM[.!sn.pIsPrescribed])
+        append!(columns,sn.assemblyData.DOF_uF[.!sn.flags.uIsPrescribed])
+        append!(columns,sn.assemblyData.DOF_pM[.!sn.flags.pIsPrescribed])
     end
-    append!(columns,length(problem.x) .+ (1:length(coupled.eta)))
+    append!(columns,length(problem.systemArrays.x) .+ (1:length(coupled.eta)))
     return unique(columns)
 end
 
 function _component_residual(coupled,z,history,eta_n,velocity_n,acceleration_n,dt;
     static=false,rotor_loads=zeros(length(coupled.eta)))
     problem = coupled.wing.problem
-    nx = length(problem.x)
-    problem.x .= view(z,1:nx)
+    nx = length(problem.systemArrays.x)
+    problem.systemArrays.x .= view(z,1:nx)
     eta = view(z,nx+1:length(z))
     rates =
         static ? (velocity=zeros(length(eta)),acceleration=zeros(length(eta))) :
@@ -237,12 +234,12 @@ function _component_residual(coupled,z,history,eta_n,velocity_n,acceleration_n,d
         if static
             poses = wing_node_poses(problem)
             R =
-                rotor isa TipRotor ? first(AB.rotation_tensor_WM(wing_node_parameters(problem).p[:,node])) :
+                rotor isa TipRotor ? AB.rotation_tensor_WM(wing_node_parameters(problem).p[:,node]) :
                 poses.rotations[node] * CHANG_DIRECTORS_TO_U'
             motion = (velocity=zeros(3),omega=zeros(3),acceleration=zeros(3),alpha=zeros(3))
         else
             motion = wing_node_motion(problem,node,history,dt)
-            R = rotor isa TipRotor ? first(AB.rotation_tensor_WM(motion.p)) :
+            R = rotor isa TipRotor ? AB.rotation_tensor_WM(motion.p) :
                 motion.rotation * CHANG_DIRECTORS_TO_U'
         end
         indices = rotor isa TipRotor ? (1:0) : (2rotor.reference_index-1):(2rotor.reference_index)
@@ -251,7 +248,7 @@ function _component_residual(coupled,z,history,eta_n,velocity_n,acceleration_n,d
             rates.velocity[indices],rates.acceleration[indices])
         _insert_wrench_residual!(correction,problem,node,mechanics.base_wrench)
         correction[nx.+indices] .= (mechanics.eta_residual .- rotor_loads[indices]) ./
-                                   problem.model.forceScaling
+                                   problem.model.assemblyData.forceScaling
     end
     return correction
 end
@@ -265,18 +262,18 @@ differenced, including finite-rotation spin and acceleration derivatives.
 function coupled_mechanical_arrays!(coupled,z,wing_loads,rotor_loads,history,
     eta_n,velocity_n,acceleration_n,dt; static=false,jacobian=true)
     problem = coupled.wing.problem
-    nx = length(problem.x)
-    problem.x .= z[1:nx]
-    problem.skipJacobianUpdate = !jacobian
-    problem.σ = 1.0
-    set_wing_loads!(problem,wing_loads,problem.timeNow)
-    AB.assemble_system_arrays!(problem)
+    nx = length(problem.systemArrays.x)
+    problem.systemArrays.x .= z[1:nx]
+    problem.systemSolver.state.skipJacobianUpdate = !jacobian
+    problem.systemSolver.loadStepState.σ = 1.0
+    set_wing_loads!(problem,wing_loads,problem.time.state.timeNow)
+    AB.fj!(problem)
     correction = _component_residual(coupled,z,history,eta_n,velocity_n,
         acceleration_n,dt; static,rotor_loads)
-    residual = vcat(copy(problem.residual),zeros(length(coupled.eta))) + correction
+    residual = vcat(copy(problem.systemArrays.residual),zeros(length(coupled.eta))) + correction
     jacobian || return residual
     J = zeros(length(z),length(z))
-    J[1:nx,1:nx] .= Matrix(problem.jacobian)
+    J[1:nx,1:nx] .= Matrix(problem.systemArrays.jacobian)
     for column in _component_columns(coupled)
         h = cbrt(eps(Float64)) * max(abs(z[column]),1e-3)
         zp,zm = copy(z),copy(z)
@@ -288,7 +285,7 @@ function coupled_mechanical_arrays!(coupled,z,wing_loads,rotor_loads,history,
             acceleration_n,dt; static,rotor_loads)
         J[:,column] .+= (plus .- minus) ./ (2h)
     end
-    problem.x .= z[1:nx]
+    problem.systemArrays.x .= z[1:nx]
     return residual,J
 end
 
@@ -302,7 +299,7 @@ function _solve_mechanics!(coupled,z,wing_loads,rotor_loads,history,
         residualNorm = norm(r,Inf)
         iteration == 1 && (firstNorm = residualNorm)
         if residualNorm <= tolerance
-            coupled.wing.problem.x .= z[1:length(coupled.wing.problem.x)]
+            coupled.wing.problem.systemArrays.x .= z[1:length(coupled.wing.problem.systemArrays.x)]
             AB.update_states!(coupled.wing.problem)
             return (; z,iterations=iteration,residual=residualNorm)
         end
@@ -336,8 +333,8 @@ function _loads_error(first,second,chord)
 end
 
 function _interface_velocity(coupled,z,history,eta_n,velocity_n,acceleration_n,dt)
-    nx = length(coupled.wing.problem.x)
-    coupled.wing.problem.x .= z[1:nx]
+    nx = length(coupled.wing.problem.systemArrays.x)
+    coupled.wing.problem.systemArrays.x .= z[1:nx]
     values = Float64[]
     p = coupled.reference.parameters
     for rotor in coupled.rotors
@@ -354,8 +351,8 @@ end
 
 function _evaluate_aero(coupled,z,time)
     problem = coupled.wing.problem
-    nx = length(problem.x)
-    problem.x .= z[1:nx]
+    nx = length(problem.systemArrays.x)
+    problem.systemArrays.x .= z[1:nx]
     eta = z[nx+1:end]
     grids,geometry = _aero_geometry(coupled,eta,time)
     loads = UVLM.evaluate_trial!(coupled.aerodynamic; surfaces=grids)
@@ -364,13 +361,13 @@ function _evaluate_aero(coupled,z,time)
 end
 
 function _zero_element_rates!(problem)
-    for e in problem.model.elements
-        for name in fieldnames(typeof(e.statesRates))
-            value = getfield(e.statesRates,name)
+    for e in problem.model.assemblyData.elements
+        for name in fieldnames(typeof(e.state.rates))
+            value = getfield(e.state.rates,name)
             value isa AbstractArray && fill!(value,0.0)
         end
         for name in (:udotEquiv,:pdotEquiv,:VdotEquiv,:ΩdotEquiv,:χdotEquiv)
-            fill!(getfield(e,name),0.0)
+            fill!(getfield(e.stateCache.equivStatesRates,name),0.0)
         end
     end
     return problem
@@ -439,18 +436,18 @@ identification. No aerodynamic baseline is subtracted during time marching.
 function initialize_mean_equilibrium!(coupled)
     problem = coupled.wing.problem
     settings = coupled.config.initialization
-    oldDt = problem.Δt
-    problem.Δt = Inf
+    oldDt = problem.time.state.Δt
+    problem.time.state.Δt = Inf
     _zero_element_rates!(problem)
-    nx = length(problem.x)
-    z = vcat(problem.x,coupled.eta)
+    nx = length(problem.systemArrays.x)
+    z = vcat(problem.systemArrays.x,coupled.eta)
     previousLoads = nothing
     records = NamedTuple[]
     converged = false
     finalSettle = nothing
     try
         for iteration = 1:settings.maximum_iterations
-            problem.x .= z[1:nx]
+            problem.systemArrays.x .= z[1:nx]
             poses = wing_node_poses(problem)
             settled = _settle_fixed_shape(coupled,poses,z[nx+1:end])
             solved = _solve_mechanics!(coupled,copy(z),settled.loads.wing_loads,
@@ -476,7 +473,7 @@ function initialize_mean_equilibrium!(coupled)
             previousLoads = settled.loads
         end
         converged || error("Mean wing/propeller equilibrium did not converge")
-        problem.x .= z[1:nx]
+        problem.systemArrays.x .= z[1:nx]
         coupled.eta .= z[nx+1:end]
         (isempty(coupled.eta) || maximum(abs,coupled.eta) <= coupled.config.solver.maximum_relative_angle) ||
             error("Mean equilibrium exceeds the reduced support angle limit")
@@ -485,7 +482,7 @@ function initialize_mean_equilibrium!(coupled)
         AB.update_states!(problem)
         finalSettle = _settle_fixed_shape(coupled,wing_node_poses(problem),coupled.eta)
     finally
-        problem.Δt = oldDt
+        problem.time.state.Δt = oldDt
     end
     coupled.node_history = _node_history(problem)
     coupled.phase_time_offset = finalSettle.aerodynamic.state.timeNow
@@ -530,7 +527,7 @@ function _record!(coupled,index,mapped,iterations,geometryError,load_error,mecha
         r[:hub_moments][:,:,index] .= mapped.hub_moments
     end
     if coupled.config.output.save_structural_history
-        AB.save_time_step_data!(coupled.wing.problem,coupled.time[index])
+        AB.save_time_step_data!(coupled.wing.problem)
     end
     return nothing
 end
@@ -547,7 +544,7 @@ function solve_chang_aerobeams!(coupled)
         coupled.initialized = true
     end
     problem = coupled.wing.problem
-    nx = length(problem.x)
+    nx = length(problem.systemArrays.x)
     count,nodes,np = length(coupled.time),coupled.wing.node_count,length(coupled.rotors)
     merge!(
         coupled.results,
@@ -570,22 +567,19 @@ function solve_chang_aerobeams!(coupled)
     _record!(coupled,1,initialLoads,0,0.0,0.0,0.0)
     for index = 2:count
         dt = coupled.time[index] - coupled.time[index-1]
-        xSaved = copy(problem.x)
-        stateSaved = AB.copy_state(problem)
-        oldClock = (problem.timeNow,problem.Δt,problem.indexBeginTimeStep,problem.indexEndTimeStep,
-            problem.timeBeginTimeStep,problem.timeEndTimeStep)
+        stateSaved = structural_checkpoint(problem)
         eta_n,velocity_n,acceleration_n =
             copy(coupled.eta),copy(coupled.eta_velocity),copy(coupled.eta_acceleration)
         history = coupled.node_history
-        AB.update_time_variables!(problem,index)
-        AB.get_equivalent_states_rates!(problem)
-        z = vcat(problem.x,eta_n .+ dt .* velocity_n .+ 0.5dt^2 .* acceleration_n)
+        AB.update_time_state!(problem,index)
+        AB.update_equivalent_states_rates!(problem)
+        z = vcat(problem.systemArrays.x,eta_n .+ dt .* velocity_n .+ 0.5dt^2 .* acceleration_n)
         # Predict interface nodal displacement/rotation without replacing the
         # native beam states or their accepted equivalent-rate history.
         for node = 2:nodes
             sn = _special_node(problem,node)
-            z[sn.DOF_uF] .= history.u[:,node] .+ dt .* history.udot[:,node] .+ 0.5dt^2 .* history.uddot[:,node]
-            z[sn.DOF_pM] .= history.p[:,node] .+ dt .* history.pdot[:,node] .+ 0.5dt^2 .* history.pddot[:,node]
+            z[sn.assemblyData.DOF_uF] .= history.u[:,node] .+ dt .* history.udot[:,node] .+ 0.5dt^2 .* history.uddot[:,node]
+            z[sn.assemblyData.DOF_pM] .= history.p[:,node] .+ dt .* history.pdot[:,node] .+ 0.5dt^2 .* history.pddot[:,node]
         end
         time = coupled.phase_time_offset + coupled.time[index]
         UVLM.begin_time_step!(coupled.aerodynamic)
@@ -615,7 +609,7 @@ function solve_chang_aerobeams!(coupled)
                 end
                 solved = _solve_mechanics!(coupled,copy(z),wing_loads,rotor_loads,
                     history,eta_n,velocity_n,acceleration_n,dt)
-                problem.x .= solved.z[1:nx]
+                problem.systemArrays.x .= solved.z[1:nx]
                 candidate_grids,_ = _aero_geometry(coupled,solved.z[nx+1:end],time)
                 geometryError =
                     maximum(maximum(abs.(candidate_grids[i] .- grids[i])) for i in eachindex(grids)) /
@@ -651,7 +645,7 @@ function solve_chang_aerobeams!(coupled)
             converged || error("FSI failed at t=$(coupled.time[index]): geometry=$geometryError, load=$load_error")
             (isempty(coupled.eta) || maximum(abs,z[nx+1:end]) <= coupled.config.solver.maximum_relative_angle) ||
                 error("Relative support angles exceed the reduced model's configured limit")
-            problem.x .= z[1:nx]
+            problem.systemArrays.x .= z[1:nx]
             AB.update_states!(problem)
             coupled.eta .= z[nx+1:end]
             erates = _newmark_rates(coupled.eta,eta_n,velocity_n,acceleration_n,dt)
@@ -666,10 +660,7 @@ function solve_chang_aerobeams!(coupled)
             UVLM.commit_time_step!(coupled.aerodynamic)
         catch
             UVLM.rollback_time_step!(coupled.aerodynamic)
-            AB.restore_state!(problem,stateSaved)
-            problem.x .= xSaved
-            problem.timeNow,problem.Δt,problem.indexBeginTimeStep,problem.indexEndTimeStep,
-            problem.timeBeginTimeStep,problem.timeEndTimeStep = oldClock
+            restore_structural_checkpoint!(problem,stateSaved)
             coupled.eta .= eta_n
             coupled.eta_velocity .= velocity_n
             coupled.eta_acceleration .= acceleration_n

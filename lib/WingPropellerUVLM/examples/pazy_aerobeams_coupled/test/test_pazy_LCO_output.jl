@@ -57,6 +57,7 @@ end
 # These minimal stand-ins exercise the real CSV/settings/plot export and both
 # entry points without loading a structural model or running a physical sweep.
 module LCOSweepOutputHarness
+const PAZY_EXAMPLE_DIR = normpath(joinpath(@__DIR__,".."))
 using DelimitedFiles
 module UVLM
 create_UVLMSolver(; kwargs...) = nothing

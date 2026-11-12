@@ -16,9 +16,9 @@ rows = Any[]
         ref = CA.Chang.build_chang_model(CA.Chang.load_chang_configuration(d; env=Dict{String,String}()))
         wing = build_wing(ref)
         eigenproblem = CA.AB.create_EigenProblem(model=deepcopy(wing.problem.model),
-            getLinearSolution=true,nModes=6,frequencyFilterLimits=[0.01,Inf])
+            systemSolver=CA.AB.create_LinearSolver(),eigenmethod=:fulldecomp)
         CA.AB.solve!(eigenproblem)
-        af = eigenproblem.frequenciesOscillatory ./ (2pi)
+        af = sort(imag.(filter(λ -> imag(λ) > 2pi * 0.01,eigenproblem.eigensolution.λ)))[1:6] ./ (2pi)
         cf = CA.Chang.chang_wing_modal_frequencies(ref.structural; number_of_modes=6)
         @test length(af) == length(cf) == 6
         @test wing.metadata.spatial_block_conservation_error <= 1e-12

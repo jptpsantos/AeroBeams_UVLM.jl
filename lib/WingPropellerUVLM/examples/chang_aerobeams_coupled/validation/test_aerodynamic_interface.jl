@@ -9,9 +9,8 @@ module AerodynamicInterfaceHarness
 using LinearAlgebra
 const REPOSITORY_ROOT = normpath(joinpath(@__DIR__,"..","..","..","..",".."))
 const UVLM_ROOT = normpath(joinpath(@__DIR__,"..","..",".."))
-for root in (REPOSITORY_ROOT,UVLM_ROOT)
-    root in LOAD_PATH || pushfirst!(LOAD_PATH,root)
-end
+const COUPLED_ENVIRONMENT = normpath(joinpath(@__DIR__,"..","..",".."))
+COUPLED_ENVIRONMENT in LOAD_PATH || pushfirst!(LOAD_PATH,COUPLED_ENVIRONMENT)
 
 import WingPropellerUVLM as UVLM
 include(joinpath(@__DIR__,"..","..","chang_linear_aeroelastic","src","ChangAeroelastic.jl"))
