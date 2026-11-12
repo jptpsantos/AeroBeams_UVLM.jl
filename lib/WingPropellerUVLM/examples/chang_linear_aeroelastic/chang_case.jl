@@ -40,7 +40,7 @@ function chang_case_defaults()
         freestream_speed_mps=83.0,
         angle_of_attack_deg=3.0,
         sideslip_deg=0.0,azimuth_step_deg=2.5,# Rotor angle advanced per time step.
-        end_time_s=2,# Total requested simulation duration.
+        end_time_s=5,# Total requested simulation duration.
 
         # true: include wing–propeller and propeller–propeller aerodynamic influence.
         # false: isolate those groups; blades within each propeller still interact.

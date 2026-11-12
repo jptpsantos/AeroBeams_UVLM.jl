@@ -238,21 +238,21 @@ function run_pitch_reviewer_analysis(; output_directory=joinpath(@__DIR__,"outpu
                 plotTime = normalized ? time : histories[index].time
                 values = normalized ? rotations ./ [mode.wing_amplitude_deg mode.propeller_amplitude_deg] :
                                       hcat(histories[index].wing,histories[index].pylon)
-                panel = plot(plotTime,values[:,1];label="Wing-tip twist",color=wingColor,
+                panel = plot(plotTime,values[:,1];label="Tip twist",color=wingColor,
                     linestyle=:dash,linewidth=2.5,xlabel="Time (s)",
                     ylabel=normalized ? "Normalized angle" : "Angle (deg)",
                     xlims=normalized ? (3.65,4.25) : (0.0,5.0),
                     xticks=normalized ? collect(range(3.65,4.25;length=7)) : collect(0.0:1.0:5.0),
                     ylims=normalized ? (-1.5,1.5) : (-7.5,7.5),
                     yticks=normalized ? collect(-1.5:0.5:1.5) : collect(-7.5:2.5:7.5),
-                    grid=false,title="",legend=:top,legend_column=2,
-                    legend_foreground_color=:transparent,legend_background_color=:transparent,
-                    fontfamily="DejaVu Sans",guidefontsize=18,tickfontsize=16,legendfontsize=16,
+                    grid=false,title="",legend=normalized ? :top : false,legend_column=2,
+                    legend_foreground_color=:black,legend_background_color=:white,
+                    fontfamily="DejaVu Sans",guidefontsize=24,tickfontsize=22,legendfontsize=20,
                     framestyle=:axes,tick_direction=:in,margin=6Plots.mm,size=(1200,540),dpi=300)
-                plot!(panel,plotTime,values[:,2];label="Pylon pitch",color=:black,linewidth=2.5)
+                plot!(panel,plotTime,values[:,2];label="Propeller-pylon pitch",color=:black,linewidth=2.5)
                 if normalized
                     annotate!(panel,3.95,-1.25,
-                        text(@sprintf("Δφ = %+.2f°",mode.wing_minus_propeller_phase_deg),"DejaVu Sans",16,:center))
+                        text(@sprintf("Δφ = %+.2f°",mode.wing_minus_propeller_phase_deg),"DejaVu Sans",20,:center))
                 end
                 push!(panels,panel)
             end
