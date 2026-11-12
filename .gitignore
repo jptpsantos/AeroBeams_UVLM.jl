@@ -6,5 +6,8 @@
 /docs/build/
 /gr-temp
 /.vscode
+/.vscode/dev
 /lib/WingPropellerUVLM/examples/output/
 .DS_Store
+/dev/**/*.gif
+/dev/**/*.jld2

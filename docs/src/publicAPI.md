@@ -96,9 +96,7 @@ update_model_hinge_axis_constraints!
 update_initial_rotation_of_basis_A!
 update_u_A!
 update_v_A!
-update_vdot_A!
 update_ω_A!
-update_ωdot_A!
 ```
 
 ### Creating a point inertia
@@ -124,6 +122,7 @@ solve_eigen!
 ### Creating a sample model
 ```@docs
 geometrical_properties_Pazy
+get_sweptPazy_tip_inertias_from_baseline
 tip_loss_function_Pazy
 typical_section_data
 create_Pazy
@@ -150,6 +149,13 @@ create_NewtonRaphson
 create_NLsolver
 create_ArclengthSolver
 create_TrimSolver
+```
+
+### Creating a time integration method
+```@docs
+Newmark
+BDF2
+GeneralizedAlpha
 ```
 
 ### Creating a units system

@@ -1,16 +1,13 @@
-using AeroBeams, DelimitedFiles, Plots, ColorSchemes
+using AeroBeams
+
+# Root pitch angle range [rad]
+θRange = deg2rad.(vcat(0,3,5,7))
+
+# Airspeed range [m/s]
+URange = vcat(1e-3,1:1:100)
 
 # Sweep angle [rad]
-Λ = 30*π/180
-
-# Root pitch angle range
-θRange = π/180*vcat(0,3,5,7)
-
-# Airspeed range
-URange = collect(1:1:100)
-
-# Flag for ad hoc corrections on sectional stiffness matrix
-sweepStructuralCorrections = true
+Λ = deg2rad(20)
 
 # Flag for tip correction
 hasTipCorrection = true
@@ -22,7 +19,7 @@ tipLossType = "VLM-undef"
 aeroSolver = Indicial()
 
 # Airfoil section
-airfoil = deepcopy(flatPlate)
+airfoil = deepcopy(FlatPlate)
 
 # Flag for upright position
 upright = false
@@ -30,14 +27,15 @@ upright = false
 # Gravity
 g = 0
 
-# System solver
-σ0 = 0.5
-σstep = 0.5
-maxIter = 50
-NR = create_NewtonRaphson(initialLoadFactor=σ0,maximumLoadFactorStep=σstep,maximumIterations=maxIter)
+# Initialize model
+model,nElem,L,chord,normSparPos = create_Pazy(upright=upright)
 
-# Geometric properties
-nElem,L,chord,normSparPos = geometrical_properties_Pazy()
+# Undeformed nodal and midpoint positions
+wing = model.beams[1]
+x1_0 = vcat([vcat(wing.elements[e].assemblyData.r_n1[1],wing.elements[e].assemblyData.r_n2[1]) for e in 1:nElem]...)
+x2_0 = vcat([vcat(wing.elements[e].assemblyData.r_n1[2],wing.elements[e].assemblyData.r_n2[2]) for e in 1:nElem]...)
+x3_0 = -vcat([vcat(wing.elements[e].assemblyData.r_n1[3],wing.elements[e].assemblyData.r_n2[3]) for e in 1:nElem]...)
+x1_e = [wing.elements[e].geometry.x1 for e in 1:nElem]
 
 # Initialize outputs
 problem = Array{SteadyProblem}(undef,length(θRange),length(URange))
@@ -46,57 +44,58 @@ tipTwist = Array{Float64}(undef,length(θRange),length(URange))
 tipAoA = Array{Float64}(undef,length(θRange),length(URange))
 AoA = Array{Vector{Float64}}(undef,length(θRange),length(URange))
 cn = Array{Vector{Float64}}(undef,length(θRange),length(URange))
-u1_of_x1 = Array{Vector{Float64}}(undef,length(θRange),length(URange))
-u2_of_x1 = Array{Vector{Float64}}(undef,length(θRange),length(URange))
-u3_of_x1 = Array{Vector{Float64}}(undef,length(θRange),length(URange))
+x1_def = Array{Vector{Float64}}(undef,length(θRange),length(URange))
+x2_def = Array{Vector{Float64}}(undef,length(θRange),length(URange))
+x3_def = Array{Vector{Float64}}(undef,length(θRange),length(URange))
 
 # Sweep pitch angle
 for (i,θ) in enumerate(θRange)
+    # Model
+    model,_ = create_Pazy(aeroSolver=aeroSolver,airfoil=airfoil,upright=upright,sweepAngle=Λ,pitchAngle=θ,gravityVector=[0,0,-g],hasTipCorrection=hasTipCorrection,tipLossType=tipLossType)
+    # Initialize guess solution
+    x0 = zeros(0)
     # Sweep airspeed
     for (j,U) in enumerate(URange)
         # Display progress
-        println("Solving for θ = $(round(θ*180/π)) deg, U = $U m/s")
-        # Model
-        model,_ = create_Pazy(aeroSolver=aeroSolver,airfoil=airfoil,upright=upright,Λ=Λ,θ=θ,airspeed=U,g=g,hasTipCorrection=hasTipCorrection,tipLossType=tipLossType,sweepStructuralCorrections=sweepStructuralCorrections)
+        println("Solving for θ = $(round(rad2deg(θ))) deg, U = $U m/s")
+        # Update airspeed
+        update_v_A!(model, v_A=[0,U,0])
         # Create and solve problem
-        problem[i,j] = create_SteadyProblem(model=model,systemSolver=NR)
+        problem[i,j] = create_SteadyProblem(model=model,x0=x0)
         solve!(problem[i,j])
+        # Final states
+        state = problem[i,j].loadstepHistory.states[end]
+        aeroVars = problem[i,j].loadstepHistory.aeroVariables[end]
+        tipElemFinalAero = aeroVars[nElem]
+        tipNodeFinalState = state[nElem].nodal
         # Outputs
-        tipOOP[i,j] = problem[i,j].nodalStatesOverσ[end][nElem].u_n2_b[3]
-        tip_p = problem[i,j].nodalStatesOverσ[end][nElem].p_n2_b
-        R = first(rotation_tensor_WM(tip_p))
-        Δ = R*AeroBeams.a2
-        tipTwist[i,j] = asind(Δ[3])
-        tipAoA[i,j] = problem[i,j].model.elements[end].aero.flowAnglesAndRates.αₑ*180/π
-        cn[i,j] = [problem[i,j].model.elements[e].aero.aeroCoefficients.cn for e in 1:nElem]
-        AoA[i,j] = [problem[i,j].model.elements[e].aero.flowAnglesAndRates.αₑ for e in 1:nElem]
-        u1_of_x1[i,j] = vcat([vcat(problem[i,j].nodalStatesOverσ[end][e].u_n1[1],problem[i,j].nodalStatesOverσ[end][e].u_n2[1]) for e in 1:nElem]...)
-        u2_of_x1[i,j] = vcat([vcat(problem[i,j].nodalStatesOverσ[end][e].u_n1[2],problem[i,j].nodalStatesOverσ[end][e].u_n2[2]) for e in 1:nElem]...)
-        u3_of_x1[i,j] = vcat([vcat(problem[i,j].nodalStatesOverσ[end][e].u_n1[3],problem[i,j].nodalStatesOverσ[end][e].u_n2[3]) for e in 1:nElem]...)
+        tipTwist[i,j] = twist_angle(tipNodeFinalState.p2_b)
+        tipOOP[i,j] = tipNodeFinalState.u2_b[3]
+        tipAoA[i,j] = rad2deg(tipElemFinalAero.unsteadyKin.αₑ)
+        cn[i,j] = [aeroVars[e].aeroCoefficients.cn for e in 1:nElem]
+        AoA[i,j] = rad2deg.([aeroVars[e].unsteadyKin.αₑ for e in 1:nElem])
+        u1 = vcat([vcat(state[e].nodal.u1[1],state[e].nodal.u2[1]) for e in 1:nElem]...)
+        u2 = vcat([vcat(state[e].nodal.u1[2],state[e].nodal.u2[2]) for e in 1:nElem]...)
+        u3 = vcat([vcat(state[e].nodal.u1[3],state[e].nodal.u2[3]) for e in 1:nElem]...)
+        x1_def[i,j] = x1_0 .+ u1
+        x2_def[i,j] = x2_0 .+ u2
+        x3_def[i,j] = x3_0 .+ u3
+        # Update initial guess for next airspeed
+        x0 = problem[i,j].systemArrays.x
     end
 end
 
-# Undeformed nodal and elemental positions
-x1_0 = vcat([vcat(problem[1].model.elements[e].r_n1[1],problem[1].model.elements[e].r_n2[1]) for e in 1:nElem]...)
-x2_0 = vcat([vcat(problem[1].model.elements[e].r_n1[2],problem[1].model.elements[e].r_n2[2]) for e in 1:nElem]...)
-x3_0 = vcat([vcat(problem[1].model.elements[e].r_n1[3],problem[1].model.elements[e].r_n2[3]) for e in 1:nElem]...)
-x1_e = getindex.(getfield.(problem[1].model.elements, :x1), 1)
-
-# Deformed nodal positions
-x1_def = [x1_0 .+ u1_of_x1[i,j] for i in eachindex(θRange), j in eachindex(URange)]
-x2_def = [x2_0 .+ u2_of_x1[i,j] for i in eachindex(θRange), j in eachindex(URange)]
-x3_def = [x3_0 .+ u3_of_x1[i,j] for i in eachindex(θRange), j in eachindex(URange)]
-
 # Load reference data (from AePW4 meetings)
-dispΛ30θ5U60_Nastran = readdlm(pkgdir(AeroBeams)*"/test/referenceData/sweptPazy/dispLambda30AoA5U60_Nastran.txt")
+dispΛ20θ7U70_Sharpy = readdlm(pkgdir(AeroBeams)*"/test/referenceData/sweptPazy/dispLambda20AoA7U70_Sharpy.txt")
 
+## Plots
 # Set paths
-relPath = "/dev/sweptPazy/General/outputs/sweptPazySteadyPitchRange"
+relPath = "/test/outputs/figures/sweptPazySteadyPitchRange"
 absPath = string(pwd(),relPath)
 mkpath(absPath)
 
 # Deformed state of selected condition (AoA = 5 deg and U = 60 m/s)
-deformationPlot = plot_steady_deformation(problem[3,60],view=(30,15),plotDistLoads=false,save=true,savePath="/dev/sweptPazy/General/outputs/sweptPazySteadyPitchRange/sweptPazySteadyPitchRange_deformation.pdf")
+deformationPlot = plot_steady_deformation(problem[3,61],view=(30,15),plotDistLoads=false,save=true,savePath="/test/outputs/figures/sweptPazySteadyPitchRange/sweptPazySteadyPitchRange_deformation.pdf")
 display(deformationPlot)
 
 # Plot configurations
@@ -114,7 +113,7 @@ x = upright ? x3_def[3,60] : x1_def[3,60]
 y = upright ? -x1_def[3,60] : x3_def[3,60]
 plt_defPos = plot(xlabel="\$x_1\$ [m]", ylabel="\$x_3\$ [m]", xlims=[0,0.5], tickfont=font(ts), guidefont=font(fs), legendfontsize=lfs)
 plot!(x, y, c=:black, lw=lw, ls=:solid, label="AeroBeams")
-scatter!(dispΛ30θ5U60_Nastran[1,:],dispΛ30θ5U60_Nastran[2,:], c=:black, ms=ms, msw=msw, label="Technion (Nastran)")
+scatter!(dispΛ20θ7U70_Sharpy[1,:],dispΛ20θ7U70_Sharpy[2,:], c=:black, ms=ms, msw=msw, label="Sharpy")
 display(plt_defPos)
 savefig(string(absPath,"/sweptPazySteadyPitchRange_defPos.pdf"))
 

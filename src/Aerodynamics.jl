@@ -2,11 +2,25 @@
 @inline _val(x::Real) = x
 @inline _val(x::ForwardDiff.Dual) = ForwardDiff.value(x)
 
+# Fractional power of a non-negative number, taken as zero (with zero derivative) at zero, where its derivative is unbounded
+@inline _root(x, p) = iszero(_val(x)) ? zero(x) : x^p
+
+# Absolute value with zero derivative at zero (the symmetric choice at the kink, instead of the one-sided one from ForwardDiff)
+@inline _abs0(x) = iszero(_val(x)) ? zero(x) : abs(x)
+
+# Weight (between 0 and 1) of the downstroke phase, which is zero in upstroke (when the product of the stall onset ratio and the non-dimensional pitch rate is non-negative) and rises smoothly with the square of the hyperbolic tangent of that product, scaled by `qTransition`. It is zero, with zero slope, at zero pitch rate, so that the steady state and its linearization are those of the upstroke phase. A hard switch is recovered with `qTransition = 0`
+@inline function downstroke_weight(stallOnsetRatio, q, qTransition)
+    x = stallOnsetRatio * q
+    return x < 0 ?
+           (qTransition > 0 ? tanh(x/qTransition)^2 : one(x)) :
+           zero(x)
+end
+
 # Computes the nodal resutants from aerodynamic loads and aerodynamic state matrices
 function aero_core!(f1χ,f2χ,m1χ,m2χ,Ac,Ai,An,Af,Ag,A,B,model,element,aeroStateCache,p,V,Ω,χ,δ,Vdot,Ωdot,timeNow,Δt,isDynamicProblem)
 
     # Unpack and set flags
-    @unpack atmosphere = model
+    @unpack atmosphere,kinematicsBasisA = model
 
     # Steady aerodynamic kinematics
     α = aero_steady_kinematics!(element,aeroStateCache,V,Ω)
@@ -30,7 +44,7 @@ function aero_core!(f1χ,f2χ,m1χ,m2χ,Ac,Ai,An,Af,Ag,A,B,model,element,aeroSta
     update_inertial_parameters!(element,aeroStateCache)
 
     # Update tip loss factor, if applicable
-    isDynamicProblem && update_tip_loss_factor!(model,element)
+    update_tip_loss_factor!(kinematicsBasisA,element)
 
     # Get local gust velocity, if applicable
     isDynamicProblem && local_gust_velocity!(timeNow,model,element,aeroStateCache,p)
@@ -54,11 +68,11 @@ end
 # Computes the steady aerodynamic kinematic variables
 function aero_steady_kinematics!(element,aeroStateCache,V::AbstractVector{T},Ω::AbstractVector{T}) where T<:Number
 
-    @unpack RwT,c,normSparPos = element.aero.geometry
+    @unpack Rw⁺T,c,normSparPos = element.aero.geometry
     @unpack U = aeroStateCache.attachedVars.steadyKin
 
     # Relative wind velocity vector at spar position, resolved in basis W
-    U .= - RwT * V
+    U .= - Rw⁺T * V
 
     # Spanwise, tangential and normal components of relative wind velocity
     Uₛ,Uₜ,Uₙ = U
@@ -67,7 +81,7 @@ function aero_steady_kinematics!(element,aeroStateCache,V::AbstractVector{T},Ω:
     Uᵢ = sqrt(Uₜ^2 + Uₙ^2)
 
     # Spanwise angular velocity component, resolved in basis W
-    Ωₐ = dot(RwT[1,:], Ω)
+    Ωₐ = dot(Rw⁺T[1,:], Ω)
 
     # Relative normal wind velocity component at the airfoil's 1/2- and 3/4-chord
     UₙMid = Uₙ - Ωₐ * c * (normSparPos - 1/2)
@@ -93,12 +107,12 @@ end
 # Computes the unsteady aerodynamic kinematic variables
 function aero_unsteady_kinematics!(element,aeroStateCache,Vdot,Ωdot)
 
-    @unpack RwT,c,normSparPos = element.aero.geometry
+    @unpack Rw⁺T,c,normSparPos = element.aero.geometry
     @unpack Uₜ,Uₙ,Uᵢ = aeroStateCache.attachedVars.steadyKin
     @unpack Udot = aeroStateCache.attachedVars.unsteadyKin
 
     # Time derivative of relative wind velocity vector, resolved in basis W
-    Udot .= - RwT * Vdot
+    Udot .= - Rw⁺T * Vdot
 
     # Time derivatives of tangential and normal components of relative wind velocity
     Uₜdot,Uₙdot = Udot[2],Udot[3]
@@ -107,7 +121,7 @@ function aero_unsteady_kinematics!(element,aeroStateCache,Vdot,Ωdot)
     Uᵢdot = (Uₜ * Uₜdot + Uₙ * Uₙdot) / Uᵢ
 
     # Spanwise angular acceleration component, resolved in basis W
-    Ωₐdot = dot(RwT[1,:], Ωdot)
+    Ωₐdot = dot(Rw⁺T[1,:], Ωdot)
 
     # Relative normal wind acceleration component at the airfoil's 1/2- and 3/4-chord
     UₙdotMid = Uₙdot - Ωₐdot * c * (normSparPos - 1/2)
@@ -212,17 +226,23 @@ function update_inertial_parameters!(element,aeroStateCache)
 end
 
 
-# Updates the tip loss factor over the element with the current reference airspeed
-function update_tip_loss_factor!(model,element)
+# Updates the tip loss factor over the element with the airspeed of basis A. It is the instantaneous airspeed if the tip loss is updated with airspeed, or the reference one (that at time zero) when initializing, which also covers tip loss functions that are not updated with the airspeed
+function update_tip_loss_factor!(kinematicsBasisA,element; initialize=false)
 
-    # Skip if the tip loss function is not airspeed dependent
-    !(element.aero.surface.tipLoss.tipLossFunctionIsAirspeedDependent) && return
+    # Skip if the element has no aerodynamic surface
+    isnothing(element.aero.surface) && return
 
-    @unpack v_A = model.kinematicsBasisA.state
+    @unpack tipLossFunctionIsAirspeedDependent,updateTipLossWithAirspeed = element.aero.surface.tipLoss
+
+    # Skip if the tip loss function is not airspeed dependent or if it is not to be updated
+    (!tipLossFunctionIsAirspeedDependent || !(updateTipLossWithAirspeed || initialize)) && return
+
     @unpack ϖ = element.aero.loadsDistribution
 
     # Reference airspeed
-    Uref = norm(v_A)
+    Uref = initialize ? 
+           norm(kinematicsBasisA.v_A(0)) : 
+           norm(kinematicsBasisA.state.v_A)
 
     # Tip loss factor at element's midpoint value
     ϖMid = ϖ(Uref,0.5)
@@ -799,14 +819,14 @@ function BLi_kinematics!(element,aeroStateCache)
     @unpack αdot = aeroStateCache.attachedVars.unsteadyKin
     @unpack r₀ = element.aero.surface.geometry.airfoil.state.bli
 
-    # Non-dimensional pitch rate (round off to suppress noise)
-    q = round_off(αdot*c/Uᵢ, 1e-6)
+    # Non-dimensional pitch rate
+    q = αdot*c/Uᵢ
 
     # Reduced non-dimensional pitch rate
     r = q/2
 
     # Unsigned ratio of reduced pitch rate to critical pitch rate
-    qR = abs(r)/r₀
+    qR = _abs0(r)/r₀
 
     # Unsigned capped reduced pitch rate ratio 
     R = min(1, qR)
@@ -879,37 +899,49 @@ function BLi_motion_qualifiers!(timeNow,element,aeroStateCache)
 end
 
 
+# Weight of the downstroke phase of the modified Beddoes-Leishman model
+function BLi_downstroke_weight(element,aeroStateCache)
+
+    @unpack qTransition = element.aero.surface.solvers.ppSolver
+    @unpack q,stallOnsetRatio = aeroStateCache.bliVars.flow
+
+    return downstroke_weight(stallOnsetRatio, q, qTransition)
+
+end
+
+
 # Computes the breakpoint angles of the modified Beddoes-Leishman model
 function BLi_breakpoint_angles!(element,aeroStateCache)
 
     @unpack αds₀,αₛₛ,α1₀N,α1₀M,α1₀T,δα₀,δα₁,dt,dm,zm,ztd = element.aero.surface.geometry.airfoil.state.bli
     @unpack RD = aeroStateCache.bliVars.states
-    @unpack qR,R,upstroke,stalled,P = aeroStateCache.bliVars.flow
+    @unpack qR,R,stalled,P = aeroStateCache.bliVars.flow
     @unpack qRmax = aeroStateCache.bliVars.comp
 
-    # Breakpoint angle offsets
-    sqrtOfR = !iszero(R) ? 
-              sqrt(R) : 
-              zero(R)
-    if upstroke
-        fR = !iszero(qRmax) ? 
-             R / min(1, qRmax) * sqrtOfR :
-             zero(R)
-        δα1N = (αds₀ - αₛₛ) * RD        
-        δα1M = δα1N + dm*fR                                  
-        δα1T = δα1N + dt*fR
-    else 
-        δα1N = stalled ? 
-               -min(α1₀N/2, δα₀ + δα₁ * qR * (1+P)) :
-               zero(R)
-        δα1M = δα1N * (1 - zm * sqrtOfR * (1-P/2))
-        δα1T = δα1N * (1 - ztd * sqrtOfR * (1-P/4))
-    end
+    # Weights of the downstroke and upstroke phases
+    d = BLi_downstroke_weight(element,aeroStateCache)
+    w = 1 - d
+
+    # Breakpoint angle offsets in the upstroke phase
+    sqrtOfR = _root(R, 1/2)
+    fR = !iszero(qRmax) ? 
+         R / min(1, qRmax) * sqrtOfR :
+         zero(R)
+    δα1Nu = (αds₀ - αₛₛ) * RD        
+    δα1Mu = δα1Nu + dm*fR                                  
+    δα1Tu = δα1Nu + dt*fR
+
+    # Breakpoint angle offsets in the downstroke phase
+    δα1Nd = stalled ? 
+            -min(α1₀N/2, δα₀ + δα₁ * qR * (1+P)) :
+            zero(R)
+    δα1Md = δα1Nd * (1 - zm * sqrtOfR * (1-P/2))
+    δα1Td = δα1Nd * (1 - ztd * sqrtOfR * (1-P/4))
 
     # Unsteady breakpoint of separation angles
-    α1N = α1₀N + δα1N 
-    α1M = α1₀M + δα1M
-    α1T = α1₀T + δα1T
+    α1N = α1₀N + w*δα1Nu + d*δα1Nd 
+    α1M = α1₀M + w*δα1Mu + d*δα1Md
+    α1T = α1₀T + w*δα1Tu + d*δα1Td
 
     @pack! aeroStateCache.bliVars.flow = α1N,α1M,α1T
 
@@ -921,8 +953,12 @@ function BLi_time_delays!(element,aeroStateCache)
 
     @unpack Ta,Tf,λ₁,λ₂ = element.aero.surface.geometry.airfoil.state.bli
     @unpack RD = aeroStateCache.bliVars.states
-    @unpack qR,R,stallOnsetRatio,upstroke,P = aeroStateCache.bliVars.flow
+    @unpack qR,R,stallOnsetRatio,P = aeroStateCache.bliVars.flow
     @unpack qRmax = aeroStateCache.bliVars.comp
+
+    # Weights of the downstroke and upstroke phases
+    d = BLi_downstroke_weight(element,aeroStateCache)
+    w = 1 - d
 
     # Stall suppression factor (tested on the primal value only: iszero is false for a ForwardDiff.Dual with nonzero partials, and the derivative of RD^λ₂ with λ₂ < 1 is unbounded at RD = 0)
     σ = iszero(_val(RD)) ? 
@@ -931,16 +967,16 @@ function BLi_time_delays!(element,aeroStateCache)
 
     # Stall supression time delay
     Ta_SO = Ta * (1/4 + 
-                  λ₁ * σ * (1-R^(1/4)) * exp( -(abs(stallOnsetRatio) - 1)^2 / 0.01 )
+                  λ₁ * σ * (1-_root(R,1/4)) * exp( -(abs(stallOnsetRatio) - 1)^2 / 0.01 )
                   )
 
     TfN = Tf * (1 +
-                1/2 * P^6 * (!upstroke) + 
-                RD^3 * (4 * (1-qR/qRmax) * (!upstroke) + 
-                        1/2 * (qR/qRmax)^4 * upstroke
+                1/2 * P^6 * d + 
+                RD^3 * (4 * (1-qR/qRmax) * d + 
+                        1/2 * (qR/qRmax)^4 * w
                         )
                 )
-    TfM = Tf * (1 - R/2 * (1-P) * (!upstroke))
+    TfM = Tf * (1 - R/2 * (1-P) * d)
     TfT = TfN
 
     @pack! aeroStateCache.bliVars.flow = Ta_SO,TfN,TfM,TfT
@@ -954,8 +990,12 @@ function BLi_separation_points!(element,aeroStateCache)
     @unpack α1₀N,α1₀M,α1₀T,βσ1N,βσ1T,βσ2N,βS2Nlpr,βS2Tlpr,βS1Nu,βS1Mu,βS1Tu,βS1Nd,βS1Md,βS1Td,βS2Nu,βS2Mu,βS2Tu,βS2Nd,βS2Md,βS2Td,ξ,f₀N,f₀M,f₀T,fbN,fbM,fbT,S1N,S1M,S1T,S2N,S2M,S2T = element.aero.surface.geometry.airfoil.state.bli
     @unpack α = aeroStateCache.attachedVars.steadyKin
     @unpack αlag,RD = aeroStateCache.bliVars.states
-    @unpack R,stallOnsetRatio,upstroke,stalled,P,SS,α1N,α1M,α1T = aeroStateCache.bliVars.flow
+    @unpack R,stallOnsetRatio,stalled,P,SS,α1N,α1M,α1T = aeroStateCache.bliVars.flow
     @unpack stallOnsetRatioMin,lastRD_tv0 = aeroStateCache.bliVars.comp
+
+    # Weights of the downstroke and upstroke phases
+    d = BLi_downstroke_weight(element,aeroStateCache)
+    w = 1 - d
 
     # Factor defining the flattening of fPrime for light stall
     ψ = P^3 * (1 - SS)
@@ -982,60 +1022,42 @@ function BLi_separation_points!(element,aeroStateCache)
 
     # Normal force unsteady lagged separation point based on lagged AoA: fPrimeN
     absαlag = abs(αlag)
-    sqrtOfR = sqrt(R)
+    sqrtOfR = _root(R, 1/2)
     if absαlag <= α1N
         αDiffN = absαlag - α1N
-        S1PrimeN = upstroke ?
-                   S1N * (1 + βS1Nu * RD) : 
-                   S1N * (1 + βS1Nd * RD)
+        S1PrimeN = S1N * (1 + (w*βS1Nu + d*βS1Nd) * RD)
         fPrimeN = 1 - (1-fbN) * exp(αDiffN/S1PrimeN)
     else
         αDiffN = α1N - absαlag
-        if upstroke
-            f₀Nprime = f₀N
-            S2PrimeN = S2N * (1 + βS2Nu*RD + βS2Nlpr*(1-RD)^2*(1-SS) + βσ2N*σ*RD*(1-RD))
-        else                
-            f₀Nprime = min(0.25, (1-sqrtOfR)*((stalled ? f₀N : fbN-0.2)+ξRD_tv0*σ))
-            S2PrimeN = S2N * (1 + βS2Nd*RD + βS2Nlpr*(1-RD)^2*(1-SS) + βσ2N*σ*RD*(1-RD) + βσ1N*ψ*R)
-        end
+        f₀Nprime = w * f₀N + 
+                   d * min(0.25, (1-sqrtOfR)*((stalled ? f₀N : fbN-0.2)+ξRD_tv0*σ))
+        S2PrimeN = S2N * (1 + (w*βS2Nu + d*βS2Nd)*RD + βS2Nlpr*(1-RD)^2*(1-SS) + βσ2N*σ*RD*(1-RD) + d*βσ1N*ψ*R)
         fPrimeN = f₀Nprime + (fbN-f₀Nprime) * exp(αDiffN/S2PrimeN)
     end
 
     # Pitching moment unsteady lagged separation point based on lagged AoA: fPrimeM
     if absαlag <= α1M
         αDiffM = absαlag - α1M
-        S1PrimeM = upstroke ? 
-                   S1M * (1 + βS1Mu * RD) : 
-                   S1M * (1 + βS1Md * RD)
+        S1PrimeM = S1M * (1 + (w*βS1Mu + d*βS1Md) * RD)
         fPrimeM = 1-(1-fbM)*exp(αDiffM/S1PrimeM)
     else
         αDiffM = α1M - absαlag
-        if upstroke
-            f₀Mprime = f₀M
-            S2PrimeM = S2M * (1 + βS2Mu * RD)
-        else                
-            f₀Mprime = min(0.25, (1-sqrtOfR)*((stalled ? f₀M : fbM-0.2)+ξRD_tv0*σ))
-            S2PrimeM = S2M * (1 + βS2Md * RD)
-        end
+        f₀Mprime = w * f₀M + 
+                   d * min(0.25, (1-sqrtOfR)*((stalled ? f₀M : fbM-0.2)+ξRD_tv0*σ))
+        S2PrimeM = S2M * (1 + (w*βS2Mu + d*βS2Md) * RD)
         fPrimeM = f₀Mprime + (fbM-f₀Mprime) * exp(αDiffM/S2PrimeM)
     end
 
     # Tangential force unsteady lagged separation point based on lagged AoA: fPrimeT
     if absαlag <= α1T
         αDiffT = absαlag - α1T
-        S1PrimeT = upstroke ? 
-                   S1T * (1 + βS1Tu * RD) : 
-                   S1T * (1 + βS1Td * RD)
+        S1PrimeT = S1T * (1 + (w*βS1Tu + d*βS1Td) * RD)
         fPrimeT = 1-(1-fbT)*exp(αDiffT/S1PrimeT)
     else
         αDiffT = α1T - absαlag
-        if upstroke
-            f₀Tprime = f₀T
-            S2PrimeT = S2T * (1 + βS2Tu*RD + βS2Tlpr*(1-RD)^2*(1-SS))
-        else
-            f₀Tprime = min(0.25, (1-sqrtOfR)*((stalled ? f₀T : fbT-0.2)+ξRD_tv0*σ))
-            S2PrimeT = S2T * (1 + βS2Td*RD + βS2Tlpr*(1-RD)^2*(1-SS) + βσ1T*ψ*R)
-        end
+        f₀Tprime = w * f₀T + 
+                   d * min(0.25, (1-sqrtOfR)*((stalled ? f₀T : fbT-0.2)+ξRD_tv0*σ))
+        S2PrimeT = S2T * (1 + (w*βS2Tu + d*βS2Td)*RD + βS2Tlpr*(1-RD)^2*(1-SS) + d*βσ1T*ψ*R)
         fPrimeT = f₀Tprime + (fbT-f₀Tprime) * exp(αDiffT/S2PrimeT)
     end
 
@@ -1372,15 +1394,19 @@ function BLi_cm!(element,aeroStateCache,χ,δ)
     @unpack Ma,βₚ,Tmα,TmM,Tmθ̇ = aeroStateCache.attachedVars.flowParameters
     @unpack cnF,cmV = aeroStateCache.attachedVars.aeroCoefficients
     @unpack f2primeM,RD = aeroStateCache.bliVars.states
-    @unpack R,stallOnsetRatio,upstroke,stalled,P = aeroStateCache.bliVars.flow
+    @unpack R,stallOnsetRatio,stalled,P = aeroStateCache.bliVars.flow
     if !incompressibleInertialLoads
         χ1,χ2,χ3,χ4,χ5,χ6,χ7,χ8 = view(χ,inertialPitchPlungeStatesRange)
     end
 
+    # Weights of the downstroke and upstroke phases
+    d = BLi_downstroke_weight(element,aeroStateCache)
+    w = 1 - d
+
     # Center of pressure dynamic variables
     K1Prime = K₁ * (1 - κ₁ * RD * (1-abs(stallOnsetRatio))) - 
-              κ₂ * R * abs(stallOnsetRatio) * upstroke
-    K2Prime = K₂ * (1 + κ₃ * stalled * R^2 * (1-P) *(!upstroke))
+              κ₂ * R * abs(stallOnsetRatio) * w
+    K2Prime = K₂ * (1 + κ₃ * stalled * R^2 * (1-P) * d)
 
     # Center of pressure offset from quarter-chord
     δCP = K₀ + K1Prime * (1-f2primeM) + K2Prime * sin(π*f2primeM^κ₀)
@@ -1423,8 +1449,11 @@ function BLi_ct!(element,aeroStateCache,δ)
     @unpack αₑ = aeroStateCache.attachedVars.unsteadyKin
     @unpack cnF,ctV = aeroStateCache.attachedVars.aeroCoefficients
     @unpack αlag,f2primeT,RD = aeroStateCache.bliVars.states
-    @unpack R,stallOnsetRatio,upstroke,stalled = aeroStateCache.bliVars.flow
+    @unpack R,stallOnsetRatio,stalled = aeroStateCache.bliVars.flow
     @unpack Ts = aeroStateCache.bliVars.comp
+
+    # Weight of the downstroke phase
+    d = BLi_downstroke_weight(element,aeroStateCache)
 
     # Ratio of lagged AoA to tangential steady breakpoint angle
     stallOnsetRatioT = abs(αlag) / α1₀T
@@ -1436,7 +1465,7 @@ function BLi_ct!(element,aeroStateCache,δ)
     ctF = (1-η*RD^2) * cnF * tan(αₑ+b*Ωₐ/(2*Uᵢ)) * 
           f2primeT^(1/2 + 
                     stallOnsetRatioT + 
-                    E₀ * RD * stalled * (1-Ts) * R * abs(stallOnsetRatio)^(1/2) * (!upstroke)
+                    E₀ * RD * stalled * (1-Ts) * R * _root(abs(stallOnsetRatio), 1/2) * d
                     )
     if stallOnsetRatioT > 1
         ctF -= E₁ * (1-RD^3) * min(1, stallOnsetRatioT^3-1)
@@ -1552,8 +1581,8 @@ function BLo_motion_qualifiers!(element,aeroStateCache)
     @unpack αdot = aeroStateCache.attachedVars.unsteadyKin
     @unpack cnPprime = aeroStateCache.bloVars.states
 
-    # Non-dimensional pitch rate (round off to supress noise)
-    q = round_off(αdot*c/Uᵢ, 1e-6)
+    # Non-dimensional pitch rate
+    q = αdot*c/Uᵢ
 
     # Lagged angle of attack
     αlag = cnPprime / cnα
@@ -1569,17 +1598,28 @@ function BLo_motion_qualifiers!(element,aeroStateCache)
 end
 
 
+# Weight of the downstroke phase of the original Beddoes-Leishman model
+function BLo_downstroke_weight(element,aeroStateCache)
+
+    @unpack qTransition = element.aero.surface.solvers.ppSolver
+    @unpack q,stallOnsetRatio = aeroStateCache.bloVars.flow
+
+    return downstroke_weight(stallOnsetRatio, q, qTransition)
+
+end
+
+
 # Computes the breakpoint angle of the original Beddoes-Leishman model
 function BLo_breakpoint_angle!(element,aeroStateCache)
 
     @unpack α1₀,δα = element.aero.surface.geometry.airfoil.state.blo
-    @unpack upstroke = aeroStateCache.bloVars.flow
     @unpack f2Prime = aeroStateCache.bloVars.states
 
+    # Weight of the downstroke phase
+    d = BLo_downstroke_weight(element,aeroStateCache)
+
     # Breakpoint angle offset
-    δα1 = upstroke ? 
-          zero(f2Prime) : 
-          -δα * (1-f2Prime)^(1/4)
+    δα1 = -d * δα * _root(1-f2Prime, 1/4)
 
     # Unsteady breakpoint of separation angle
     α1 = α1₀ + δα1
@@ -1655,12 +1695,31 @@ end
 function BLo_time_delays!(element,aeroStateCache)
 
     @unpack Tf₀,Tv₀,TvL,fb = element.aero.surface.geometry.airfoil.state.blo
-    @unpack stallOnsetRatio,upstroke = aeroStateCache.bloVars.flow
+    @unpack stallOnsetRatio = aeroStateCache.bloVars.flow
     @unpack f2Prime = aeroStateCache.bloVars.states
     @unpack τvP,τvN = aeroStateCache.bloVars.comp
 
+    # Weights of the downstroke and upstroke phases
+    d = BLo_downstroke_weight(element,aeroStateCache)
+    w = 1 - d
+
+    # Time delays in each phase
     τv = min(τvP,τvN)
-    
+    Tfu,Tvu = BLo_phase_time_delays(true,stallOnsetRatio,τv,f2Prime,Tf₀,Tv₀,TvL,fb)
+    Tfd,Tvd = BLo_phase_time_delays(false,stallOnsetRatio,τv,f2Prime,Tf₀,Tv₀,TvL,fb)
+
+    # Blend
+    Tf = w * Tfu + d * Tfd
+    Tv = w * Tvu + d * Tvd
+
+    @pack! aeroStateCache.bloVars.flow = Tf,Tv
+
+end
+
+
+# Computes the time delays of the original Beddoes-Leishman model in the upstroke or downstroke phase
+function BLo_phase_time_delays(upstroke,stallOnsetRatio,τv,f2Prime,Tf₀,Tv₀,TvL,fb)
+
     # Vortex shedding phase
     if abs(stallOnsetRatio) >= 1
         # Primary vortex
@@ -1684,7 +1743,7 @@ function BLo_time_delays!(element,aeroStateCache)
             Tf = Tf₀/2
             # Increase the rate of decay of the vortex lift if the rate of change of AoA changes during the vortex shedding 
             Tv = Tv₀/2
-        elseif τv > 2*TvL && !upstroke
+        else # τv > 2*TvL && !upstroke
             # Delay the reattachment of the boundary layer after the vortex is totally shed and the AoA is decreasing
             Tf = 4*Tf₀
             # Maintain a high rate of vortex lift decay after the vortex is totally shed
@@ -1706,7 +1765,7 @@ function BLo_time_delays!(element,aeroStateCache)
         end
     end
 
-    @pack! aeroStateCache.bloVars.flow = Tf,Tv
+    return Tf,Tv
 
 end
 
@@ -1952,7 +2011,7 @@ function aero_loads_resultants!(f1χ,f2χ,m1χ,m2χ,atmosphere,element,aeroState
     @unpack Δℓ = element.geometry
     @unpack ppSolver = element.aero.surface.solvers
     @unpack hasTipCorrection = element.aero.surface.tipLoss
-    @unpack csecΛ,cosΛ²,RwR0 = element.aero.geometry
+    @unpack csecΛ,cosΛ²,Rw⁺T,RwR0 = element.aero.geometry
     @unpack ϖ,ϖMid,Uref = element.aero.loadsDistribution
     @unpack Uᵢ = aeroStateCache.attachedVars.steadyKin
     @unpack Uᵢdot = aeroStateCache.attachedVars.unsteadyKin
@@ -1980,6 +2039,13 @@ function aero_loads_resultants!(f1χ,f2χ,m1χ,m2χ,atmosphere,element,aeroState
         Fa[2:4]  .= fMid / 2
         Fa[8:10] .= fMid / 2
     end
+
+    # Pitching moment, computed about the axis of basis W perpendicular to the flow, kept only as the torque about the beam axis (the component of the moment along the beam axis b1, resolved in basis W), as in simple sweep theory
+    b1 = Rw⁺T[:,1]
+    m1 = Fa[4]
+    m2 = Fa[10]
+    Fa[4:6]   .= (m1 * b1[1]) * b1
+    Fa[10:12] .= (m2 * b1[1]) * b1
 
     # Aerodynamic contributions to nodal resultants, resolved in basis A
     f1χ .= R * RwR0 * view(Fa, 1:3)

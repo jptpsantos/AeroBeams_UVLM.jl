@@ -1,13 +1,16 @@
-using AeroBeams, DelimitedFiles, Plots, ColorSchemes
+using AeroBeams
 
 # Sweep angle range [rad]
-ΛRange = [0,10,20,30]*π/180
+ΛRange = deg2rad.([0,10,20])
 
-# Airspeed range
-URange = collect(1:1:120)
+# Airspeed range [m/s]
+URange = collect(0:1:100)
 
-# Root pitch angle
-θ = 0*π/180
+# Root pitch angle [rad]
+θ = deg2rad(0)
+
+# Tip mass configuration (select between :baseline, :TE or :LE)
+sweptTipMassConfig = :TE
 
 # Flag for tip correction
 hasTipCorrection = true
@@ -15,14 +18,11 @@ hasTipCorrection = true
 # Tip correction function type
 tipLossType = "VLM-def"
 
-# Flag for ad hoc corrections on sectional stiffness matrix
-sweepStructuralCorrections = true
-
 # Aerodynamic solver
 aeroSolver = Indicial()
 
 # Airfoil section
-airfoil = deepcopy(flatPlate)
+airfoil = deepcopy(FlatPlate)
 
 # Flag for upright position
 upright = false
@@ -31,55 +31,45 @@ upright = false
 g = 0
 
 # Geometric properties
-nElem,L,chord,normSparPos = geometrical_properties_Pazy()
+nElem,L,_ = geometrical_properties_Pazy()
 
-# Number of modes
+# Number of modes to track
 nModes = 3
 
-# System solver
-σ0 = 0.5
-σstep = 0.5
-maxIter = 50
-NR = create_NewtonRaphson(initialLoadFactor=σ0,maximumLoadFactorStep=σstep,maximumIterations=maxIter,alwaysUpdateJacobian=false)
+# Eigensolver method and minimum number of eigenvalues to be computed
+eigenmethod = :krylovkit
+nev = 50
 
 # Initialize outputs
-untrackedFreqs = Array{Vector{Float64}}(undef,length(ΛRange),length(URange))
-untrackedDamps = Array{Vector{Float64}}(undef,length(ΛRange),length(URange))
-untrackedEigenvectors = Array{Matrix{ComplexF64}}(undef,length(ΛRange),length(URange))
-freqs = Array{Vector{Float64}}(undef,length(ΛRange),length(URange))
-damps = Array{Vector{Float64}}(undef,length(ΛRange),length(URange))
-modeFrequencies = Array{Vector{Float64}}(undef,length(ΛRange),nModes)
-modeDampings = Array{Vector{Float64}}(undef,length(ΛRange),nModes)
-modeDampingRatios = Array{Vector{Float64}}(undef,length(ΛRange),nModes)
+eigensols = Array{EigenSolution}(undef,length(ΛRange),length(URange))
 tipOOP = Array{Float64}(undef,length(ΛRange),length(URange))
+freqsOsc = Array{Matrix{Float64}}(undef,length(ΛRange))
+dampsOsc = Array{Matrix{Float64}}(undef,length(ΛRange))
 
 # Sweep angle of sweep
 for (i,Λ) in enumerate(ΛRange)
+    # Initialize guess solution
+    x0 = zeros(0)
     # Sweep airspeed
     for (j,U) in enumerate(URange)
         # Display progress
-        println("Solving for Λ = $(round(Λ*180/π)) deg, U = $U m/s")
+        println("Solving for Λ = $(round(Int,rad2deg(Λ))) deg, U = $U m/s")
         # Model
-        model,_ = create_Pazy(aeroSolver=aeroSolver,airfoil=airfoil,upright=upright,hasTipCorrection=hasTipCorrection,tipLossType=tipLossType,Λ=Λ,θ=θ,airspeed=U,g=g,sweepStructuralCorrections=sweepStructuralCorrections)
+        model,_ = create_Pazy(aeroSolver=aeroSolver,airfoil=airfoil,upright=upright,hasTipCorrection=hasTipCorrection,tipLossType=tipLossType,sweepAngle=Λ,pitchAngle=θ,airspeed=U,gravityVector=[0,0,-g],sweptTipMassConfig=sweptTipMassConfig)
         # Create and solve problem
-        lowerLimit = U <= 80 ? 2π : min(2π*U/20,2π*4)
-        problem = create_EigenProblem(model=model,nModes=nModes,frequencyFilterLimits=[lowerLimit,Inf],systemSolver=NR)
+        problem = create_EigenProblem(model=model,eigenmethod=eigenmethod,nev=nev,x0=x0)
         solve!(problem)
-        # Frequencies, dampings and eigenvectors
-        untrackedFreqs[i,j] = problem.frequenciesOscillatory
-        untrackedDamps[i,j] = round_off!(problem.dampingsOscillatory,1e-8)
-        untrackedEigenvectors[i,j] = problem.eigenvectorsOscillatoryCplx
+        # Eigensolution
+        eigensols[i,j] = problem.eigensolution
         # Tip OOP deflection
-        tipOOP[i,j] = problem.nodalStatesOverσ[end][nElem].u_n2_b[3]
+        tipOOP[i,j] = problem.loadstepHistory.states[end][nElem].nodal.u2_b[3]
+        # Set initial guess solution for next iteration
+        x0 = problem.systemArrays.x
     end
     # Apply mode tracking
-    freqs[i,:],damps[i,:],_ = mode_tracking(URange,untrackedFreqs[i,:],untrackedDamps[i,:],untrackedEigenvectors[i,:])
-    # Separate frequencies and damping ratios by mode
-    for mode in 1:nModes
-        modeFrequencies[i,mode] = [freqs[i,j][mode] for j in eachindex(URange)]
-        modeDampings[i,mode] = [damps[i,j][mode] for j in eachindex(URange)]
-        modeDampingRatios[i,mode] = modeDampings[i,mode]./modeFrequencies[i,mode]
-    end
+    freqs,damps,_ = mode_tracking(eigensols[i,:])
+    # Get frequencies and dampings of oscillatory modes
+    freqsOsc[i],dampsOsc[i],_ = filter_tracked_modes(freqs,damps; fmin=Hz2rads(2), fmax=Hz2rads(50), maxTracks=nModes)
 end
 
 # Load reference data (from AePW4 meetings)
@@ -90,8 +80,9 @@ undef_freq_Lambda0_NastranTechnion = readdlm(pkgdir(AeroBeams)*"/test/referenceD
 undef_freq_Lambda20_NastranTechnion = readdlm(pkgdir(AeroBeams)*"/test/referenceData/sweptPazy/undef_freq_Lambda20_NastranTechnion.txt")
 undef_freq_Lambda30_NastranTechnion = readdlm(pkgdir(AeroBeams)*"/test/referenceData/sweptPazy/undef_freq_Lambda30_NastranTechnion.txt")
 
+## Plots
 # Set paths
-relPath = "/dev/sweptPazy/General/outputs/sweptPazyUndeformedFlutterSweepRange"
+relPath = "/test/outputs/figures/sweptPazyUndeformedFlutterSweepRange"
 absPath = string(pwd(),relPath)
 mkpath(absPath)
 
@@ -106,15 +97,14 @@ gr()
 
 # V-g-f
 for (i,Λ) in enumerate(ΛRange)
-    Λstr = string(round(Int,Λ*180/pi))
-    ULim = i == 1 ? 121 : 90
-    plt_Vf = plot(ylabel="Frequency [Hz]", xlims=[10,ULim], ylims=[0,50], xticks=0:10:ULim, tickfont=font(ts), guidefont=font(fs), legendfontsize=lfs, legendposition=(0.75,0.95))
+    Λstr = string(round(Int,rad2deg(Λ)))
+    plt_Vf = plot(ylabel="Frequency [Hz]", xlims=[0,100], ylims=[0,50], xticks=0:10:100, tickfont=font(ts), guidefont=font(fs), legendfontsize=lfs, legendposition=(0.75,0.95))
     if i==1
-        plot!([NaN], [NaN], c=:black, lw=lw, label="AeroBeams (VLM)")
+        plot!([NaN], [NaN], c=:black, lw=lw, label="AeroBeams")
         scatter!([NaN], [NaN], c=:black, ms=ms, msw=msw, label="Nastran (Technion)")
     end
     for mode in 1:nModes
-        plot!(URange, modeFrequencies[i,mode]/(2π), c=modeColors[mode], lw=lw, label=false)
+        plot!(URange, rads2Hz(freqsOsc[i][mode,:]), c=modeColors[mode], lw=lw, label=false)
     end
     if i == 1
         scatter!(undef_freq_Lambda0_NastranTechnion[1,1:46],undef_freq_Lambda0_NastranTechnion[2,1:46], c=modeColors[1], ms=ms, msw=msw, label=false)
@@ -129,10 +119,10 @@ for (i,Λ) in enumerate(ΛRange)
         scatter!(undef_freq_Lambda30_NastranTechnion[1,33:63],undef_freq_Lambda30_NastranTechnion[2,33:63], c=modeColors[2], ms=ms, msw=msw, label=false)  
         scatter!(undef_freq_Lambda30_NastranTechnion[1,65:end],undef_freq_Lambda30_NastranTechnion[2,65:end], c=modeColors[3], ms=ms, msw=msw, label=false)  
     end
-    plt_Vg = plot(xlabel="Airspeed [m/s]", ylabel="Damping Ratio", xlims=[10,ULim], ylims=[-0.1,0.075], xticks=0:10:ULim, yticks=-0.1:0.05:0.1, tickfont=font(ts), guidefont=font(fs))
+    plt_Vg = plot(xlabel="Airspeed [m/s]", ylabel="Damping Ratio", xlims=[0,100], ylims=[-0.15,0.075], xticks=0:10:100, yticks=-0.1:0.05:0.1, tickfont=font(ts), guidefont=font(fs))
     plot!(URange, zeros(length(URange)), c=:black, lw=lw, ls=:dash, label=false)
     for mode in 1:nModes
-        plot!(URange, modeDampingRatios[i,mode], c=modeColors[mode], lw=lw, label=false)
+        plot!(URange, dampsOsc[i][mode,:]./freqsOsc[i][mode,:], c=modeColors[mode], lw=lw, label=false)
     end
     if i == 1
         scatter!(undef_damp_Lambda0_NastranTechnion[1,1:6],undef_damp_Lambda0_NastranTechnion[2,1:6]/2, c=modeColors[1], ms=ms, msw=msw, label=false)
@@ -147,7 +137,7 @@ for (i,Λ) in enumerate(ΛRange)
         scatter!(undef_damp_Lambda30_NastranTechnion[1,6:36],undef_damp_Lambda30_NastranTechnion[2,6:36]/2, c=modeColors[2], ms=ms, msw=msw, label=false) 
         scatter!(undef_damp_Lambda30_NastranTechnion[1,38:end],undef_damp_Lambda30_NastranTechnion[2,38:end]/2, c=modeColors[3], ms=ms, msw=msw, label=false) 
     end
-    annotate!([30],[0.03], text("\$\\Lambda=$Λstr ^\\circ\$", 30, :black))
+    annotate!([30],[0.05], text("\$\\Lambda=$Λstr ^\\circ\$", 30, :black))
     plt_Vgf = plot(plt_Vf,plt_Vg, layout=(2,1))
     display(plt_Vgf)
     savefig(string(absPath,"/sweptPazyUndeformedFlutterSweepRange_Vgf_Lambda",Λstr,".pdf"))

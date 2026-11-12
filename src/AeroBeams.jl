@@ -45,6 +45,7 @@ include("SpecialNode.jl")
 include("Links.jl")
 include("Model.jl")
 include("SystemSolver.jl")
+include("IntegrationMethod.jl")
 include("Problem.jl")
 include("Aerodynamics.jl")
 include("Core.jl")
@@ -65,7 +66,7 @@ export cross, Diagonal, diagm, dot, I, norm, tr
 export interpolate, Interpolate
 
 # Plots exports
-export @animate, @layout, annotate!, font, gif, gr, heatmap, plot, plot!, plot_color, quiver, quiver!, savefig, scatter, scatter!, Shape, surface, surface!, text, xlabel!, ylabel!
+export @animate, @layout, annotate!, font, gif, gr, heatmap, plot, plot!, plot_color, plotlyjs, quiver, quiver!, savefig, scatter, scatter!, Shape, surface, surface!, text, twinx, xlabel!, ylabel!
 
 # PrettyTables exports
 export pretty_table

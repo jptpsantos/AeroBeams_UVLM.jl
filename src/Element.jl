@@ -605,16 +605,19 @@ StatesRatesNaN(element,n::Float64) = StatesRates{length(element.state.rates.χdo
 Base.copy(x::StatesRates{N}) where {N} = copy_fields(x)
 
 
-# EquivStatesRates composite type
+# EquivStatesRates composite type (the rates of the states during the time step are ẋ = c x - ẋEquiv)
 # Fields
+# - `c`: coefficient of the states in their rates, set by the time integration method at begin of time step
 # - `udotEquiv`: equivalent displacements time derivative at begin of time step
 # - `pdotEquiv`: equivalent rotation parameters time derivative at begin of time step
 # - `VdotEquiv`: equivalent sectional velocities time derivative at begin of time step
 # - `ΩdotEquiv`: equivalent sectional angular velocities time derivative at begin of time step
 # - `χdotEquiv`: equivalent aerodynamic states time derivative at begin of time step
 #
-struct EquivStatesRates{N}
-    
+mutable struct EquivStatesRates{N}
+
+    c::Float64
+
     udotEquiv::MVector{3,Float64}
     pdotEquiv::MVector{3,Float64}
     VdotEquiv::MVector{3,Float64}
@@ -624,6 +627,7 @@ struct EquivStatesRates{N}
 
 end
 EquivStatesRates{N}() where {N} = EquivStatesRates{N}(
+    0.0,
     ntuple(_ -> zeros(MVector{3,Float64}), 4)...,
     zeros(MVector{N,Float64}),
 )
@@ -633,19 +637,15 @@ EquivStatesRates{N}() where {N} = EquivStatesRates{N}(
 # Fields
 # - `v`: element's b basis linear velocity vector
 # - `ω`: element's b basis angular velocity vector
-# - `vdot`: element's b basis linear acceleration vector
-# - `ωdot`: element's b basis angular acceleration vector
 #
 struct KinematicsBasisb
 
     v::MVector{3,Float64}
     ω::MVector{3,Float64}
-    vdot::MVector{3,Float64}
-    ωdot::MVector{3,Float64}
 
 end
 KinematicsBasisb() = KinematicsBasisb(
-    ntuple(_ -> zeros(MVector{3,Float64}), 4)...,
+    ntuple(_ -> zeros(MVector{3,Float64}), 2)...,
 )
 
 
@@ -1175,7 +1175,7 @@ Base.copy(x::ElementState{N}) where {N} = copy_fields(x)
 # Element state cache composite type
 # Fields
 # - `equivStatesRates`: equivalent states' rates at begin of time step
-# - `kinematicsBasisb`: velocities and accelerations of basis b
+# - `kinematicsBasisb`: velocities of basis b
 # - `rotationMatrices`: rotation matrices
 # - `loadsResultants`: total loads resultants
 # - `structuralLoadsResultants`: structural loads resultants

@@ -1,13 +1,19 @@
-using AeroBeams, DelimitedFiles, Plots, ColorSchemes
+using AeroBeams
 
 # Sweep angle [rad]
-Λ = 20*π/180
+Λ = deg2rad(20)
 
-# Root pitch angle range
-θRange = π/180*[0,1,3,5,7,10]
+# Geometric properties
+nElem,L,_ = geometrical_properties_Pazy(Λ=Λ)
 
-# Airspeed range
-URange = collect(0.5:0.5:100)
+# Tip mass configuration (select between :baseline, :TE or :LE)
+sweptTipMassConfig = :TE
+
+# Root pitch angle range [rad]
+θRange = deg2rad.([0,1,3,5,7,10])
+
+# Airspeed range [m/s]
+URange = collect(0:0.5:100)
 
 # Flag for tip correction
 hasTipCorrection = true
@@ -15,87 +21,55 @@ hasTipCorrection = true
 # Tip correction function type
 tipLossType = "VLM-def"
 
-# Flag for ad hoc corrections on sectional stiffness matrix
-sweepStructuralCorrections = true
+# Flag for ad hoc correction of torsional inertia of wingtip rod
+sweptTipMassInertiaCorrection = true
 
 # Aerodynamic solver
 aeroSolver = Indicial()
 
 # Airfoil section
-airfoil = deepcopy(flatPlate)
+airfoil = deepcopy(FlatPlate)
 
 # Flag for upright position
 upright = true
 
-# Gravity
-g = 9.80665
+# Number of modes to track
+nModes = 3
 
-# Geometric properties
-nElem,L,chord,normSparPos = geometrical_properties_Pazy()
-
-# Tip mass configuration (select between 'none', 'TE' or 'LE')
-tipMassConfig = "TE"
-
-# Corresponding tip mass and its position over the chord
-if tipMassConfig == "none"
-    tipMass = 0
-    tipMassPos = 0
-elseif tipMassConfig == "TE"
-    tipMass = 15.5e-3
-    tipMassPos = -chord*(1-normSparPos) - 0.01 # Assume about 1 cm behind TE
-elseif tipMassConfig == "LE"
-    tipMass = 15.5e-3
-    tipMassPos = chord*normSparPos + 0.01 # Assume about 1 cm ahead of TE
-else
-    error("Select tipMassConfig as 'none', 'TE' or 'LE'")
-end
-
-# Number of modes
-nModes = 5
-
-# System solver
-σ0 = 0.5
-σstep = 0.5
-maxIter = 50
-NR = create_NewtonRaphson(initialLoadFactor=σ0,maximumLoadFactorStep=σstep,maximumIterations=maxIter,alwaysUpdateJacobian=false)
+# Eigensolver method and minimum number of eigenvalues to be computed
+eigenmethod = :krylovkit
+nev = 40
 
 # Initialize outputs
-untrackedFreqs = Array{Vector{Float64}}(undef,length(θRange),length(URange))
-untrackedDamps = Array{Vector{Float64}}(undef,length(θRange),length(URange))
-untrackedEigenvectors = Array{Matrix{ComplexF64}}(undef,length(θRange),length(URange))
-freqs = Array{Vector{Float64}}(undef,length(θRange),length(URange))
-damps = Array{Vector{Float64}}(undef,length(θRange),length(URange))
-modeFrequencies = Array{Vector{Float64}}(undef,length(θRange),nModes)
-modeDampings = Array{Vector{Float64}}(undef,length(θRange),nModes)
-modeDampingRatios = Array{Vector{Float64}}(undef,length(θRange),nModes)
+eigensols = Array{EigenSolution}(undef,length(θRange),length(URange))
 tipOOP = Array{Float64}(undef,length(θRange),length(URange))
+freqsOsc = Array{Matrix{Float64}}(undef,length(θRange))
+dampsOsc = Array{Matrix{Float64}}(undef,length(θRange))
 
 # Sweep pitch angle
 for (i,θ) in enumerate(θRange)
+    # Initialize guess solution
+    x0 = zeros(0)
     # Sweep airspeed
     for (j,U) in enumerate(URange)
         # Display progress
-        println("Solving for θ = $(round(θ*180/π)) deg, U = $U m/s")
+        println("Solving for θ = $(round(Int,rad2deg(θ))) deg, U = $U m/s")
         # Model
-        sweptPazyFlutterPitchRange,_ = create_Pazy(aeroSolver=aeroSolver,airfoil=airfoil,upright=upright,hasTipCorrection=hasTipCorrection,tipLossType=tipLossType,Λ=Λ,θ=θ,airspeed=U,g=g,sweepStructuralCorrections=sweepStructuralCorrections,tipMass=tipMass,ηtipMass=[0;tipMassPos;0])
+        sweptPazyFlutterPitchRange,_ = create_Pazy(aeroSolver=aeroSolver,airfoil=airfoil,upright=upright,hasTipCorrection=hasTipCorrection,tipLossType=tipLossType,sweepAngle=Λ,pitchAngle=θ,airspeed=U,sweptTipMassConfig=sweptTipMassConfig,sweptTipMassInertiaCorrection=sweptTipMassInertiaCorrection)
         # Create and solve problem
-        problem = create_EigenProblem(model=sweptPazyFlutterPitchRange,nModes=nModes,frequencyFilterLimits=[2π,Inf],systemSolver=NR)
+        problem = create_EigenProblem(model=sweptPazyFlutterPitchRange,eigenmethod=eigenmethod,nev=nev,x0=x0)
         solve!(problem)
-        # Frequencies, dampings and eigenvectors
-        untrackedFreqs[i,j] = problem.frequenciesOscillatory
-        untrackedDamps[i,j] = problem.dampingsOscillatory
-        untrackedEigenvectors[i,j] = problem.eigenvectorsOscillatoryCplx
+        # Eigensolution
+        eigensols[i,j] = problem.eigensolution
         # Tip OOP deflection
-        tipOOP[i,j] = problem.nodalStatesOverσ[end][nElem].u_n2_b[3]
+        tipOOP[i,j] = problem.loadstepHistory.states[end][nElem].nodal.u2_b[3]
+        # Set initial guess solution for next iteration
+        x0 = problem.systemArrays.x
     end
     # Apply mode tracking
-    freqs[i,:],damps[i,:],_ = mode_tracking_hungarian(URange,untrackedFreqs[i,:],untrackedDamps[i,:],untrackedEigenvectors[i,:])
-    # Separate frequencies and damping ratios by mode
-    for mode in 1:nModes
-        modeFrequencies[i,mode] = [freqs[i,j][mode] for j in eachindex(URange)]
-        modeDampings[i,mode] = [damps[i,j][mode] for j in eachindex(URange)]
-        modeDampingRatios[i,mode] = modeDampings[i,mode]./modeFrequencies[i,mode]
-    end
+    freqs,damps,_ = mode_tracking(eigensols[i,:])
+    # Get frequencies and dampings of oscillatory modes
+    freqsOsc[i],dampsOsc[i],_ = filter_tracked_modes(freqs,damps; fmin=2π, maxTracks=nModes)
 end
 
 # Load reference data (experiments from Technion)
@@ -106,8 +80,9 @@ freqs_aoa5_ref = readdlm(pkgdir(AeroBeams)*"/test/referenceData/sweptPazyS20/aer
 freqs_aoa7_ref = readdlm(pkgdir(AeroBeams)*"/test/referenceData/sweptPazyS20/aeroelastic_freqs_aoa7.txt")
 freqs_aoa10_ref = readdlm(pkgdir(AeroBeams)*"/test/referenceData/sweptPazyS20/aeroelastic_freqs_aoa10.txt")
 
+## Plots
 # Set paths
-relPath = "/dev/sweptPazy/General/outputs/sweptPazyFlutterPitchRange"
+relPath = "/test/outputs/figures/sweptPazyFlutterPitchRange"
 absPath = string(pwd(),relPath)
 mkpath(absPath)
 
@@ -122,27 +97,24 @@ ms = 4
 msw = 1
 gr()
 
-# Assumed experimental air density
-ρref = 1.225
-
 # V-g-f
-plt_Vf = plot(ylabel="Frequency [Hz]", xlims=[0,101], ylims=[0,100], xticks=vcat(0:10:100), tickfont=font(ts), guidefont=font(fs), legendfontsize=lfs)
+plt_Vf = plot(ylabel="Frequency [Hz]", xlims=[0,101], ylims=[0,45], xticks=vcat(0:10:100), tickfont=font(ts), guidefont=font(fs), legendfontsize=lfs)
 plot!([NaN], [NaN], lw=lw, c=:black, label="AeroBeams")
 scatter!([NaN], [NaN], ms=ms, msw=msw, mc=:white, msc=:black, label="Exp.")
 for (i,θ) in enumerate(θRange)
     for mode in 1:nModes
-        plot!(URange, modeFrequencies[i,mode]/(2π), c=modeColors[mode], lw=lw, alpha=0.1+0.9*i/length(θRange), label=false)
-        if θ == 0 && mode <= size(freqs_aoa0_ref,1)-1
+        plot!(URange, rads2Hz.(freqsOsc[i][mode,:]), c=modeColors[mode], lw=lw, alpha=0.1+0.9*i/length(θRange), label=false)
+        if i==1 && mode <= size(freqs_aoa0_ref,1)-1
             scatter!(freqs_aoa0_ref[1,:], freqs_aoa0_ref[mode+1,:], ms=ms, msw=msw, mc=:white, msc=modeColors[mode], label=false)
-        elseif θ == 1*π/180 && mode <= size(freqs_aoa1_ref,1)-1
+        elseif i==2 && mode <= size(freqs_aoa1_ref,1)-1
             scatter!(freqs_aoa1_ref[1,:], freqs_aoa1_ref[mode+1,:], ms=ms, msw=msw, mc=:white, msc=modeColors[mode], label=false)
-        elseif θ == 3*π/180 && mode <= size(freqs_aoa3_ref,1)-1
+        elseif i==3 && mode <= size(freqs_aoa3_ref,1)-1
             scatter!(freqs_aoa3_ref[1,:], freqs_aoa3_ref[mode+1,:], ms=ms, msw=msw, mc=:white, msc=modeColors[mode], label=false)
-        elseif θ == 5*π/180 && mode <= size(freqs_aoa5_ref,1)-1
+        elseif i==4 && mode <= size(freqs_aoa5_ref,1)-1
             scatter!(freqs_aoa5_ref[1,:], freqs_aoa5_ref[mode+1,:], ms=ms, msw=msw, mc=:white, msc=modeColors[mode], label=false)
-        elseif θ == 7*π/180 && mode <= size(freqs_aoa7_ref,1)-1
+        elseif i==5 && mode <= size(freqs_aoa7_ref,1)-1
             scatter!(freqs_aoa7_ref[1,:], freqs_aoa7_ref[mode+1,:], ms=ms, msw=msw, mc=:white, msc=modeColors[mode], label=false)
-        elseif θ == 10*π/180 && mode <= size(freqs_aoa10_ref,1)-1
+        elseif i==6 && mode <= size(freqs_aoa10_ref,1)-1
             scatter!(freqs_aoa10_ref[1,:], freqs_aoa10_ref[mode+1,:], ms=ms, msw=msw, mc=:white, msc=modeColors[mode], label=false)      
         end
     end
@@ -151,15 +123,15 @@ plt_Vg = plot(xlabel="Airspeed [m/s]", ylabel="Damping Ratio", xlims=[0,101], yl
 plot!(URange, zeros(length(URange)), c=:black, lw=lw, ls=:dash, label=false)
 for (i,θ) in enumerate(θRange)
     for mode in 1:nModes
-        plot!(URange, modeDampingRatios[i,mode], c=modeColors[mode], lw=lw, alpha=0.1+0.9*i/length(θRange), label=false)
+        plot!(URange, dampsOsc[i][mode,:]./freqsOsc[i][mode,:], c=modeColors[mode], lw=lw, alpha=0.1+0.9*i/length(θRange), label=false)
     end
 end
 plt_Vgf = plot(plt_Vf,plt_Vg, layout=(2,1))
 display(plt_Vf)
 display(plt_Vg)
 display(plt_Vgf)
-savefig(plt_Vf,string(absPath,"/sweptPazyFlutterPitchRange_freq_",tipLossStr,"_Lambda",string(round(Int,Λ*180/pi)),".pdf"))
-savefig(plt_Vg,string(absPath,"/sweptPazyFlutterPitchRange_damp_",tipLossStr,"_Lambda",string(round(Int,Λ*180/pi)),".pdf"))
-savefig(plt_Vgf,string(absPath,"/sweptPazyFlutterPitchRange_Vgf_",tipLossStr,"_Lambda",string(round(Int,Λ*180/pi)),".pdf"))
+savefig(plt_Vf,string(absPath,"/sweptPazyFlutterPitchRange_freq_",tipLossStr,"_Lambda",string(round(Int,rad2deg(Λ))),".pdf"))
+savefig(plt_Vg,string(absPath,"/sweptPazyFlutterPitchRange_damp_",tipLossStr,"_Lambda",string(round(Int,rad2deg(Λ))),".pdf"))
+savefig(plt_Vgf,string(absPath,"/sweptPazyFlutterPitchRange_Vgf_",tipLossStr,"_Lambda",string(round(Int,rad2deg(Λ))),".pdf"))
 
 println("Finished sweptPazyFlutterPitchRange.jl")
