@@ -1418,8 +1418,8 @@ function compare_jacobians(problem, Jan, labels; h0=1e-8, rtol=1e-4, atol=1e-4, 
     xs = problem.systemArrays.x
     x0 = copy(xs)
     n  = length(x0)
-    bad  = Tuple{Float64,Int,Int,Float64,Float64}[]           # (erro, i, k, Jan, Jfd)
-    blocks = Dict{Tuple{String,String},Float64}()             # erro máx por bloco
+    bad  = Tuple{Float64,Int,Int,Float64,Float64}[] # (error, i, k, Jan, Jfd)
+    blocks = Dict{Tuple{String,String},Float64}()   # max error per block
 
     for k in 1:n
         h = h0 * max(1.0, abs(x0[k]))
@@ -1438,17 +1438,17 @@ function compare_jacobians(problem, Jan, labels; h0=1e-8, rtol=1e-4, atol=1e-4, 
     end
 
     xs .= x0
-    f!(problem)                     # restaura caches em x0
+    f!(problem)                     # restore caches at x0
 
-    println("── Checagem da Jacobiana $tag: $(length(bad)) entradas fora da tolerância")
+    println("── Jacobian check $tag: $(length(bad)) entries outside tolerance")
     for (key, err) in sort(collect(blocks); by=last, rev=true)
-        println("   bloco F_", key[1], "_", key[2], "   erro máx = ", round(err, sigdigits=3))
+        println("   block F_", key[1], "_", key[2], "   max error = ", round(err, sigdigits=3))
     end
     sort!(bad; by=first, rev=true)
     for (err, i, k, a, d) in first(bad, ntop)
         println("   row=$i ($(labels.rowKind[i]), id=$(labels.rowOwner[i]))  ",
                 "col=$k ($(labels.colKind[k]), id=$(labels.colOwner[k]))  ",
-                "analítica=$(round(a,sigdigits=5))  FD=$(round(d,sigdigits=5))")
+                "analytical=$(round(a,sigdigits=5))  FD=$(round(d,sigdigits=5))")
     end
     return bad
 end
