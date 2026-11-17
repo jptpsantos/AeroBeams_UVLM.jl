@@ -935,6 +935,10 @@ function initialize_jacobian_sparsity_pattern(nEqs,nStates,elements,specialNodes
         add_block!(eqs_Fp1, DOF_p); add_block!(eqs_Fp1, DOF_F); add_block!(eqs_Fp1, DOF_M); add_block!(eqs_Fp1, DOF_V); add_block!(eqs_Fp1, DOF_Ω); add_block!(eqs_Fp1, DOF_χ); add_block!(eqs_Fp1, DOF_δ)
         add_block!(eqs_FF1, DOF_u); add_block!(eqs_FF1, DOF_p); add_block!(eqs_FF1, DOF_F); add_block!(eqs_FF1, DOF_M)
         add_block!(eqs_FM1, DOF_p); add_block!(eqs_FM1, DOF_F); add_block!(eqs_FM1, DOF_M)
+        # Set indices of the hinged DoFs of node 1 (their moment equilibrium equations are the node's compatibility equations), if applicable
+        if any(element.geometry.hingedNode1Mat)
+            add_block!(eqs_FM1, DOF_V); add_block!(eqs_FM1, DOF_Ω); add_block!(eqs_FM1, DOF_χ); add_block!(eqs_FM1, DOF_δ)
+        end
         # Set indices of node 2
         add_block!(eqs_Fu2, DOF_p); add_block!(eqs_Fu2, DOF_F); add_block!(eqs_Fu2, DOF_V); add_block!(eqs_Fu2, DOF_Ω); add_block!(eqs_Fu2, DOF_χ); add_block!(eqs_Fu2, DOF_δ)
         hasDamping && add_block!(eqs_Fu2, DOF_M)
@@ -1030,7 +1034,7 @@ function initialize_inertia_sparsity_pattern(nEqs,elements)
     # Loop over elements
     for element in elements
         # Unpack assembly indices
-        @unpack eqs_Fu1,eqs_Fu2,eqs_Fp1,eqs_Fp2,eqs_FV,eqs_FΩ,eqs_Fχ,DOF_u,DOF_p,DOF_F,DOF_M,DOF_V,DOF_Ω,DOF_χ = element.assemblyIndices
+        @unpack eqs_Fu1,eqs_Fu2,eqs_Fp1,eqs_Fp2,eqs_FM1,eqs_FV,eqs_FΩ,eqs_Fχ,DOF_u,DOF_p,DOF_F,DOF_M,DOF_V,DOF_Ω,DOF_χ = element.assemblyIndices
         # Set indices of node 1
         add_block!(eqs_Fu1, DOF_p); add_block!(eqs_Fu1, DOF_V); add_block!(eqs_Fu1, DOF_Ω);
         add_block!(eqs_Fp1, DOF_p); add_block!(eqs_Fp1, DOF_V); add_block!(eqs_Fp1, DOF_Ω);
@@ -1042,6 +1046,11 @@ function initialize_inertia_sparsity_pattern(nEqs,elements)
             for eqs in (eqs_Fu1,eqs_Fp1,eqs_Fu2,eqs_Fp2)
                 add_block!(eqs, DOF_F); add_block!(eqs, DOF_M)
             end
+        end
+        # Set indices of the hinged DoFs of node 1 (their moment equilibrium equations are the node's compatibility equations), if applicable
+        if any(element.geometry.hingedNode1Mat)
+            add_block!(eqs_FM1, DOF_p); add_block!(eqs_FM1, DOF_V); add_block!(eqs_FM1, DOF_Ω)
+            element.sectional.hasDamping && (add_block!(eqs_FM1, DOF_F); add_block!(eqs_FM1, DOF_M))
         end
         # Set indices of the element midpoint
         add_block!(eqs_FV, DOF_u);
@@ -1176,13 +1185,16 @@ function set_jacobian_indices_maps!(jacobian,elements,specialNodes,hingeAxisCons
         # Maps of the blocks that exist only with structural damping
         hasDamping = element.sectional.hasDamping
         bimDamping(rows, cols) = hasDamping ? bim(rows, cols) : zeros(SVector{9,Int})
+        # Maps of the hinged DoFs of node 1, which exist only if the element has a hinged node 1
+        hasHinge = any(element.geometry.hingedNode1Mat)
+        bimHinge(rows, cols) = hasHinge ? bim(rows, cols) : zeros(SVector{length(rows)*length(cols),Int})
         # Set Jacobian maps
         setfield!(element, :jacobianMaps, 
         JacobianIndicesMaps{3*N,3*Nδ,N*N}(
             bim(eqs_Fu1,DOF_p), bim(eqs_Fu1,DOF_F), bimDamping(eqs_Fu1,DOF_M), bim(eqs_Fu1,DOF_V), bim(eqs_Fu1,DOF_Ω), bim(eqs_Fu1,DOF_χ), bim(eqs_Fu1,DOF_δ),
             bim(eqs_Fp1,DOF_p), bim(eqs_Fp1,DOF_F), bim(eqs_Fp1,DOF_M), bim(eqs_Fp1,DOF_V), bim(eqs_Fp1,DOF_Ω), bim(eqs_Fp1,DOF_χ), bim(eqs_Fp1,DOF_δ),
             bim(eqs_FF1,DOF_u), bim(eqs_FF1,DOF_p), bim(eqs_FF1,DOF_F), bim(eqs_FF1,DOF_M),
-            bim(eqs_FM1,DOF_p), bim(eqs_FM1,DOF_F), bim(eqs_FM1,DOF_M),
+            bim(eqs_FM1,DOF_p), bim(eqs_FM1,DOF_F), bim(eqs_FM1,DOF_M), bimHinge(eqs_FM1,DOF_V), bimHinge(eqs_FM1,DOF_Ω), bimHinge(eqs_FM1,DOF_χ), bimHinge(eqs_FM1,DOF_δ),
             bim(eqs_Fu2,DOF_p), bim(eqs_Fu2,DOF_F), bimDamping(eqs_Fu2,DOF_M), bim(eqs_Fu2,DOF_V), bim(eqs_Fu2,DOF_Ω), bim(eqs_Fu2,DOF_χ), bim(eqs_Fu2,DOF_δ),
             bim(eqs_Fp2,DOF_p), bim(eqs_Fp2,DOF_F), bim(eqs_Fp2,DOF_M), bim(eqs_Fp2,DOF_V), bim(eqs_Fp2,DOF_Ω), bim(eqs_Fp2,DOF_χ), bim(eqs_Fp2,DOF_δ),
             bim(eqs_FF2,DOF_u), bim(eqs_FF2,DOF_p), bim(eqs_FF2,DOF_F), bim(eqs_FF2,DOF_M),
@@ -1247,12 +1259,16 @@ function set_inertia_indices_maps!(inertia,elements,resetInertia)
     # Loop over elements and set inertia matrix maps
     for element in elements
         # Unpack
-        @unpack eqs_Fu1,eqs_Fu2,eqs_Fp1,eqs_Fp2,eqs_FV,eqs_Fχ,eqs_FΩ,DOF_u,DOF_p,DOF_F,DOF_M,DOF_V,DOF_Ω,DOF_χ = element.assemblyIndices
+        @unpack eqs_Fu1,eqs_Fu2,eqs_Fp1,eqs_Fp2,eqs_FM1,eqs_FV,eqs_Fχ,eqs_FΩ,DOF_u,DOF_p,DOF_F,DOF_M,DOF_V,DOF_Ω,DOF_χ = element.assemblyIndices
         # Get number of aerodynamic states
         N = length(DOF_χ)
         # Maps of the blocks that exist only with structural damping
         hasDamping = element.sectional.hasDamping
         bimDamping(rows, cols) = hasDamping ? bim(rows, cols) : zeros(SVector{9,Int})
+        # Maps of the hinged DoFs of node 1, which exist only if the element has a hinged node 1
+        hasHinge = any(element.geometry.hingedNode1Mat)
+        bimHinge(rows, cols) = hasHinge ? bim(rows, cols) : zeros(SVector{9,Int})
+        bimHingeDamping(rows, cols) = hasHinge && hasDamping ? bim(rows, cols) : zeros(SVector{9,Int})
         # Set
         setfield!(element, :inertiaMaps, 
             InertiaIndicesMaps{3*N,N*N}(
@@ -1260,6 +1276,7 @@ function set_inertia_indices_maps!(inertia,elements,resetInertia)
                 bim(eqs_Fp1,DOF_p), bim(eqs_Fp1,DOF_V), bim(eqs_Fp1,DOF_Ω), bimDamping(eqs_Fp1,DOF_F), bimDamping(eqs_Fp1,DOF_M),
                 bim(eqs_Fu2,DOF_p), bim(eqs_Fu2,DOF_V), bim(eqs_Fu2,DOF_Ω), bimDamping(eqs_Fu2,DOF_F), bimDamping(eqs_Fu2,DOF_M),
                 bim(eqs_Fp2,DOF_p), bim(eqs_Fp2,DOF_V), bim(eqs_Fp2,DOF_Ω), bimDamping(eqs_Fp2,DOF_F), bimDamping(eqs_Fp2,DOF_M),
+                bimHinge(eqs_FM1,DOF_p), bimHinge(eqs_FM1,DOF_V), bimHinge(eqs_FM1,DOF_Ω), bimHingeDamping(eqs_FM1,DOF_F), bimHingeDamping(eqs_FM1,DOF_M),
                 bim(eqs_FV,DOF_u),
                 bim(eqs_FΩ,DOF_p),
                 bim(eqs_Fχ,DOF_V), bim(eqs_Fχ,DOF_Ω), bim(eqs_Fχ,DOF_χ)

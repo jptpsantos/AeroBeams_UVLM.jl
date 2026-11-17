@@ -1336,7 +1336,7 @@ end
 function insert_element_jacobians!(jacobian,hasDamping,F_u1_p,F_u2_p,F_u1_F,F_u2_F,F_u1_M,F_u2_M,F_u1_V,F_u2_V,F_u1_Ω,F_u2_Ω,F_u1_χ,F_u2_χ,F_u1_δ,F_u2_δ,F_p1_p,F_p2_p,F_p1_F,F_p2_F,F_p1_M,F_p2_M,F_p1_V,F_p2_V,F_p1_Ω,F_p2_Ω,F_p1_χ,F_p2_χ,F_p1_δ,F_p2_δ,F_F1_u,F_F2_u,F_F1_p,F_F2_p,F_F1_F,F_F2_F,F_F1_M,F_F2_M,F_M1_p,F_M2_p,F_M1_F,F_M2_F,F_M1_M,F_M2_M,F_V_u,F_V_p,F_V_V,F_Ω_p,F_Ω_Ω,F_χ_p,F_χ_V,F_χ_Ω,F_χ_χ,forceScaling,invForceScaling,hingedNode1Mat,notHingedNode1Mat,notHingedNode2Mat,jacobianMaps)
 
     # Unpack
-    @unpack Fu1_p,Fu1_F,Fu1_M,Fu1_V,Fu1_Ω,Fu1_χ,Fu1_δ,Fp1_p,Fp1_F,Fp1_M,Fp1_V,Fp1_Ω,Fp1_χ,Fp1_δ,FF1_u,FF1_p,FF1_F,FF1_M,FM1_p,FM1_F,FM1_M,Fu2_p,Fu2_F,Fu2_M,Fu2_V,Fu2_Ω,Fu2_χ,Fu2_δ,Fp2_p,Fp2_F,Fp2_M,Fp2_V,Fp2_Ω,Fp2_χ,Fp2_δ,FF2_u,FF2_p,FF2_F,FF2_M,FM2_p,FM2_F,FM2_M,FV_u,FV_p,FV_V,FΩ_p,FΩ_Ω,Fχ_p,Fχ_V,Fχ_Ω,Fχ_χ = jacobianMaps
+    @unpack Fu1_p,Fu1_F,Fu1_M,Fu1_V,Fu1_Ω,Fu1_χ,Fu1_δ,Fp1_p,Fp1_F,Fp1_M,Fp1_V,Fp1_Ω,Fp1_χ,Fp1_δ,FF1_u,FF1_p,FF1_F,FF1_M,FM1_p,FM1_F,FM1_M,FM1_V,FM1_Ω,FM1_χ,FM1_δ,Fu2_p,Fu2_F,Fu2_M,Fu2_V,Fu2_Ω,Fu2_χ,Fu2_δ,Fp2_p,Fp2_F,Fp2_M,Fp2_V,Fp2_Ω,Fp2_χ,Fp2_δ,FF2_u,FF2_p,FF2_F,FF2_M,FM2_p,FM2_F,FM2_M,FV_u,FV_p,FV_V,FΩ_p,FΩ_Ω,Fχ_p,Fχ_V,Fχ_Ω,Fχ_χ = jacobianMaps
     @unpack nzval = jacobian
 
     ## Node 1 - equilibrium
@@ -1355,8 +1355,8 @@ function insert_element_jacobians!(jacobian,hasDamping,F_u1_p,F_u2_p,F_u1_F,F_u2
     set_block!(nzval, Fp1_M, notHingedNode1Mat * F_p1_M)
     set_block!(nzval, Fp1_V, notHingedNode1Mat * F_p1_V * invForceScaling)
     set_block!(nzval, Fp1_Ω, notHingedNode1Mat * F_p1_Ω * invForceScaling)
-    set_block!(nzval, Fp1_χ, F_p1_χ * invForceScaling)
-    add_block!(nzval, Fp1_δ, F_p1_δ * invForceScaling)
+    set_block!(nzval, Fp1_χ, notHingedNode1Mat * F_p1_χ * invForceScaling)
+    add_block!(nzval, Fp1_δ, notHingedNode1Mat * F_p1_δ * invForceScaling)
 
     ## Node 1 — compatibility
     # --------------------------------------------------------------------------
@@ -1369,6 +1369,13 @@ function insert_element_jacobians!(jacobian,hasDamping,F_u1_p,F_u2_p,F_u1_F,F_u2
     set_block!(nzval, FM1_p, notHingedNode1Mat * F_M1_p + hingedNode1Mat * F_p1_p * invForceScaling)
     set_block!(nzval, FM1_F, notHingedNode1Mat * F_M1_F * forceScaling + hingedNode1Mat * F_p1_F)
     set_block!(nzval, FM1_M, notHingedNode1Mat * F_M1_M * forceScaling + hingedNode1Mat * F_p1_M)
+    # Derivatives of the hinged DoFs of node 1 (moment equilibrium) w.r.t. the velocities, aerodynamic states and trim flap deflections (only for elements with a hinged node 1)
+    if any(hingedNode1Mat)
+        set_block!(nzval, FM1_V, hingedNode1Mat * F_p1_V * invForceScaling)
+        set_block!(nzval, FM1_Ω, hingedNode1Mat * F_p1_Ω * invForceScaling)
+        set_block!(nzval, FM1_χ, hingedNode1Mat * F_p1_χ * invForceScaling)
+        add_block!(nzval, FM1_δ, hingedNode1Mat * F_p1_δ * invForceScaling)
+    end
 
     ## Node 2 — equilibrium
     # --------------------------------------------------------------------------
@@ -1423,7 +1430,7 @@ function element_inertia!(inertia,model,element,timeNow,Δt,isDynamicProblem)
 
     @unpack invForceScaling = model.assemblyData
     @unpack inertiaMaps = element
-    @unpack Δℓ,R0 = element.geometry
+    @unpack Δℓ,R0,hingedNode1Mat,notHingedNode1Mat = element.geometry
     @unpack I11,I12,I21,I22,μd11,μd12,μd21,μd22,hasDamping = element.sectional
     @unpack P,H,γ = element.state.midpoint
     @unpack RR0,HT,R_p1,R_p2,R_p3 = element.stateCache.rotationMatrices
@@ -1443,7 +1450,7 @@ function element_inertia!(inertia,model,element,timeNow,Δt,isDynamicProblem)
     hasDamping && element_damping_inertia_resultants!(F_u1_Fdot,F_u2_Fdot,F_u1_Mdot,F_u2_Mdot,F_p1_Fdot,F_p2_Fdot,F_p1_Mdot,F_p2_Mdot,Δℓ,μd11,μd12,μd21,μd22,γ,RR0)
 
     # Insert resultants into the inertia matrix
-    insert_element_inertias!(inertia,hasDamping,F_u1_Fdot,F_u2_Fdot,F_u1_Mdot,F_u2_Mdot,F_p1_Fdot,F_p2_Fdot,F_p1_Mdot,F_p2_Mdot,F_u1_pdot,F_u2_pdot,F_u1_Vdot,F_u2_Vdot,F_u1_Ωdot,F_u2_Ωdot,F_p1_pdot,F_p2_pdot,F_p1_Vdot,F_p2_Vdot,F_p1_Ωdot,F_p2_Ωdot,F_V_udot,F_Ω_pdot,F_χ_Vdot,F_χ_Ωdot,F_χ_χdot,invForceScaling,inertiaMaps)
+    insert_element_inertias!(inertia,hasDamping,F_u1_Fdot,F_u2_Fdot,F_u1_Mdot,F_u2_Mdot,F_p1_Fdot,F_p2_Fdot,F_p1_Mdot,F_p2_Mdot,F_u1_pdot,F_u2_pdot,F_u1_Vdot,F_u2_Vdot,F_u1_Ωdot,F_u2_Ωdot,F_p1_pdot,F_p2_pdot,F_p1_Vdot,F_p2_Vdot,F_p1_Ωdot,F_p2_Ωdot,F_V_udot,F_Ω_pdot,F_χ_Vdot,F_χ_Ωdot,F_χ_χdot,hingedNode1Mat,notHingedNode1Mat,invForceScaling,inertiaMaps)
 
     # @logmsg LogLevel(show_debug() ? 0 : -1) "ELEMENT $(element.assemblyData.globalID) INERTIAS"
     # @logmsg LogLevel(show_debug() ? 0 : -1) "F_u1_pdot: $F_u1_pdot"
@@ -1699,9 +1706,9 @@ end
 
 
 # Inserts the element's contributions to the inertia matrix into the global inertia matrix
-function insert_element_inertias!(inertia,hasDamping,F_u1_Fdot,F_u2_Fdot,F_u1_Mdot,F_u2_Mdot,F_p1_Fdot,F_p2_Fdot,F_p1_Mdot,F_p2_Mdot,F_u1_pdot,F_u2_pdot,F_u1_Vdot,F_u2_Vdot,F_u1_Ωdot,F_u2_Ωdot,F_p1_pdot,F_p2_pdot,F_p1_Vdot,F_p2_Vdot,F_p1_Ωdot,F_p2_Ωdot,F_V_udot,F_Ω_pdot,F_χ_Vdot,F_χ_Ωdot,F_χ_χdot,invForceScaling,inertiaMaps)
+function insert_element_inertias!(inertia,hasDamping,F_u1_Fdot,F_u2_Fdot,F_u1_Mdot,F_u2_Mdot,F_p1_Fdot,F_p2_Fdot,F_p1_Mdot,F_p2_Mdot,F_u1_pdot,F_u2_pdot,F_u1_Vdot,F_u2_Vdot,F_u1_Ωdot,F_u2_Ωdot,F_p1_pdot,F_p2_pdot,F_p1_Vdot,F_p2_Vdot,F_p1_Ωdot,F_p2_Ωdot,F_V_udot,F_Ω_pdot,F_χ_Vdot,F_χ_Ωdot,F_χ_χdot,hingedNode1Mat,notHingedNode1Mat,invForceScaling,inertiaMaps)
 
-    @unpack Fu1_pdot,Fu1_Vdot,Fu1_Ωdot,Fu1_Fdot,Fu1_Mdot,Fp1_pdot,Fp1_Vdot,Fp1_Ωdot,Fp1_Fdot,Fp1_Mdot,Fu2_pdot,Fu2_Vdot,Fu2_Ωdot,Fu2_Fdot,Fu2_Mdot,Fp2_pdot,Fp2_Vdot,Fp2_Ωdot,Fp2_Fdot,Fp2_Mdot,FV_udot,FΩ_pdot,Fχ_Vdot,Fχ_Ωdot,Fχ_χdot = inertiaMaps
+    @unpack Fu1_pdot,Fu1_Vdot,Fu1_Ωdot,Fu1_Fdot,Fu1_Mdot,Fp1_pdot,Fp1_Vdot,Fp1_Ωdot,Fp1_Fdot,Fp1_Mdot,Fu2_pdot,Fu2_Vdot,Fu2_Ωdot,Fu2_Fdot,Fu2_Mdot,Fp2_pdot,Fp2_Vdot,Fp2_Ωdot,Fp2_Fdot,Fp2_Mdot,FM1_pdot,FM1_Vdot,FM1_Ωdot,FM1_Fdot,FM1_Mdot,FV_udot,FΩ_pdot,Fχ_Vdot,Fχ_Ωdot,Fχ_χdot = inertiaMaps
     @unpack nzval = inertia
 
     ## Structural damping (the force scaling factors of the equilibrium equations and of the elastic forces' states cancel out)
@@ -1709,8 +1716,8 @@ function insert_element_inertias!(inertia,hasDamping,F_u1_Fdot,F_u2_Fdot,F_u1_Md
     if hasDamping
         set_block!(nzval, Fu1_Fdot, F_u1_Fdot)
         set_block!(nzval, Fu1_Mdot, F_u1_Mdot)
-        set_block!(nzval, Fp1_Fdot, F_p1_Fdot)
-        set_block!(nzval, Fp1_Mdot, F_p1_Mdot)
+        set_block!(nzval, Fp1_Fdot, notHingedNode1Mat * F_p1_Fdot)
+        set_block!(nzval, Fp1_Mdot, notHingedNode1Mat * F_p1_Mdot)
         set_block!(nzval, Fu2_Fdot, F_u2_Fdot)
         set_block!(nzval, Fu2_Mdot, F_u2_Mdot)
         set_block!(nzval, Fp2_Fdot, F_p2_Fdot)
@@ -1724,9 +1731,19 @@ function insert_element_inertias!(inertia,hasDamping,F_u1_Fdot,F_u2_Fdot,F_u1_Md
     set_block!(nzval, Fu1_Vdot, F_u1_Vdot * invForceScaling)
     set_block!(nzval, Fu1_Ωdot, F_u1_Ωdot * invForceScaling)
     # --- F_p1 --- #
-    set_block!(nzval, Fp1_pdot, F_p1_pdot * invForceScaling)
-    set_block!(nzval, Fp1_Vdot, F_p1_Vdot * invForceScaling)
-    set_block!(nzval, Fp1_Ωdot, F_p1_Ωdot * invForceScaling)
+    set_block!(nzval, Fp1_pdot, notHingedNode1Mat * F_p1_pdot * invForceScaling)
+    set_block!(nzval, Fp1_Vdot, notHingedNode1Mat * F_p1_Vdot * invForceScaling)
+    set_block!(nzval, Fp1_Ωdot, notHingedNode1Mat * F_p1_Ωdot * invForceScaling)
+    # Derivatives of the hinged DoFs of node 1 (moment equilibrium) w.r.t. the rates of the states (only for elements with a hinged node 1)
+    if any(hingedNode1Mat)
+        set_block!(nzval, FM1_pdot, hingedNode1Mat * F_p1_pdot * invForceScaling)
+        set_block!(nzval, FM1_Vdot, hingedNode1Mat * F_p1_Vdot * invForceScaling)
+        set_block!(nzval, FM1_Ωdot, hingedNode1Mat * F_p1_Ωdot * invForceScaling)
+        if hasDamping
+            set_block!(nzval, FM1_Fdot, hingedNode1Mat * F_p1_Fdot)
+            set_block!(nzval, FM1_Mdot, hingedNode1Mat * F_p1_Mdot)
+        end
+    end
 
     ## Node 2
     # --------------------------------------------------------------------------

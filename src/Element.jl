@@ -335,6 +335,10 @@ struct JacobianIndicesMaps{N3,Nδ3,NN}
     FM1_p::SVector{9,Int}
     FM1_F::SVector{9,Int}
     FM1_M::SVector{9,Int}
+    FM1_V::SVector{9,Int}
+    FM1_Ω::SVector{9,Int}
+    FM1_χ::SVector{N3,Int}
+    FM1_δ::SVector{Nδ3,Int}
 
     Fu2_p::SVector{9,Int}
     Fu2_F::SVector{9,Int}
@@ -373,12 +377,12 @@ struct JacobianIndicesMaps{N3,Nδ3,NN}
     Fχ_Ω::SVector{N3,Int}
     Fχ_χ::SVector{NN,Int}
 
-    function JacobianIndicesMaps{N3,Nδ3,NN}(Fu1_p,Fu1_F,Fu1_M,Fu1_V,Fu1_Ω,Fu1_χ,Fu1_δ,Fp1_p,Fp1_F,Fp1_M,Fp1_V,Fp1_Ω,Fp1_χ,Fp1_δ,FF1_u,FF1_p,FF1_F,FF1_M,FM1_p,FM1_F,FM1_M,Fu2_p,Fu2_F,Fu2_M,Fu2_V,Fu2_Ω,Fu2_χ,Fu2_δ,Fp2_p,Fp2_F,Fp2_M,Fp2_V,Fp2_Ω,Fp2_χ,Fp2_δ,FF2_u,FF2_p,FF2_F,FF2_M,FM2_p,FM2_F,FM2_M,FV_u,FV_p,FV_V,FΩ_p,FΩ_Ω,Fχ_p,Fχ_V,Fχ_Ω,Fχ_χ) where {N3,Nδ3,NN}
+    function JacobianIndicesMaps{N3,Nδ3,NN}(Fu1_p,Fu1_F,Fu1_M,Fu1_V,Fu1_Ω,Fu1_χ,Fu1_δ,Fp1_p,Fp1_F,Fp1_M,Fp1_V,Fp1_Ω,Fp1_χ,Fp1_δ,FF1_u,FF1_p,FF1_F,FF1_M,FM1_p,FM1_F,FM1_M,FM1_V,FM1_Ω,FM1_χ,FM1_δ,Fu2_p,Fu2_F,Fu2_M,Fu2_V,Fu2_Ω,Fu2_χ,Fu2_δ,Fp2_p,Fp2_F,Fp2_M,Fp2_V,Fp2_Ω,Fp2_χ,Fp2_δ,FF2_u,FF2_p,FF2_F,FF2_M,FM2_p,FM2_F,FM2_M,FV_u,FV_p,FV_V,FΩ_p,FΩ_Ω,Fχ_p,Fχ_V,Fχ_Ω,Fχ_χ) where {N3,Nδ3,NN}
         new{N3,Nδ3,NN}(
             Fu1_p,Fu1_F,Fu1_M,Fu1_V,Fu1_Ω,Fu1_χ,Fu1_δ,
             Fp1_p,Fp1_F,Fp1_M,Fp1_V,Fp1_Ω,Fp1_χ,Fp1_δ,
             FF1_u,FF1_p,FF1_F,FF1_M,
-            FM1_p,FM1_F,FM1_M,
+            FM1_p,FM1_F,FM1_M,FM1_V,FM1_Ω,FM1_χ,FM1_δ,
             Fu2_p,Fu2_F,Fu2_M,Fu2_V,Fu2_Ω,Fu2_χ,Fu2_δ,
             Fp2_p,Fp2_F,Fp2_M,Fp2_V,Fp2_Ω,Fp2_χ,Fp2_δ,
             FF2_u,FF2_p,FF2_F,FF2_M,
@@ -395,7 +399,7 @@ JacobianIndicesMaps{N,Nδ}() where {N,Nδ} =
         ntuple(_ -> zeros(SVector{9, Int}), 5)..., zeros(SVector{3*N, Int}), zeros(SVector{3*Nδ, Int}),
         ntuple(_ -> zeros(SVector{9, Int}), 5)..., zeros(SVector{3*N, Int}), zeros(SVector{3*Nδ, Int}),
         ntuple(_ -> zeros(SVector{9, Int}), 4)...,
-        ntuple(_ -> zeros(SVector{9, Int}), 3)...,
+        ntuple(_ -> zeros(SVector{9, Int}), 5)..., zeros(SVector{3*N, Int}), zeros(SVector{3*Nδ, Int}),
         ntuple(_ -> zeros(SVector{9, Int}), 5)..., zeros(SVector{3*N, Int}), zeros(SVector{3*Nδ, Int}),
         ntuple(_ -> zeros(SVector{9, Int}), 5)..., zeros(SVector{3*N, Int}), zeros(SVector{3*Nδ, Int}),
         ntuple(_ -> zeros(SVector{9, Int}), 4)...,
@@ -460,6 +464,12 @@ struct InertiaIndicesMaps{N3,NN}
     Fp2_Fdot::SVector{9,Int}
     Fp2_Mdot::SVector{9,Int}
 
+    FM1_pdot::SVector{9,Int}
+    FM1_Vdot::SVector{9,Int}
+    FM1_Ωdot::SVector{9,Int}
+    FM1_Fdot::SVector{9,Int}
+    FM1_Mdot::SVector{9,Int}
+
     FV_udot::SVector{9,Int}
     FΩ_pdot::SVector{9,Int}
 
@@ -467,12 +477,13 @@ struct InertiaIndicesMaps{N3,NN}
     Fχ_Ωdot::SVector{N3,Int}
     Fχ_χdot::SVector{NN,Int}
 
-    function InertiaIndicesMaps{N3,NN}(Fu1_pdot,Fu1_Vdot,Fu1_Ωdot,Fu1_Fdot,Fu1_Mdot,Fp1_pdot,Fp1_Vdot,Fp1_Ωdot,Fp1_Fdot,Fp1_Mdot,Fu2_pdot,Fu2_Vdot,Fu2_Ωdot,Fu2_Fdot,Fu2_Mdot,Fp2_pdot,Fp2_Vdot,Fp2_Ωdot,Fp2_Fdot,Fp2_Mdot,FV_udot,FΩ_pdot,Fχ_Vdot,Fχ_Ωdot,Fχ_χdot) where {N3,NN}
+    function InertiaIndicesMaps{N3,NN}(Fu1_pdot,Fu1_Vdot,Fu1_Ωdot,Fu1_Fdot,Fu1_Mdot,Fp1_pdot,Fp1_Vdot,Fp1_Ωdot,Fp1_Fdot,Fp1_Mdot,Fu2_pdot,Fu2_Vdot,Fu2_Ωdot,Fu2_Fdot,Fu2_Mdot,Fp2_pdot,Fp2_Vdot,Fp2_Ωdot,Fp2_Fdot,Fp2_Mdot,FM1_pdot,FM1_Vdot,FM1_Ωdot,FM1_Fdot,FM1_Mdot,FV_udot,FΩ_pdot,Fχ_Vdot,Fχ_Ωdot,Fχ_χdot) where {N3,NN}
         new{N3,NN}(
             Fu1_pdot,Fu1_Vdot,Fu1_Ωdot,Fu1_Fdot,Fu1_Mdot,
             Fp1_pdot,Fp1_Vdot,Fp1_Ωdot,Fp1_Fdot,Fp1_Mdot,
             Fu2_pdot,Fu2_Vdot,Fu2_Ωdot,Fu2_Fdot,Fu2_Mdot,
             Fp2_pdot,Fp2_Vdot,Fp2_Ωdot,Fp2_Fdot,Fp2_Mdot,
+            FM1_pdot,FM1_Vdot,FM1_Ωdot,FM1_Fdot,FM1_Mdot,
             FV_udot,FΩ_pdot,
             Fχ_Vdot,Fχ_Ωdot,Fχ_χdot
         )
@@ -481,6 +492,7 @@ struct InertiaIndicesMaps{N3,NN}
 end
 InertiaIndicesMaps{N}() where {N} = 
     InertiaIndicesMaps{3*N,N*N}(
+        ntuple(_ -> zeros(SVector{9, Int}), 5)...,
         ntuple(_ -> zeros(SVector{9, Int}), 5)...,
         ntuple(_ -> zeros(SVector{9, Int}), 5)...,
         ntuple(_ -> zeros(SVector{9, Int}), 5)...,
