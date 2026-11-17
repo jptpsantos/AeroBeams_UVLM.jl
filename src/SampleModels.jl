@@ -29,10 +29,14 @@ end
 
 ## PRIVATE API
 # ------------------------------------------------------------------------------
-# Chordwise position of the reference axis (spar) of the straight Pazy wing in the original AePW3 data (https://github.com/UM-A2SRL/AePW3-LDWG), a fraction of the chord
+# Chordwise position of the reference axis of the straight Pazy wing in the original AePW3 data (https://github.com/UM-A2SRL/AePW3-LDWG)
 const normSparPos_Pazy_AePW3 = 0.44096
 
-# Chordwise position of the reference axis (spar) of the Pazy wing, a fraction of the chord: the shear center, which depends on the sweep angle (the S20 value is provisional)
+# Chord and chordwise position of the shear center of the TU Delft Pazy wing
+const chord_PazyDelft = 0.0988504
+const shear_center_PazyDelft = 0.4450
+
+# Chordwise position of the reference axis (spar) of the Pazy wing, a fraction of the chord: the shear center, which depends on the sweep angle
 function shear_center_Pazy(Λ)
 
     if isapprox(rad2deg(Λ), 0; atol=1e-8)
@@ -57,7 +61,7 @@ end
 # Chord of the Pazy wing [m], measured along the chordwise (x) direction of the MSC Nastran frame
 chord_Pazy(Λ::Real) = isapprox(rad2deg(Λ), 0; atol=1e-8) ? 0.0988504 : 0.0950
 
-# Path of the CSV file with the reference data of the Pazy wing with sweep angle Λ (0, 10 or 20 degrees) for the given mesh (:nominal or :refined), in test/referenceData/Pazy, or in test/referenceData/PazyNoRod for the wing without the tip rod (the straight wing, and only the inertia of the swept wing). `kind` is :inertia (S<Λ>_inertia_matrices_<mesh>mesh.csv for the straight wing, and S<Λ>_<config>_inertia_matrices_<mesh>mesh.csv for the swept one, with the tip mass configuration `config`, which the straight wing does not have, so it is ignored; S<Λ>_norod_… without the tip rod) or :stiffness, S<Λ>_stiffness_matrices_<mesh>mesh_<tip>.csv (S<Λ>_norod_stiffness_matrices_<mesh>mesh.csv without the tip rod, which has no `tip`), the least squares ones, selected by the Nastran model with the rigid (`tip = :rigidtip`, the tip section of the wing is rigid, as the stiffness matrices require) or flexible (`:flextip`) tip rod. With `rootTorsionCorr = true` the stiffness data is that with the correction of the root torsional stiffness (and bending-torsion coupling) of the straight wing with the tip rod, S0_stiffness_matrices_<mesh>mesh_<tip>_corr.csv. Throws a descriptive error if the data is not available
+# Path of the CSV file with the reference data of the Pazy wing with sweep angle Λ (0, 10 or 20 degrees) for the given mesh (:nominal or :refined), in test/referenceData/Pazy, or in test/referenceData/PazyNoRod for the wing without the tip rod (the straight wing, and only the inertia of the swept wing). `kind` is :inertia (S<Λ>_inertia_matrices_<mesh>mesh.csv for the straight wing, and S<Λ>_<config>_inertia_matrices_<mesh>mesh.csv for the swept one, with the tip mass configuration `config`, which the straight wing does not have, so it is ignored; without the tip rod, the suffix _norod goes after the configuration: S<Λ>_norod_inertia_matrices_<mesh>mesh.csv for the straight wing, and S<Λ>_<config>_norod_inertia_matrices_<mesh>mesh.csv for the swept one) or :stiffness, S<Λ>_stiffness_matrices_<mesh>mesh_<tip>.csv (S0_norod_stiffness_matrices_<mesh>mesh.csv without the tip rod, which has no `tip`; for the swept wing, S<Λ>_baseline_stiffness_matrices_<mesh>mesh_<tip>.csv (or S<Λ>_baseline_norod_stiffness… without the tip rod) is also accepted, as the BeamROM scripts name the stiffness data of the baseline Nastran model, which the tip mass configurations do not change), the least squares ones, selected by the Nastran model with the rigid (`tip = :rigidtip`, the tip section of the wing is rigid, as the stiffness matrices require) or flexible (`:flextip`) tip rod. With `rootTorsionCorr = true` the stiffness data is that with the correction of the root torsional stiffness (and bending-torsion coupling) of the straight wing with the tip rod, S0_stiffness_matrices_<mesh>mesh_<tip>_corr.csv. Throws a descriptive error if the data is not available
 function Pazy_data_file(kind::Symbol, Λ, mesh::Symbol; config::Symbol=:baseline, withWingtipRod::Bool=true, tip::Symbol=:rigidtip, rootTorsionCorr::Bool=false)
 
     @assert kind in (:inertia, :stiffness) "kind must be :inertia or :stiffness"
@@ -68,15 +72,20 @@ function Pazy_data_file(kind::Symbol, Λ, mesh::Symbol; config::Symbol=:baseline
     @assert config in (:baseline, :LE, :TE) "config must be :baseline, :LE or :TE"
     @assert tip in (:rigidtip, :flextip) "tip must be :rigidtip or :flextip"
     @assert !(rootTorsionCorr && kind == :stiffness) || (isStraight && withWingtipRod) "the root torsion correction of the stiffness matrices is only available for the straight wing with the tip rod"
-    prefix = "S$(ΛDeg)" * (withWingtipRod ? "" : "_norod")
-    # Name of the file without the extension, with the mesh in it: S<Λ>_inertia_matrices_<mesh>mesh, or S<Λ>_stiffness_matrices_<mesh>mesh_<tip> (with the suffix _corr for the root torsion correction)
+    norod = withWingtipRod ? "" : "_norod"
+    prefix = "S$(ΛDeg)"
+    # Name of the file without the extension, with the mesh in it: S<Λ>_<config>_norod_inertia_matrices_<mesh>mesh (the tip mass configuration comes before the _norod suffix), or S<Λ>_norod_stiffness_matrices_<mesh>mesh_<tip> (with the suffix _corr for the root torsion correction)
     stem = if kind == :inertia
-        prefix * (isStraight ? "" : "_" * String(config)) * "_inertia_matrices_" * String(mesh) * "mesh"
+        prefix * (isStraight ? "" : "_" * String(config)) * norod * "_inertia_matrices_" * String(mesh) * "mesh"
     else
-        prefix * "_stiffness_matrices_" * String(mesh) * "mesh" * (withWingtipRod ? "_" * String(tip) : "") * (rootTorsionCorr ? "_corr" : "")
+        prefix * norod * "_stiffness_matrices_" * String(mesh) * "mesh" * (withWingtipRod ? "_" * String(tip) : "") * (rootTorsionCorr ? "_corr" : "")
     end
     dir = joinpath(pkgdir(AeroBeams), "test", "referenceData", withWingtipRod ? "Pazy" : "PazyNoRod")
     file = joinpath(dir, stem * ".csv")
+    if !isfile(file) && kind == :stiffness && !isStraight
+        baselineFile = joinpath(dir, replace(stem, prefix * norod * "_stiffness" => prefix * "_baseline" * norod * "_stiffness") * ".csv")
+        isfile(baselineFile) && (file = baselineFile)
+    end
 
     if !isfile(file)
         # List the meshes with data (the same name with another mesh)
@@ -141,7 +150,7 @@ function inertia_matrices_from_Nastran_data(; Λ,nElem,L,nodalPositions,m,m_x,m_
 
 end                                              
 
-# Sectional inertia matrices of the Pazy wing with sweep angle Λ, read from `file` (default: the inertia matrices of the given mesh and tip mass configuration `config` (only for the swept wing), see `Pazy_data_file`). The nodal data is in the MSC Nastran basic frame. `applyTipInertiaCorrection` applies an ad hoc factor on the tip node's inertia about the Nastran y axis for the :LE and :TE configurations to approximate GVT torsional mode data. This correction accounts for the flexibility of the wingtip rod and the breaking beam of the flutter protection system.
+# Sectional inertia matrices of the Pazy wing with sweep angle Λ, read from `file` (default: the inertia matrices of the given mesh and tip mass configuration `config` (only for the swept wing), see `Pazy_data_file`). The nodal data is in the MSC Nastran basic frame. `applyTipInertiaCorrection` applies an ad hoc factor on the tip node's inertia about the Nastran y axis for the :LE and :TE configurations. This correction accounts for the flexibility of the wingtip rod and the breaking beam of the flutter protection system.
 function inertia_matrices_Pazy(Λ; mesh::Symbol=:nominal, config::Symbol=:baseline, applyTipInertiaCorrection::Bool=false, withWingtipRod::Bool=true, file::String=Pazy_data_file(:inertia, Λ, mesh; config=config, withWingtipRod=withWingtipRod))
 
     # Geometrical properties
@@ -152,13 +161,19 @@ function inertia_matrices_Pazy(Λ; mesh::Symbol=:nominal, config::Symbol=:baseli
     column(name) = Float64.(data[:, findfirst(==(name), vec(header))])
     @assert size(data,1) == nElem+1 "the beam mass model data of the Pazy wing with sweep angle $(round(Int, rad2deg(Λ)))° for mesh=:$mesh has $(size(data,1)) nodes, but $(nElem+1) are expected"
 
-    # Ad hoc factor on the tip node's torsional inertia for the LE and TE configurations (to approximate wingtip rod flexibility)
-    Iyy = column("Jyy")
-    if applyTipInertiaCorrection && config != :baseline && !(Λ ≈ 0)
-        Iyy[end] *= 1.4
+    # Ad hoc factor on the tip node's torsional inertia for the LE and TE configurations (to approximate wingtip rod flexibility effects)
+    Iyy = column("Iyy")
+    if applyTipInertiaCorrection && rad2deg(Λ) ≈ 10 && config == :LE
+        Iyy[end] *= 1.41
+    elseif applyTipInertiaCorrection && rad2deg(Λ) ≈ 10 && config == :TE
+        Iyy[end] *= 1.35
+    elseif applyTipInertiaCorrection && rad2deg(Λ) ≈ 20 && config == :LE
+        Iyy[end] *= 1.20
+    elseif applyTipInertiaCorrection && rad2deg(Λ) ≈ 20 && config == :TE
+        Iyy[end] *= 1.17
     end
 
-    return inertia_matrices_from_Nastran_data(Λ=Λ,nElem=nElem,L=L,nodalPositions=nodalPositions,m=column("m"),m_x=column("dx"),m_y=column("dy"),m_z=column("dz"),Ixx=column("Jxx"),Iyy=Iyy,Izz=column("Jzz"),Ixy=column("Jxy"),Ixz=column("Jxz"),Iyz=column("Jyz"))
+    return inertia_matrices_from_Nastran_data(Λ=Λ,nElem=nElem,L=L,nodalPositions=nodalPositions,m=column("m"),m_x=column("dx"),m_y=column("dy"),m_z=column("dz"),Ixx=column("Ixx"),Iyy=Iyy,Izz=column("Izz"),Ixy=column("Ixy"),Ixz=column("Ixz"),Iyz=column("Iyz"))
 
 end
 
@@ -168,10 +183,11 @@ function stiffness_matrices_Pazy(Λ; mesh::Symbol=:nominal, withWingtipRod::Bool
     # Geometrical properties
     nElem,L,_,_,nodalPositions = geometrical_properties_Pazy(mesh=mesh, Λ=Λ)
 
-    # Stiffness matrix of each segment (or element), given by its components row by row (S11, S12, ..., S66) and the coordinates of its ends from the root
+    # Stiffness matrix of each segment (or element), given by its upper triangle terms row by row (S11, S12, ..., S16, S22, ..., S66, as the matrices are symmetric) and the coordinates of its ends from the root
     file = Pazy_data_file(:stiffness, Λ, mesh; withWingtipRod=withWingtipRod, tip=tip, rootTorsionCorr=rootTorsionCorr)
     data, header = readdlm(file, ','; header=true)
-    columns = [findfirst(==("S$i$j"), vec(header)) for i in 1:6, j in 1:6]
+    # The lower terms are equal to the upper ones
+    columns = [findfirst(==("S$(min(i,j))$(max(i,j))"), vec(header)) for i in 1:6, j in 1:6]
     y1, y2 = Float64.(data[:, 2]), Float64.(data[:, 3])
 
     # The segments must span the beam from the root to the tip, and each element belongs to the segment that contains its middle
@@ -186,12 +202,12 @@ function stiffness_matrices_Pazy(Λ; mesh::Symbol=:nominal, withWingtipRod::Bool
 
 end
 
-# Data of the wingtip rod of the Pazy wing (Technion Nastran models nastran/Pazy_Technion/S0/S0.bdf and S10/<config>/S10_<config>.bdf), to model it as a beam. The rod is a circular bar along the chordwise direction. Positions are along the chordwise axis of the Nastran frame (x positive aft), relative to the tip node of the beam (reference axis). The slight tilt of the rod in the Nastran models (about 1e-3 rad) is neglected. The fields are:
+# Data of the wingtip rod of the Pazy wing (Technion Nastran models nastran/Pazy_Technion/S0/S0.bdf, S10/<config>/S10_<config>.bdf and S20/<config>/S20_<config>.bdf), to model it as a beam. The rod is a circular bar along the chordwise direction. Positions are along the chordwise axis of the Nastran frame (x positive aft), relative to the tip node of the beam (reference axis). The slight tilt of the rod in the Nastran models (about 1e-3 rad) is neglected. The fields are:
 # - the rod section and material (`d`, `A`, `I`, `J`, `E`, `G`, `ρ`, `Ks`) and its ends `xStart` and `xEnd`
 # - `offset`: the position of the attachment point of the rod, relative to the same node, in the Nastran frame (with origin at the wing root shear center)
 # - `tied`: ends of the parts of the rod that are modeled as rigid, due to being glued to the wing along the chord, for the bending in the plane of the wing (`inPlane`, displacements along the span) and out of it (`outOfPlane`, vertical displacements); the attachment point is inside both
-# - `calibrationMass`, `xCalibration`: calibration masses and their position along the rod
-# - `hinge`: for the S10 LE and TE configurations, the breaking beam (CBEAM property 24 in the Nastran models, a cone of PLA at the end of the rod, is modeled as a hinge with springs), the fixed adapter (CONM2 205, a ring at the end of the breaking beam) and the FPS weights (CONM2 433, with the offset `arm` from the end of the breaking beam, and the transverse inertia `fpsInertia` about its center of mass)
+# - `calibrationMass`, `xCalibration`: calibration masses carried by the rod and their position along it (in the S10, the calibration mass is part of the wing data)
+# - `hinge`: for the S10 and S20 LE and TE configurations, the FPS weights (CONM2 with the offset `arm` from the end of the breaking beam, and the transverse inertia `fpsInertia` about its center of mass) and the fixed adapter (CONM2 with mass `adapterMass`, at the position `xAdapter` along the rod axis), at the end of the rod on the side `side`. If the rod has a breaking beam (`bbLength` > 0: CBEAM property 24 in the Nastran models, a cone of PLA at the end of the rod, in the S10 LE and TE and S20 TE configurations), it is modeled as a hinge with springs around it, which have the stiffness of the breaking beam (GJ/L in torsion, EI/L in bending) times the empirical `springFactors` (in torsion and in bending in the plane of the wing and out of it, which need not be equal). Without it (`bbLength` = 0, `springFactors` = `nothing`, the S20 LE configuration), the weights are rigidly attached to the end of the rod
 function wingtip_rod_Pazy(Λ,config)
 
     if isapprox(rad2deg(Λ), 0; atol=1e-8)
@@ -212,34 +228,57 @@ function wingtip_rod_Pazy(Λ,config)
                         outOfPlane = (0.012 - xSpar, 0.073 - xSpar)),
                 calibrationMass = 0.015 + 0.0011, xCalibration = -xSpar + 0.05,
                 hinge = nothing)
-    else
-        # S10: the rod goes from x = 0.05289 to 0.23278 m, at y = 0.5516 to 0.55139 m, and the tip node is at x = 0.138871796846351, y = 0.54673 m. The rod crosses the plane of the tip node (the attachment point) at y = 0.5515 m, and it is made of nylon. The grids of the rod from x = 0.09734 to 0.19305 m are tied by RBE2 to the shell grids of the tip section (the chord is from x = 0.0964 to 0.1914 m), which is not rigid: in the modes of the Nastran model with the flexible rod (S10_<config>_modal_flextip.op2) the rod bends from about x = 0.17 m, so the rigid part is from 10 mm from the leading edge (0.1064 m) to the trailing edge of the spar (0.17337 m), as in the S0, which are the limits that best reproduce the natural frequencies of the Nastran models
+    elseif isapprox(rad2deg(Λ), 10; atol=1e-8)
+        # S10: the rod goes from x = 0.05289 to 0.23278 m, at y = 0.5516 to 0.55139 m, and the tip node is at x = 0.138871796846351, y = 0.54673 m. The rod crosses the plane of the tip node (the attachment point) at y = 0.5515 m, and it is made of nylon. The grids of the rod from x = 0.09734 to 0.19305 m are tied by RBE2 to the shell grids of the tip section (the chord is from x = 0.0964 to 0.1914 m), which is not rigid, and, as in the S0, the stringers restrain the rod more against bending in the plane of the wing than out of it, so the rigid part of the rod is longer in the plane. The limits of the rigid parts and the factors of the springs of the hinge were calibrated with the natural frequencies and mode shapes of the Nastran models with the flexible rod (S10_<config>_modal_flextip.op2) of the LE and TE configurations (see dev/Pazy/S10/BeamRod/S10PazyBeamRodCalibration.jl), as the effective clamps of the cantilevers of the rod beyond the chord (in the plane, x = 0.1047 to 0.1776 m, 8.3 to 81.2 mm from the leading edge of the tip section, and out of it, x = 0.1102 to 0.1645 m, 13.8 to 68.1 mm) and the springs of the hinge, which have the stiffness of the breaking beam (EI/L) times the factors of 1.09 in the plane of the wing and 1.04 out of it (LE), and 0.94 and 0.99 (TE). The torsion spring is not calibrated, as the FPS weights have no inertia about the axis of the rod, so the modes do not depend on it
+        xLERod = 0.05289
+        xTERod = 0.23278
+        ℓ = xTERod - xLERod
         xSpar = 0.138871796846351
         d = 0.0095
-        yAttachment = 0.5516 + (xSpar - 0.05289)/(0.23278 - 0.05289)*(0.55139 - 0.5516)
+        yAttachment = 0.5516 + (xSpar - xLERod)/ℓ*(0.55139 - 0.5516)
         hinge = if config == :LE
-            (side = :LE, bbLength = 0.05289 - 0.052, bbDiameter = 0.0017, arm = 0.0213, adapterMass = 0.0035, fpsMass = 0.0087, fpsInertia = 3.3e-7)
+            (side = :LE, bbLength = xLERod - 0.052, bbDiameter = 0.0017, arm = 0.0213, xAdapter = 0.052 - xSpar, adapterMass = 0.0035, fpsMass = 0.0087, fpsInertia = 3.3e-7, springFactors = (torsion = 1.0, inPlane = 1.09, outOfPlane = 1.04))
         elseif config == :TE
-            (side = :TE, bbLength = 0.233 - 0.23278, bbDiameter = 0.0015, arm = 0.0223, adapterMass = 0.0035, fpsMass = 0.0087, fpsInertia = 3.3e-7)
+            (side = :TE, bbLength = 0.233 - xTERod, bbDiameter = 0.0015, arm = 0.0223, xAdapter = 0.233 - xSpar, adapterMass = 0.0035, fpsMass = 0.0087, fpsInertia = 3.3e-7, springFactors = (torsion = 1.0, inPlane = 0.94, outOfPlane = 0.99))
         else
             nothing
         end
         return (d = d, A = π*d^2/4, I = π*d^4/64, J = π*d^4/32,
                 E = 1.4e9, G = 5.0215e8, ρ = 930.0, Ks = 0.886179,
-                xStart = 0.05289 - xSpar, xEnd = 0.23278 - xSpar,
+                xStart = xLERod - xSpar, xEnd = xTERod - xSpar,
                 offset = [0.0, yAttachment - 0.54673, 0.0],
-                tied = (inPlane = (0.1064 - xSpar, 0.17337 - xSpar), outOfPlane = (0.1064 - xSpar, 0.17337 - xSpar)),
+                tied = (inPlane = (0.1047 - xSpar, 0.1776 - xSpar), outOfPlane = (0.1102 - xSpar, 0.1645 - xSpar)),
                 calibrationMass = 0.0, xCalibration = 0.0,
+                hinge = hinge)
+    else
+        @assert isapprox(rad2deg(Λ), 20; atol=1e-8) "the data of the wingtip rod of the Pazy wing is available for sweep angles of 0, 10 and 20 degrees"
+        # S20: the rod goes from x = 0.13263 to 0.33202 m, at y = 0.52633 to 0.52613 m, and the tip node is at x = 0.233110959158846, y = 0.52168 m. The rod crosses the plane of the tip node (the attachment point) at y = 0.5262 m, and it is made of nylon, as in the S10, but is longer and thicker, with different properties. The grids of the rod from x = 0.19163 to 0.28733 m are tied by RBE2 to the shell grids of the tip section (the chord is from x = 0.1897 to 0.2847 m), as in the S10, and the limits of the rigid parts, which are calibrated as in the S10 (see dev/Pazy/S20/BeamRod/S20PazyBeamRodCalibration.jl), are, in the plane, x = 0.1967 to 0.2691 m (7.0 to 79.4 mm from the leading edge of the tip section), and out of it, x = 0.2013 to 0.2569 m (11.6 to 67.2 mm). The calibration mass is carried by the rod (grid at x = 0.1472 m): 7 g in the LE configuration and 3 g in the TE one, and the wing data is that of the Baseline (without it). In the LE configuration there is no breaking beam: the FPS weights, with the center of mass at 10 mm from the end of the rod, and the adapter, at 4.6 mm from it (inside the rod), are rigidly attached to it. In the TE configuration the breaking beam is 2 mm long and 6 mm in diameter, much stiffer than that of the S10, the center of mass of the FPS weights is 7.5 mm beyond it, and the adapter is on the rod, at 10 mm from its end. The springs of the hinge are the nominal ones (factors of 1), as the modes of the Nastran model do not determine them: the breaking beam is so stiff that 10% of change in the factors changes their frequencies by less than 0.03%
+        xLERod = 0.13263
+        xTERod = 0.33202
+        ℓ = xTERod - xLERod
+        xSpar = 0.233110959158846
+        d = 0.01
+        yAttachment = 0.52633 + (xSpar - xLERod)/ℓ*(0.52613 - 0.52633)
+        hinge = if config == :LE
+            (side = :LE, bbLength = 0.0, bbDiameter = 0.0, arm = 0.01, xAdapter = 0.13724 - xSpar, adapterMass = 0.0031, fpsMass = 0.0113, fpsInertia = 3.3e-7, springFactors = nothing)
+        elseif config == :TE
+            (side = :TE, bbLength = 0.002, bbDiameter = 0.006, arm = 0.0075, xAdapter = 0.32205 - xSpar, adapterMass = 0.0031, fpsMass = 0.0113, fpsInertia = 3.3e-7, springFactors = (torsion = 1.0, inPlane = 1.0, outOfPlane = 1.0))
+        else
+            nothing
+        end
+        return (d = d, A = π*d^2/4, I = π*d^4/64, J = π*d^4/32,
+                E = 1.2e9, G = 4.3042e8, ρ = 930.0, Ks = 0.88618,
+                xStart = xLERod - xSpar, xEnd = xTERod - xSpar,
+                offset = [0.0, yAttachment - 0.52168, 0.0],
+                tied = (inPlane = (0.1967 - xSpar, 0.2691 - xSpar), outOfPlane = (0.2013 - xSpar, 0.2569 - xSpar)),
+                calibrationMass = config == :LE ? 0.007 : config == :TE ? 0.003 : 0.0, xCalibration = 0.1472 - xSpar,
                 hinge = hinge)
     end
 
 end
 
-# Creates the beams that model the wingtip rod of the Pazy wing attached to its tip, and their connections: a rigid link from the tip node of the wing `mainWing` (with `nElem` elements) to the attachment point of the rod, and the rod, connected at the attachment point to the end of the link. The rod is uniform, with `nElementsRod` elements: the part glued to the wing is rigid, with one element between each pair of nodes at the ends of its rigid parts (`tied` in `wingtip_rod_Pazy`, one for each plane of bending, so that in the part where only one of them is rigid the other bending is flexible) and at the attachment point, and the others are distributed beyond it in proportion to their lengths. In the S10 LE and TE configurations the rod is extended beyond its end with one element, up to the center of mass of the FPS weights, which is connected to the rod by a hinge (the breaking beam), restrained by springs of the stiffness of the breaking beam in torsion and bending, with the masses of the adapter and of the FPS weights as in the Nastran model
-function create_wingtip_rod_beams_Pazy(mainWing,nElem,Λ,config,nElementsRod)
-
-    # Get the wingtip rod model for the given configuration
-    rod = wingtip_rod_Pazy(Λ,config)
+# Creates the beams that model the wingtip rod of the Pazy wing attached to its tip, and their connections: a rigid link from the tip node of the wing `mainWing` (with `nElem` elements) to the attachment point of the rod, and the rod, connected at the attachment point to the end of the link. The rod is uniform, with `nElementsRod` elements: the part glued to the wing is rigid, with one element between each pair of nodes at the ends of its rigid parts (`tied` in `wingtip_rod_Pazy`, one for each plane of bending, so that in the part where only one of them is rigid the other bending is flexible) and at the attachment point, and the others are distributed beyond it in proportion to their lengths. In the S10 and S20 LE and TE configurations the rod is extended beyond its end with rigid elements, up to the center of mass of the FPS weights, with the masses of the adapter and of the FPS weights as in the Nastran model. When the rod has a breaking beam (all of them except the S20 LE), the extension is of two elements and is connected to the rod by a hinge, restrained by springs of the stiffness of the breaking beam in torsion and bending (times empirical factors), and the element of the rod at the hinge is short; otherwise, the extension is of one element, rigidly attached to the rod
+function create_wingtip_rod_beams_Pazy(mainWing,nElem,Λ,config,nElementsRod; rod=wingtip_rod_Pazy(Λ,config))
 
     # Rotation tensor of the wing's beam basis from basis A, and rotation tensor from the Nastran frame to the wing's beam basis (as in `inertia_matrices_from_Nastran_data`)
     R0wing = mainWing.geometry.R0
@@ -275,22 +314,35 @@ function create_wingtip_rod_beams_Pazy(mainWing,nElem,Λ,config,nElementsRod)
     nStart = clamp(round(Int, nFree*lengthStart/(lengthStart+lengthEnd)), 1, nFree-1)
     nEnd = nFree - nStart
     xNodes = vcat(range(rod.xStart, xRigid[1], length=nStart+1)[1:end-1], xRigid, range(xRigid[end], rod.xEnd, length=nEnd+1)[2:end])
-    attachmentNode = findfirst(x -> isapprox(x, xAttachment; atol=1e-9), xNodes)
 
-    # Extension of the rod beyond its end up to the center of mass of the FPS weights, and the node of the hinge
+    # Rod with a breaking beam, modeled as a hinge: the element of the rod at the hinge is short (so that the springs, attached to the nodes next to the hinge, are close to it), and the rod is extended beyond its end up to the center of mass of the FPS weights with two rigid elements, a short one at the hinge and the other with the FPS weights. The extension is not made of a single element because the response of the FPS weights then depends on the side of the hinge: the point masses with offset along the axis of the element next to the hinge give an inaccurate response (for the TE configuration, in which that element is after the hinge, the frequency of the mode of the in-plane rotation of the FPS weights against the rod is about 40% larger than that of the Nastran model). Without a breaking beam, the extension is a single rigid element with the FPS weights
+    shortRodElementLength = 2e-3
+    shortExtensionElementLength = 1e-3
     hinge = rod.hinge
+    hasHinge = !isnothing(hinge) && hinge.bbLength > 0
     hingeNode = nothing
+    nExtensionElements = isnothing(hinge) ? 0 : hasHinge ? 2 : 1
     if !isnothing(hinge)
         extension = hinge.bbLength + hinge.arm
-        if hinge.side == :LE
+        if hasHinge
+            @assert shortExtensionElementLength < extension "the length of the breaking beam and the offset of the FPS weights must be more than that of the element of the extension at the hinge"
+            if hinge.side == :LE
+                @assert xNodes[2] - xNodes[1] > 2*shortRodElementLength "the element of the rod at the hinge is too short"
+                insert!(xNodes, 2, rod.xStart + shortRodElementLength)
+                pushfirst!(xNodes, rod.xStart - extension, rod.xStart - shortExtensionElementLength)
+            else
+                @assert xNodes[end] - xNodes[end-1] > 2*shortRodElementLength "the element of the rod at the hinge is too short"
+                insert!(xNodes, length(xNodes), rod.xEnd - shortRodElementLength)
+                push!(xNodes, rod.xEnd + shortExtensionElementLength, rod.xEnd + extension)
+            end
+            hingeNode = findfirst(x -> isapprox(x, hinge.side == :LE ? rod.xStart : rod.xEnd; atol=1e-9), xNodes)
+        elseif hinge.side == :LE
             pushfirst!(xNodes, rod.xStart - extension)
-            attachmentNode += 1
-            hingeNode = 2
         else
             push!(xNodes, rod.xEnd + extension)
-            hingeNode = length(xNodes) - 1
         end
     end
+    attachmentNode = findfirst(x -> isapprox(x, xAttachment; atol=1e-9), xNodes)
     nElements = length(xNodes) - 1
     rodLength = xNodes[end] - xNodes[1]
     normalizedNodalPositions = (xNodes .- xNodes[1]) / rodLength
@@ -303,7 +355,9 @@ function create_wingtip_rod_beams_Pazy(mainWing,nElem,Λ,config,nElementsRod)
     SrigidOutOfPlane = isotropic_stiffness_matrix(∞=linkStiffness,GAy=rod.G*rod.A*rod.Ks,EIz=rod.E*rod.I)
     Irod = inertia_matrix(ρ=rod.ρ,A=rod.A,Iy=rod.I,Iz=rod.I)
     isTied(e,lim) = xNodes[e] >= lim[1] - 1e-9 && xNodes[e+1] <= lim[2] + 1e-9
+    extensionElements = isnothing(hinge) ? Int[] : hinge.side == :LE ? collect(1:nExtensionElements) : collect(nElements-nExtensionElements+1:nElements)
     function elementStiffness(e)
+        e in extensionElements && return Srigid
         inPlane = isTied(e,rod.tied.inPlane)
         outOfPlane = isTied(e,rod.tied.outOfPlane)
         return inPlane && outOfPlane ? Srigid : inPlane ? SrigidInPlane : outOfPlane ? SrigidOutOfPlane : Srod
@@ -325,8 +379,9 @@ function create_wingtip_rod_beams_Pazy(mainWing,nElem,Λ,config,nElementsRod)
         )
 
     # Calibration masses, at their position on the rod
+    elementAt(x) = findfirst(e -> xNodes[e] <= x <= xNodes[e+1], 1:nElements)
     if rod.calibrationMass > 0
-        calibrationElement = findfirst(e -> xNodes[e] <= rod.xCalibration <= xNodes[e+1], 1:nElements)
+        calibrationElement = elementAt(rod.xCalibration)
         add_point_inertia_to_beam!(
             beam=wingtipRod,
             elementID=calibrationElement,
@@ -334,42 +389,44 @@ function create_wingtip_rod_beams_Pazy(mainWing,nElem,Λ,config,nElementsRod)
             )
     end
 
-    # Hinge of the breaking beam, with the adapter and the FPS weights on the element after it
+    # Adapter and FPS weights, with the hinge of the breaking beam, if any
     if !isnothing(hinge)
-        # Material (PLA) of the breaking beam of the Sx LE and TE configurations
-        breakingBeamE_Pazy = 2.3e9
-        breakingBeamG_Pazy = 8.5185e8
-        # Springs around the hinge, with the stiffnesses of the breaking beam (a cone of the PLA, whose length is that of the hinge)
-        bbI = π*hinge.bbDiameter^4/64
-        bbJ = π*hinge.bbDiameter^4/32
-        kTorsion = breakingBeamG_Pazy * bbJ / hinge.bbLength
-        kBending = breakingBeamE_Pazy * bbI / hinge.bbLength
-        for (k,p) in zip((kTorsion,kBending,kBending), ([0,0,0],[π/2,0,0],[0,π/2,0]))
-            add_spring_to_beams!(beams=[wingtipRod,wingtipRod],spring=create_Spring(kp=k),nodesLocalIDs=[hingeNode-1,hingeNode+1],p=p)
+        if hasHinge
+            # Material (PLA) of the breaking beam of the Sx LE and TE configurations
+            breakingBeamE = 2.3e9
+            breakingBeamG = 8.5185e8
+            # Springs around the hinge, with the stiffnesses of the breaking beam (a cone of the PLA, whose length is that of the hinge) times the empirical factors: about the axis of the rod (torsion), about the x2 axis, along the span (bending out of the plane of the wing), and about the x3 axis, vertical (bending in the plane of the wing)
+            bbI = π*hinge.bbDiameter^4/64
+            bbJ = π*hinge.bbDiameter^4/32
+            kTorsion = hinge.springFactors.torsion * breakingBeamG * bbJ / hinge.bbLength
+            kBendingOutOfPlane = hinge.springFactors.outOfPlane * breakingBeamE * bbI / hinge.bbLength
+            kBendingInPlane = hinge.springFactors.inPlane * breakingBeamE * bbI / hinge.bbLength
+            for (k,p) in zip((kTorsion,kBendingOutOfPlane,kBendingInPlane), ([0,0,0],[π/2,0,0],[0,π/2,0]))
+                add_spring_to_beams!(beams=[wingtipRod,wingtipRod],spring=create_Spring(kp=k),nodesLocalIDs=[hingeNode-1,hingeNode+1],p=p)
+            end
         end
-        # Element after the hinge, whose far end is the center of mass of the FPS weights (a node), and its midpoint
-        extensionElement = hinge.side == :LE ? 1 : nElements
+        # Adapter, at its position along the axis of the rod (on the element of the extension at the hinge, or on the rod), and the far element of the extension, whose end is the center of mass of the FPS weights (a node)
+        farElement = hinge.side == :LE ? 1 : nElements
         xFar = hinge.side == :LE ? xNodes[1] : xNodes[end]
-        xMid = (xNodes[extensionElement] + xNodes[extensionElement+1]) / 2
-        extensionLength = abs(xNodes[extensionElement+1] - xNodes[extensionElement])
-        # Adapter, at the end of the breaking beam
-        xAdapter = hinge.side == :LE ? rod.xStart - hinge.bbLength : rod.xEnd + hinge.bbLength
+        adapterElement = elementAt(hinge.xAdapter)
+        @assert !isnothing(adapterElement) "the adapter must be on the rod or on its extension"
         add_point_inertia_to_beam!(
             beam=wingtipRod,
-            elementID=extensionElement,
-            pointInertia=create_PointInertia(mass=hinge.adapterMass, η=[xAdapter-xMid, 0, 0])
+            elementID=adapterElement,
+            pointInertia=create_PointInertia(mass=hinge.adapterMass, η=[hinge.xAdapter-(xNodes[adapterElement]+xNodes[adapterElement+1])/2, 0, 0])
             )
-        # FPS weights: the element has the distributed mass and inertia of the rod, so a concentrated mass is added to complete the mass of the FPS weights and keep their center of mass, and the inertia of the FPS weights about it
-        elementMass = rod.ρ * rod.A * extensionLength
-        concentratedMass = hinge.fpsMass - elementMass
+        # FPS weights: the elements of the extension have the distributed mass and inertia of the rod, so a concentrated mass is added to complete the mass of the FPS weights and keep their center of mass, and the inertia of the FPS weights about it
+        extensionMass = rod.ρ * rod.A * extension
+        xExtensionCenter = ((hinge.side == :LE ? rod.xStart : rod.xEnd) + xFar) / 2
+        concentratedMass = hinge.fpsMass - extensionMass
         @assert concentratedMass > 0 "the mass of the extension of the rod is larger than that of the FPS weights"
-        xConcentrated = (hinge.fpsMass*xFar - elementMass*xMid) / concentratedMass
-        elementInertia = elementMass*extensionLength^2/12 + elementMass*(xMid-xFar)^2 + concentratedMass*(xConcentrated-xFar)^2
-        concentratedInertia = max(hinge.fpsInertia - elementInertia, 0)
+        xConcentrated = (hinge.fpsMass*xFar - extensionMass*xExtensionCenter) / concentratedMass
+        extensionInertia = extensionMass*extension^2/3 + concentratedMass*(xConcentrated-xFar)^2
+        concentratedInertia = max(hinge.fpsInertia - extensionInertia, 0)
         add_point_inertia_to_beam!(
             beam=wingtipRod,
-            elementID=extensionElement,
-            pointInertia=create_PointInertia(mass=concentratedMass, η=[xConcentrated-xMid, 0, 0], Iyy=concentratedInertia, Izz=concentratedInertia, Ixx=0)
+            elementID=farElement,
+            pointInertia=create_PointInertia(mass=concentratedMass, η=[xConcentrated-(xNodes[farElement]+xNodes[farElement+1])/2, 0, 0], Iyy=concentratedInertia, Izz=concentratedInertia, Ixx=0)
             )
     end
 
@@ -400,12 +457,13 @@ function stiffness_matrices_PazyS0_AePW3()
     # Geometrical properties
     nElem,L,_,_,nodalPositions = geometrical_properties_Pazy(mesh=:nominal, Λ=0)
 
-    # Stiffness matrix of each element, given by its components row by row (S11, S12, ..., S66) and the coordinates of its ends from the root
+    # Stiffness matrix of each element, given by its upper triangle terms row by row (S11, S12, ..., S16, S22, ..., S66, as the matrices are symmetric) and the coordinates of its ends from the root
     file = Pazy_S0_AePW3_data_file(:stiffness)
     data, header = readdlm(file, ','; header=true)
     @assert size(data,1) == nElem "the original AePW3 stiffness data has $(size(data,1)) rows, but $nElem are expected"
     @assert isapprox(Float64.(data[:, 2]), L*nodalPositions[1:end-1]; atol=1e-6*L) && isapprox(Float64.(data[:, 3]), L*nodalPositions[2:end]; atol=1e-6*L) "the original AePW3 stiffness data does not match the nodes of the :nominal mesh"
-    columns = [findfirst(==("S$i$j"), vec(header)) for i in 1:6, j in 1:6]
+    # The lower terms are equal to the upper ones
+    columns = [findfirst(==("S$(min(i,j))$(max(i,j))"), vec(header)) for i in 1:6, j in 1:6]
 
     return [Float64.(data[k, columns]) for k in 1:nElem]
 
@@ -550,7 +608,7 @@ Returns the fixed geometrical (and discretization) properties of the Pazy wing (
 - `nElem::Int`: number of elements
 - `L::Float64`: total length
 - `chord::Float64`: chord
-- `normSparPos::Float64`: normalized spar position, equal to the chordwise position of the shear center (0.4653 for sweep 0°, 0.447 for 10° and 0.440 for 20°), or to that of the original AePW3 reference axis (0.44096) if `useAePW3Matrices` is `true`
+- `normSparPos::Float64`: normalized spar position, equal to the chordwise position of the shear center (0.4653 for sweep 0°, 0.447 for 10° and 0.4565 for 20°), or to that of the original AePW3 reference axis (0.44096) if `useAePW3Matrices` is `true`
 - `nodalPositions::Vector{Float64}`: normalized nodal positions
 """
 function geometrical_properties_Pazy(; Λ=0, mesh=:nominal, useAePW3Matrices=false)
@@ -595,7 +653,7 @@ Get tip masses and inertias for the swept Pazy wing LE and TE configurations fro
 - `configs::Tuple`: tip mass configurations to consider (default: `(:baseline, :LE, :TE)`)
 - `withFPSMass::Bool`: include flight protection system (FPS) mass (default: `true`)
 - `withAdapterMass::Bool`: include adapter mass (default: `true`)
-- `withCalibrationMass::Bool`: include calibration mass (default: `true`)
+- `withCalibrationMass::Bool`: include calibration mass (default: `true`). The baseline configuration (reference data) has no calibration mass, which the LE and TE configurations have at different positions
 - `sweptTipMassInertiaCorrection::Bool`: apply correction to tip mass inertias (default: `false`). This correction is roughly equivalent on setting the adapter and FPS masses 20% further from the reference axis.
 
 # Returns
@@ -615,28 +673,28 @@ function get_sweptPazy_tip_inertias_from_baseline(; Λ, mesh, configs=(:baseline
         @assert config in (:baseline, :LE, :TE) "Invalid configuration: $config"
     end
 
-    # Set masses, positions and inertias (in the MSC NASTRAN frame) for the tip masses in the LE and TE configurations
+    # Set masses, positions and inertias (in the MSC NASTRAN frame) for the tip masses in the LE and TE configurations. The positions are relative to the tip node of the beam (reference axis at the shear center, see `reference_axis_Pazy`) and come from the coordinates of the CONM2 of the Technion NASTRAN models (S<Λ>_LE.bdf and S<Λ>_TE.bdf). The baseline configuration has no calibration mass, so it is added here to the LE and TE configurations
     if Λis10deg
         fpsMassLE = fpsMassTE = 8.7e-3
         adapterMassLE = adapterMassTE = 3.5e-3
         calibrationMassLE = calibrationMassTE = 5e-3
-        fpsMassPosLE = [-106.99e-3, 4.87e-3, 0]
-        fpsMassPosTE = [117.61e-3, 4.66e-3, 0]
-        adapterMassPosLE = [-85.69e-3, 4.87e-3, 0]
-        adapterMassPosTE = [95.31e-3, 4.66e-3, 0]
-        calibrationMassPosLE = [0.31e-3, -23.54e-3, 0]
-        calibrationMassPosTE = [-26.45e-3, -23.54e-3, 0]
+        fpsMassPosLE = [-108.17e-3, 4.87e-3, 0]
+        fpsMassPosTE = [116.43e-3, 4.66e-3, 0]
+        adapterMassPosLE = [-86.87e-3, 4.87e-3, 0]
+        adapterMassPosTE = [94.13e-3, 4.66e-3, 0]
+        calibrationMassPosLE = [-0.87e-3, -23.54e-3, 0]
+        calibrationMassPosTE = [-27.63e-3, -23.54e-3, 0]
     else 
         fpsMassLE = fpsMassTE = 11.3e-3
         adapterMassLE = adapterMassTE = 3.1e-3
         calibrationMassLE = 7e-3
         calibrationMassTE = 3e-3
-        fpsMassPosLE = [-108.54e-3, 4.65e-3, 0]
-        fpsMassPosTE = [110.35e-3, 4.45e-3, 0]
-        adapterMassPosLE = [-93.93e-3, 4.65e-3, 0]
-        adapterMassPosTE = [90.88e-3, 4.45e-3, 0]
-        calibrationMassPosLE = [-83.97e-3, 4.65e-3, 0]
-        calibrationMassPosTE = [-83.97e-3, 4.65e-3, 0]
+        fpsMassPosLE = [-110.48e-3, 4.65e-3, 0]
+        fpsMassPosTE = [108.41e-3, 4.45e-3, 0]
+        adapterMassPosLE = [-95.87e-3, 4.65e-3, 0]
+        adapterMassPosTE = [88.94e-3, 4.45e-3, 0]
+        calibrationMassPosLE = [-85.91e-3, 4.65e-3, 0]
+        calibrationMassPosTE = [-85.91e-3, 4.65e-3, 0]
     end
     fpsMassInertia = sweptTipMassInertiaCorrection ? 
                      diagm([0, 3e-5, 3.3e-7]) : 
@@ -655,8 +713,8 @@ function get_sweptPazy_tip_inertias_from_baseline(; Λ, mesh, configs=(:baseline
     R = [sin(Λ) cos(Λ) 0; -cos(Λ) sin(Λ) 0; 0 0 1]
 
     # Element that carries a tip mass at position `posNastran` (relative to the tip beam node, in the Nastran frame): the one ending at the beam node nearest to the mass in the unswept y coordinate, as in the NASTRAN beam mass model
-    nElem = geometrical_properties_Pazy(Λ=Λ)[1]
-    _,yRef,_ = reference_axis_Pazy(Λ; mesh=mesh)
+    nElem = geometrical_properties_Pazy(Λ=Λ, mesh=mesh)[1]
+    _,yRef,_ = reference_axis_Pazy(Λ, mesh=mesh)
     host_element(posNastran) = clamp(argmin(abs.(yRef .- (yRef[end] + posNastran[2]))) - 1, 1, nElem)
 
     # Initialize tip mass and inertia containers for each configuration
@@ -815,13 +873,14 @@ Returns the wing model and geometrical properties
 - `mesh::Symbol`: beam mesh, can be `:nominal` (nodes at the root, at the ribs and at the tip of the spar) or `:refined` (approximately twice as many elements, with a node at the middle of each element of the nominal mesh)
 - `useAePW3Matrices::Bool`: flag to use the original sectional stiffness and inertia matrices of the straight wing (with skin, from https://github.com/UM-A2SRL/AePW3-LDWG, with shear stiffnesses of 3e6 N, and with the reference axis at 0.44096 of the chord) instead of those obtained from the condensation of the finite element model. Only available for the straight wing with `mesh=:nominal` (default: `false`)
 - `withWingtipRod::Bool`: flag to include the wingtip rod (its inertia is lumped in the tip node of the straight wing's beam mass model). If `false`, the wing has no rod, and its inertia and stiffness matrices are read from `test/referenceData/PazyNoRod` (least squares stiffness matrices only). Only available for the straight wing (default: `true`)
-- `rootTorsionCorr::Bool`: flag to use the sectional stiffness matrices with the correction of the root torsional stiffness (files `S0_stiffness_matrices_<mesh>mesh_<tip>_corr.csv` in `test/referenceData/Pazy`, instead of those of the condensation of the finite element model, `S0_stiffness_matrices_<mesh>mesh_<tip>.csv`). The rigid clamp of the Nastran model restrains the warping and stiffens the root in torsion, and the real clamp is more flexible. The correction reduces S44 of the root element (and also changes the bending-torsion coupling S45 = S54 for the nominal mesh), calibrated so that the flutter onset speeds of the hump mode agree with the onset (up) and onset (down) speeds measured by Drachinski et al. It reduces the frequency of the first torsion mode by about 1% (default: `true`). Only available for the straight wing with the tip rod (S0), and ignored for other configurations and for `useAePW3Matrices=true`
-- `beamWingtipRod::Bool`: flag to model the wingtip rod as a beam attached to the tip of the wing (`true`), instead of lumping its inertia in the tip node (`false`, the conventional model). Available for the straight wing (S0) and for the wing with 10 degrees of sweep (S10), and requires `withWingtipRod=true`. The wing beam then has the inertia data of the wing without the rod (`test/referenceData/PazyNoRod`), and the stiffness data of the Nastran model with the flexible tip rod (`flextip`) for the straight wing, and of the one with the rigid tip rod for the S10, and the model has two more beams, in this order: a rigid link, from the tip node of the wing to the attachment point of the rod, and the rod (flexible, with the properties of the Nastran models), connected to the end of the link. The part of the rod glued to the wing along the chord is rigid (see `wingtip_rod_Pazy` for its limits, which for the straight wing are not the same for the bending in the plane of the wing and out of it), and the parts beyond it are in cantilever. For the straight wing, the rod carries the calibration masses. For the S10, the calibration mass is part of the wing; in the `:LE` and `:TE` configurations of `sweptTipMassConfig`, the rod is extended with an element up to the center of mass of the FPS weights, which is connected to the rod by a hinge (the breaking beam) with springs of the stiffness of the breaking beam in torsion and bending, and has the masses of the fixed adapter and of the FPS weights (default: `false`)
-- `nElementsWingtipRod::Int`: number of elements of the wingtip rod beam (at least 6 for the straight wing and 4 for the S10), without the element of the FPS weights of the S10 `:LE` and `:TE` configurations. Those in the part of the rod glued to the wing are fixed (4 for the straight wing, which has different rigid parts in the two planes of bending, and 2 for the S10), and the others are distributed over the parts beyond it in proportion to their lengths (default: 12)
+- `rootTorsionCorr::Bool`: flag to use the sectional stiffness matrices with the correction of the root torsional stiffness (files `S0_stiffness_matrices_<mesh>mesh_<tip>_corr.csv` in `test/referenceData/Pazy`, instead of those of the condensation of the finite element model, `S0_stiffness_matrices_<mesh>mesh_<tip>.csv`). The clamp of the Nastran model is perfect: it restrains the warping and stiffens the root in torsion. The real clamp may be more flexible. The correction reduces S44 of the root element (and also changes the bending-torsion coupling S45 = S54 for the nominal mesh), calibrated so that the flutter onset speeds of the hump mode agree with the onset (up) and onset (down) speeds measured by Drachinski et al. It reduces the frequency of the first torsion mode by about 1% (default: `true`). Only available for the straight wing with the tip rod (S0), and ignored for other configurations and for `useAePW3Matrices=true`
+- `beamWingtipRod::Bool`: flag to model the wingtip rod as a beam attached to the tip of the wing (`true`), instead of lumping its inertia in the tip node (`false`, the conventional model). Available for the straight wing (S0) and for the wings with 10 and 20 degrees of sweep (S10 and S20), and requires `withWingtipRod=true`. The wing beam then has the inertia data of the wing without the rod (`test/referenceData/PazyNoRod`), and the stiffness data of the Nastran model with the flexible tip rod (`flextip`), and the model has two more beams, in this order: a rigid link, from the tip node of the wing to the attachment point of the rod, and the rod (flexible, with the properties of the Nastran models), connected to the end of the link. The part of the rod glued to the wing along the chord is rigid (see `wingtip_rod_Pazy` for its limits, which are not the same for the bending in the plane of the wing and out of it), and the parts beyond it are in cantilever. For the straight wing and for the S20, the rod carries the calibration masses (in the S20 `:LE` and `:TE` configurations, and the wing then has the inertia of the `:baseline` one). For the S10, the calibration mass is part of the wing. In the `:LE` and `:TE` configurations of `sweptTipMassConfig`, the rod is extended with rigid elements up to the center of mass of the FPS weights, and has the masses of the fixed adapter and of the FPS weights. The extension is connected to the rod by a hinge (the breaking beam) with springs of the stiffness of the breaking beam in torsion and bending (times empirical factors), and is made of two elements, except in the S20 `:LE` configuration, which has no breaking beam: the weights are rigidly attached to the rod, by one element (default: `false`)
+- `nElementsWingtipRod::Int`: number of elements of the wingtip rod beam (at least 6), without the extension of the S10 and S20 `:LE` and `:TE` configurations (one or two rigid elements, up to the center of mass of the FPS weights) and the short element of the rod at the hinge. Those in the part of the rod glued to the wing are fixed (4, as it has different rigid parts in the two planes of bending), and the others are distributed over the parts beyond it in proportion to their lengths (default: 12)
+- `wingtipRodData::Union{Nothing,NamedTuple}`: data of the wingtip rod modeled as a beam (`beamWingtipRod=true`), in the format returned by `wingtip_rod_Pazy` (default: `nothing`, which uses the data of the Nastran models, with the parameters calibrated with their natural frequencies and mode shapes). To recalibrate the rigid parts of the rod (`tied`) or the springs of the hinge (`hinge.springFactors`), modify a copy of the default data with `merge`
 - `tipMasses::Vector{<:Real}`: masses of point inertias added to the tip of the wing
-- `ηtipMasses::Vector{<:Real}`: position vectors of the tip masses relative to the tip of the spar, resolved in the local basis
-- `tipMassesInertias::Vector{<:Matrix{<:Real}}`: mass moment of inertia matrices of the tip masses
-- `tipMassesElementIDs::Union{Nothing,Vector{<:Integer}}`: IDs of the elements to which the tip masses are attached (default: `nothing`, which attaches all tip masses to the last element). The positions `ηtipMasses` are always relative to the tip of the spar, regardless of the element to which each mass is attached
+- `ηtipMasses::Vector{<:Real}`: position vectors of added tip masses relative to the tip of the spar, resolved in the local basis
+- `tipMassesInertias::Vector{<:Matrix{<:Real}}`: mass moment of inertia matrices of the added tip masses
+- `tipMassesElementIDs::Union{Nothing,Vector{<:Integer}}`: IDs of the elements to which the added tip masses are attached (default: `nothing`, which attaches all tip masses to the last element). The positions `ηtipMasses` are always relative to the tip of the spar, regardless of the element to which each mass is attached
 - `additionalBCs::Vector{BC}`: additional BCs (beyond the clamp)
 - `flightDirection::Vector{<:Real}`: flight direction vector, resolved in basis A
 - `tipLossPitchAngle::Real`: pitch angle at the root used to evaluate the tip loss function [rad] (default: `pitchAngle`). Useful when the angle of attack is set through `flightDirection` instead of `pitchAngle`
@@ -832,7 +891,7 @@ Returns the wing model and geometrical properties
 - `flareAngle::Union{Nothing,Real}`: flare angle [rad] (for hinge)
 - `kSpring::Union{Nothing,Real}`: stiffness of the spring around the hinge
 - `sweptTipMassConfig::Symbol`: configuration of the swept tip mass, can be `:baseline`, `:TE` or `:LE` (with `beamWingtipRod=true`, this sets the rod and the masses at its end)
-- `sweptTipMassInertiaCorrection::Bool`: flag to apply an ad hoc factor on the tip node's torsional inertia for the `:LE` and `:TE` swept tip mass configurations (approximates the GVT torsional frequencies, which are lowered by the tip rod flexibility not captured by the stiffened-tip NASTRAN model from which the swept wing mass data was derived)
+- `sweptTipMassInertiaCorrection::Bool`: flag to apply an ad hoc factor on the tip node's torsional inertia for the `:LE` and `:TE` swept tip mass configurations (approximates the GVT torsional frequencies, which are lowered by the tip rod flexibility not captured by the stiffened-tip NASTRAN model from which the swept wing mass data was derived). Can be true only if `beamWingtipRod=false`
 """
 function create_Pazy(; 
     aeroSolver::AeroSolver=Indicial(),
@@ -856,7 +915,7 @@ function create_Pazy(;
     rootTorsionCorr::Bool=true,
     beamWingtipRod::Bool=false,
     nElementsWingtipRod::Int=12,
-    tipMasses::AbstractVector{<:Real}=zeros(0),
+    wingtipRodData::Union{Nothing,NamedTuple}=nothing,    tipMasses::AbstractVector{<:Real}=zeros(0),
     ηtipMasses::AbstractVector{<:AbstractVector{<:Real}}=Vector{Vector{Float64}}(),
     tipMassesInertias::AbstractVector{<:AbstractMatrix{<:Real}}=Vector{Matrix{Float64}}(),
     tipMassesElementIDs::Union{Nothing,AbstractVector{<:Integer}}=nothing,
@@ -906,9 +965,10 @@ function create_Pazy(;
     if useAePW3Matrices
         @assert sweepAngle ≈ 0 && mesh == :nominal "the original AePW3 matrices are only available for the straight wing with mesh=:nominal"
     end
+    @assert isnothing(wingtipRodData) || beamWingtipRod "wingtipRodData requires beamWingtipRod=true"
     if beamWingtipRod
         @assert withWingtipRod "beamWingtipRod=true requires withWingtipRod=true"
-        @assert (sweepAngle ≈ 0 || rad2deg(sweepAngle) ≈ 10) && !useAePW3Matrices "the wingtip rod modeled as a beam is only available for the straight wing and the wing with 10 degrees of sweep, and not with the original AePW3 matrices"
+        @assert (sweepAngle ≈ 0 || rad2deg(sweepAngle) ≈ 10 || rad2deg(sweepAngle) ≈ 20) && !useAePW3Matrices "the wingtip rod modeled as a beam is only available for the straight wing and the wings with 10 and 20 degrees of sweep, and not with the original AePW3 matrices"
         @assert !sweptTipMassInertiaCorrection "sweptTipMassInertiaCorrection cannot be used with beamWingtipRod=true, as the rod flexibility is modeled"
         @assert nElementsWingtipRod >= 4 "nElementsWingtipRod must be at least 4"
     end
@@ -939,14 +999,18 @@ function create_Pazy(;
     S = if useAePW3Matrices
         stiffness_matrices_PazyS0_AePW3()
     else
-        stiffness_matrices_Pazy(sweepAngle; mesh=mesh, withWingtipRod=withWingtipRod, tip=(beamWingtipRod && sweepAngle ≈ 0) ? :flextip : :rigidtip, rootTorsionCorr=rootTorsionCorr && sweepAngle ≈ 0 && withWingtipRod)
+        stiffness_matrices_Pazy(sweepAngle; mesh=mesh, withWingtipRod=withWingtipRod, tip=beamWingtipRod ? :flextip : :rigidtip, rootTorsionCorr=rootTorsionCorr && sweepAngle ≈ 0 && withWingtipRod)
     end
 
-    # Inertia matrices
+    # Wingtip rod data, if modeled as a beam
+    rod = !beamWingtipRod ? nothing : isnothing(wingtipRodData) ? wingtip_rod_Pazy(sweepAngle,sweptTipMassConfig) : wingtipRodData
+
+    # Inertia matrices (the wing has the inertia of the configuration of the tip masses, unless the rod carries the calibration mass, as in the S20, which is not in the wing data of the Baseline)
     I = if useAePW3Matrices
         inertia_matrices_Pazy(sweepAngle; mesh=:nominal, file=Pazy_S0_AePW3_data_file(:inertia))
     else
-        inertia_matrices_Pazy(sweepAngle; mesh=mesh, config=sweptTipMassConfig, applyTipInertiaCorrection=sweptTipMassInertiaCorrection, withWingtipRod=withWingtipRod && !beamWingtipRod)
+        inertiaConfig = beamWingtipRod && rod.calibrationMass > 0 ? :baseline : sweptTipMassConfig
+        inertia_matrices_Pazy(sweepAngle; mesh=mesh, config=inertiaConfig, applyTipInertiaCorrection=sweptTipMassInertiaCorrection, withWingtipRod=withWingtipRod && !beamWingtipRod)
     end
 
     # Rotation parametrization and rotation parameters from basis A to basis b(0)
@@ -1008,7 +1072,7 @@ function create_Pazy(;
     beams = [mainWing]
     connections = Tuple{Pair{Beam,Beam},Pair{Int,Int}}[]
     if beamWingtipRod
-        beams,connections = create_wingtip_rod_beams_Pazy(mainWing,nElem,sweepAngle,sweptTipMassConfig,nElementsWingtipRod)
+        beams,connections = create_wingtip_rod_beams_Pazy(mainWing,nElem,sweepAngle,sweptTipMassConfig,nElementsWingtipRod; rod=rod)
     end
 
     # Update beam of additional BCs, if applicable
