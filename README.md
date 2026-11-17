@@ -45,11 +45,11 @@ Four types of analysis can be simulated:
 
 A simple built-in post-processing tool allows the visualization of the results. Here is an example of limit-cycle oscillations of the [Pazy wing](https://nescacademy.nasa.gov/workshops/AePW3/public/wg/largedeflection) benchmark after encountering a gust:
 
-![Pazy Wing Gust Response](test/outputs/figures/PazyWingOMCGust/PazyWingOMCGust_deformation.gif)
+![Pazy Wing Gust Response](test/outputs/figures/dynamicAeroelastic/PazyWingOMCGust/PazyWingOMCGust_deformation.gif)
 
 Purely structural problems (in the abscence of aerodynamic loads) can be analyzed as well, such as the "flying spaghetti" proposed by [[9]](#9):
 
-![flying spaghetti](test/outputs/figures/flyingSpaghetti2D/flyingSpaghetti2D_deformation.gif)
+![flying spaghetti](test/outputs/figures/dynamicStructural/flyingSpaghetti2D/flyingSpaghetti2D_deformation.gif)
 
 ## Testing and reference data
 
