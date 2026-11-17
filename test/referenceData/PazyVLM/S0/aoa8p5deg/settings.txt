@@ -1,0 +1,18 @@
+Prescribed angle of attack [deg]: 8.5
+Default :local_ratio uses cn/alpha_local at one static equilibrium, without perturbations.
+alpha_local = atan(V_inf dot n_deformed, V_inf dot chord_downstream); radians.
+Local incidence includes deformation; induced downwash is excluded from its definition.
+Ratios are secant approximations, not tangent derivatives; units 1/rad.
+Local incidence cutoff [rad]: 1.0e-8
+Optional derivative modes use central differences at alpha +/- alpha_step.
+cn = F_node dot n_deformed / (q_inf * chord * undeformed projected tributary width).
+Section forces sum transferred vortex-vertex forces along each chord; total force is conserved.
+Samples are at spanwise nodes, eta=0:1/spanwise_panels:1, including root and tip.
+Root/tip tributary widths are half a panel; endpoint cn values are half-strip averages.
+Local normals use the physical nodal chord and centered span tangent, one-sided at root/tip.
+eta follows undeformed spar arclength; positive sweep is the native aft sweep.
+UVLM axes: x downstream, y spanwise, z up. Leading edge upstream; wake downstream.
+symmetric_wing=true includes the image; forces describe only the explicit semispan.
+Requested slope modes: (:local_ratio,)
+Static options: (mesh = :nominal, useAePW3Matrices = false, withWingtipRod = true, rootTorsionCorr = true, beamWingtipRod = false, nElementsWingtipRod = 12, sweptTipMassConfig = :baseline, sweptTipMassInertiaCorrection = false, density = 1.225, chordwise_panels = 5, spanwise_panels = 15, symmetric_wing = true, time_step_chords = 0.2, maximum_wake_rows = 50, core_radius = 0.001, wake_shedding_fraction = 0.1, aerodynamic_interaction = true, aerodynamic_force_tolerance = 1.0e-5, aerodynamic_circulation_tolerance = 1.0e-5, maximum_static_iterations = 100, static_relaxation = 0.3, geometry_tolerance = 0.0001, load_tolerance = 0.0001, consecutive_equilibrium_iterations = 2, newton_maximum_iterations = 50, newton_absolute_tolerance = 1.0e-8, newton_relative_tolerance = 1.0e-8, newton_display_iterations = false, progress_frequency = 1000)
+Wake U*t/c (maximum, minimum, window): (120.0, 25.0, 4.0)

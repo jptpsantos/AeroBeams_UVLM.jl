@@ -1,0 +1,4 @@
+iteration,cumulative_aero_time_s,wake_time_s,tip_u1_A_m,tip_u2_A_m,tip_u3_A_m,tip_OOP_m,tip_IP_m,tip_twist_deg,geometry_residual,load_residual,wake_force_residual,wake_circulation_residual,wake_converged
+1.0,0.03089075,0.03089075,0.0,0.0,0.0,0.0,-0.0,0.0,Inf,0.0,0.0,0.0,1.0
+2.0,0.0617815,0.03089075,0.0,0.0,0.0,0.0,-0.0,0.0,0.0,0.0,0.0,0.0,1.0
+3.0,0.09267225000000001,0.03089075,0.0,0.0,0.0,0.0,-0.0,0.0,0.0,0.0,0.0,0.0,1.0
