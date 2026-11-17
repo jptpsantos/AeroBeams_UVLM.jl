@@ -56,7 +56,7 @@ if abs(θ₀) > π/8
 end
 
 # Set paths
-relPath = "/test/outputs/figures/tipPendulum"
+relPath = "/test/outputs/figures/dynamicStructural/tipPendulum"
 absPath = string(pwd(),relPath)
 mkpath(absPath)
 

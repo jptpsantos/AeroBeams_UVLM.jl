@@ -57,7 +57,7 @@ end
 
 ## Plots
 # Set paths
-relPath = "/test/outputs/figures/sweptPazyModalTipDispRange"
+relPath = "/test/outputs/figures/eigenStructural/sweptPazyModalTipDispRange"
 absPath = string(pwd(),relPath)
 mkpath(absPath)
 

@@ -40,7 +40,7 @@ freqs = [[rads2Hz.(imag(λ)) for λ in eigensols[i].λ if imag(λ) > 0][1:nModes
 modeShapes = [eigensols[i].modeShapes[2:2:2*nModes] for i in eachindex(eigensols)]
 
 # Chord of the wing and normalized position of the reference axis
-_,_,chord,normSparPos = geometrical_properties_Pazy()
+_,_,chord,normSparPos,_ = geometrical_properties_Pazy()
 
 # Classify the modes by their dominant displacement component, in the order of frequency. Wing modes: axial (A), in-plane bending (IP), out-of-plane bending (OOP) or torsion (T), the latter with the rotation weighted by half of the chord. Rod modes (R): those in which the energy of the wing (the same displacement components, summed over its elements) is less than a fraction `rodModeRatio` of that of the rod (summed over its elements), as the rod follows the motion of the tip of the wing in the wing modes, but with a larger energy
 rodModeRatio = 0.07
@@ -169,7 +169,7 @@ print(table)
 
 ## Plots
 # Set paths
-relPath = "/test/outputs/figures/PazyWingBeamRodModal"
+relPath = "/test/outputs/figures/eigenStructural/PazyWingBeamRodModal"
 absPath = string(pwd(),relPath)
 mkpath(absPath)
 

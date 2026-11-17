@@ -62,7 +62,7 @@ tqSpan_ct = [aeroVars[i][12].aeroCoefficients.ct for i in eachindex(t)]
 
 ## Plots
 # Set paths
-relPath = "/test/outputs/figures/PazyWingTipImpulse"
+relPath = "/test/outputs/figures/dynamicAeroelastic/PazyWingTipImpulse"
 absPath = string(pwd(),relPath)
 mkpath(absPath)
 

@@ -60,7 +60,7 @@ freqs_num = [freq1_num, freq2_num, freq4_num]
 
 ## Plots
 # Set paths
-relPath = "/test/outputs/figures/TDWingPitchRange"
+relPath = "/test/outputs/figures/eigenStructural/TDWingPitchRange"
 absPath = string(pwd(),relPath)
 mkpath(absPath)
 

@@ -52,7 +52,7 @@ u2_tip_rigid = L*sin.(θ.(t))
 
 ## Plots
 # Set paths
-relPath = "/test/outputs/figures/spinupRobotArm"
+relPath = "/test/outputs/figures/dynamicStructural/spinupRobotArm"
 absPath = string(pwd(),relPath)
 mkpath(absPath)
 

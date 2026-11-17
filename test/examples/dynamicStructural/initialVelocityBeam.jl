@@ -80,7 +80,7 @@ Vdot3_quarter_analytic = -σ*ω2*sin.(ω2*t)*sin(2π*1/4)
 
 ## Plots
 # Set paths
-relPath = "/test/outputs/figures/initialVelocityBeam"
+relPath = "/test/outputs/figures/dynamicStructural/initialVelocityBeam"
 absPath = string(pwd(),relPath)
 mkpath(absPath)
 

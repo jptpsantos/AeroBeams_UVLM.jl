@@ -100,7 +100,7 @@ flutterBoundary_UVsPitch_Lambda0_Sharpy = readdlm(pkgdir(AeroBeams)*"/test/refer
 flutterBoundary_dispVsU_Lambda0_Sharpy = readdlm(pkgdir(AeroBeams)*"/test/referenceData/sweptPazy/flutterBoundary_dispVsU_Lambda0_Sharpy.txt")
 
 # Set paths
-relPath = "/test/outputs/figures/PazyWingBeamRodFlutterPitchRange"
+relPath = "/test/outputs/figures/eigenAeroelastic/PazyWingBeamRodFlutterPitchRange"
 absPath = string(pwd(),relPath)
 mkpath(absPath)
 

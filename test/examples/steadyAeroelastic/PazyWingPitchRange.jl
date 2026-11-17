@@ -192,12 +192,12 @@ tip_thetaVsU_rootPitch7_Exp = readdlm(pkgdir(AeroBeams)*"/test/referenceData/Paz
 
 ## Plots
 # Set paths
-relPath = "/test/outputs/figures/PazyWingPitchRange"
+relPath = "/test/outputs/figures/steadyAeroelastic/PazyWingPitchRange"
 absPath = string(pwd(),relPath)
 mkpath(absPath)
 
 # Deformed state of last problem
-deformationPlot = plot_steady_deformation(problem[end],view=(45,30),save=true,savePath="/test/outputs/figures/PazyWingPitchRange/PazyWingPitchRange_deformation.pdf")
+deformationPlot = plot_steady_deformation(problem[end],view=(45,30),save=true,savePath="/test/outputs/figures/steadyAeroelastic/PazyWingPitchRange/PazyWingPitchRange_deformation.pdf")
 display(deformationPlot)
 
 # Plot configurations

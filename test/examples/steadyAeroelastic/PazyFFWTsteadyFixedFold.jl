@@ -67,7 +67,7 @@ println("OOP displacements: at hinge node = $(round(u3HingeNode,sigdigits=4)) m,
 
 ## Plots
 # Set paths
-relPath = "/test/outputs/figures/PazyFFWTsteadyFixedFold"
+relPath = "/test/outputs/figures/steadyAeroelastic/PazyFFWTsteadyFixedFold"
 absPath = string(pwd(),relPath)
 mkpath(absPath)
 

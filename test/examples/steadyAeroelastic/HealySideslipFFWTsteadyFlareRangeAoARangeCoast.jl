@@ -98,7 +98,7 @@ flare30_num = readdlm(pkgdir(AeroBeams)*"/test/referenceData/HealySideslipFFWTst
 
 ## Plots
 # Set paths
-relPath = "/test/outputs/figures/HealySideslipFFWTsteadyFlareRangeAoARangeCoast"
+relPath = "/test/outputs/figures/steadyAeroelastic/HealySideslipFFWTsteadyFlareRangeAoARangeCoast"
 absPath = string(pwd(),relPath)
 mkpath(absPath)
 

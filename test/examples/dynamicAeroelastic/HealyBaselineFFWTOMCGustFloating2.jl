@@ -55,7 +55,7 @@ M2root = [states[j][1].nodal.M1[2] for j in eachindex(t)]
 
 ## Plots
 # Set paths
-relPath = "/test/outputs/figures/HealyBaselineFFWTOMCGustFloating2"
+relPath = "/test/outputs/figures/dynamicAeroelastic/HealyBaselineFFWTOMCGustFloating2"
 absPath = string(pwd(),relPath)
 mkpath(absPath)
 

@@ -197,7 +197,7 @@ damp2_VLM = matrices[:damp2_VLM]
 
 ## Plots
 # Set paths
-relPath = "/test/outputs/figures/HealyBaselineFFWTfreeFlutterAoARangeURange"
+relPath = "/test/outputs/figures/eigenAeroelastic/HealyBaselineFFWTfreeFlutterAoARangeURange"
 absPath = string(pwd(),relPath)
 mkpath(absPath)
 

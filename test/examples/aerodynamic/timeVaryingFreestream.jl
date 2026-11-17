@@ -115,7 +115,7 @@ cmCFD[4] = cmCFDLambda0_8
 
 ## Plots
 # Set paths
-relPath = "/test/outputs/figures/timeVaryingFreestream"
+relPath = "/test/outputs/figures/aerodynamic/timeVaryingFreestream"
 absPath = string(pwd(),relPath)
 mkpath(absPath)
 

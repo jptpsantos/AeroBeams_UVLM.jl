@@ -86,7 +86,7 @@ println("Maximum relative error in divergence speed: $(round(100ϵmax, sigdigits
 
 ## Plots
 # Set paths
-relPath = "/test/outputs/figures/sweptWingTorsionalDivergenceSweepRange"
+relPath = "/test/outputs/figures/eigenAeroelastic/sweptWingTorsionalDivergenceSweepRange"
 absPath = string(pwd(),relPath)
 mkpath(absPath)
 

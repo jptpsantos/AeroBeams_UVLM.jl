@@ -69,7 +69,7 @@ cmSlave = [aeroVars[i][2].aeroCoefficients.cm for i in eachindex(t)]
 
 ## Plots
 # Set paths
-relPath = "/test/outputs/figures/flapOscillationLinked"
+relPath = "/test/outputs/figures/aerodynamic/flapOscillationLinked"
 absPath = string(pwd(),relPath)
 mkpath(absPath)
 

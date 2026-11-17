@@ -52,7 +52,7 @@ println("Midpoint u3 = $(u3[hingeNode])")
 
 ## Plots
 # Set paths
-relPath = "/test/outputs/figures/hingedSpringedBeam"
+relPath = "/test/outputs/figures/staticStructural/hingedSpringedBeam"
 absPath = string(pwd(),relPath)
 mkpath(absPath)
 

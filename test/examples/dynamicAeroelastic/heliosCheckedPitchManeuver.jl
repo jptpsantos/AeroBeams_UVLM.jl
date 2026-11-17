@@ -99,7 +99,7 @@ end
 
 ## Plots
 # Set paths
-relPath = "/test/outputs/figures/heliosCheckedPitchManeuver"
+relPath = "/test/outputs/figures/dynamicAeroelastic/heliosCheckedPitchManeuver"
 absPath = string(pwd(),relPath)
 mkpath(absPath)
 

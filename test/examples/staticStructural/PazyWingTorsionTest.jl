@@ -73,7 +73,7 @@ u3UMNAST = readdlm(pkgdir(AeroBeams)*"/test/referenceData/Pazy/torsion_u3VsMass_
 
 ## Plots
 # Set paths
-relPath = "/test/outputs/figures/PazyWingTorsionTest"
+relPath = "/test/outputs/figures/staticStructural/PazyWingTorsionTest"
 absPath = string(pwd(),relPath)
 mkpath(absPath)
 

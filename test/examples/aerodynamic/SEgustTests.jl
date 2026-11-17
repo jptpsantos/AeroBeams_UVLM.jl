@@ -126,7 +126,7 @@ for (i,aeroSolver) in enumerate(aeroSolvers)
         # Loop test cases
         for (k,testCase) in enumerate(tests)
             # Set paths
-            relPath = string("/test/outputs/figures/SEgustTests/SEgustTests_",aeroSolver.name,"_",string(gustSolver.indicialFunction),"_test",testCase)
+            relPath = string("/test/outputs/figures/aerodynamic/SEgustTests/SEgustTests_",aeroSolver.name,"_",string(gustSolver.indicialFunction),"_test",testCase)
             absPath = string(pwd(),relPath)
             mkpath(absPath)
             # Lift coefficient increment over time

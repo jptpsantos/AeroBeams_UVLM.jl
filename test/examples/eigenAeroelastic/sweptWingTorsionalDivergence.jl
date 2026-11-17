@@ -85,7 +85,7 @@ println("UDRef = $(round(UDRef,digits=2)), UD = $(round(UD,digits=2)), ϵrel = $
 
 ## Plots
 # Set paths
-relPath = "/test/outputs/figures/sweptWingTorsionalDivergence"
+relPath = "/test/outputs/figures/eigenAeroelastic/sweptWingTorsionalDivergence"
 absPath = string(pwd(),relPath)
 mkpath(absPath)
 

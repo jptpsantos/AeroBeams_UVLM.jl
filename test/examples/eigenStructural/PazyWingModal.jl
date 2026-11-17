@@ -84,7 +84,7 @@ print(table)
 
 ## Plots
 # Set paths
-relPath = "/test/outputs/figures/PazyWingModal"
+relPath = "/test/outputs/figures/eigenStructural/PazyWingModal"
 absPath = string(pwd(),relPath)
 mkpath(absPath)
 

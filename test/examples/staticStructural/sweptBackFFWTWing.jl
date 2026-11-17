@@ -86,7 +86,7 @@ println("Hinge moment = $(round(hingeMoment,sigdigits=4))")
 
 ## Plots
 # Set paths
-relPath = "/test/outputs/figures/sweptBackFFWTWing"
+relPath = "/test/outputs/figures/staticStructural/sweptBackFFWTWing"
 absPath = string(pwd(),relPath)
 mkpath(absPath)
 

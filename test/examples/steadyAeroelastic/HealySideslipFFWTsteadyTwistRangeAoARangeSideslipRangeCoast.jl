@@ -216,7 +216,7 @@ phi9_aoa12_num = readdlm(pkgdir(AeroBeams)*"/test/referenceData/HealySideslipFFW
 
 ## Plots
 # Set paths
-relPath = "/test/outputs/figures/HealySideslipFFWTsteadyTwistRangeAoARangeSideslipRangeCoast"
+relPath = "/test/outputs/figures/steadyAeroelastic/HealySideslipFFWTsteadyTwistRangeAoARangeSideslipRangeCoast"
 absPath = string(pwd(),relPath)
 mkpath(absPath)
 

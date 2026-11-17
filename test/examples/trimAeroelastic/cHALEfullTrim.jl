@@ -25,11 +25,8 @@ nElemWing = 20
 nElemTailBoom = 5
 nElemHorzStabilizer = 4
 
-# Attachment spring stiffness
-μ = 1e-1
-
 # Model and its beams
-cHALE,leftWing,rightWing,tailboom,_ = create_cHALE(aeroSolver=aeroSolver,altitude=h,stiffnessFactor=λ,nElemWing=nElemWing,nElemTailBoom=nElemTailBoom,nElemHorzStabilizer=nElemHorzStabilizer,stabilizersAero=stabilizersAero,includeVS=includeVS,wingCd0=wingCd0,stabsCd0=stabsCd0,δElevIsTrimVariable=stabilizersAero,thrustIsTrimVariable=true,withAttachmentSprings=true,μ=μ)
+cHALE,leftWing,rightWing,tailboom,_ = create_cHALE(aeroSolver=aeroSolver,altitude=h,stiffnessFactor=λ,nElemWing=nElemWing,nElemTailBoom=nElemTailBoom,nElemHorzStabilizer=nElemHorzStabilizer,stabilizersAero=stabilizersAero,includeVS=includeVS,wingCd0=wingCd0,stabsCd0=stabsCd0,δElevIsTrimVariable=stabilizersAero,thrustIsTrimVariable=true)
 
 # Root element's global ID
 rootElemGlobalID = rightWing.elements[1].assemblyData.globalID
@@ -65,9 +62,14 @@ for (i,U) in enumerate(URange)
     println("AoA = $(round(trimAoA[i], digits=2)) deg, T = $(round(trimThrust[i], digits=2)) N, δ = $(round(trimδ[i], digits=2)) deg")
 end
 
+# Load reference solutions
+trimAoAERef = readdlm(pkgdir(AeroBeams,"test","referenceData","cHALE", "trimAoAVsAirspeedElastic.txt"))
+trimAoARRef = readdlm(pkgdir(AeroBeams,"test","referenceData","cHALE", "trimAoAVsAirspeedRigid.txt"))
+trimDispRef = readdlm(pkgdir(AeroBeams,"test","referenceData","cHALE", "trimDispAtU25.txt"))
+
 ## Plots
 # Set paths
-relPath = "/test/outputs/figures/cHALEfullTrim"
+relPath = "/test/outputs/figures/trimAeroelastic/cHALEfullTrim"
 absPath = string(pwd(),relPath)
 mkpath(absPath)
 
@@ -77,11 +79,14 @@ display(deformationPlot)
 
 # Plot configurations
 lw = 2
+ms = 4
+msw = 0
 gr()
 
 # Trim root angle of attack vs airspeed
-plt1 = plot(xlabel="Airspeed [m/s]", ylabel="Trim root AoA [deg]", xlims=[20,35], ylims=[0,15])
-plot!(URange, trimAoA, c=:black, lw=lw, label=false)
+plt1 = plot(xlabel="Airspeed [m/s]", ylabel="Root angle of attack [deg]", xlims=[URange[1],URange[end]], ylims=[0,20])
+plot!(URange, trimAoA, c=:black, lw=lw, label=label="AeroBeams")
+scatter!(trimAoAERef[1,:], trimAoAERef[2,:], c=:blue, ms=ms, msw=msw, label="Patil et al. (2001)")
 display(plt1)
 savefig(string(absPath,"/cHALEfullTrim_AoA.pdf"))
 

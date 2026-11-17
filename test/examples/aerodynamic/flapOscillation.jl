@@ -71,7 +71,7 @@ cmRefMod = readdlm(pkgdir(AeroBeams,"test","referenceData","flapOscillation", "c
 
 ## Plots
 # Set paths
-relPath = "/test/outputs/figures/flapOscillation"
+relPath = "/test/outputs/figures/aerodynamic/flapOscillation"
 absPath = string(pwd(),relPath)
 mkpath(absPath)
 

@@ -87,7 +87,7 @@ end
 
 ## Plots
 # Set paths
-relPath = "/test/outputs/figures/PazyWingFlutterAndDivergence"
+relPath = "/test/outputs/figures/eigenAeroelastic/PazyWingFlutterAndDivergence"
 absPath = string(pwd(),relPath)
 mkpath(absPath)
 

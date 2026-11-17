@@ -41,7 +41,7 @@ println("Relative errors:\nF1: $(round(100ϵ_rel_F1, digits=4)) % \nF3: $(round(
 
 ## Plots
 # Set paths
-relPath = "/test/outputs/figures/rightAngledFrameTrim"
+relPath = "/test/outputs/figures/trimStructural/rightAngledFrameTrim"
 absPath = string(pwd(),relPath)
 mkpath(absPath)
 

@@ -113,7 +113,7 @@ p1_modeShapes = [reduce(vcat,
 
 ## Plots
 # Set paths
-relPath = "/test/outputs/figures/SMWFlutter"
+relPath = "/test/outputs/figures/eigenAeroelastic/SMWFlutter"
 absPath = string(pwd(),relPath)
 mkpath(absPath)
 

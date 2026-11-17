@@ -60,7 +60,7 @@ pdotNum = [states[i][1].rates.pdot[1] for i in 1:length(t)]
 
 ## Plots
 # Set paths
-relPath = "/test/outputs/figures/rotaryShaft"
+relPath = "/test/outputs/figures/dynamicStructural/rotaryShaft"
 absPath = string(pwd(),relPath)
 mkpath(absPath)
 

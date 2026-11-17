@@ -81,7 +81,7 @@ println("Hinge fold angle = $(round(ϕHinge,digits=1)) deg")
 
 ## Plots
 # Set paths
-relPath = "/test/outputs/figures/drivenFoldingWingtip"
+relPath = "/test/outputs/figures/staticStructural/drivenFoldingWingtip"
 absPath = string(pwd(),relPath)
 mkpath(absPath)
 

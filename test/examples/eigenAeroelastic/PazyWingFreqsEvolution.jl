@@ -76,7 +76,7 @@ freqsVsDisp_alpha7 = readdlm(pkgdir(AeroBeams)*"/test/referenceData/Pazy/freqsVs
 
 ## Plots
 # Set paths
-relPath = "/test/outputs/figures/PazyWingFreqsEvolution"
+relPath = "/test/outputs/figures/eigenAeroelastic/PazyWingFreqsEvolution"
 absPath = string(pwd(),relPath)
 mkpath(absPath)
 

@@ -100,7 +100,7 @@ cdRef = readdlm(pkgdir(AeroBeams)*"/test/referenceData/"*source*"frames/"*frameS
 
 ## Plots
 # Set paths
-relPath = "/test/outputs/figures/pitchingAirfoilDSModelTest"
+relPath = "/test/outputs/figures/aerodynamic/pitchingAirfoilDSModelTest"
 absPath = string(pwd(),relPath)
 mkpath(absPath)
 

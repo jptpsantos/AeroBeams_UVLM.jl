@@ -74,7 +74,7 @@ end
 
 ## Plots
 # Set paths
-relPath = "/test/outputs/figures/PazyWingNoRodFlutterPitchRange"
+relPath = "/test/outputs/figures/eigenAeroelastic/PazyWingNoRodFlutterPitchRange"
 absPath = string(pwd(),relPath)
 mkpath(absPath)
 

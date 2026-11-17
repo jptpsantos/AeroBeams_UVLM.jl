@@ -6,14 +6,11 @@ URange = collect(30:5:160)
 # Altitude [m]
 h = feet2meters(0e3)
 
-# Attachment spring stiffness
-μ = 1e-1
-
 # Aerodynamic solver
 aeroSolver = Indicial()
 
 # Model and its beams
-BWB = first(create_BWB(aeroSolver=aeroSolver,δElevIsTrimVariable=true,thrustIsTrimVariable=true,altitude=h,withAttachmentSprings=true,μ=μ))
+BWB = first(create_BWB(aeroSolver=aeroSolver,δElevIsTrimVariable=true,thrustIsTrimVariable=true,altitude=h))
 
 # Root element's global ID
 rootElemGlobalID = BWB.beams[3].elements[1].assemblyData.globalID
@@ -54,7 +51,7 @@ trimδRef = readdlm(pkgdir(AeroBeams,"test","referenceData","BWB", "trimDelta.tx
 
 ## Plots
 # Set paths
-relPath = "/test/outputs/figures/BWBtrim"
+relPath = "/test/outputs/figures/trimAeroelastic/BWBtrim"
 absPath = string(pwd(),relPath)
 mkpath(absPath)
 

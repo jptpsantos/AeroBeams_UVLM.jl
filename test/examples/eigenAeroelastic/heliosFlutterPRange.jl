@@ -24,11 +24,8 @@ payloadOnWing = false
 # Aerodynamic solver
 aeroSolver = Indicial()
 
-# Attachment spring stiffness
-μ = 1e-1
-
 # System solver for trim problem
-NR = create_NewtonRaphson(trimSolverMethod=:LQ,displayStatus=false)
+NR = create_NewtonRaphson(trimSolverMethod=:LQ,displayStatus=false,absTol=1e-6)
 
 # Number of modes to track
 nModes = 12
@@ -52,7 +49,7 @@ for (i,P) in enumerate(PRange)
     # Display progress
     println("Solving for payload = $P lb")
     # Model for trim problem
-    heliosTrim,midSpanElem,_ = create_Helios(aeroSolver=aeroSolver,wingAirfoil=wingAirfoil,beamPods=beamPods,stiffnessFactor=λ,payloadPounds=P,airspeed=U,δIsTrimVariable=true,thrustIsTrimVariable=true,reducedChord=reducedChord,payloadOnWing=payloadOnWing,withAttachmentSprings=true,μ=μ)
+    heliosTrim,midSpanElem,_ = create_Helios(aeroSolver=aeroSolver,wingAirfoil=wingAirfoil,beamPods=beamPods,stiffnessFactor=λ,payloadPounds=P,airspeed=U,δIsTrimVariable=true,thrustIsTrimVariable=true,reducedChord=reducedChord,payloadOnWing=payloadOnWing)
     # Create and solve trim problem
     trimProblem = create_TrimProblem(model=heliosTrim,systemSolver=NR,x0=x0)
     solve!(trimProblem)
@@ -64,7 +61,7 @@ for (i,P) in enumerate(PRange)
     trimδ[i] = trimSol.trimδ[1]
     println("Trim AoA = $(round(rad2deg(trimAoA[i]), digits=2)) deg, trim thrust = $(round(trimThrust[i], digits=2)) N, trim δ = $(round(rad2deg(trimδ[i]), digits=2)) deg")
     # Model for eigen problem
-    heliosEigen,_ = create_Helios(aeroSolver=aeroSolver,wingAirfoil=wingAirfoil,beamPods=beamPods,stiffnessFactor=λ,payloadPounds=P,airspeed=U,δ=trimδ[i],thrust=trimThrust[i],reducedChord=reducedChord,payloadOnWing=payloadOnWing,withAttachmentSprings=true,μ=μ)
+    heliosEigen,_ = create_Helios(aeroSolver=aeroSolver,wingAirfoil=wingAirfoil,beamPods=beamPods,stiffnessFactor=λ,payloadPounds=P,airspeed=U,δ=trimδ[i],thrust=trimThrust[i],reducedChord=reducedChord,payloadOnWing=payloadOnWing)
     # Create and solve eigen problem
     eigenProblem[i] = create_EigenProblem(model=heliosEigen,eigenmethod=eigenmethod,nev=nev,refTrimProblem=trimProblem)
     solve_eigen!(eigenProblem[i])
@@ -82,7 +79,7 @@ freqsOsc,dampsOsc,modeShapesOsc,_ = filter_tracked_modes(freqs,damps,modeShapes;
 
 ## Plots
 # Set paths
-relPath = "/test/outputs/figures/heliosFlutterPRange"
+relPath = "/test/outputs/figures/eigenAeroelastic/heliosFlutterPRange"
 absPath = string(pwd(),relPath)
 mkpath(absPath)
 
@@ -131,7 +128,7 @@ display(plt3)
 savefig(string(absPath,"/heliosFlutterPRange_rootlocuszoom.pdf"))
 
 # Root locus (phugoid zoom)
-plt4 = plot(xlabel="Damping [1/s]", ylabel="Frequency [rad/s]", xlims=[-0.1,0.2], ylims=[0,0.6])
+plt4 = plot(xlabel="Damping [1/s]", ylabel="Frequency [rad/s]", xlims=[-0.15,0.2], ylims=[0,0.6])
 for mode in 1:nModes
     scatter!(dampsOsc[mode,:], freqsOsc[mode,:], c=modeColors[mode], ms=ms, msw=0, label=false)
 end

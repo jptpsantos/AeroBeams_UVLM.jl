@@ -54,7 +54,7 @@ u3 = [states[i][nElem].nodal.u2[3] for i in 1:length(t)]
 
 ## Plots
 # Set paths
-relPath = "/test/outputs/figures/joinedBeams"
+relPath = "/test/outputs/figures/dynamicStructural/joinedBeams"
 absPath = string(pwd(),relPath)
 mkpath(absPath)
 

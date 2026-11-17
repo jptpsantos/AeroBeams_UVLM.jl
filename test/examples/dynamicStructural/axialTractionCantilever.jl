@@ -54,7 +54,7 @@ u1_10_ref = vec(readdlm(pkgdir(AeroBeams,"test","referenceData","axialTractionCa
 
 ## Plots
 # Set paths
-relPath = "/test/outputs/figures/axialTractionCantilever"
+relPath = "/test/outputs/figures/dynamicStructural/axialTractionCantilever"
 absPath = string(pwd(),relPath)
 mkpath(absPath)
 

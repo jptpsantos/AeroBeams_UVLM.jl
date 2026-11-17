@@ -37,7 +37,7 @@ M2_root = [states[i][1].nodal.M1[2] for i in 1:length(t)]
 
 ## Plots
 # Set paths
-relPath = "/test/outputs/figures/tipSineLoadedCantilever"
+relPath = "/test/outputs/figures/dynamicStructural/tipSineLoadedCantilever"
 absPath = string(pwd(),relPath)
 mkpath(absPath)
 

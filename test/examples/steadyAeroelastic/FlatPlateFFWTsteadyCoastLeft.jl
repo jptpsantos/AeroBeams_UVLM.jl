@@ -90,7 +90,7 @@ println("Coast angle = $(round(ϕHinge,sigdigits=4)) deg")
 
 ## Plots
 # Set paths
-relPath = "/test/outputs/figures/FlatPlateFFWTsteadyCoastLeft"
+relPath = "/test/outputs/figures/steadyAeroelastic/FlatPlateFFWTsteadyCoastLeft"
 absPath = string(pwd(),relPath)
 mkpath(absPath)
 

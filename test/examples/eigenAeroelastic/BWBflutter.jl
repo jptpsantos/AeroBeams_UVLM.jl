@@ -44,11 +44,6 @@ trimδ = Array{Float64}(undef,length(URange))
 eigensols = Array{EigenSolution}(undef,length(URange))
 #md nothing #hide
 
-# Next, we address an important step to be taken when performing flutter analyses in free flight with AeroBeams: to attach the model to light springs in displacement and rotation. This step is necessary for the solver to find the flight dynamic (rigid-body) modes of the vehicle, by introducing some sensitivity of the finite element states to those degrees-of-freedom. In the present case, we will attach two springs to the vehicle, one at each of the nodes where the transition from the body (fuselage) to the wing begins. An appropriate value for the stiffness of the springs is specified by the variable `μ`.
-## Attachment spring stiffness
-μ = 1e-2
-#md nothing #hide
-
 # ### Problem solution
 # At this point we can sweep the airspeed vector to find the solution at each value.
 ## Initial guess solution
@@ -72,20 +67,10 @@ for (i,U) in enumerate(URange)
     println("Trim AoA = $(round(trimAoA[i],digits=2)) deg, trim thrust = $(round(trimThrust[i],digits=2)) N, trim δ = $(round(rad2deg(trimδ[i]),digits=2)) deg") #src
     ## Set initial guess solution for next iteration.
     global x0 = trimProblem.systemArrays.x
-    ## Let's create a new model with attachment springs.
-    BWBtrimSpringed = first(create_BWB(aeroSolver=aeroSolver,altitude=h,airspeed=U,δElevIsTrimVariable=true,thrustIsTrimVariable=true,withAttachmentSprings=true,μ=μ))
-    ## Then create and solve the trim problem for the springed model.
-    trimProblemSpringed = create_TrimProblem(model=BWBtrimSpringed,systemSolver=NR,x0=x0)
-    solve!(trimProblemSpringed)
-    ## Let's make sure that the trim outputs of the springed model are very close to the one without springs, that is, the springs did not affect the trim solution. Notice that all ratios are very close to or at 1.
-    trimAoASpringed = rad2deg(trimProblemSpringed.loadstepHistory.aeroVariables[end][rootElemGlobalID].unsteadyKin.αₑ)
-    trimThrustSpringed = trimProblemSpringed.trimSolution.trimLoads[1]
-    trimδSpringed = trimProblemSpringed.trimSolution.trimδ[1]
-    println("Trim outputs' ratios springed/nominal: AoA = $(round(trimAoASpringed/trimAoA[i],sigdigits=4)), thrust = $(round(trimThrustSpringed/trimThrust[i],sigdigits=4)), δ = $(round(trimδSpringed/trimδ[i],sigdigits=4))")
-    ## All the variables needed for the stability analysis are now in place. We create the model for the eigenproblem, using the trim variables found previously with the springed model in order to solve for the stability around that exact state. 
-    BWBeigen = first(create_BWB(aeroSolver=aeroSolver,altitude=h,airspeed=U,δElev=trimδSpringed,thrust=trimThrustSpringed,withAttachmentSprings=true,μ=μ))
+    ## All the variables needed for the stability analysis are now in place. We create the model for the eigenproblem, using the trim variables found previously in order to solve for the stability around that exact state.
+    BWBeigen = first(create_BWB(aeroSolver=aeroSolver,altitude=h,airspeed=U,δElev=trimδ[i],thrust=trimThrust[i]))
     ## Now we create and solve the eigenproblem. Notice that by using `solve_eigen!()`, we skip the step of finding the steady state of the problem, making use of the known trim solution (with the keyword argument `refTrimProblem`)
-    eigenProblem[i] = create_EigenProblem(model=BWBeigen,eigenmethod=eigenmethod,nev=nev,refTrimProblem=trimProblemSpringed)
+    eigenProblem[i] = create_EigenProblem(model=BWBeigen,eigenmethod=eigenmethod,nev=nev,refTrimProblem=trimProblem)
     solve_eigen!(eigenProblem[i])
     ## The final step in the loop is extracting the eigensolution
     eigensols[i] = eigenProblem[i].eigensolution
@@ -147,7 +132,7 @@ dampsRef = readdlm(pkgdir(AeroBeams)*"/test/referenceData/BWB/damps.txt")
 #md # ![](BWBflutter_thrust.svg)
 #md # ![](BWBflutter_delta.svg)
 
-#md # The stability results can be visualized through the following root locus and V-g-f (frequency and damping evolution) plots. The lowest flutter speed is computed by AeroBeams at approximately 118.1 m/s, at a frequency of 47.9 rad/s. Conversely, the flutter speed and frequency predicted by UM/NAST are around 137.7 m/s and 47.5 rad/s, yielding differences of 14% and 0.8%, on speed and frequency, respectively. Despite the flutter speed disagreement, there is qualitatively good agreement among the models for the behavior of the roots.
+#md # The stability results can be visualized through the following root locus and V-g-f (frequency and damping evolution) plots. The lowest flutter speed is computed by AeroBeams at approximately 116.1 m/s, at a frequency of 47.9 rad/s. Conversely, the flutter speed and frequency predicted by UM/NAST are around 137.7 m/s and 47.5 rad/s, yielding differences of 15% and 0.8%, on speed and frequency, respectively. Despite the flutter speed disagreement, there is qualitatively good agreement among the models for the behavior of the roots.
 ## Colormap
 #md modeColors = cgrad(:rainbow, nModes, categorical=true)
 
@@ -189,7 +174,7 @@ dampsRef = readdlm(pkgdir(AeroBeams)*"/test/referenceData/BWB/damps.txt")
 ## Plots
 using Plots
 # Set paths
-relPath = "/test/outputs/figures/BWBflutter"
+relPath = "/test/outputs/figures/eigenAeroelastic/BWBflutter"
 absPath = string(pwd(),relPath)
 mkpath(absPath)
 

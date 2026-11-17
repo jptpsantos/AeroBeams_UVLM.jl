@@ -82,7 +82,7 @@ freqs_aoa10_ref = readdlm(pkgdir(AeroBeams)*"/test/referenceData/sweptPazyS20/ae
 
 ## Plots
 # Set paths
-relPath = "/test/outputs/figures/sweptPazyFlutterPitchRange"
+relPath = "/test/outputs/figures/eigenAeroelastic/sweptPazyFlutterPitchRange"
 absPath = string(pwd(),relPath)
 mkpath(absPath)
 

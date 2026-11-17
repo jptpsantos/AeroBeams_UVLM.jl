@@ -90,7 +90,7 @@ cdRef = readdlm(pkgdir(AeroBeams)*"/test/referenceData/NASAframes/"*string(frame
 
 ## Plots
 # Set paths for saving figures
-relPath = "/test/outputs/figures/rotorDStest"
+relPath = "/test/outputs/figures/dynamicAeroelastic/rotorDStest"
 absPath = string(pwd(),relPath)
 mkpath(absPath)
 

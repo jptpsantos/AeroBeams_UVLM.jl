@@ -73,7 +73,7 @@ T_modeShapes = [reduce(vcat,
 
 ## Plots
 # Set paths
-relPath = "/test/outputs/figures/HealyLCOFFWTRemovedModal"
+relPath = "/test/outputs/figures/eigenStructural/HealyLCOFFWTRemovedModal"
 absPath = string(pwd(),relPath)
 mkpath(absPath)
 

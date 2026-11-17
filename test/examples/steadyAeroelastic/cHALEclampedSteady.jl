@@ -66,7 +66,7 @@ x3_def = x3_0 .+ u3_of_x1
 
 ## Plots
 # Set paths
-relPath = "/test/outputs/figures/cHALEclampedSteady"
+relPath = "/test/outputs/figures/steadyAeroelastic/cHALEclampedSteady"
 absPath = string(pwd(),relPath)
 mkpath(absPath)
 

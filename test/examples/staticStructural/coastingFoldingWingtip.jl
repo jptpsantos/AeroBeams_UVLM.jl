@@ -88,7 +88,7 @@ println("Coast angle = $(round(ϕHinge,digits=1)) deg")
 
 ## Plots
 # Set paths
-relPath = "/test/outputs/figures/coastingFoldingWingtip"
+relPath = "/test/outputs/figures/staticStructural/coastingFoldingWingtip"
 absPath = string(pwd(),relPath)
 mkpath(absPath)
 

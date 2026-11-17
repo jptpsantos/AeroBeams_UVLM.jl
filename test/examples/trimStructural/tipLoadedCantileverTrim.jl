@@ -42,7 +42,7 @@ M2_analytical(x1) = F*L * (1 .- x1)
 
 ## Plots
 # Set paths
-relPath = "/test/outputs/figures/tipLoadedCantileverTrim"
+relPath = "/test/outputs/figures/trimStructural/tipLoadedCantileverTrim"
 absPath = string(pwd(),relPath)
 mkpath(absPath)
 

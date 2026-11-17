@@ -19,9 +19,6 @@ stabilizersAero = true
 includeVS = true
 wingCd0 = stabsCd0 = 1e-2
 
-# Attachment spring stiffness
-μ = 1e-1
-
 # System solver for trim problem
 NR = create_NewtonRaphson(trimSolverMethod=:LQ,displayStatus=false)
 
@@ -46,7 +43,7 @@ x0 = zeros(0)
 for (i,λ) in enumerate(λRange)
     println("Solving for λ = $λ")
     # Model for trim problem
-    cHALEtrim,_ = create_cHALE(aeroSolver=aeroSolver,airspeed=U,nElemWing=nElemWing,nElemTailBoom=nElemTailBoom,nElemHorzStabilizer=nElemHorzStabilizer,stiffnessFactor=λ,stabilizersAero=stabilizersAero,includeVS=includeVS,wingCd0=wingCd0,stabsCd0=stabsCd0,δElevIsTrimVariable=stabilizersAero,thrustIsTrimVariable=true,withAttachmentSprings=true,μ=μ)
+    cHALEtrim,_ = create_cHALE(aeroSolver=aeroSolver,airspeed=U,nElemWing=nElemWing,nElemTailBoom=nElemTailBoom,nElemHorzStabilizer=nElemHorzStabilizer,stiffnessFactor=λ,stabilizersAero=stabilizersAero,includeVS=includeVS,wingCd0=wingCd0,stabsCd0=stabsCd0,δElevIsTrimVariable=stabilizersAero,thrustIsTrimVariable=true)
     # Create and trim problem
     trimProblem = create_TrimProblem(model=cHALEtrim,systemSolver=NR,x0=x0)
     solve!(trimProblem)
@@ -58,7 +55,7 @@ for (i,λ) in enumerate(λRange)
     trimδ[i] = stabilizersAero ? trimSol.trimδ[1] : NaN
     println("Trim AoA = $(round(trimAoA[i], digits=2)) deg, trim thrust = $(round(trimThrust[i], digits=2)) N, trim δ = $(round(rad2deg(trimδ[i]), digits=2)) deg")
     # Model for eigen problem
-    cHALEeigen,_ = create_cHALE(aeroSolver=aeroSolver,airspeed=U,nElemWing=nElemWing,nElemTailBoom=nElemTailBoom,nElemHorzStabilizer=nElemHorzStabilizer,stiffnessFactor=λ,stabilizersAero=stabilizersAero,includeVS=includeVS,wingCd0=wingCd0,stabsCd0=stabsCd0,δElev=trimδ[i],thrust=trimThrust[i],withAttachmentSprings=true,μ=μ)
+    cHALEeigen,_ = create_cHALE(aeroSolver=aeroSolver,airspeed=U,nElemWing=nElemWing,nElemTailBoom=nElemTailBoom,nElemHorzStabilizer=nElemHorzStabilizer,stiffnessFactor=λ,stabilizersAero=stabilizersAero,includeVS=includeVS,wingCd0=wingCd0,stabsCd0=stabsCd0,δElev=trimδ[i],thrust=trimThrust[i])
     # Create and solve eigen problem
     eigenProblem[i] = create_EigenProblem(model=cHALEeigen,eigenmethod=eigenmethod,nev=nev,refTrimProblem=trimProblem)
     solve_eigen!(eigenProblem[i])
@@ -76,7 +73,7 @@ freqsOsc,dampsOsc,modeShapesOsc,_ = filter_tracked_modes(freqs,damps,modeShapes;
 
 ## Plots
 # Set paths
-relPath = "/test/outputs/figures/cHALELambdaRange"
+relPath = "/test/outputs/figures/eigenAeroelastic/cHALELambdaRange"
 absPath = string(pwd(),relPath)
 mkpath(absPath)
 

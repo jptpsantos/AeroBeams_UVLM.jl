@@ -223,7 +223,7 @@ end
 
 ## Plots
 # Set paths
-absPath = string(pwd(),"/test/outputs/figures/OMCgustTests")
+absPath = string(pwd(),"/test/outputs/figures/aerodynamic/OMCgustTests")
 mkpath(absPath)
 
 # Plot configurations
@@ -243,7 +243,7 @@ for (i,aeroSolver) in enumerate(aeroSolvers)
         # Loop test cases
         for k in tests
             # Set paths
-            relPath = string("/test/outputs/figures/OMCgustTests/",aeroSolver.name,"_",string(gustSolver.indicialFunction),"_test",k)
+            relPath = string("/test/outputs/figures/aerodynamic/OMCgustTests/",aeroSolver.name,"_",string(gustSolver.indicialFunction),"_test",k)
             absPath = string(pwd(),relPath)
             mkpath(absPath)
             # Lift coefficient increment over time

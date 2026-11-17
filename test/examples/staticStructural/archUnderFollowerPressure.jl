@@ -79,7 +79,7 @@ mid_u3 = [states[i][div(nElem,2)].nodal.u2[3] for i in 1:length(σVec)]
 
 ## Plots
 # Set paths
-relPath = "/test/outputs/figures/archUnderFollowerPressure"
+relPath = "/test/outputs/figures/staticStructural/archUnderFollowerPressure"
 absPath = string(pwd(),relPath)
 mkpath(absPath)
 

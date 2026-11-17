@@ -101,7 +101,7 @@ dispΛ30θ7U70_Sharpy = readdlm(pkgdir(AeroBeams)*"/test/referenceData/sweptPazy
 
 ## Plots
 # Set paths
-relPath = "/test/outputs/figures/sweptPazySteadySweepRangePitchRange"
+relPath = "/test/outputs/figures/steadyAeroelastic/sweptPazySteadySweepRangePitchRange"
 absPath = string(pwd(),relPath)
 mkpath(absPath)
 

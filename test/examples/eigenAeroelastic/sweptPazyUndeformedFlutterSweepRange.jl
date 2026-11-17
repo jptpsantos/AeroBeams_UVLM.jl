@@ -82,7 +82,7 @@ undef_freq_Lambda30_NastranTechnion = readdlm(pkgdir(AeroBeams)*"/test/reference
 
 ## Plots
 # Set paths
-relPath = "/test/outputs/figures/sweptPazyUndeformedFlutterSweepRange"
+relPath = "/test/outputs/figures/eigenAeroelastic/sweptPazyUndeformedFlutterSweepRange"
 absPath = string(pwd(),relPath)
 mkpath(absPath)
 

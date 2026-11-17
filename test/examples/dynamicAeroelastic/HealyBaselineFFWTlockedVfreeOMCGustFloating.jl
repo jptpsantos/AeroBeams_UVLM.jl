@@ -76,7 +76,7 @@ end
 
 ## Plots
 # Set paths
-relPath = "/test/outputs/figures/HealyBaselineFFWTlockedVfreeOMCGustFloating"
+relPath = "/test/outputs/figures/dynamicAeroelastic/HealyBaselineFFWTlockedVfreeOMCGustFloating"
 absPath = string(pwd(),relPath)
 mkpath(absPath)
 

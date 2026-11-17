@@ -90,12 +90,12 @@ dispΛ20θ7U70_Sharpy = readdlm(pkgdir(AeroBeams)*"/test/referenceData/sweptPazy
 
 ## Plots
 # Set paths
-relPath = "/test/outputs/figures/sweptPazySteadyPitchRange"
+relPath = "/test/outputs/figures/steadyAeroelastic/sweptPazySteadyPitchRange"
 absPath = string(pwd(),relPath)
 mkpath(absPath)
 
 # Deformed state of selected condition (AoA = 5 deg and U = 60 m/s)
-deformationPlot = plot_steady_deformation(problem[3,61],view=(30,15),plotDistLoads=false,save=true,savePath="/test/outputs/figures/sweptPazySteadyPitchRange/sweptPazySteadyPitchRange_deformation.pdf")
+deformationPlot = plot_steady_deformation(problem[3,61],view=(30,15),plotDistLoads=false,save=true,savePath="/test/outputs/figures/steadyAeroelastic/sweptPazySteadyPitchRange/sweptPazySteadyPitchRange_deformation.pdf")
 display(deformationPlot)
 
 # Plot configurations

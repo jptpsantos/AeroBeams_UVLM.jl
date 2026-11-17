@@ -47,7 +47,7 @@ println("Relative error in spring force = $(round(100*ϵFs, digits=2))%")
 
 ## Plots
 # Set paths
-relPath = "/test/outputs/figures/axialDoublyAttachedSpringCantilever2"
+relPath = "/test/outputs/figures/staticStructural/axialDoublyAttachedSpringCantilever2"
 absPath = string(pwd(),relPath)
 mkpath(absPath)
 

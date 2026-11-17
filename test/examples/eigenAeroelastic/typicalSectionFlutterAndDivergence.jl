@@ -193,7 +193,7 @@ pretty_table(
 
 ## Plots
 # Set paths
-relPath = "/test/outputs/figures/typicalSectionFlutterAndDivergence"
+relPath = "/test/outputs/figures/eigenAeroelastic/typicalSectionFlutterAndDivergence"
 absPath = string(pwd(),relPath)
 mkpath(absPath)
 

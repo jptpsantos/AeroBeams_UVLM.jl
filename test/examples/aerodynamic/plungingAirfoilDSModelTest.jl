@@ -73,7 +73,7 @@ cm_num = readdlm(pkgdir(AeroBeams)*"/test/referenceData/plungingAirfoil/cm_num.t
 
 ## Plots
 # Set paths
-relPath = "/test/outputs/figures/plungingAirfoilDSModelTest"
+relPath = "/test/outputs/figures/aerodynamic/plungingAirfoilDSModelTest"
 absPath = string(pwd(),relPath)
 mkpath(absPath)
 
