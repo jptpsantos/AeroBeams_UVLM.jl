@@ -161,11 +161,11 @@ function begin_time_step!(problem,method::GeneralizedAlpha)
 
     @unpack xBegin,xdotBegin,dynamicStallMemoryBegin = method.state
     @unpack x = problem.systemArrays
-    @unpack elements = problem.model.assemblyData
+    @unpack elements,forceScaling = problem.model.assemblyData
 
     # States and their rates at the begin of the time step
     xBegin .= x
-    set_derivative_from_elements_rates!(xdotBegin,elements)
+    set_derivative_from_elements_rates!(xdotBegin,elements,forceScaling)
 
     # Memory variables of the dynamic stall models at the begin of the time step
     resize!(dynamicStallMemoryBegin, length(elements))
@@ -239,7 +239,7 @@ function update_equivalent_states_rates!(problem,method::BDF2)
     @unpack xPrevious,ΔtPrevious = method.state
     @unpack x = problem.systemArrays
     @unpack Δt = problem.time.state
-    @unpack elementGroups = problem.model.assemblyData
+    @unpack elementGroups,forceScaling = problem.model.assemblyData
 
     # First time step: states at the begin of the previous time step extrapolated from the current ones, xₙ₋₁ = xₙ - Δt ẋₙ, so that ẋₙ₊₁ = c xₙ₊₁ - (c xₙ + 1/2 ẋₙ), with c = 3/(2Δt)
     if isnan(ΔtPrevious)
@@ -254,7 +254,7 @@ function update_equivalent_states_rates!(problem,method::BDF2)
         a = (1+ω)/Δt
         d = ω^2/((1+ω)*Δt)
         foreach_element(elementGroups) do element
-            set_element_BDF2_equivalent_states_rates!(element,c,a,d,xPrevious)
+            set_element_BDF2_equivalent_states_rates!(element,c,a,d,xPrevious,forceScaling)
         end
     end
 
@@ -286,9 +286,9 @@ end
 # Sets the coefficient c of the states in their rates and the equivalent states' rates of the element, ẋEquiv = a xₙ + b ẋₙ, from its states (xₙ) and rates (ẋₙ) at the begin of the time step, so that the rates of the states during the time step are ẋ = c x - ẋEquiv
 function set_element_equivalent_states_rates!(element,c,a,b)
 
-    @unpack u,p,V,Ω,χ = element.state.midpoint
-    @unpack udot,pdot,Vdot,Ωdot,χdot = element.state.rates
-    @unpack udotEquiv,pdotEquiv,VdotEquiv,ΩdotEquiv,χdotEquiv = element.stateCache.equivStatesRates
+    @unpack u,p,V,Ω,Fε,Mε,χ = element.state.midpoint
+    @unpack udot,pdot,Vdot,Ωdot,Fεdot,Mεdot,χdot = element.state.rates
+    @unpack udotEquiv,pdotEquiv,VdotEquiv,ΩdotEquiv,FεdotEquiv,MεdotEquiv,χdotEquiv = element.stateCache.equivStatesRates
 
     # Set coefficient of the states
     setfield!(element.stateCache.equivStatesRates, :c, c)
@@ -298,15 +298,17 @@ function set_element_equivalent_states_rates!(element,c,a,b)
     pdotEquiv .= b * pdot + a * p
     VdotEquiv .= b * Vdot + a * V
     ΩdotEquiv .= b * Ωdot + a * Ω
+    FεdotEquiv .= b * Fεdot + a * Fε
+    MεdotEquiv .= b * Mεdot + a * Mε
     χdotEquiv .= b * χdot + a * χ
 
 end
 
-# Same as above, with the states and rates of the element at the begin of the time step taken from the vectors of states (x) and of their time derivatives (xdot) of the system
-function set_element_equivalent_states_rates!(element,c,a,b,x,xdot)
+# Same as above, with the states and rates of the element at the begin of the time step taken from the vectors of states (x) and of their time derivatives (xdot) of the system (in which the elastic forces are scaled by forceScaling)
+function set_element_equivalent_states_rates!(element,c,a,b,x,xdot,forceScaling)
 
-    @unpack DOF_u,DOF_p,DOF_V,DOF_Ω,DOF_χ = element.assemblyIndices
-    @unpack udotEquiv,pdotEquiv,VdotEquiv,ΩdotEquiv,χdotEquiv = element.stateCache.equivStatesRates
+    @unpack DOF_u,DOF_p,DOF_F,DOF_M,DOF_V,DOF_Ω,DOF_χ = element.assemblyIndices
+    @unpack udotEquiv,pdotEquiv,VdotEquiv,ΩdotEquiv,FεdotEquiv,MεdotEquiv,χdotEquiv = element.stateCache.equivStatesRates
 
     # Set coefficient of the states
     setfield!(element.stateCache.equivStatesRates, :c, c)
@@ -316,16 +318,18 @@ function set_element_equivalent_states_rates!(element,c,a,b,x,xdot)
     pdotEquiv .= b * xdot[DOF_p] + a * x[DOF_p]
     VdotEquiv .= b * xdot[DOF_V] + a * x[DOF_V]
     ΩdotEquiv .= b * xdot[DOF_Ω] + a * x[DOF_Ω]
+    FεdotEquiv .= (b * xdot[DOF_F] + a * x[DOF_F]) * forceScaling
+    MεdotEquiv .= (b * xdot[DOF_M] + a * x[DOF_M]) * forceScaling
     χdotEquiv .= b * xdot[DOF_χ] + a * x[DOF_χ]
 
 end
 
-# Sets the coefficient c of the states in their rates and the equivalent states' rates of the element for the BDF2 method, ẋEquiv = a xₙ - d xₙ₋₁, from its states at the begin of the time step (xₙ) and at the begin of the previous time step (xₙ₋₁, taken from the vector of states of the system xPrevious)
-function set_element_BDF2_equivalent_states_rates!(element,c,a,d,xPrevious)
+# Sets the coefficient c of the states in their rates and the equivalent states' rates of the element for the BDF2 method, ẋEquiv = a xₙ - d xₙ₋₁, from its states at the begin of the time step (xₙ) and at the begin of the previous time step (xₙ₋₁, taken from the vector of states of the system xPrevious, in which the elastic forces are scaled by forceScaling)
+function set_element_BDF2_equivalent_states_rates!(element,c,a,d,xPrevious,forceScaling)
 
-    @unpack u,p,V,Ω,χ = element.state.midpoint
-    @unpack DOF_u,DOF_p,DOF_V,DOF_Ω,DOF_χ = element.assemblyIndices
-    @unpack udotEquiv,pdotEquiv,VdotEquiv,ΩdotEquiv,χdotEquiv = element.stateCache.equivStatesRates
+    @unpack u,p,V,Ω,Fε,Mε,χ = element.state.midpoint
+    @unpack DOF_u,DOF_p,DOF_F,DOF_M,DOF_V,DOF_Ω,DOF_χ = element.assemblyIndices
+    @unpack udotEquiv,pdotEquiv,VdotEquiv,ΩdotEquiv,FεdotEquiv,MεdotEquiv,χdotEquiv = element.stateCache.equivStatesRates
 
     # Set coefficient of the states
     setfield!(element.stateCache.equivStatesRates, :c, c)
@@ -335,19 +339,23 @@ function set_element_BDF2_equivalent_states_rates!(element,c,a,d,xPrevious)
     pdotEquiv .= a * p - d * xPrevious[DOF_p]
     VdotEquiv .= a * V - d * xPrevious[DOF_V]
     ΩdotEquiv .= a * Ω - d * xPrevious[DOF_Ω]
+    FεdotEquiv .= a * Fε - d * xPrevious[DOF_F] * forceScaling
+    MεdotEquiv .= a * Mε - d * xPrevious[DOF_M] * forceScaling
     χdotEquiv .= a * χ - d * xPrevious[DOF_χ]
 
 end
 
 
-# Sets the vector of time derivatives of the states of the system (xdot) with the rates of the states of the elements (the null entries are those of the states without rates)
-function set_derivative_from_elements_rates!(xdot,elements)
+# Sets the vector of time derivatives of the states of the system (xdot) with the rates of the states of the elements (the null entries are those of the states without rates, and the rates of the elastic forces are scaled by forceScaling, as the states)
+function set_derivative_from_elements_rates!(xdot,elements,forceScaling)
 
     for element in elements
-        @unpack udot,pdot,Vdot,Ωdot,χdot = element.state.rates
-        @unpack DOF_u,DOF_p,DOF_V,DOF_Ω,DOF_χ = element.assemblyIndices
+        @unpack udot,pdot,Vdot,Ωdot,Fεdot,Mεdot,χdot = element.state.rates
+        @unpack DOF_u,DOF_p,DOF_F,DOF_M,DOF_V,DOF_Ω,DOF_χ = element.assemblyIndices
         xdot[DOF_u] .= udot
         xdot[DOF_p] .= pdot
+        xdot[DOF_F] .= Fεdot / forceScaling
+        xdot[DOF_M] .= Mεdot / forceScaling
         xdot[DOF_V] .= Vdot
         xdot[DOF_Ω] .= Ωdot
         xdot[DOF_χ] .= χdot
@@ -368,7 +376,7 @@ function complete_time_step!(problem,method::GeneralizedAlpha)
     @unpack timeVector = problem.time
     @unpack timeIndex,Δt = problem.time.state
     @unpack beams = problem.model
-    @unpack elements,elementGroups = problem.model.assemblyData
+    @unpack elements,elementGroups,forceScaling = problem.model.assemblyData
 
     # States at the end of the time step
     x .= xBegin .+ (x .- xBegin) ./ αf
@@ -388,7 +396,7 @@ function complete_time_step!(problem,method::GeneralizedAlpha)
     c = 1/(γ*Δt)
     b = (1-γ)/γ
     foreach_element(elementGroups) do element
-        set_element_equivalent_states_rates!(element,c,c,b,xBegin,xdotBegin)
+        set_element_equivalent_states_rates!(element,c,c,b,xBegin,xdotBegin,forceScaling)
     end
 
     # Memory variables of the dynamic stall models at the begin of the time step

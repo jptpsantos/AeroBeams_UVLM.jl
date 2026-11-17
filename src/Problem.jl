@@ -870,11 +870,11 @@ function initialize_default_system_arrays(systemSolver,forceScaling,nEqs,nStates
     # Loop over elements and assign initial states
     for element in elements
         @unpack DOF_u,DOF_p,DOF_F,DOF_M,DOF_V,DOF_Ω,DOF_χ = element.assemblyIndices
-        @unpack u,p,F,M,V,Ω,χ = element.state.midpoint
+        @unpack u,p,Fε,Mε,V,Ω,χ = element.state.midpoint
         x[DOF_u] .= u
         x[DOF_p] .= p
-        x[DOF_F] .= F/forceScaling
-        x[DOF_M] .= M/forceScaling
+        x[DOF_F] .= Fε/forceScaling
+        x[DOF_M] .= Mε/forceScaling
         x[DOF_V] .= V
         x[DOF_Ω] .= Ω
         x[DOF_χ] .= χ
@@ -925,16 +925,19 @@ function initialize_jacobian_sparsity_pattern(nEqs,nStates,elements,specialNodes
         # Unpack assembly indices
         @unpack eqs_Fu1,eqs_Fu2,eqs_Fp1,eqs_Fp2,eqs_FF1,eqs_FF2,eqs_FM1,eqs_FM2,eqs_FV,eqs_FΩ,eqs_Fχ,DOF_u,DOF_p,DOF_F,DOF_M,DOF_V,DOF_Ω,DOF_χ = element.assemblyIndices
         @unpack aero = element
+        @unpack hasDamping = element.sectional
         DOF_δ = !isnothing(aero.surface) && aero.geometry.isFlapped ? 
                 aero.surface.assemblyData.DOF_δ : 
                 Int[]
         # Set indices of node 1
         add_block!(eqs_Fu1, DOF_p); add_block!(eqs_Fu1, DOF_F); add_block!(eqs_Fu1, DOF_V); add_block!(eqs_Fu1, DOF_Ω); add_block!(eqs_Fu1, DOF_χ); add_block!(eqs_Fu1, DOF_δ)
+        hasDamping && add_block!(eqs_Fu1, DOF_M)
         add_block!(eqs_Fp1, DOF_p); add_block!(eqs_Fp1, DOF_F); add_block!(eqs_Fp1, DOF_M); add_block!(eqs_Fp1, DOF_V); add_block!(eqs_Fp1, DOF_Ω); add_block!(eqs_Fp1, DOF_χ); add_block!(eqs_Fp1, DOF_δ)
         add_block!(eqs_FF1, DOF_u); add_block!(eqs_FF1, DOF_p); add_block!(eqs_FF1, DOF_F); add_block!(eqs_FF1, DOF_M)
         add_block!(eqs_FM1, DOF_p); add_block!(eqs_FM1, DOF_F); add_block!(eqs_FM1, DOF_M)
         # Set indices of node 2
         add_block!(eqs_Fu2, DOF_p); add_block!(eqs_Fu2, DOF_F); add_block!(eqs_Fu2, DOF_V); add_block!(eqs_Fu2, DOF_Ω); add_block!(eqs_Fu2, DOF_χ); add_block!(eqs_Fu2, DOF_δ)
+        hasDamping && add_block!(eqs_Fu2, DOF_M)
         add_block!(eqs_Fp2, DOF_p); add_block!(eqs_Fp2, DOF_F); add_block!(eqs_Fp2, DOF_M); add_block!(eqs_Fp2, DOF_V); add_block!(eqs_Fp2, DOF_Ω); add_block!(eqs_Fp2, DOF_χ); add_block!(eqs_Fp2, DOF_δ)
         add_block!(eqs_FF2, DOF_u); add_block!(eqs_FF2, DOF_p); add_block!(eqs_FF2, DOF_F); add_block!(eqs_FF2, DOF_M)
         add_block!(eqs_FM2, DOF_p); add_block!(eqs_FM2, DOF_F); add_block!(eqs_FM2, DOF_M)
@@ -1027,13 +1030,19 @@ function initialize_inertia_sparsity_pattern(nEqs,elements)
     # Loop over elements
     for element in elements
         # Unpack assembly indices
-        @unpack eqs_Fu1,eqs_Fu2,eqs_Fp1,eqs_Fp2,eqs_FV,eqs_FΩ,eqs_Fχ,DOF_u,DOF_p,DOF_V,DOF_Ω,DOF_χ = element.assemblyIndices
+        @unpack eqs_Fu1,eqs_Fu2,eqs_Fp1,eqs_Fp2,eqs_FV,eqs_FΩ,eqs_Fχ,DOF_u,DOF_p,DOF_F,DOF_M,DOF_V,DOF_Ω,DOF_χ = element.assemblyIndices
         # Set indices of node 1
         add_block!(eqs_Fu1, DOF_p); add_block!(eqs_Fu1, DOF_V); add_block!(eqs_Fu1, DOF_Ω);
         add_block!(eqs_Fp1, DOF_p); add_block!(eqs_Fp1, DOF_V); add_block!(eqs_Fp1, DOF_Ω);
         # Set indices of node 2
         add_block!(eqs_Fu2, DOF_p); add_block!(eqs_Fu2, DOF_V); add_block!(eqs_Fu2, DOF_Ω);
         add_block!(eqs_Fp2, DOF_p); add_block!(eqs_Fp2, DOF_V); add_block!(eqs_Fp2, DOF_Ω);
+        # Set indices of the structural damping terms (rates of the elastic forces), if applicable
+        if element.sectional.hasDamping
+            for eqs in (eqs_Fu1,eqs_Fp1,eqs_Fu2,eqs_Fp2)
+                add_block!(eqs, DOF_F); add_block!(eqs, DOF_M)
+            end
+        end
         # Set indices of the element midpoint
         add_block!(eqs_FV, DOF_u);
         add_block!(eqs_FΩ, DOF_p);
@@ -1164,14 +1173,17 @@ function set_jacobian_indices_maps!(jacobian,elements,specialNodes,hingeAxisCons
         # Get number of aerodynamic and trim flap states
         N = length(DOF_χ)
         Nδ = length(DOF_δ)
+        # Maps of the blocks that exist only with structural damping
+        hasDamping = element.sectional.hasDamping
+        bimDamping(rows, cols) = hasDamping ? bim(rows, cols) : zeros(SVector{9,Int})
         # Set Jacobian maps
         setfield!(element, :jacobianMaps, 
         JacobianIndicesMaps{3*N,3*Nδ,N*N}(
-            bim(eqs_Fu1,DOF_p), bim(eqs_Fu1,DOF_F), bim(eqs_Fu1,DOF_V), bim(eqs_Fu1,DOF_Ω), bim(eqs_Fu1,DOF_χ), bim(eqs_Fu1,DOF_δ),
+            bim(eqs_Fu1,DOF_p), bim(eqs_Fu1,DOF_F), bimDamping(eqs_Fu1,DOF_M), bim(eqs_Fu1,DOF_V), bim(eqs_Fu1,DOF_Ω), bim(eqs_Fu1,DOF_χ), bim(eqs_Fu1,DOF_δ),
             bim(eqs_Fp1,DOF_p), bim(eqs_Fp1,DOF_F), bim(eqs_Fp1,DOF_M), bim(eqs_Fp1,DOF_V), bim(eqs_Fp1,DOF_Ω), bim(eqs_Fp1,DOF_χ), bim(eqs_Fp1,DOF_δ),
             bim(eqs_FF1,DOF_u), bim(eqs_FF1,DOF_p), bim(eqs_FF1,DOF_F), bim(eqs_FF1,DOF_M),
             bim(eqs_FM1,DOF_p), bim(eqs_FM1,DOF_F), bim(eqs_FM1,DOF_M),
-            bim(eqs_Fu2,DOF_p), bim(eqs_Fu2,DOF_F), bim(eqs_Fu2,DOF_V), bim(eqs_Fu2,DOF_Ω), bim(eqs_Fu2,DOF_χ), bim(eqs_Fu2,DOF_δ),
+            bim(eqs_Fu2,DOF_p), bim(eqs_Fu2,DOF_F), bimDamping(eqs_Fu2,DOF_M), bim(eqs_Fu2,DOF_V), bim(eqs_Fu2,DOF_Ω), bim(eqs_Fu2,DOF_χ), bim(eqs_Fu2,DOF_δ),
             bim(eqs_Fp2,DOF_p), bim(eqs_Fp2,DOF_F), bim(eqs_Fp2,DOF_M), bim(eqs_Fp2,DOF_V), bim(eqs_Fp2,DOF_Ω), bim(eqs_Fp2,DOF_χ), bim(eqs_Fp2,DOF_δ),
             bim(eqs_FF2,DOF_u), bim(eqs_FF2,DOF_p), bim(eqs_FF2,DOF_F), bim(eqs_FF2,DOF_M),
             bim(eqs_FM2,DOF_p), bim(eqs_FM2,DOF_F), bim(eqs_FM2,DOF_M),
@@ -1235,16 +1247,19 @@ function set_inertia_indices_maps!(inertia,elements,resetInertia)
     # Loop over elements and set inertia matrix maps
     for element in elements
         # Unpack
-        @unpack eqs_Fu1,eqs_Fu2,eqs_Fp1,eqs_Fp2,eqs_FV,eqs_Fχ,eqs_FΩ,DOF_u,DOF_p,DOF_V,DOF_Ω,DOF_χ = element.assemblyIndices
+        @unpack eqs_Fu1,eqs_Fu2,eqs_Fp1,eqs_Fp2,eqs_FV,eqs_Fχ,eqs_FΩ,DOF_u,DOF_p,DOF_F,DOF_M,DOF_V,DOF_Ω,DOF_χ = element.assemblyIndices
         # Get number of aerodynamic states
         N = length(DOF_χ)
+        # Maps of the blocks that exist only with structural damping
+        hasDamping = element.sectional.hasDamping
+        bimDamping(rows, cols) = hasDamping ? bim(rows, cols) : zeros(SVector{9,Int})
         # Set
         setfield!(element, :inertiaMaps, 
             InertiaIndicesMaps{3*N,N*N}(
-                bim(eqs_Fu1,DOF_p), bim(eqs_Fu1,DOF_V), bim(eqs_Fu1,DOF_Ω),
-                bim(eqs_Fp1,DOF_p), bim(eqs_Fp1,DOF_V), bim(eqs_Fp1,DOF_Ω),
-                bim(eqs_Fu2,DOF_p), bim(eqs_Fu2,DOF_V), bim(eqs_Fu2,DOF_Ω),
-                bim(eqs_Fp2,DOF_p), bim(eqs_Fp2,DOF_V), bim(eqs_Fp2,DOF_Ω),
+                bim(eqs_Fu1,DOF_p), bim(eqs_Fu1,DOF_V), bim(eqs_Fu1,DOF_Ω), bimDamping(eqs_Fu1,DOF_F), bimDamping(eqs_Fu1,DOF_M),
+                bim(eqs_Fp1,DOF_p), bim(eqs_Fp1,DOF_V), bim(eqs_Fp1,DOF_Ω), bimDamping(eqs_Fp1,DOF_F), bimDamping(eqs_Fp1,DOF_M),
+                bim(eqs_Fu2,DOF_p), bim(eqs_Fu2,DOF_V), bim(eqs_Fu2,DOF_Ω), bimDamping(eqs_Fu2,DOF_F), bimDamping(eqs_Fu2,DOF_M),
+                bim(eqs_Fp2,DOF_p), bim(eqs_Fp2,DOF_V), bim(eqs_Fp2,DOF_Ω), bimDamping(eqs_Fp2,DOF_F), bimDamping(eqs_Fp2,DOF_M),
                 bim(eqs_FV,DOF_u),
                 bim(eqs_FΩ,DOF_p),
                 bim(eqs_Fχ,DOF_V), bim(eqs_Fχ,DOF_Ω), bim(eqs_Fχ,DOF_χ)
@@ -1854,9 +1869,11 @@ function solve_initial_conditions!(problem)
         if isnothing(rates)
             @warn "The initial velocities could not be obtained from the specified rates (singular system) - the specified rates are used instead"
         else
-            for (element,udot,pdot) in zip(staticProblem.model.assemblyData.elements,rates...)
+            for (element,udot,pdot,Fεdot,Mεdot) in zip(staticProblem.model.assemblyData.elements,rates...)
                 element.state.rates.udot .= udot
                 element.state.rates.pdot .= pdot
+                element.state.rates.Fεdot .= Fεdot
+                element.state.rates.Mεdot .= Mεdot
             end
             update_equivalent_states_rates!(staticProblem)
             solve_initial_static_system!(staticProblem)
@@ -2039,9 +2056,9 @@ function solve_initial_static!(problem,BCs)
     # Update model with the BCs
     update_model_BCs!(problem.model; BCs=BCs)
 
-    # Null accelerations, as the static problem has no inertial loads (they could be left from a previous solution of the problem)
+    # Null accelerations and rates of the elastic forces, as the static problem has no inertial nor viscous loads (they could be left from a previous solution of the problem)
     for element in problem.model.assemblyData.elements
-        zero_arrays!(element.state.rates.Vdot,element.state.rates.Ωdot,element.state.rates.Pdot,element.state.rates.Hdot,element.state.rates.χdot)
+        zero_arrays!(element.state.rates.Vdot,element.state.rates.Ωdot,element.state.rates.Pdot,element.state.rates.Hdot,element.state.rates.Fεdot,element.state.rates.Mεdot,element.state.rates.χdot)
     end
 
     # Update system arrays with the new BCs
@@ -2068,11 +2085,11 @@ function solve_initial_static_system!(problem)
 end
 
 
-# Gets the rates of the midpoint displacements and rotation parameters of the elements of a solved static problem when the displacements prescribed by the BCs move in time at their rates (quasi-static response). The static solution is linear in the BCs' values, so its rates (time derivatives) are exactly obtained by a Newton step with the converged Jacobian and the BCs' values shifted by their rates. Returns nothing if the Jacobian is singular
+# Gets the rates of the midpoint displacements, rotation parameters and elastic forces of the elements of a solved static problem when the displacements prescribed by the BCs move in time at their rates (quasi-static response). The static solution is linear in the BCs' values, so its rates (time derivatives) are exactly obtained by a Newton step with the converged Jacobian and the BCs' values shifted by their rates. The rates of the elastic forces are thus consistent with the time derivatives of the compatibility equations. Returns nothing if the Jacobian is singular
 function quasi_static_rates(problem,t0,Δt)
 
     @unpack BCs = problem.model
-    @unpack elements = problem.model.assemblyData
+    @unpack elements,forceScaling = problem.model.assemblyData
     @unpack systemSolver,systemArrays = problem
 
     # Make sure that the Jacobian is fully updated
@@ -2112,11 +2129,13 @@ function quasi_static_rates(problem,t0,Δt)
     issuccess(luCache) || return nothing
     Δx = luCache \ (residual0 - residual1)
 
-    # Rates of the elements' midpoint displacements and rotation parameters
+    # Rates of the elements' midpoint displacements, rotation parameters and elastic forces
     udot = [SVector{3,Float64}(Δx[element.assemblyIndices.DOF_u]) for element in elements]
     pdot = [SVector{3,Float64}(Δx[element.assemblyIndices.DOF_p]) for element in elements]
+    Fεdot = [SVector{3,Float64}(Δx[element.assemblyIndices.DOF_F] * forceScaling) for element in elements]
+    Mεdot = [SVector{3,Float64}(Δx[element.assemblyIndices.DOF_M] * forceScaling) for element in elements]
 
-    return udot,pdot
+    return udot,pdot,Fεdot,Mεdot
 
 end
 
@@ -2158,7 +2177,7 @@ function initial_rates_startup!(problem)
             update_motion_basis_A!(problem; timeNow=t0+step*h, Δt=h)
             update_BCs_displacements!(model.BCs,t0,t0+step*h)
             # Update equivalent states' rates at the begin of the step
-            set_startup_rates!(elements,xHistory,step,isBDF2,h)
+            set_startup_rates!(elements,xHistory,step,isBDF2,h,model.assemblyData.forceScaling)
             update_equivalent_states_rates!(problem)
             # Solve the step
             solve_time_step!(problem)
@@ -2193,7 +2212,7 @@ function initial_rates_startup!(problem)
     # Cubic polynomial through the states at the end of steps 3 to 6 (the first steps are discarded because they have the transient): extrapolate to the initial time, and differentiate there, to get the states and their rates
     x .= 20*xHistory[4] - 45*xHistory[5] + 36*xHistory[6] - 10*xHistory[7]
     xdot = (-37/3*xHistory[4] + 63/2*xHistory[5] - 27*xHistory[6] + 47/6*xHistory[7]) / h
-    set_elements_rates_from_derivative!(elements,xdot)
+    set_elements_rates_from_derivative!(elements,xdot,model.assemblyData.forceScaling)
 
     # Update the states of the elements, hinge axis constraints and special nodes, at the initial time
     update_states!(model,x,σ,1,1.0,t0,Inf,true)
@@ -2219,21 +2238,23 @@ end
 
 
 # Sets the rates at the begin of a startup step, so that the equivalent rates (rates plus 2/Δt times the states) are those of backward Euler (null rates) or BDF2 (rates (x₁-x₂)/(2h), with x₁ and x₂ the states at the previous two steps)
-function set_startup_rates!(elements,xHistory,step,isBDF2,h)
+function set_startup_rates!(elements,xHistory,step,isBDF2,h,forceScaling)
 
     for element in elements
-        @unpack udot,pdot,Vdot,Ωdot,χdot = element.state.rates
+        @unpack udot,pdot,Vdot,Ωdot,Fεdot,Mεdot,χdot = element.state.rates
         if isBDF2
-            @unpack DOF_u,DOF_p,DOF_V,DOF_Ω,DOF_χ = element.assemblyIndices
+            @unpack DOF_u,DOF_p,DOF_F,DOF_M,DOF_V,DOF_Ω,DOF_χ = element.assemblyIndices
             x₁ = xHistory[step]
             x₂ = xHistory[step-1]
             udot .= (x₁[DOF_u] - x₂[DOF_u]) / 2h
             pdot .= (x₁[DOF_p] - x₂[DOF_p]) / 2h
             Vdot .= (x₁[DOF_V] - x₂[DOF_V]) / 2h
             Ωdot .= (x₁[DOF_Ω] - x₂[DOF_Ω]) / 2h
+            Fεdot .= (x₁[DOF_F] - x₂[DOF_F]) / 2h * forceScaling
+            Mεdot .= (x₁[DOF_M] - x₂[DOF_M]) / 2h * forceScaling
             χdot .= (x₁[DOF_χ] - x₂[DOF_χ]) / 2h
         else
-            zero_arrays!(udot,pdot,Vdot,Ωdot,χdot)
+            zero_arrays!(udot,pdot,Vdot,Ωdot,Fεdot,Mεdot,χdot)
         end
     end
 
@@ -2246,8 +2267,8 @@ function elements_rates_vector(elements)
     rates = Float64[]
 
     for element in elements
-        @unpack udot,pdot,Vdot,Ωdot,χdot = element.state.rates
-        append!(rates,udot,pdot,Vdot,Ωdot,χdot)
+        @unpack udot,pdot,Vdot,Ωdot,Fεdot,Mεdot,χdot = element.state.rates
+        append!(rates,udot,pdot,Vdot,Ωdot,Fεdot,Mεdot,χdot)
     end
 
     return rates
@@ -2261,9 +2282,9 @@ function set_elements_rates!(elements,rates)
     i = 0
 
     for element in elements
-        @unpack udot,pdot,Vdot,Ωdot,χdot = element.state.rates
+        @unpack udot,pdot,Vdot,Ωdot,Fεdot,Mεdot,χdot = element.state.rates
         # Set the rates of the states
-        for rate in (udot,pdot,Vdot,Ωdot,χdot)
+        for rate in (udot,pdot,Vdot,Ωdot,Fεdot,Mεdot,χdot)
             rate .= rates[i+1:i+length(rate)]
             i += length(rate)
         end
@@ -2274,17 +2295,19 @@ function set_elements_rates!(elements,rates)
 end
 
 
-# Sets the rates of the elements' states from the vector of the time derivative of the system's states
-function set_elements_rates_from_derivative!(elements,xdot)
+# Sets the rates of the elements' states from the vector of the time derivative of the system's states (in which the elastic forces are scaled by forceScaling)
+function set_elements_rates_from_derivative!(elements,xdot,forceScaling)
 
     for element in elements
-        @unpack udot,pdot,Vdot,Ωdot,χdot = element.state.rates
-        @unpack DOF_u,DOF_p,DOF_V,DOF_Ω,DOF_χ = element.assemblyIndices
+        @unpack udot,pdot,Vdot,Ωdot,Fεdot,Mεdot,χdot = element.state.rates
+        @unpack DOF_u,DOF_p,DOF_F,DOF_M,DOF_V,DOF_Ω,DOF_χ = element.assemblyIndices
         # Set the rates of the states
         udot .= xdot[DOF_u]
         pdot .= xdot[DOF_p]
         Vdot .= xdot[DOF_V]
         Ωdot .= xdot[DOF_Ω]
+        Fεdot .= xdot[DOF_F] * forceScaling
+        Mεdot .= xdot[DOF_M] * forceScaling
         χdot .= xdot[DOF_χ]
         # Set the rates of the momenta
         set_momenta_rates!(element)
@@ -2319,8 +2342,8 @@ function copy_initial_states!(problem,problemCopy)
     # Loop over elements
     for (element,elementCopy) in zip(problem.model.assemblyData.elements,modelCopy.assemblyData.elements)
         # Unpack
-        @unpack u,p,F,M,V,Ω,χ = element.state.midpoint
-        @unpack udot,pdot = element.state.rates
+        @unpack u,p,F,M,V,Ω,Fε,Mε,χ = element.state.midpoint
+        @unpack udot,pdot,Fεdot,Mεdot = element.state.rates
         @unpack DOF_u,DOF_p,DOF_F,DOF_M,DOF_V,DOF_Ω,DOF_χ = element.assemblyIndices
         DOF_uCopy = elementCopy.assemblyIndices.DOF_u
         DOF_pCopy = elementCopy.assemblyIndices.DOF_p
@@ -2332,16 +2355,21 @@ function copy_initial_states!(problem,problemCopy)
         # Set elemental states
         u .= x[DOF_u] .= xCopy[DOF_uCopy]
         p .= x[DOF_p] .= xCopy[DOF_pCopy]
-        F .= x[DOF_F] .= xCopy[DOF_FCopy]
-        M .= x[DOF_M] .= xCopy[DOF_MCopy]
+        Fε .= x[DOF_F] .= xCopy[DOF_FCopy]
+        Mε .= x[DOF_M] .= xCopy[DOF_MCopy]
         V .= x[DOF_V] .= xCopy[DOF_VCopy]
         Ω .= x[DOF_Ω] .= xCopy[DOF_ΩCopy]
         χ .= x[DOF_χ] .= xCopy[DOF_χCopy]
-        F .*= forceScaling
-        M .*= forceScaling
-        # Set elemental rates of the displacements and rotation parameters
+        Fε .*= forceScaling
+        Mε .*= forceScaling
+        # Total forces (elastic plus viscous)
+        F .= elementCopy.state.midpoint.F
+        M .= elementCopy.state.midpoint.M
+        # Set elemental rates of the displacements, rotation parameters and elastic forces
         udot .= elementCopy.state.rates.udot
         pdot .= elementCopy.state.rates.pdot
+        Fεdot .= elementCopy.state.rates.Fεdot
+        Mεdot .= elementCopy.state.rates.Mεdot
     end
 
     # Loop over special nodes

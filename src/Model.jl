@@ -1944,7 +1944,7 @@ function update_initial_states!(beams,elements,specialNodes,kinematicsBasisA,atm
         @unpack Δℓ,x1,x1_n1,x1_n2,k,R0,R0T,R0T_n1,R0T_n2 = element.geometry
         @unpack parentBeamID,r = element.assemblyData
         @unpack C,I = element.sectional
-        @unpack u,p,F,M,V,Ω,γ,κ,P,H,χ = element.state.midpoint
+        @unpack u,p,F,M,V,Ω,γ,κ,P,H,Fε,Mε,χ = element.state.midpoint
         @unpack udot,pdot,Vdot,Ωdot = element.state.rates
         @unpack u1,u2,p1,p2,u1_b,u2_b,p1_b,p2_b,F1,F2,M1,M2,θ = element.state.nodal
         @unpack R,HT,RR0,RR0T = element.stateCache.rotationMatrices
@@ -1975,10 +1975,10 @@ function update_initial_states!(beams,elements,specialNodes,kinematicsBasisA,atm
         κ .= R0T * HT * p_prime
         sectionalStrains = [γ; κ]
 
-        # Sectional forces, resolved in basis B
+        # Sectional (elastic) forces, resolved in basis B
         sectionalForces = inv(C) * sectionalStrains
-        F .= sectionalForces[1:3]
-        M .= sectionalForces[4:6]
+        F .= Fε .= sectionalForces[1:3]
+        M .= Mε .= sectionalForces[4:6]
 
         # Generalized displacements' rates, resolved in basis A
         udot .= R0 * udot0_of_x1(x1)
