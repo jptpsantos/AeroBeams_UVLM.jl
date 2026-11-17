@@ -165,23 +165,27 @@ function flow_parameters!(atmosphere,element,aeroStateCache)
 end
 
 
-# Updates the aerodynamic parameters of the airfoil according to current nondimensional flow parameters 
+# Updates the aerodynamic parameters of the airfoil according to current nondimensional flow parameters. The parameters are stored in the state cache (with the same number type as the flow parameters), so that their dependence on the Mach number is propagated to the derivatives 
 function update_airfoil_parameters!(element,aeroStateCache)
 
     @unpack ppSolver = element.aero.surface.solvers
     @unpack updateAirfoilParameters,airfoil = element.aero.surface.geometry
     @unpack Ma = aeroStateCache.attachedVars.flowParameters
+    @unpack airfoilState = aeroStateCache
 
-    # Skip if parameters are not to be updated
-    updateAirfoilParameters || return
+    # Parameters of the airfoil are used as they are if they are not to be updated
+    if !updateAirfoilParameters
+        copy_state!(airfoil_state(airfoilState,ppSolver), airfoil_state(airfoil,ppSolver))
+        return
+    end
 
     # Update parameters based on the solver type
     if ppSolver isa AttachedSolver
-        update_attached_flow_parameters!(airfoil,_val(Ma))
+        update_parameters!(airfoilState.attached, airfoil.database.attached, Ma)
     elseif ppSolver isa BLi
-        update_BLi_parameters!(airfoil,_val(Ma))
+        update_parameters!(airfoilState.bli, airfoil.database.bli, Ma)
     elseif ppSolver isa BLo
-        update_BLo_parameters!(airfoil,_val(Ma))
+        update_parameters!(airfoilState.blo, airfoil.database.blo, Ma)
     end
     
 end
@@ -302,14 +306,14 @@ function effective_angle_of_attack!(element,aeroStateCache,χ,δ)
     @unpack ppSolver = element.aero.surface.solvers
     @unpack airfoil = element.aero.surface.geometry
     @unpack Uₜ,UₜGust = aeroStateCache.attachedVars.steadyKin
-    ϵₙ = get_airfoil_state_field(airfoil, ppSolver, :ϵₙ)
+    ϵₙ = get_airfoil_state_field(aeroStateCache.airfoilState, ppSolver, :ϵₙ)
 
     # Quasi-steady flap-induced normalwash
     wf = flap_normalwash(element,aeroStateCache,δ)
 
     # Effective normalwash: pitch-plunge-induced, flap-induced, gust-induced, and total
     wₑp = pitch_plunge_effective_normalwash(element,aeroStateCache,χ,ppSolver)
-    wₑf = flap_effective_normalwash(element,χ,wf)
+    wₑf = flap_effective_normalwash(element,aeroStateCache,χ,wf)
     wₑg = gust_effective_normalwash(element,aeroStateCache,χ)
     wₑ = wₑp + ϵₙ*wₑf + wₑg
 
@@ -433,7 +437,7 @@ function BLi_state_matrices!(Ac,Ai,An,A,B,element,aeroStateCache)
     @unpack circulatoryPitchPlungeStatesRange,inertialPitchPlungeStatesRange,nonlinearStatesRange = element.aero.surface.stateRanges
     @unpack γbC = element.aero.surface.geometry
     @unpack incompressibleInertialLoads,AC,bC,bI = element.aero.surface.solvers.ppSolver
-    @unpack Ta,Tg = element.aero.surface.geometry.airfoil.state.bli
+    @unpack Ta,Tg = aeroStateCache.airfoilState.bli
     @unpack isFlapped,b = element.aero.geometry
     @unpack Uₙ,Uᵢ,UₙGust,Ωₐ,α,wf = aeroStateCache.attachedVars.steadyKin
     @unpack UₙdotTQC = aeroStateCache.attachedVars.unsteadyKin
@@ -476,7 +480,7 @@ function BLo_state_matrices!(Ac,Ai,An,A,B,element,aeroStateCache)
     @unpack circulatoryPitchPlungeStatesRange,inertialPitchPlungeStatesRange,nonlinearStatesRange = element.aero.surface.stateRanges
     @unpack γbC = element.aero.surface.geometry
     @unpack incompressibleInertialLoads,AC,bC,bI = element.aero.surface.solvers.ppSolver
-    @unpack Tf₀,Tp = element.aero.surface.geometry.airfoil.state.blo
+    @unpack Tf₀,Tp = aeroStateCache.airfoilState.blo
     @unpack Uᵢ,UₙTQC,Ωₐ,α = aeroStateCache.attachedVars.steadyKin
     @unpack Uᵢdot = aeroStateCache.attachedVars.unsteadyKin
     @unpack βₚ²,Θ,Ma,Tnα,TnM,Tnθ̇,Tmα,TmM,Tmθ̇ = aeroStateCache.attachedVars.flowParameters
@@ -593,7 +597,7 @@ function attached_flow_cn!(element,aeroStateCache,χ,δ)
     @unpack smallAngles = element.aero.surface.geometry
     @unpack inertialPitchPlungeStatesRange = element.aero.surface.stateRanges
     @unpack incompressibleInertialLoads = ppSolver
-    @unpack ϵₙ,cnα = element.aero.surface.geometry.airfoil.state.attached
+    @unpack ϵₙ,cnα = aeroStateCache.airfoilState.attached
     @unpack cnδ = element.aero.surface.geometry.flapParameters
     @unpack isFlapped,Th,b,aₕ = element.aero.geometry
     @unpack Uᵢ,Ωₐ,α = aeroStateCache.attachedVars.steadyKin
@@ -637,7 +641,7 @@ function attached_flow_cm!(element,aeroStateCache,χ,δ)
     @unpack ppSolver,flapSolver = element.aero.surface.solvers
     @unpack inertialPitchPlungeStatesRange = element.aero.surface.stateRanges
     @unpack incompressibleInertialLoads = ppSolver
-    @unpack ϵₘ,cm₀,cnα,x_ac = element.aero.surface.geometry.airfoil.state.attached
+    @unpack ϵₘ,cm₀,cnα,x_ac = aeroStateCache.airfoilState.attached
     @unpack cmδ = element.aero.surface.geometry.flapParameters
     @unpack isFlapped,Th,b,aₕ,normSparPos = element.aero.geometry
     @unpack Uᵢ,Ωₐ,α = aeroStateCache.attachedVars.steadyKin
@@ -680,7 +684,7 @@ function attached_flow_ct!(element,aeroStateCache,δ)
 
     @unpack flapSolver = element.aero.surface.solvers
     @unpack smallAngles,hasInducedDrag = element.aero.surface.geometry
-    @unpack η,cd₀ = element.aero.surface.geometry.airfoil.state.attached
+    @unpack η,cd₀ = aeroStateCache.airfoilState.attached
     @unpack cdδ = element.aero.surface.geometry.flapParameters
     @unpack isFlapped,b = element.aero.geometry
     @unpack Uᵢ,Ωₐ,α = aeroStateCache.attachedVars.steadyKin
@@ -787,7 +791,7 @@ end
 function BLi_nonlinear_states!(element,aeroStateCache,χ::AbstractVector{T}) where T<:Number
 
     @unpack nonlinearStatesRange = element.aero.surface.stateRanges
-    @unpack f₀N,f₀M,f₀T = element.aero.surface.geometry.airfoil.state.bli
+    @unpack f₀N,f₀M,f₀T = aeroStateCache.airfoilState.bli
     @unpack Uₜ,UₜGust = aeroStateCache.attachedVars.steadyKin
 
     # Zero of current type
@@ -817,7 +821,7 @@ function BLi_kinematics!(element,aeroStateCache)
     @unpack c = element.aero.geometry
     @unpack Uᵢ = aeroStateCache.attachedVars.steadyKin
     @unpack αdot = aeroStateCache.attachedVars.unsteadyKin
-    @unpack r₀ = element.aero.surface.geometry.airfoil.state.bli
+    @unpack r₀ = aeroStateCache.airfoilState.bli
 
     # Non-dimensional pitch rate
     q = αdot*c/Uᵢ
@@ -840,7 +844,7 @@ end
 function BLi_motion_qualifiers!(timeNow,element,aeroStateCache)
 
     @unpack b = element.aero.geometry
-    @unpack αds₀,αₛₛ,γLS,Tf = element.aero.surface.geometry.airfoil.state.bli
+    @unpack αds₀,αₛₛ,γLS,Tf = aeroStateCache.airfoilState.bli
     @unpack Uᵢ = aeroStateCache.attachedVars.steadyKin
     @unpack αlag,RD,RD_stallOnsetRatio = aeroStateCache.bliVars.states
     @unpack r,qR = aeroStateCache.bliVars.flow
@@ -913,7 +917,7 @@ end
 # Computes the breakpoint angles of the modified Beddoes-Leishman model
 function BLi_breakpoint_angles!(element,aeroStateCache)
 
-    @unpack αds₀,αₛₛ,α1₀N,α1₀M,α1₀T,δα₀,δα₁,dt,dm,zm,ztd = element.aero.surface.geometry.airfoil.state.bli
+    @unpack αds₀,αₛₛ,α1₀N,α1₀M,α1₀T,δα₀,δα₁,dt,dm,zm,ztd = aeroStateCache.airfoilState.bli
     @unpack RD = aeroStateCache.bliVars.states
     @unpack qR,R,stalled,P = aeroStateCache.bliVars.flow
     @unpack qRmax = aeroStateCache.bliVars.comp
@@ -951,7 +955,7 @@ end
 # Computes time delay variables for the modified Beddoes-Leishman model
 function BLi_time_delays!(element,aeroStateCache)
 
-    @unpack Ta,Tf,λ₁,λ₂ = element.aero.surface.geometry.airfoil.state.bli
+    @unpack Ta,Tf,λ₁,λ₂ = aeroStateCache.airfoilState.bli
     @unpack RD = aeroStateCache.bliVars.states
     @unpack qR,R,stallOnsetRatio,P = aeroStateCache.bliVars.flow
     @unpack qRmax = aeroStateCache.bliVars.comp
@@ -987,7 +991,7 @@ end
 # Computes the flow separation points of the modified Beddoes-Leishman model
 function BLi_separation_points!(element,aeroStateCache)
 
-    @unpack α1₀N,α1₀M,α1₀T,βσ1N,βσ1T,βσ2N,βS2Nlpr,βS2Tlpr,βS1Nu,βS1Mu,βS1Tu,βS1Nd,βS1Md,βS1Td,βS2Nu,βS2Mu,βS2Tu,βS2Nd,βS2Md,βS2Td,ξ,f₀N,f₀M,f₀T,fbN,fbM,fbT,S1N,S1M,S1T,S2N,S2M,S2T = element.aero.surface.geometry.airfoil.state.bli
+    @unpack α1₀N,α1₀M,α1₀T,βσ1N,βσ1T,βσ2N,βS2Nlpr,βS2Tlpr,βS1Nu,βS1Mu,βS1Tu,βS1Nd,βS1Md,βS1Td,βS2Nu,βS2Mu,βS2Tu,βS2Nd,βS2Md,βS2Td,ξ,f₀N,f₀M,f₀T,fbN,fbM,fbT,S1N,S1M,S1T,S2N,S2M,S2T = aeroStateCache.airfoilState.bli
     @unpack α = aeroStateCache.attachedVars.steadyKin
     @unpack αlag,RD = aeroStateCache.bliVars.states
     @unpack R,stallOnsetRatio,stalled,P,SS,α1N,α1M,α1T = aeroStateCache.bliVars.flow
@@ -1067,7 +1071,7 @@ end
 
 
 # Computes the quasi-steady flow separation points of the modified Beddoes-Leishman model for an element
-function BLi_quasi_steady_separation_points(element,Uₜ,Uₙ)
+function BLi_quasi_steady_separation_points(element,aeroStateCache,Uₜ,Uₙ)
 
     # Check tangential velocity
     if isapprox(Uₜ, 0)
@@ -1075,7 +1079,7 @@ function BLi_quasi_steady_separation_points(element,Uₜ,Uₙ)
         return fN,fM,fT
     end
 
-    @unpack α1₀N,α1₀M,α1₀T,f₀N,f₀M,f₀T,fbN,fbM,fbT,S1N,S1M,S1T,S2N,S2M,S2T = element.aero.surface.geometry.airfoil.state.bli
+    @unpack α1₀N,α1₀M,α1₀T,f₀N,f₀M,f₀T,fbN,fbM,fbT,S1N,S1M,S1T,S2N,S2M,S2T = aeroStateCache.airfoilState.bli
 
     # Angle of attack  
     α = atan(-Uₙ/Uₜ)
@@ -1103,7 +1107,7 @@ end
 function BLi_stall_time!(timeNow,Δt,element,aeroStateCache)
 
     @unpack b = element.aero.geometry
-    @unpack gᵥ,Tv = element.aero.surface.geometry.airfoil.state.bli
+    @unpack gᵥ,Tv = aeroStateCache.airfoilState.bli
     @unpack Uᵢ = aeroStateCache.attachedVars.steadyKin
     @unpack f2primeN,RD = aeroStateCache.bliVars.states
     @unpack qR,R,stallOnsetRatio,upstroke,stalled,fN = aeroStateCache.bliVars.flow
@@ -1176,7 +1180,7 @@ end
 function BLi_DSV_loads!(element,aeroStateCache)
 
     @unpack b = element.aero.geometry
-    @unpack μv₂,ν₁,ν₂,ν₃,ν₄,ν₅,χu,χd,gᵥ,gᵥ₂,Tv,Tv₂,Vn₁,Vn₂,Vn₃,Vm,Vt = element.aero.surface.geometry.airfoil.state.bli
+    @unpack μv₂,ν₁,ν₂,ν₃,ν₄,ν₅,χu,χd,gᵥ,gᵥ₂,Tv,Tv₂,Vn₁,Vn₂,Vn₃,Vm,Vt = aeroStateCache.airfoilState.bli
     @unpack Uᵢ = aeroStateCache.attachedVars.steadyKin
     @unpack qR,R,stallOnsetRatio,upstroke,P = aeroStateCache.bliVars.flow
     @unpack fDiff_tv0P,qR_tv0P,R_tv0P,RD_tv0P,upstroke_tv0P,τvP,fDiff_tv0P2,RD_tv0P2,upstroke_tv0P2,fDiff_tv0N,qR_tv0N,R_tv0N,RD_tv0N,upstroke_tv0N,τvN,fDiff_tv0N2,RD_tv0N2,upstroke_tv0N2 = aeroStateCache.bliVars.comp
@@ -1339,7 +1343,7 @@ function BLi_cn!(element,aeroStateCache,χ,δ)
     @unpack flapSolver = element.aero.surface.solvers
     @unpack inertialPitchPlungeStatesRange = element.aero.surface.stateRanges
     @unpack incompressibleInertialLoads = element.aero.surface.solvers.ppSolver
-    @unpack ϵₙ,cnα = element.aero.surface.geometry.airfoil.state.bli
+    @unpack ϵₙ,cnα = aeroStateCache.airfoilState.bli
     @unpack cnδ = element.aero.surface.geometry.flapParameters
     @unpack isFlapped,Th,b,c,aₕ = element.aero.geometry
     @unpack Uᵢ,Ωₐ,α = aeroStateCache.attachedVars.steadyKin
@@ -1386,7 +1390,7 @@ function BLi_cm!(element,aeroStateCache,χ,δ)
     @unpack flapSolver = element.aero.surface.solvers
     @unpack inertialPitchPlungeStatesRange = element.aero.surface.stateRanges
     @unpack incompressibleInertialLoads,AI,bI = element.aero.surface.solvers.ppSolver
-    @unpack ϵₘ,κ₀,κ₁,κ₂,κ₃,cm₀,cnα,K₀,K₁,K₂ = element.aero.surface.geometry.airfoil.state.bli
+    @unpack ϵₘ,κ₀,κ₁,κ₂,κ₃,cm₀,cnα,K₀,K₁,K₂ = aeroStateCache.airfoilState.bli
     @unpack cmδ = element.aero.surface.geometry.flapParameters
     @unpack isFlapped,Th,b,normSparPos,aₕ = element.aero.geometry
     @unpack Uᵢ,Ωₐ,α = aeroStateCache.attachedVars.steadyKin
@@ -1442,7 +1446,7 @@ function BLi_ct!(element,aeroStateCache,δ)
 
     @unpack flapSolver = element.aero.surface.solvers
     @unpack hasInducedDrag = element.aero.surface.geometry
-    @unpack α1₀T,η,cd₀,cnα,E₀,E₁ = element.aero.surface.geometry.airfoil.state.bli
+    @unpack α1₀T,η,cd₀,cnα,E₀,E₁ = aeroStateCache.airfoilState.bli
     @unpack cdδ = element.aero.surface.geometry.flapParameters
     @unpack isFlapped,b = element.aero.geometry
     @unpack Uᵢ,Ωₐ,α = aeroStateCache.attachedVars.steadyKin
@@ -1555,7 +1559,7 @@ end
 function BLo_nonlinear_states!(element,aeroStateCache,χ)
 
     @unpack nonlinearStatesRange = element.aero.surface.stateRanges
-    @unpack f₀ = element.aero.surface.geometry.airfoil.state.blo
+    @unpack f₀ = aeroStateCache.airfoilState.blo
 
     # Aliases
     χnl1,χnl2,χnl3,χnl4,χnl5 = view(χ,nonlinearStatesRange)
@@ -1576,7 +1580,7 @@ end
 function BLo_motion_qualifiers!(element,aeroStateCache)
 
     @unpack c = element.aero.geometry
-    @unpack cn₁,cnα = element.aero.surface.geometry.airfoil.state.blo
+    @unpack cn₁,cnα = aeroStateCache.airfoilState.blo
     @unpack Uᵢ = aeroStateCache.attachedVars.steadyKin
     @unpack αdot = aeroStateCache.attachedVars.unsteadyKin
     @unpack cnPprime = aeroStateCache.bloVars.states
@@ -1612,7 +1616,7 @@ end
 # Computes the breakpoint angle of the original Beddoes-Leishman model
 function BLo_breakpoint_angle!(element,aeroStateCache)
 
-    @unpack α1₀,δα = element.aero.surface.geometry.airfoil.state.blo
+    @unpack α1₀,δα = aeroStateCache.airfoilState.blo
     @unpack f2Prime = aeroStateCache.bloVars.states
 
     # Weight of the downstroke phase
@@ -1632,7 +1636,7 @@ end
 # Computes the flow separation point of the original Beddoes-Leishman model
 function BLo_separation_points!(element,aeroStateCache)
 
-    @unpack α1₀,cnα,f₀,fb,S1,S2 = element.aero.surface.geometry.airfoil.state.blo
+    @unpack α1₀,cnα,f₀,fb,S1,S2 = aeroStateCache.airfoilState.blo
     @unpack α = aeroStateCache.attachedVars.steadyKin
     @unpack α1,αlag = aeroStateCache.bloVars.flow
     @unpack cnPprime = aeroStateCache.bloVars.states
@@ -1694,7 +1698,7 @@ end
 # Computes time delay variables for the original Beddoes-Leishman model
 function BLo_time_delays!(element,aeroStateCache)
 
-    @unpack Tf₀,Tv₀,TvL,fb = element.aero.surface.geometry.airfoil.state.blo
+    @unpack Tf₀,Tv₀,TvL,fb = aeroStateCache.airfoilState.blo
     @unpack stallOnsetRatio = aeroStateCache.bloVars.flow
     @unpack f2Prime = aeroStateCache.bloVars.states
     @unpack τvP,τvN = aeroStateCache.bloVars.comp
@@ -1777,7 +1781,7 @@ function BLo_vortex_accumulation_rate!(element,aeroStateCache,χ::AbstractVector
     @unpack circulatoryPitchPlungeStatesRange = element.aero.surface.stateRanges
     @unpack γbC = element.aero.surface.geometry
     @unpack AC,bC = element.aero.surface.solvers.ppSolver
-    @unpack cnα,TvL = element.aero.surface.geometry.airfoil.state.blo
+    @unpack cnα,TvL = aeroStateCache.airfoilState.blo
     @unpack ϖMid = element.aero.loadsDistribution
     @unpack Uᵢ,Uₜ = aeroStateCache.attachedVars.steadyKin
     @unpack UₙdotTQC = aeroStateCache.attachedVars.unsteadyKin
@@ -1823,7 +1827,7 @@ function BLo_cn!(element,aeroStateCache,χ,δ)
     @unpack flapSolver = element.aero.surface.solvers
     @unpack inertialPitchPlungeStatesRange = element.aero.surface.stateRanges
     @unpack incompressibleInertialLoads = element.aero.surface.solvers.ppSolver
-    @unpack ϵₙ,cnα = element.aero.surface.geometry.airfoil.state.blo
+    @unpack ϵₙ,cnα = aeroStateCache.airfoilState.blo
     @unpack cnδ = element.aero.surface.geometry.flapParameters
     @unpack isFlapped,Th,b,aₕ = element.aero.geometry
     @unpack Uᵢ,α,Ωₐ = aeroStateCache.attachedVars.steadyKin
@@ -1879,7 +1883,7 @@ function BLo_cm!(element,aeroStateCache,χ,δ)
     @unpack flapSolver = element.aero.surface.solvers
     @unpack inertialPitchPlungeStatesRange = element.aero.surface.stateRanges
     @unpack incompressibleInertialLoads,AI,bI = element.aero.surface.solvers.ppSolver
-    @unpack ϵₘ,cm₀,K₀,K₁,K₂,TvL = element.aero.surface.geometry.airfoil.state.blo
+    @unpack ϵₘ,cm₀,K₀,K₁,K₂,TvL = aeroStateCache.airfoilState.blo
     @unpack cmδ = element.aero.surface.geometry.flapParameters
     @unpack isFlapped,normSparPos,b,Th,aₕ = element.aero.geometry
     @unpack Uᵢ,Ωₐ,α = aeroStateCache.attachedVars.steadyKin
@@ -1942,7 +1946,7 @@ function BLo_ct!(element,aeroStateCache,δ)
 
     @unpack flapSolver = element.aero.surface.solvers
     @unpack hasInducedDrag = element.aero.surface.geometry
-    @unpack η,cd₀,cnα,cn₁,Df,E₀ = element.aero.surface.geometry.airfoil.state.blo
+    @unpack η,cd₀,cnα,cn₁,Df,E₀ = aeroStateCache.airfoilState.blo
     @unpack cdδ = element.aero.surface.geometry.flapParameters
     @unpack isFlapped,b = element.aero.geometry
     @unpack Uᵢ,Ωₐ,α = aeroStateCache.attachedVars.steadyKin
@@ -2080,7 +2084,7 @@ function pitch_plunge_effective_normalwash(element,aeroStateCache,χ,ppSolver::I
     @unpack circulatoryPitchPlungeStatesRange = element.aero.surface.stateRanges
     @unpack UₙTQC = aeroStateCache.attachedVars.steadyKin
 
-    cnα = get_airfoil_state_field(airfoil, ppSolver, :cnα)
+    cnα = get_airfoil_state_field(aeroStateCache.airfoilState, ppSolver, :cnα)
 
     return UₙTQC - sum(view(χ,circulatoryPitchPlungeStatesRange)) / cnα
 
@@ -2130,12 +2134,12 @@ end
 
 
 # Computes the effective (unsteady) flap-induced normalwash
-function flap_effective_normalwash(element,χ,wf)
+function flap_effective_normalwash(element,aeroStateCache,χ,wf)
 
     @unpack ppSolver = element.aero.surface.solvers
     @unpack airfoil = element.aero.surface.geometry
     @unpack flapStatesRange = element.aero.stateRanges
-    cnα = get_airfoil_state_field(airfoil, ppSolver, :cnα)
+    cnα = get_airfoil_state_field(aeroStateCache.airfoilState, ppSolver, :cnα)
 
     wₑf = wf - sum(view(χ, flapStatesRange)) / cnα
 
@@ -2165,17 +2169,20 @@ end
 function cnα_rate(element,aeroStateCache)
 
     @unpack ppSolver = element.aero.surface.solvers
-    @unpack airfoil = element.aero.surface.geometry
-    @unpack Ma,βₚ,βₚ² = aeroStateCache.attachedVars.flowParameters
+    @unpack airfoil,updateAirfoilParameters = element.aero.surface.geometry
+    @unpack Ma,βₚ = aeroStateCache.attachedVars.flowParameters
     @unpack Uᵢ = aeroStateCache.attachedVars.steadyKin
     @unpack Uᵢdot = aeroStateCache.attachedVars.unsteadyKin
-    cnα = get_airfoil_state_field(airfoil, ppSolver, :cnα)
+    cnα = get_airfoil_state_field(aeroStateCache.airfoilState, ppSolver, :cnα)
+
+    # cnα is constant if the airfoil parameters are not updated with the Mach number, and so is βₚ (taken as one) for supersonic flow
+    (!updateAirfoilParameters || _val(Ma) >= 1) && return zero(cnα)
 
     # Time derivative of βₚ
     βₚdot = - Uᵢ * Uᵢdot / ((Uᵢ/Ma)^2 * βₚ)
 
-    # Time derivative of cnα (assuming it scales with 1/βₚ)
-    cnαdot = cnα * βₚdot / βₚ²
+    # Time derivative of cnα (assuming it scales with 1/βₚ): d(1/βₚ)/dt = -βₚdot/βₚ², so that cnαdot = -cnα*βₚdot/βₚ
+    cnαdot = - cnα * βₚdot / βₚ
 
     return cnαdot
 
@@ -2189,7 +2196,7 @@ function cnαUₙTQC_rate(element,aeroStateCache)
     @unpack airfoil = element.aero.surface.geometry
     @unpack UₙTQC = aeroStateCache.attachedVars.steadyKin
     @unpack UₙdotTQC = aeroStateCache.attachedVars.unsteadyKin
-    cnα = get_airfoil_state_field(airfoil, ppSolver, :cnα)
+    cnα = get_airfoil_state_field(aeroStateCache.airfoilState, ppSolver, :cnα)
 
     # Time derivative of cnα
     cnαdot = cnα_rate(element,aeroStateCache)
@@ -2208,7 +2215,7 @@ function cnαwf_rate(element,aeroStateCache,δ)
     @unpack ppSolver = element.aero.surface.solvers
     @unpack airfoil = element.aero.surface.geometry
     @unpack wf = aeroStateCache.attachedVars.steadyKin
-    cnα = get_airfoil_state_field(airfoil, ppSolver, :cnα)
+    cnα = get_airfoil_state_field(aeroStateCache.airfoilState, ppSolver, :cnα)
 
     # Time derivative of wf
     wfdot = flap_normalwash_rate(element,aeroStateCache,δ)

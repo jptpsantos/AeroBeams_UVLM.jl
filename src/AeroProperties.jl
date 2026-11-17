@@ -673,6 +673,7 @@ AeroStateMatrices{T,N,Nc,Ni,Nn,Nf,Ng}() where {T<:Real,N,Nc,Ni,Nn,Nf,Ng} =
 # - `attachedVars`: attached-flow aerodynamic variables
 # - `bliVars`: BLi model aerodynamic variables
 # - `bloVars`: BLo model aerodynamic variables
+# - `airfoilState`: airfoil parameters, updated with the (possibly Dual) Mach number
 # - `loadsResultants`: aerodynamic loads resultants
 # - `stateMatrices`: aerodynamic state matrices
 # - `statesBuffer`: buffer array for the input states
@@ -684,6 +685,7 @@ mutable struct AeroStateCache{T<:Real,N,Nc,Ni,Nn,Nf,Ng,Nδ,NN,L,P}
     attachedVars::AttachedAeroVariables{T}
     bliVars::BLiAeroVariables{T}
     bloVars::BLoAeroVariables{T}
+    airfoilState::AirfoilState{T}
     loadsResultants::AeroLoadsResultants{T}
     stateMatrices::AeroStateMatrices{T,N,Nc,Ni,Nn,Nf,Ng,NN}
 
@@ -697,6 +699,7 @@ AeroStateCache{T,N,Nc,Ni,Nn,Nf,Ng,Nδ}() where {T,N,Nc,Ni,Nn,Nf,Ng,Nδ} =
         AttachedAeroVariables{T}(),
         BLiAeroVariables{T}(),
         BLoAeroVariables{T}(),
+        AirfoilState{T}(),
         AeroLoadsResultants{T}(),
         AeroStateMatrices{T,N,Nc,Ni,Nn,Nf,Ng}(),
         zeros(MVector{9+N+Nδ,T}),

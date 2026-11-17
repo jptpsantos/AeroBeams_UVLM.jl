@@ -1420,139 +1420,142 @@ const AIRFOIL_DATABASES = Dict(
 # - cnα: normal force coefficient slope (not accounting for compressibility effects)
 # - x_ac: aerodynamic center location over chord (as fraction of chord length)
 #
-mutable struct AttachedFlowState
+mutable struct AttachedFlowState{T<:Real}
 
-    α₀N::Float64
-    ϵₙ::Float64
-    ϵₘ::Float64
-    η::Float64
-    cd₀::Float64
-    cm₀::Float64
-    cnα::Float64
-    x_ac::Float64
+    α₀N::T
+    ϵₙ::T
+    ϵₘ::T
+    η::T
+    cd₀::T
+    cm₀::T
+    cnα::T
+    x_ac::T
 
 end
-AttachedFlowState() = AttachedFlowState(ntuple(_ -> 0.0, fieldcount(AttachedFlowState))...)
+AttachedFlowState{T}() where T<:Real = AttachedFlowState{T}(ntuple(_ -> zero(T), fieldcount(AttachedFlowState{T}))...)
+AttachedFlowState() = AttachedFlowState{Float64}()
 
 # BLi state composite type
-mutable struct BLiState
+mutable struct BLiState{T<:Real}
 
-    α₀N::Float64
-    αds₀::Float64
-    αₛₛ::Float64
-    α1₀N::Float64
-    α1₀M::Float64
-    α1₀T::Float64
-    βσ1N::Float64
-    βσ1T::Float64
-    βσ2N::Float64
-    βS2Nlpr::Float64
-    βS2Tlpr::Float64
-    βS1Nu::Float64
-    βS1Mu::Float64
-    βS1Tu::Float64
-    βS1Nd::Float64
-    βS1Md::Float64
-    βS1Td::Float64
-    βS2Nu::Float64
-    βS2Mu::Float64
-    βS2Tu::Float64
-    βS2Nd::Float64
-    βS2Md::Float64
-    βS2Td::Float64
-    γLS::Float64
-    δα₀::Float64
-    δα₁::Float64
-    ϵₙ::Float64
-    ϵₘ::Float64
-    η::Float64
-    κ₀::Float64
-    κ₁::Float64
-    κ₂::Float64
-    κ₃::Float64
-    λ₁::Float64
-    λ₂::Float64
-    μv₂::Float64
-    ν₁::Float64
-    ν₂::Float64
-    ν₃::Float64
-    ν₄::Float64
-    ν₅::Float64
-    χu::Float64
-    χd::Float64
-    ξ::Float64
-    ζₐ::Float64
-    cd₀::Float64
-    cm₀::Float64
-    cnα::Float64
-    dt::Float64
-    dm::Float64
-    E₀::Float64
-    E₁::Float64
-    f₀N::Float64
-    f₀M::Float64
-    f₀T::Float64
-    fbN::Float64
-    fbM::Float64
-    fbT::Float64
-    gᵥ::Float64
-    gᵥ₂::Float64
-    K₀::Float64
-    K₁::Float64
-    K₂::Float64
-    r₀::Float64
-    S1N::Float64
-    S1M::Float64
-    S1T::Float64
-    S2N::Float64
-    S2M::Float64
-    S2T::Float64
-    Ta::Float64
-    Tf::Float64
-    Tg::Float64
-    Tv::Float64
-    Tv₂::Float64
-    Vn₁::Float64
-    Vn₂::Float64
-    Vn₃::Float64
-    Vm::Float64
-    Vt::Float64
-    ztd::Float64
-    ztu::Float64
-    zm::Float64
+    α₀N::T
+    αds₀::T
+    αₛₛ::T
+    α1₀N::T
+    α1₀M::T
+    α1₀T::T
+    βσ1N::T
+    βσ1T::T
+    βσ2N::T
+    βS2Nlpr::T
+    βS2Tlpr::T
+    βS1Nu::T
+    βS1Mu::T
+    βS1Tu::T
+    βS1Nd::T
+    βS1Md::T
+    βS1Td::T
+    βS2Nu::T
+    βS2Mu::T
+    βS2Tu::T
+    βS2Nd::T
+    βS2Md::T
+    βS2Td::T
+    γLS::T
+    δα₀::T
+    δα₁::T
+    ϵₙ::T
+    ϵₘ::T
+    η::T
+    κ₀::T
+    κ₁::T
+    κ₂::T
+    κ₃::T
+    λ₁::T
+    λ₂::T
+    μv₂::T
+    ν₁::T
+    ν₂::T
+    ν₃::T
+    ν₄::T
+    ν₅::T
+    χu::T
+    χd::T
+    ξ::T
+    ζₐ::T
+    cd₀::T
+    cm₀::T
+    cnα::T
+    dt::T
+    dm::T
+    E₀::T
+    E₁::T
+    f₀N::T
+    f₀M::T
+    f₀T::T
+    fbN::T
+    fbM::T
+    fbT::T
+    gᵥ::T
+    gᵥ₂::T
+    K₀::T
+    K₁::T
+    K₂::T
+    r₀::T
+    S1N::T
+    S1M::T
+    S1T::T
+    S2N::T
+    S2M::T
+    S2T::T
+    Ta::T
+    Tf::T
+    Tg::T
+    Tv::T
+    Tv₂::T
+    Vn₁::T
+    Vn₂::T
+    Vn₃::T
+    Vm::T
+    Vt::T
+    ztd::T
+    ztu::T
+    zm::T
 
 end
-BLiState() = BLiState(ntuple(_ -> 0.0, fieldcount(BLiState))...)
+BLiState{T}() where T<:Real = BLiState{T}(ntuple(_ -> zero(T), fieldcount(BLiState{T}))...)
+BLiState() = BLiState{Float64}()
 
 # BLo state composite type
-mutable struct BLoState
+mutable struct BLoState{T<:Real}
 
-    α₀N::Float64
-    α1₀::Float64
-    δα::Float64
-    ϵₙ::Float64
-    ϵₘ::Float64
-    η::Float64
-    cd₀::Float64
-    cm₀::Float64
-    cn₁::Float64
-    cnα::Float64
-    Df::Float64
-    E₀::Float64
-    f₀::Float64
-    fb::Float64
-    K₀::Float64
-    K₁::Float64
-    K₂::Float64
-    S1::Float64
-    S2::Float64
-    Tf₀::Float64
-    Tp::Float64
-    Tv₀::Float64
-    TvL::Float64
+    α₀N::T
+    α1₀::T
+    δα::T
+    ϵₙ::T
+    ϵₘ::T
+    η::T
+    cd₀::T
+    cm₀::T
+    cn₁::T
+    cnα::T
+    Df::T
+    E₀::T
+    f₀::T
+    fb::T
+    K₀::T
+    K₁::T
+    K₂::T
+    S1::T
+    S2::T
+    Tf₀::T
+    Tp::T
+    Tv₀::T
+    TvL::T
 
 end
-BLoState() = BLoState(ntuple(_ -> 0.0, fieldcount(BLoState))...)
+BLoState{T}() where T<:Real = BLoState{T}(ntuple(_ -> zero(T), fieldcount(BLoState{T}))...)
+BLoState() = BLoState{Float64}()
 
 # Airfoil state composite type
 # Fields
@@ -1560,18 +1563,19 @@ BLoState() = BLoState(ntuple(_ -> 0.0, fieldcount(BLoState))...)
 # - bli: BLi model state
 # - blo: BLo model state
 #
-mutable struct AirfoilState
+mutable struct AirfoilState{T<:Real}
 
-    attached::AttachedFlowState
-    bli::BLiState
-    blo::BLoState
+    attached::AttachedFlowState{T}
+    bli::BLiState{T}
+    blo::BLoState{T}
 
 end
-AirfoilState() = AirfoilState(
-        AttachedFlowState(),
-        BLiState(),
-        BLoState(),
+AirfoilState{T}() where T<:Real = AirfoilState{T}(
+        AttachedFlowState{T}(),
+        BLiState{T}(),
+        BLoState{T}(),
     )
+AirfoilState() = AirfoilState{Float64}()
 
 
 ## AIRFOIL CONSTRUCTION
@@ -1586,7 +1590,7 @@ AirfoilState() = AirfoilState(
 
     name::String
     database::AirfoilDatabase
-    state::AirfoilState = AirfoilState()
+    state::AirfoilState{Float64} = AirfoilState()
 
 end
 
@@ -1814,11 +1818,22 @@ cHALEairfoil      = create_Airfoil(name="cHALEairfoil")
 export FlatPlate, NACA0002, NACA0012, NACA0015, NACA0018,
        NACA23012A, VERTOL23010, HeliosWingAirfoil, HeliosPodAirfoil, BWBAirfoil, cHALEairfoil
 
-##
+## HELPER FUNCTIONS
 # -----------------------------------------------------------------------------
-# Helper function to get the airfoil state based on the solver type
+# Helper functions to get the airfoil state based on the solver type
 airfoil_state(airfoil, ::AttachedSolver) = airfoil.state.attached
 airfoil_state(airfoil, ::BLi)            = airfoil.state.bli
 airfoil_state(airfoil, ::BLo)            = airfoil.state.blo
-get_airfoil_state_field(airfoil, solver, field) =
-    getproperty(airfoil_state(airfoil, solver), field)
+airfoil_state(state::AirfoilState, ::AttachedSolver) = state.attached
+airfoil_state(state::AirfoilState, ::BLi)            = state.bli
+airfoil_state(state::AirfoilState, ::BLo)            = state.blo
+get_airfoil_state_field(airfoil_or_state, solver, field) =
+    getproperty(airfoil_state(airfoil_or_state, solver), field)
+
+# Copies all fields of a (Float64) airfoil parameters state into another state, possibly of a different number type (e.g. Dual)
+function copy_state!(dst, src)
+    for name in fieldnames(typeof(src))
+        setfield!(dst, name, convert(fieldtype(typeof(dst), name), getfield(src, name)))
+    end
+    return dst
+end
