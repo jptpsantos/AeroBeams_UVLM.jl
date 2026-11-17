@@ -446,20 +446,21 @@ export add_spring_to_beam!
 
 
 """
-    add_spring_to_beams!(; beams, spring, nodesLocalIDs, p, Δu0, Δp0, basis)
+    add_spring_to_beams!(; beams, spring, nodesLocalIDs, p, Δu0, Δp0, basis, locationFraction)
 
-Adds a doubly-attached spring to the beams
+Adds a doubly-attached spring to the beams, connecting any two nodes of them. The spring is located at a point of the segment between the nodes, to which they are connected by rigid arms. The deformations of the spring are those of the first node relative to the second (at the spring), measured in the spring's basis, which rotates with the nodes (with the mean rotation of the ends of the spring)
 
 # Keyword arguments
-- `beams::Vector{Beam}`: reference beams
+- `beams::Vector{Beam}`: reference beams (to which the first and second attachment nodes belong, which may be the same beam)
 - `spring::Spring`: doubly-attached spring
 - `nodesLocalIDs`: local IDs (on the respective beams) of the nodes to which the spring is attached
 - `Δu0::Real`: translational pre-deformation
 - `Δp0::Real`: rotational pre-deformation
-- `p::AbstractVector{<:Real}`: Euler 3-2-1 rotation parameters from basis b of the attachment node to the spring's basis s
-- `basis::Symbol`: basis in which the spring's attachment is defined, either :b or :A
+- `p::AbstractVector{<:Real}`: Euler 3-2-1 rotation parameters from basis b of the first attachment node to the spring's basis s
+- `basis::Symbol`: basis in which the spring's attachment is defined, either :b (of the first attachment node) or :A
+- `locationFraction::Real`: location of the spring along the segment from the first to the second attachment node, in the undeformed configuration, as a fraction of the segment's length (0 at the first node, 1 at the second)
 """
-function add_spring_to_beams!(; beams::Vector{Beam},spring::Spring,nodesLocalIDs::AbstractVector{Int},Δu0::Real=0,Δp0::Real=0,p::AbstractVector{<:Real}=zeros(3),basis::Symbol=:b)
+function add_spring_to_beams!(; beams::Vector{Beam},spring::Spring,nodesLocalIDs::AbstractVector{Int},Δu0::Real=0,Δp0::Real=0,p::AbstractVector{<:Real}=zeros(3),basis::Symbol=:b,locationFraction::Real=0.5)
 
     # Validate
     @assert length(beams) == 2 "spring must be attached to two beams"
@@ -469,13 +470,14 @@ function add_spring_to_beams!(; beams::Vector{Beam},spring::Spring,nodesLocalIDs
         @assert nodesLocalIDs[i] <= beams[i].discretization.nElements+1 "nodesLocalIDs out of range for beam $(i) with $(beams[i].discretization.nElements+1) nodes"
     end
     @assert length(p) == 3 "p must be a 3-element vector"
-    @assert beams[1] === beams[2] && length(unique(nodesLocalIDs)) == 2 && iszero(beams[1].geometry.k[2]) && iszero(beams[1].geometry.k[3]) "currently only supports attaching a spring to the same uncurved beam, at two different nodes"
+    @assert !(beams[1] === beams[2] && nodesLocalIDs[1] == nodesLocalIDs[2]) "spring must be attached to two different nodes"
     @assert basis == :b || basis == :A "basis must be either :b or :A"
+    @assert 0 <= locationFraction <= 1 "locationFraction must be between 0 and 1"
     Δu0 = Float64(Δu0)
     Δp0 = Float64(Δp0)
 
     # Update spring assembly data
-    update_spring_assembly_data!(beams,spring,nodesLocalIDs,Δu0,Δp0,p,basis)
+    update_spring_assembly_data!(beams,spring,nodesLocalIDs,Δu0,Δp0,p,basis,locationFraction)
 
     # Loop beams
     for i in 1:2

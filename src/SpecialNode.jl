@@ -127,23 +127,31 @@ SpecialNodeAssemblyData(specialNode, doubleAttachmentSpringsData::Vector{DoubleA
 
 # SpecialNode Jacobian indices maps composite type
 # Fields
-# - `Fu_uF`: indices for equilibrium equations corresponding to translational DOFs
-# - `Fp_pM`: indices for equilibrium equations corresponding to rotational DOFs
-# - `Fu_uFother`: indices for equilibrium equations corresponding to translational DOFs of other spring attachment nodes
-# - `Fp_pMother`: indices for equilibrium equations corresponding to rotational DOFs of other spring attachment nodes
+# - `Fu_uF`: indices for force equilibrium equations corresponding to translational DOFs
+# - `Fu_pM`: indices for force equilibrium equations corresponding to rotational DOFs
+# - `Fp_uF`: indices for moment equilibrium equations corresponding to translational DOFs
+# - `Fp_pM`: indices for moment equilibrium equations corresponding to rotational DOFs
+# - `Fu_uFother`: indices for force equilibrium equations corresponding to translational DOFs of other spring attachment nodes
+# - `Fu_pMother`: indices for force equilibrium equations corresponding to rotational DOFs of other spring attachment nodes
+# - `Fp_uFother`: indices for moment equilibrium equations corresponding to translational DOFs of other spring attachment nodes
+# - `Fp_pMother`: indices for moment equilibrium equations corresponding to rotational DOFs of other spring attachment nodes
 #
 struct SpecialNodeJacobianIndicesMaps
 
     Fu_uF::SVector{9,Int}
+    Fu_pM::SVector{9,Int}
+    Fp_uF::SVector{9,Int}
     Fp_pM::SVector{9,Int}
 
     Fu_uFother::Vector{SVector{9,Int}}
+    Fu_pMother::Vector{SVector{9,Int}}
+    Fp_uFother::Vector{SVector{9,Int}}
     Fp_pMother::Vector{SVector{9,Int}}
 
 end
 SpecialNodeJacobianIndicesMaps() = SpecialNodeJacobianIndicesMaps(
-    ntuple(_ -> zeros(SVector{9,Int}), 2)...,
-    ntuple(_ -> Vector{SVector{9,Int}}(), 2)...,
+    ntuple(_ -> zeros(SVector{9,Int}), 4)...,
+    ntuple(_ -> Vector{SVector{9,Int}}(), 4)...,
 )
 
 

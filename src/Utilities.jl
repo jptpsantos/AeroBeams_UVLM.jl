@@ -1438,6 +1438,38 @@ export yrp_to_WM
 
 
 """
+    rotation_composition_WM(p1,p2)
+
+Computes the Wiener-Milenkovic parameters of the composition of rotations `R(p1)*R(p2)`, with norm not greater than 4 (rotation angle not greater than π). Unlike [`rotation_between_WM`](@ref), it is differentiable everywhere (including at null rotations), except at rotation angles of π
+
+# Arguments
+- `p1::AbstractVector{<:Number}`: rotation parameters of the second (left) rotation
+- `p2::AbstractVector{<:Number}`: rotation parameters of the first (right) rotation
+"""
+function rotation_composition_WM(p1::AbstractVector{<:Number},p2::AbstractVector{<:Number})
+
+    # Euler parameters (quaternions) of the rotations, from the scaled rotation parameters
+    ps1 = scaled_rotation_parameters(p1)
+    ps2 = scaled_rotation_parameters(p2)
+    ps1² = dot(ps1,ps1)
+    ps2² = dot(ps2,ps2)
+    q10 = (16-ps1²)/(16+ps1²)
+    q20 = (16-ps2²)/(16+ps2²)
+    q1 = 8/(16+ps1²) * ps1
+    q2 = 8/(16+ps2²) * ps2
+
+    # Euler parameters of the composition
+    q0 = q10*q20 - dot(q1,q2)
+    q = q10*q2 + q20*q1 + cross(q1,q2)
+
+    # Rotation parameters (from the quaternion with non-negative scalar part)
+    return q0 >= 0 ? 4/(1+q0) * q : -4/(1-q0) * q
+
+end
+export rotation_composition_WM
+
+
+"""
     rotation_between_WM(p1,p2)
 
 Computes the Wiener-Milenkovic parameters describing the rotation from `p1` to `p2`, i.e., `p12` such that `R2(p2) = R12(p12)*R1(p1)`

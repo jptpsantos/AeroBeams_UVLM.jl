@@ -1212,8 +1212,10 @@ function set_jacobian_indices_maps!(jacobian,elements,specialNodes,hingeAxisCons
         @unpack springs = specialNode
         @unpack connectedElementsGlobalIDs,doubleAttachmentSpringsData,eqs_Fu,eqs_Fp,DOF_uF,DOF_pM = specialNode.assemblyData
         # Initialize Jacobian maps for double attachment springs
-        mapsDoubleSpring_Fu = Vector{SVector{9,Int}}()
-        mapsDoubleSpring_Fp = Vector{SVector{9,Int}}()
+        mapsDoubleSpring_Fu_uF = Vector{SVector{9,Int}}()
+        mapsDoubleSpring_Fu_pM = Vector{SVector{9,Int}}()
+        mapsDoubleSpring_Fp_uF = Vector{SVector{9,Int}}()
+        mapsDoubleSpring_Fp_pM = Vector{SVector{9,Int}}()
         # Initialize counter for double attachment springs
         c = 0
         # Loop over special node's springs
@@ -1225,12 +1227,14 @@ function set_jacobian_indices_maps!(jacobian,elements,specialNodes,hingeAxisCons
                 # Unpack double attachment spring data for this spring
                 @unpack otherNodeDOF_uF,otherNodeDOF_pM = doubleAttachmentSpringsData[c]
                 # Set Jacobian indices maps for this double attachment spring
-                push!(mapsDoubleSpring_Fu, bim(eqs_Fu,otherNodeDOF_uF))
-                push!(mapsDoubleSpring_Fp, bim(eqs_Fp,otherNodeDOF_pM))
+                push!(mapsDoubleSpring_Fu_uF, bim(eqs_Fu,otherNodeDOF_uF))
+                push!(mapsDoubleSpring_Fu_pM, bim(eqs_Fu,otherNodeDOF_pM))
+                push!(mapsDoubleSpring_Fp_uF, bim(eqs_Fp,otherNodeDOF_uF))
+                push!(mapsDoubleSpring_Fp_pM, bim(eqs_Fp,otherNodeDOF_pM))
             end
         end
         # Set the Jacobian maps for the special node
-        setfield!(specialNode, :jacobianMaps, SpecialNodeJacobianIndicesMaps(bim(eqs_Fu,DOF_uF), bim(eqs_Fp,DOF_pM), mapsDoubleSpring_Fu, mapsDoubleSpring_Fp))
+        setfield!(specialNode, :jacobianMaps, SpecialNodeJacobianIndicesMaps(bim(eqs_Fu,DOF_uF), bim(eqs_Fu,DOF_pM), bim(eqs_Fp,DOF_uF), bim(eqs_Fp,DOF_pM), mapsDoubleSpring_Fu_uF, mapsDoubleSpring_Fu_pM, mapsDoubleSpring_Fp_uF, mapsDoubleSpring_Fp_pM))
     end
 
     # Loop over hinge axis constraints

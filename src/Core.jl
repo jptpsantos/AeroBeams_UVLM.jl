@@ -642,27 +642,23 @@ function reset_spring_loads_jacobians!(jacobian,specialNodes)
 
         # Unpack special node data
         @unpack springs = specialNode
-        @unpack doubleAttachmentSpringsData = specialNode.assemblyData
-        @unpack Fu_uF,Fp_pM,Fu_uFother,Fp_pMother = specialNode.jacobianMaps
+        @unpack Fu_uF,Fu_pM,Fp_uF,Fp_pM,Fu_uFother,Fu_pMother,Fp_uFother,Fp_pMother = specialNode.jacobianMaps
 
-        # Initialize counter for double-attached springs
-        c = 0
-        
-        # Loop special node's springs
-        for spring in springs
-            @unpack hasDoubleAttachment = spring.assemblyData
-            if hasDoubleAttachment
-                # Update counter
-                c += 1
-                # Reset Jacobians
-                set_block!(nzval, Fu_uF, Z3)
-                set_block!(nzval, Fp_pM, Z3)
-                set_block!(nzval, Fu_uFother[c], Z3)
-                set_block!(nzval, Fp_pMother[c], Z3)
-            else
-                set_block!(nzval, Fu_uF, Z3)
-                set_block!(nzval, Fp_pM, Z3)
-            end
+        # Skip nodes without springs
+        isempty(springs) && continue
+
+        # Reset Jacobians w.r.t. the node's own DOFs
+        set_block!(nzval, Fu_uF, Z3)
+        set_block!(nzval, Fu_pM, Z3)
+        set_block!(nzval, Fp_uF, Z3)
+        set_block!(nzval, Fp_pM, Z3)
+
+        # Reset Jacobians w.r.t. the DOFs of the other attachment nodes of double-attached springs
+        for c in eachindex(Fu_uFother)
+            set_block!(nzval, Fu_uFother[c], Z3)
+            set_block!(nzval, Fu_pMother[c], Z3)
+            set_block!(nzval, Fp_uFother[c], Z3)
+            set_block!(nzval, Fp_pMother[c], Z3)
         end
 
     end
@@ -1897,33 +1893,46 @@ function spring_loads!(model,specialNode)
 
     # Loop springs
     for spring in springs
-        @unpack hasDoubleAttachment = spring.assemblyData
+        @unpack hasDoubleAttachment,arms = spring.assemblyData
         @unpack FsFun,MsFun = spring.assemblyConstitutive
         @unpack Δu,Δp,Fs,Ms = spring.state
-        # Generalized spring displacements, resolved in basis A
         if hasDoubleAttachment # Double attachment springs
             # Update counter
             c += 1
             # Unpack double attachment spring data for this spring
-            @unpack otherNodeSpecialID,uOtherNode,pOtherNode,otherNodeDOF_uF,otherNodeDOF_pM = doubleAttachmentSpringsData[c]
+            @unpack isFirstNode,otherNodeSpecialID,uOtherNode,pOtherNode = doubleAttachmentSpringsData[c]
             # Node of other attachment point
             otherNode = model.assemblyData.specialNodes[otherNodeSpecialID]
             # Other node's states
             uOtherNode .= otherNode.state.u
             pOtherNode .= otherNode.state.p
-            # Generalized spring displacements
-            Δu .= u - uOtherNode
-            Δp .= rotation_between_WM(pOtherNode,p)
+            # Generalized displacements of the spring's first and second attachment nodes
+            u1,p1,u2,p2 = isFirstNode ? 
+                          (SVector(u),SVector(p),SVector(uOtherNode),SVector(pOtherNode)) :
+                          (SVector(uOtherNode),SVector(pOtherNode),SVector(u),SVector(p))
+            # Spring deformations (of the first attachment relative to the second), rotation tensor and arms of the loads
+            Δuₛ,Δpₛ,Rm,a1,a2 = double_attachment_spring_kinematics(u1,p1,u2,p2,arms[1],arms[2])
+            Δu .= Δuₛ
+            Δp .= Δpₛ
+            # Spring loads on the attachment nodes, resolved in basis A
+            F1,M1,F2,M2 = double_attachment_spring_nodal_loads(FsFun(Δu),MsFun(Δp),Rm,a1,a2)
+            # Spring loads on the first attachment, at the spring, resolved in basis A
+            Fs .= F1
+            Ms .= M1 - cross(a1,F1)
+            # Add spring loads to nodal loads
+            F .+= isFirstNode ? F1 : F2
+            M .+= isFirstNode ? M1 : M2
         else # Single attachment springs
+            # Generalized spring displacements, resolved in basis A
             Δu .= u
             Δp .= scaled_rotation_parameters(p)
+            # Spring loads, resolved in basis A
+            Fs .= - FsFun(Δu)
+            Ms .= - MsFun(Δp)
+            # Add spring loads to nodal loads
+            F .+= Fs
+            M .+= Ms
         end
-        # Spring loads, resolved in basis A
-        Fs .= - FsFun(Δu)
-        Ms .= - MsFun(Δp)
-        # Add spring loads to nodal loads
-        F .+= Fs
-        M .+= Ms
     end
 
 end
@@ -1979,7 +1988,7 @@ function special_node_jacobian!(jacobian,model,specialNode,x,σ)
     @unpack invForceScaling = model.assemblyData
     @unpack BCs,springs,jacobianMaps = specialNode
     @unpack uIsPrescribed,pIsPrescribed,allBCflags,uNotPrescribedMat,pNotPrescribedMat = specialNode.flags
-    @unpack p,R,F_p,M_p = specialNode.state
+    @unpack u,p,R,F_p,M_p = specialNode.state
     @unpack ζonElements,doubleAttachmentSpringsData,eqs_Fu,eqs_Fp,eqs_FF,eqs_FM,DOF_uF,DOF_pM,DOF_T = specialNode.assemblyData
 
     # @logmsg LogLevel(show_debug() ? 0 : -1) "SPECIAL NODE $(specialNode.assemblyData.globalID) JACOBIANS"
@@ -1997,7 +2006,7 @@ function special_node_jacobian!(jacobian,model,specialNode,x,σ)
     # end
 
     # Add contributions from the springs attached to the current node
-    spring_loads_jacobians!(model,springs,jacobian,jacobianMaps,invForceScaling,doubleAttachmentSpringsData,p,uNotPrescribedMat,pNotPrescribedMat)
+    spring_loads_jacobians!(model,springs,jacobian,jacobianMaps,invForceScaling,doubleAttachmentSpringsData,u,p,uNotPrescribedMat,pNotPrescribedMat)
 
 end
 
@@ -2148,10 +2157,10 @@ function insert_special_node_jacobian!(jacobian,invForceScaling,F_p,M_p,R,ζonEl
 end
 
 # Adds the contributions of the spring loads to the Jacobian matrix
-function spring_loads_jacobians!(model,springs,jacobian,jacobianMaps,invForceScaling,doubleAttachmentSpringsData,p,uNotPrescribedMat,pNotPrescribedMat)
+function spring_loads_jacobians!(model,springs,jacobian,jacobianMaps,invForceScaling,doubleAttachmentSpringsData,u,p,uNotPrescribedMat,pNotPrescribedMat)
 
     # Unpack node data
-    @unpack Fu_uF,Fp_pM,Fu_uFother,Fp_pMother = jacobianMaps
+    @unpack Fu_uF,Fu_pM,Fp_uF,Fp_pM,Fu_uFother,Fu_pMother,Fp_uFother,Fp_pMother = jacobianMaps
     @unpack nzval = jacobian
 
     # Initialize counter for double attachment springs
@@ -2161,8 +2170,8 @@ function spring_loads_jacobians!(model,springs,jacobian,jacobianMaps,invForceSca
     for spring in springs
 
         # Unpack spring data
-        @unpack hasDoubleAttachment = spring.assemblyData
-        @unpack Fs_ΔuFun,Ms_ΔpFun = spring.assemblyConstitutive
+        @unpack hasDoubleAttachment,arms = spring.assemblyData
+        @unpack FsFun,MsFun,Fs_ΔuFun,Ms_ΔpFun = spring.assemblyConstitutive
         @unpack Δu,Δp = spring.state
 
         # Derivatives of spring loads w.r.t. deformations
@@ -2174,23 +2183,20 @@ function spring_loads_jacobians!(model,springs,jacobian,jacobianMaps,invForceSca
             # Update counter
             c += 1
             # Unpack double attachment spring data for this spring
-            @unpack otherNodeSpecialID,otherNodeDOF_uF,otherNodeDOF_pM,pOtherNode = doubleAttachmentSpringsData[c]
+            @unpack isFirstNode,otherNodeSpecialID,uOtherNode,pOtherNode = doubleAttachmentSpringsData[c]
             # Node of other attachment point
             otherNode = model.assemblyData.specialNodes[otherNodeSpecialID]
-            # Add translational spring Jacobians (for DOFs that are not prescribed): Δu = u - uOtherNode → ∂(-Fs)/∂u = Fs_Δu and ∂(-Fs)/∂uOtherNode = -Fs_Δu
-            add_block!(nzval, Fu_uF, Fs_Δu * invForceScaling * uNotPrescribedMat)
-            add_block!(nzval, Fu_uFother[c], - Fs_Δu * invForceScaling * otherNode.flags.uNotPrescribedMat)
-            # Derivative of spring rotation w.r.t rotation of each of its attachment nodes
-            if isapprox(p, pOtherNode; atol=1e-10)
-                Δp_p = I3
-                Δp_pOtherNode = -I3
-            else
-                Δp_p = SMatrix{3,3}(ForwardDiff.jacobian(x -> rotation_between_WM(pOtherNode,x), p))
-                Δp_pOtherNode = SMatrix{3,3}(ForwardDiff.jacobian(x -> rotation_between_WM(x,p), pOtherNode))
-            end
-            # Add rotational spring Jacobians (for DOFs that are not prescribed):  Δp = rotation_between_WM(p,pOtherNode) → ∂(-Ms)/∂p = ∂(-Ms)/∂Δp*∂Δp/∂p = Ms_Δp*Δp_p and ∂(-Ms)/∂pOtherNode = ∂(-Ms)/∂Δp*∂Δp/∂pOtherNode = Ms_Δp*Δp_pOtherNode
-            add_block!(nzval, Fp_pM, Ms_Δp * Δp_p * invForceScaling * pNotPrescribedMat)
-            add_block!(nzval, Fp_pMother[c], Ms_Δp * Δp_pOtherNode * invForceScaling * otherNode.flags.pNotPrescribedMat)
+            # Derivatives of the spring loads on the node w.r.t. the generalized displacements of the node (own) and of the other attachment node (other)
+            F_uOwn,F_pOwn,F_uOther,F_pOther,M_uOwn,M_pOwn,M_uOther,M_pOther = double_attachment_spring_loads_derivatives(isFirstNode,SVector(u),SVector(p),SVector(uOtherNode),SVector(pOtherNode),arms[1],arms[2],SVector(Δu),SVector(Δp),FsFun(Δu),MsFun(Δp),Fs_Δu,Ms_Δp)
+            # Add spring Jacobians (for DOFs that are not prescribed): the loads are subtracted in the equilibrium equations
+            add_block!(nzval, Fu_uF, - F_uOwn * invForceScaling * uNotPrescribedMat)
+            add_block!(nzval, Fu_pM, - F_pOwn * invForceScaling * pNotPrescribedMat)
+            add_block!(nzval, Fp_uF, - M_uOwn * invForceScaling * uNotPrescribedMat)
+            add_block!(nzval, Fp_pM, - M_pOwn * invForceScaling * pNotPrescribedMat)
+            add_block!(nzval, Fu_uFother[c], - F_uOther * invForceScaling * otherNode.flags.uNotPrescribedMat)
+            add_block!(nzval, Fu_pMother[c], - F_pOther * invForceScaling * otherNode.flags.pNotPrescribedMat)
+            add_block!(nzval, Fp_uFother[c], - M_uOther * invForceScaling * otherNode.flags.uNotPrescribedMat)
+            add_block!(nzval, Fp_pMother[c], - M_pOther * invForceScaling * otherNode.flags.pNotPrescribedMat)
         # Single attachment springs
         else
             # Add translational spring Jacobians (for DOFs that are not prescribed): Δu = u → ∂(-Fs)/∂u = Fs_Δu
@@ -2392,9 +2398,14 @@ function update_states!(model,x,σ,timeIndex,stepFraction,timeNow,Δt,isDynamicP
         # ----------------------------------------------------------------------
         special_node_states!(model,specialNode,x,σ)
 
+    end
+
+    # Loop over special nodes (after updating the states of all, which are needed by doubly-attached springs)
+    for specialNode in specialNodes
+
         ## Add contributions of attached springs to the special node's loads
         # ----------------------------------------------------------------------
-        spring_loads!(model,specialNode)
+        isempty(specialNode.springs) || spring_loads!(model,specialNode)
 
     end
 

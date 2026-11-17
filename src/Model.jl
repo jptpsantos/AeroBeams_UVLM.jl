@@ -596,7 +596,7 @@ export add_point_inertia_to_beam!
 
 
 """
-    add_spring_to_beam!(model; beam,spring,nodeID,Δu0,Δp0,p)
+    add_spring_to_beam!(model; beam,spring,nodeID,Δu0,Δp0,p,basis)
 
 Updates the model after adding simply-attached springs to a beam
 
@@ -610,11 +610,12 @@ Updates the model after adding simply-attached springs to a beam
 - `Δu0::Real`: translational pre-deformation
 - `Δp0::Real`: rotational pre-deformation
 - `p::AbstractVector{<:Real}`: Euler 3-2-1 rotation parameters from basis b of the attachment node to the spring's basis s
+- `basis::Symbol`: basis in which the spring's attachment is defined, either :b or :A
 """
-function add_spring_to_beam!(model::Model; beam::Beam,spring::Spring, nodeID::Int,Δu0::Real=0,Δp0::Real=0,p::AbstractVector{<:Real}=zeros(3))
+function add_spring_to_beam!(model::Model; beam::Beam,spring::Spring, nodeID::Int,Δu0::Real=0,Δp0::Real=0,p::AbstractVector{<:Real}=zeros(3),basis::Symbol=:b)
 
     # Add spring to the beam
-    add_spring_to_beam!(beam=beam, spring=spring, nodeID=nodeID, Δu0=Δu0, Δp0=Δp0, p=p)
+    add_spring_to_beam!(beam=beam, spring=spring, nodeID=nodeID, Δu0=Δu0, Δp0=Δp0, p=p, basis=basis)
 
     # Update model
     update_model_assembly!(model)
@@ -624,9 +625,9 @@ export add_spring_to_beam!
 
 
 """
-    add_spring_to_beams!(model; beams, spring, nodesLocalIDs, Δu0, Δp0, p)
+    add_spring_to_beams!(model; beams, spring, nodesLocalIDs, Δu0, Δp0, p, basis, locationFraction)
 
-Updates the model after adding a doubly-attached spring to the beams
+Updates the model after adding a doubly-attached spring to the beams (see [`add_spring_to_beams!`](@ref))
 
 # Arguments
 - `model::Model`: reference model
@@ -637,12 +638,14 @@ Updates the model after adding a doubly-attached spring to the beams
 - `nodesLocalIDs`: local IDs (on the respective beams) of the nodes to which the spring is attached
 - `Δu0::Real`: translational pre-deformation
 - `Δp0::Real`: rotational pre-deformation
-- `p::AbstractVector{<:Real}`: Euler 3-2-1 rotation parameters from basis b of the attachment node to the spring's basis s
+- `p::AbstractVector{<:Real}`: Euler 3-2-1 rotation parameters from basis b of the first attachment node to the spring's basis s
+- `basis::Symbol`: basis in which the spring's attachment is defined, either :b (of the first attachment node) or :A
+- `locationFraction::Real`: location of the spring along the segment from the first to the second attachment node, as a fraction of the segment's length
 """
-function add_spring_to_beams!(model::Model; beams::Vector{Beam},spring::Spring,nodesLocalIDs::AbstractVector{Int},Δu0::Real=0,Δp0::Real=0,p::AbstractVector{<:Real}=zeros(3))
+function add_spring_to_beams!(model::Model; beams::Vector{Beam},spring::Spring,nodesLocalIDs::AbstractVector{Int},Δu0::Real=0,Δp0::Real=0,p::AbstractVector{<:Real}=zeros(3),basis::Symbol=:b,locationFraction::Real=0.5)
 
     # Add spring to the beams
-    add_spring_to_beams!(beams=beams, spring=spring, nodesLocalIDs=nodesLocalIDs, Δu0=Δu0, Δp0=Δp0, p=p)
+    add_spring_to_beams!(beams=beams, spring=spring, nodesLocalIDs=nodesLocalIDs, Δu0=Δu0, Δp0=Δp0, p=p, basis=basis, locationFraction=locationFraction)
 
     # Update model
     update_model_assembly!(model)
@@ -1501,22 +1504,31 @@ function get_spring_assembly_data(beams,nNodesTotal)
     # Loop springs
     for spring in springs
         # Unpack
-        @unpack beamConstructionIDs,elemsLocalIDs,nodesSides = spring.assemblyData
-        # Initialize global IDs of the spring's nodes
+        @unpack hasDoubleAttachment,locationFraction,beamConstructionIDs,elemsLocalIDs,nodesSides = spring.assemblyData
+        # Initialize global IDs and positions of the spring's nodes
         nodesGlobalIDs = Vector{Int}(undef,length(nodesSides))
+        nodesPositions = Vector{SVector{3,Float64}}(undef,length(nodesSides))
         for (i,constructionID,e,side) in zip(1:length(beamConstructionIDs),beamConstructionIDs,elemsLocalIDs,nodesSides)
             # Find the beam with the given construction ID
             beam = beams[findfirst(b -> b.constructionID == constructionID, beams)]
-            # Global ID of current attachment node
+            # Global ID and position of current attachment node
             ID = beam.elements[e].assemblyData.nodesGlobalIDs[side]
+            nodesPositions[i] = side == 1 ? beam.elements[e].assemblyData.r_n1 : beam.elements[e].assemblyData.r_n2
             # Update spring's node global ID
             nodesGlobalIDs[i] = ID
             # Update list of springed nodes and list of springs on nodes
             push!(springedNodes, ID)
             push!(springsOnNodes[ID], spring)
         end
+        # Arms from the nodes to the spring, for doubly-attached springs
+        arms = SVector{3,Float64}[]
+        if hasDoubleAttachment
+            @assert nodesGlobalIDs[1] != nodesGlobalIDs[2] "doubly-attached spring must be attached to two different nodes of the model"
+            springPosition = nodesPositions[1] + locationFraction * (nodesPositions[2] - nodesPositions[1])
+            arms = [springPosition - nodesPositions[1], springPosition - nodesPositions[2]]
+        end
         # Update spring's assembly data
-        setfield!(spring, :assemblyData, SpringAssemblyData(spring,nodesGlobalIDs))
+        setfield!(spring, :assemblyData, SpringAssemblyData(spring,nodesGlobalIDs,arms))
     end
 
     return springedNodes,springsOnNodes
@@ -1820,8 +1832,10 @@ function update_double_attachment_springs_data!(specialNodes)
         for (s,spring) in enumerate(doubleAttachmentSprings)
             # Unpack spring data
             @unpack nodesGlobalIDs,nodesSpecialIDs = spring.assemblyData
+            # Flag for this being the spring's first attachment node
+            isFirstNode = globalID == nodesGlobalIDs[1]
             # Other node's special ID and DOF assembly indices
-            otherNodeSpecialID = globalID == nodesGlobalIDs[1] ? 
+            otherNodeSpecialID = isFirstNode ? 
                                  nodesSpecialIDs[2] : 
                                  nodesSpecialIDs[1]
             # Node of other attachment
@@ -1830,7 +1844,7 @@ function update_double_attachment_springs_data!(specialNodes)
             otherNodeDOF_uF = otherNode.assemblyData.DOF_uF
             otherNodeDOF_pM = otherNode.assemblyData.DOF_pM
             # Set spring's double attachment spring data
-            doubleAttachmentSpringsData[s] = DoubleAttachmentSpringData(otherNodeSpecialID,otherNodeDOF_uF,otherNodeDOF_pM)
+            doubleAttachmentSpringsData[s] = DoubleAttachmentSpringData(isFirstNode,otherNodeSpecialID,otherNodeDOF_uF,otherNodeDOF_pM)
         end
         # Set special node's assembly data with double attachment springs data
         setfield!(specialNode, :assemblyData, SpecialNodeAssemblyData(specialNode, doubleAttachmentSpringsData))
