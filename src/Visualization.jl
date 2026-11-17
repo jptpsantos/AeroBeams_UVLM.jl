@@ -246,15 +246,37 @@ function _set_limits!(plt, lims)
     return plt
 end
 
+# Label of axis a normalized by a dimension named `name`: x_a/name. If `name` is entirely in LaTeX mode (e.g. "\$L\$"), it is merged with x_a in a single LaTeX expression, and otherwise they are joined in text
+function _normalized_label(a, name)
+    if length(name) >= 2 && startswith(name,"\$") && endswith(name,"\$") && !occursin("\$",name[2:end-1])
+        return string("\$x_",a,"/",name[2:end-1],"\$")
+    end
+    return string("\$x_",a,"\$/",name)
+end
+
+# Shows the axes of a plot in values normalized by the dimension `normalizeByDim[1]`: the ticks are placed at round values of the normalized coordinates, within the axis limits, and are labeled with them (the data and limits remain in the units of the model)
+function _normalize_ticks!(plt, lims, normalizeByDim)
+    L = normalizeByDim[1]
+    (isnan(L) || isnothing(lims)) && return plt
+    ticksOf(lim) = begin
+        ticks = optimize_ticks(lim[1]/L, lim[2]/L, k_min=4, k_max=8)[1]
+        ticks = [x for x in ticks if lim[1]/L-1e-9 <= x <= lim[2]/L+1e-9]
+        (ticks.*L, [replace(string(round(x,sigdigits=8)),"-"=>"−") for x in ticks])
+    end
+    plot!(plt, xticks=ticksOf(lims[1]), yticks=ticksOf(lims[2]))
+    length(lims) == 3 && plot!(plt, zticks=ticksOf(lims[3]))
+    return plt
+end
+
 # Creates an empty plot for the view
-function _new_plot(model::Model, v::_View; plotAxes=true, plotGrid=true, legendPos=:topright, DPI=300, plotSize=(600,400), kwargs...)
+function _new_plot(model::Model, v::_View; plotAxes=true, plotGrid=true, legendPos=:topright, DPI=300, plotSize=(600,400), normalizeByDim=(NaN,""), kwargs...)
     plt = plot(grid=plotGrid, axis=plotAxes, legend=legendPos, dpi=DPI, size=plotSize; kwargs...)
     plotAxes || plot!(plt, framestyle=:none)
     # In 3D views the limits are cubic (equal scales), and an equal aspect ratio would shrink the plot area as a function of the limits
     _is3D(v) || plot!(plt, aspect_ratio=:equal)
     _is3D(v) && plot!(plt, camera=v.camera)
     if plotAxes
-        labels = [string("\$x_",a,"\$ [",model.units.length,"]") for a in v.axes]
+        labels = [isnan(normalizeByDim[1]) ? string("\$x_",a,"\$ [",model.units.length,"]") : _normalized_label(a,normalizeByDim[2]) for a in v.axes]
         plot!(plt, xlabel=labels[1], ylabel=labels[2])
         # The label of the vertical axis of planar plots may be clipped by the backend, which underestimates the width of the tick labels
         _is3D(v) ? plot!(plt, zlabel=labels[3]) : plot!(plt, left_margin=3mm)
@@ -647,13 +669,14 @@ function _note_position(v::_View, lims, pos)
 end
 
 # Draws the layers in a new plot, with the given axis limits. The keyword arguments for the plot are those of _new_plot
-function _draw_frame(model::Model, layers::Vector{_Layer}, v::_View, lims; lw, surfα, plotKwargs...)
-    plt = _new_plot(model, v; plotKwargs...)
+function _draw_frame(model::Model, layers::Vector{_Layer}, v::_View, lims; lw, surfα, normalizeByDim=(NaN,""), plotKwargs...)
+    plt = _new_plot(model, v; normalizeByDim=normalizeByDim, plotKwargs...)
     for layer in layers
         isnothing(layer.color) || _draw_configuration!(plt, layer.cfg, v, color=layer.color, lw=lw, ls=layer.ls, label=layer.label, surfaces=layer.surfaces, surfα=surfα)
         isnothing(layer.loads) || _draw_loads!(plt, layer.cfg, v, layer.loads)
     end
     _set_limits!(plt, lims)
+    _normalize_ticks!(plt, lims, normalizeByDim)
     return plt
 end
 
@@ -1233,9 +1256,12 @@ Plots the animated deformation of the models in the given problems
 - `save::Bool`: flag to save the figure
 - `savePath::String`: relative path (from the package's directory) on which to save the figure (must have the .gif extension)
 - `showTimeStamp::Bool`: flag to show time stamp on plot
+- `normalizeTimeBy::Real`: time scale `T` by which to normalize the time stamp, which is then shown as `t/T` (by default, NaN, the time stamp shows the time `t` in seconds)
+- `normalizeByDim::Tuple{Real,String}`: dimension by which to normalize the axes, and its name. The axes are then labeled `x_i/name` and their ticks show the coordinates divided by the first value of the tuple (by default, `(NaN,"")`, the axes show the dimensional coordinates, in the units of the model). The name is a LaTeX string, e.g. `"\$L\$"`. The data and `plotLimits` remain dimensional
+- `maxPlotTime::Real`: maximum time to plot (by default, Inf, all the saved time steps are plotted)
 - `displayProgress::Bool`: flag to display progress of gif creation
 """
-function plot_dynamic_deformations(problems::Array{DynamicProblem}; backend::Symbol=:gr, plotFrequency::Int=1, timeTol::Real=1e-8, plotBCs::Bool=true, plotDistLoads::Bool=true, plotAxes::Bool=true, view::Union{Nothing,Tuple{Real,Real}}=nothing, fps::Int=30, lw::Real=1, colorScheme::Symbol=:rainbow, plotGrid::Bool=true, legendPos=:topright, legendEntries::Union{Nothing,Array{String}}=nothing, tolPlane::Real=1e-8, plotAeroSurf::Bool=true, surfα::Float64=0.5, loadsSizeScaler::Real=1, plotLimits::Union{Nothing,Tuple{Vector{<:Real},Vector{<:Real},Vector{<:Real}}}=nothing, follow::Symbol=:basisA, DPI::Int=300, plotSize::Tuple{Real,Real}=(600,400), avoidDistortion::Bool=false, save::Bool=false, savePath::String="/test/outputs/figures/fig.gif", showTimeStamp::Bool=true, displayProgress::Bool=false)
+function plot_dynamic_deformations(problems::Array{DynamicProblem}; backend::Symbol=:gr, plotFrequency::Int=1, timeTol::Real=1e-8, plotBCs::Bool=true, plotDistLoads::Bool=true, plotAxes::Bool=true, view::Union{Nothing,Tuple{Real,Real}}=nothing, fps::Int=30, lw::Real=1, colorScheme::Symbol=:rainbow, plotGrid::Bool=true, legendPos=:topright, legendEntries::Union{Nothing,Array{String}}=nothing, tolPlane::Real=1e-8, plotAeroSurf::Bool=true, surfα::Float64=0.5, loadsSizeScaler::Real=1, plotLimits::Union{Nothing,Tuple{Vector{<:Real},Vector{<:Real},Vector{<:Real}}}=nothing, follow::Symbol=:basisA, DPI::Int=300, plotSize::Tuple{Real,Real}=(600,400), avoidDistortion::Bool=false, save::Bool=false, savePath::String="/test/outputs/figures/fig.gif", showTimeStamp::Bool=true, normalizeTimeBy::Real=NaN, normalizeByDim::Tuple{Real,String}=(NaN,""), maxPlotTime::Real=Inf, displayProgress::Bool=false)
 
     @assert !isempty(problems) "set at least one problem"
     _check_options(backend,DPI,plotLimits,surfα,plotSize, lw=lw, tolPlane=tolPlane, loadsSizeScaler=loadsSizeScaler, fps=fps, timeTol=timeTol)
@@ -1243,21 +1269,27 @@ function plot_dynamic_deformations(problems::Array{DynamicProblem}; backend::Sym
     @assert follow in (:none,:basisA,:assembly) "follow must be :none, :basisA or :assembly"
     @assert endswith(savePath,".gif") "set a savePath with the .gif extension"
     @assert isnothing(legendEntries) || length(legendEntries) == length(problems) "specify legendEntries with the same size as problems"
+    @assert isnan(normalizeTimeBy) || normalizeTimeBy > 0 "normalizeTimeBy must be positive (or NaN, for no normalization)"
+    @assert maxPlotTime > 0 "maxPlotTime must be positive"
+    @assert isnan(normalizeByDim[1]) || normalizeByDim[1] > 0 "the dimension in normalizeByDim must be positive (or NaN, for no normalization)"
+    # Saved time steps of each problem, cut at the maximum plot time
     nSaved = [_saved_steps(problem) for problem in problems]
-    @assert all(nSaved .>= 2) "the problems must have at least two saved time steps"
+    nSaved = [searchsortedlast(problem.solutionHistory.t[1:n], maxPlotTime+timeTol) for (problem,n) in zip(problems,nSaved)]
+    @assert all(nSaved .>= 2) "the problems must have at least two saved time steps (up to maxPlotTime)"
     _set_backend(backend)
 
-    # Time grid, with the step of the (saved) time vectors of the problems, and the saved step of each problem at each instant of the grid (zero if none)
+    # Time grid, with the step of the (saved) time vectors of the problems, and the saved step of each problem closest to each instant of the grid (zero if there is none within half a grid step, so that the errors of the grid do not accumulate)
     times = [problem.solutionHistory.t[1:n] for (problem,n) in zip(problems,nSaved)]
-    Δt = plotFrequency*gcd_floats_approx([t[2]-t[1] for t in times])
+    Δt = plotFrequency*gcd_floats_approx([t[2]-t[1] for t in times], tol=timeTol)
     grid = range(minimum(first.(times)), maximum(last.(times)), step=Δt)
     function savedStep(t, τ)
-        k = searchsortedfirst(t, τ-timeTol)
-        return k <= length(t) && t[k] <= τ+timeTol ? k : 0
+        k = searchsortedfirst(t, τ)
+        k = k > length(t) ? k-1 : (k > 1 && τ-t[k-1] < t[k]-τ) ? k-1 : k
+        return abs(t[k]-τ) <= Δt/2 ? k : 0
     end
     steps = [[savedStep(t,τ) for t in times] for τ in grid]
     frames = [i for i in eachindex(grid) if any(>(0),steps[i])]
-    @assert !isempty(frames) "the problems have no saved time step in common with the time grid; increase timeTol"
+    @assert !isempty(frames) "the problems have no saved time step in common with the time grid"
 
     colors = cgrad(colorScheme, length(problems), categorical=true)
     geoms = [_geometry(problem.model, surfaces=plotAeroSurf) for problem in problems]
@@ -1267,11 +1299,11 @@ function plot_dynamic_deformations(problems::Array{DynamicProblem}; backend::Sym
     # Legend entries of the problems, which are always present, and time stamp
     function decorate(plt, v, lims, i)
         isnothing(legendEntries) || foreach(p -> _legend_entry!(plt, v, colors[p], lw, legendEntries[p]), eachindex(problems))
-        showTimeStamp && title!(plt, string("\$t=",round(grid[i],sigdigits=6),"\$ s"))
+        showTimeStamp && title!(plt, isnan(normalizeTimeBy) ? string("\$t=",round(grid[i],sigdigits=6),"\$ s") : string("\$t/T=",round(grid[i]/normalizeTimeBy,sigdigits=6),"\$"))
         return nothing
     end
 
-    return _animate(problems[1].model, frames, layersOf, view=view, tolPlane=tolPlane, plotLimits=plotLimits, avoidDistortion=avoidDistortion, follow=follow, fps=fps, save=save, savePath=savePath, displayProgress=displayProgress, decorate=decorate, lw=lw, surfα=surfα, plotAxes=plotAxes, plotGrid=plotGrid, legendPos=isnothing(legendEntries) ? false : legendPos, DPI=DPI, plotSize=plotSize, top_margin=10mm)
+    return _animate(problems[1].model, frames, layersOf, view=view, tolPlane=tolPlane, plotLimits=plotLimits, avoidDistortion=avoidDistortion, follow=follow, fps=fps, save=save, savePath=savePath, displayProgress=displayProgress, decorate=decorate, lw=lw, surfα=surfα, plotAxes=plotAxes, plotGrid=plotGrid, legendPos=isnothing(legendEntries) ? false : legendPos, DPI=DPI, plotSize=plotSize, top_margin=10mm, normalizeByDim=normalizeByDim)
 end
 export plot_dynamic_deformations
 

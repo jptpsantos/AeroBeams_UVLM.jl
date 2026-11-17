@@ -2182,7 +2182,7 @@ Compute the spectrogram (Short-Time Fourier Transform) of signal `x` sampled at 
 - `tt::Vector`: time vector (centers of analysis windows)
 - `S::Matrix`: spectrogram matrix (|STFT|²), size (length(f), length(tt))
 """
-function spectrogram(t::AbstractVector{<:Real}, x::AbstractVector{<:Real}; window::Int=256, overlap::Real=0.5, db::Bool=true)
+function spectrogram(t::AbstractVector{<:Real}, x::AbstractVector{<:Real}; window::Int=2^10, overlap::Real=0.5, db::Bool=true)
 
     # Validate
     @assert length(t) == length(x) "time vector and signal must have the same length"
