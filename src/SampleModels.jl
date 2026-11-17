@@ -1424,8 +1424,6 @@ Creates a model based on the flying-wing aircraft described by Patil and Hodges 
 - `reducedChord::Bool`: flag to employ a reduced (7 ft) chord
 - `payloadOnWing::Bool`: flag to set the payload on the wing's reference line
 - `wingRootAoA::Real`: root angle of attack for clamped wing model [rad]
-- `withAttachmentSprings::Bool`: flag to include attachment springs for eigen-analyses
-- `μ::Real`: stiffness of the attachment springs
 - `gust::Union{Nothing,Gust}`: gust
 """
 function create_Helios(; 
@@ -1453,8 +1451,6 @@ function create_Helios(;
     reducedChord::Bool=false,
     payloadOnWing::Bool=false,
     wingRootAoA::Real=0,
-    withAttachmentSprings::Bool=false,
-    μ::Real=1e-1,
     gust::Union{Nothing,Gust}=nothing
     )
 
@@ -1463,7 +1459,6 @@ function create_Helios(;
     @assert stiffnessFactor > 0 "stiffnessFactor must be greater than 0"
     @assert payloadPounds >= 0 "payloadPounds must be non-negative"
     @assert airspeed >= 0 "airspeed must be non-negative"
-    @assert μ >= 0 "spring stiffness μ must be non-negative"
     @assert nElemStraightSemispan > 0 "nElemStraightSemispan must be positive"
     @assert iseven(nElemStraightSemispan) "nElemStraightSemispan must be even"
     @assert nElemDihedralSemispan > 0 "nElemDihedralSemispan must be positive"
@@ -1667,19 +1662,6 @@ function create_Helios(;
     ] : 
     Tuple{Pair{Beam,Beam},Pair{Int,Int}}[]
 
-    # Attachment springs
-    if withAttachmentSprings
-        
-        spring = create_Spring(ku=μ,kp=μ)
-
-        orientations = ([0,0,0], [π/2,0,0], [0,π/2,0])
-
-        for p in orientations
-            add_spring_to_beam!(beam=rightWingStraight, spring=deepcopy(spring), nodeID=1, p=p)
-        end
-        
-    end
-
     # Propellers thrust force
     thrustLeftOut = create_BC(
         name="thrustLeftOut",
@@ -1859,8 +1841,8 @@ Creates a model based on the conventional HALE aircraft described by Patil, Hodg
 - `stabscdδ::Real`: cd vs δ slope for the stabilizers
 - `hasInducedDrag::Bool`: flag to include induced drag
 - `rootClamped::Bool`: flag for being clamped at wing root
-- `withAttachmentSprings::Bool`: flag to include attachment springs for eigen-analyses
-- `μ::Real`: stiffness coefficient for the attachment springs
+- `withAttachmentSprings::Bool`: flag to attach the aircraft to the ground through weak springs (not necessary for trim and eigen-analyses in free flight)
+- `kSprings::Real`: stiffness coefficient for the attachment springs
 - `gust::Union{Nothing,Gust}`: gust input for the model
 """
 function create_cHALE(; 
@@ -1904,7 +1886,7 @@ function create_cHALE(;
     hasInducedDrag::Bool=false,
     rootClamped::Bool=false,
     withAttachmentSprings::Bool=false,
-    μ::Real=1e-1,
+    kSprings::Real=0,
     gust::Union{Nothing,Gust}=nothing
     )
 
@@ -1917,7 +1899,7 @@ function create_cHALE(;
     @assert stabsCd0 >= 0 "stabsCd0 must be non-negative"
     @assert airspeed >= 0 "airspeed must be non-negative"
     @assert g >= 0 "g must be non-negative"
-    @assert μ >= 0 "spring stiffness μ must be non-negative"
+    @assert kSprings >= 0 "spring stiffness kSprings must be non-negative"
     δElevIsInput = !isnothing(δElev)
     δAilIsInput = !isnothing(δAil)
     δRuddIsInput = !isnothing(δRudd)
@@ -2195,7 +2177,7 @@ function create_cHALE(;
     # Attachment springs
     if withAttachmentSprings
         
-        spring = create_Spring(ku=μ,kp=μ)
+        spring = create_Spring(ku=kSprings,kp=kSprings)
 
         orientations = ([0,0,0], [π/2,0,0], [0,π/2,0])
 
@@ -2289,8 +2271,6 @@ Creates a model based on the blended-wing-body described by Weihua Su's PhD thes
 - `updateAirfoilParameters::Bool`: flag to update airfoil parameters with airspeed
 - `hasTipCorrection::Bool`: flag to employ aerodynamic tip correction
 - `tipLossDecayFactor::Real`: tip loss decay factor
-- `withAttachmentSprings::Bool`: flag to include attachment springs for eigen-analyses
-- `μ::Real`: attachment spring constant (effective only if `withAttachmentSprings` is true)
 - `wingRootAoA::Real`: wing root pitch angle for wing model [rad]
 """
 function create_BWB(; 
@@ -2311,8 +2291,6 @@ function create_BWB(;
     updateAirfoilParameters::Bool=true,
     hasTipCorrection::Bool=false,
     tipLossDecayFactor::Real=40,
-    withAttachmentSprings::Bool=false,
-    μ::Real=1e-1,
     wingRootAoA::Real=0,
     )
 
@@ -2320,7 +2298,6 @@ function create_BWB(;
     @assert ∞ > 1e10 "rigid structural properties must be greater than 1e10"
     @assert stiffnessFactor > 0 "stiffnessFactor must be greater than 0"
     @assert airspeed >= 0 "airspeed must be non-negative"
-    @assert μ >= 0 "attachment spring constant spring stiffness μ must be non-negative"
     δElevIsInput = !isnothing(δElev)
     if δElevIsInput
         @assert !δElevIsTrimVariable "δElevIsTrimVariable cannot be true when δElev is provided as input"
@@ -2577,19 +2554,6 @@ function create_BWB(;
                    slaveBCs=[thrustLeft]
                    )] :
                   Vector{TrimLoadsLink}()
-
-    # Attachment springs
-    if withAttachmentSprings
-        
-        spring = create_Spring(ku=μ,kp=μ)
-
-        orientations = ([0,0,0], [π/2,0,0], [0,π/2,0])
-
-        for (beam, nodeID) in ((leftFus, 1), (rightFus, nElemFus+1)), p in orientations
-            add_spring_to_beam!(beam=beam, spring=deepcopy(spring), nodeID=nodeID, p=p)
-        end
-
-    end
 
     # Initial position for left wingtip
     firstNodePosition = [-kp3[1]; kp3[2]; kp3[3]]

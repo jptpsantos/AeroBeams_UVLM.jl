@@ -655,15 +655,18 @@ function solve_eigen!(problem::EigenProblem)
         nev = nevAvailable
     end
 
-    # Small shift for singular Jacobians
-    σ = converged ?
-        0.0 : 
-        1e-6*opnorm(jacobian,Inf)
-
-    # Set LU factorization of the shifted Jacobian, if applicable
-    luCache = (converged && !isnothing(luCache)) ?
-              luCache : 
-              lu(jacobian - σ*I)
+    # Shift: null if the Jacobian at the steady solution is regular. Otherwise (e.g., for a vehicle in free flight, whose rigid-body translations relative to basis A are neutral, i.e., null eigenvalues), a small one relative to the ratio of the norms of the Jacobian and inertia matrices, so that the shifted Jacobian is regular and well-conditioned (much smaller shifts give inaccurate eigenvalues, because the null eigenvalues of the translations and of the heading are defective)
+    regularJacobian = converged && !isnothing(luCache) && issuccess(luCache) && isempty(neutral_translations(problem.model,jacobian))
+    σ = 0.0
+    if !regularJacobian
+        σ = 1e-3*opnorm(jacobian,1)/opnorm(inertia,1)
+        luCache = lu(jacobian + σ*inertia; check=false)
+        # If the pencil is singular (e.g., rigid-body rotations without inertia), regularize the Jacobian instead
+        if !issuccess(luCache)
+            σ = 1e-6*opnorm(jacobian,Inf)
+            luCache = lu(jacobian - σ*I)
+        end
+    end
 
     # Solve eigenproblem to get eigenvectors and corresponding eigenvalues in ascending order of frequency
     λ, V = eigs_generalized(luCache,inertia; method=eigenmethod,nev=nev,which=:LM,σ=σ,sortby=x->abs(imag(x)),restarts=nevAvailable)
@@ -671,7 +674,7 @@ function solve_eigen!(problem::EigenProblem)
     # Re-solve with a small shift if the unshifted operator is ill-scaled (see `needs_shift`)
     if converged && eigenmethod != :fulldecomp
         σ2 = needs_shift(λ,σ)
-        if σ2 > 0
+        if σ2 > σ
             try
                 luShifted = lu(jacobian + σ2*inertia)
                 λ, V = eigs_generalized(luShifted,inertia; method=eigenmethod,nev=nev,which=:LM,σ=σ2,sortby=x->abs(imag(x)),restarts=nevAvailable)
@@ -826,12 +829,9 @@ function initialize_system_arrays_from_refTrimProblem(refTrimProblem,nEqs,nState
     residual = copy(refTrimProblem.systemArrays.residual)
     jacobian = copy(refTrimProblem.systemArrays.jacobian[1:nEqs,1:nEqs])
     inertia = copy(refTrimProblem.systemArrays.inertia)
-    local luCache
-    try
-        luCache = lu(jacobian)
-    catch
-        luCache = lu(jacobian - 1e-6*opnorm(jacobian,Inf)*I)
-    end
+    
+    # LU factorization of the Jacobian, which may be singular (e.g., for a vehicle in free flight, in which case the eigenproblem is solved with a shift)
+    luCache = lu(jacobian; check=false)
 
     return SystemArrays(x,Δx,residual,jacobian,inertia,luCache)
 

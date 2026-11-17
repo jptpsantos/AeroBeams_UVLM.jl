@@ -710,6 +710,47 @@ function factorize_jacobian!(problem, J; check::Bool=false)
     return luCache
 end
 
+# Returns an orthonormal basis (by columns) of the rigid-body translations of the assembly relative to basis A that are neutral, i.e., that lie in the null space of the Jacobian J, as is the case for a vehicle in free flight in steady analyses (the translations are not neutral if any nodal displacement is prescribed, if the assembly is attached to the ground through springs, if basis A rotates in a direction normal to them, or in dynamic analyses). The basis is empty if there are no neutral translations
+function neutral_translations(model, J)
+
+    @unpack elements,specialNodes = model.assemblyData
+
+    # Unit rigid-body translations along each direction of basis A, in the states array
+    rows, cols = Int[], Int[]
+    for element in elements
+        for i in 1:3
+            push!(rows, element.assemblyIndices.DOF_u[i]); push!(cols, i)
+        end
+    end
+    for specialNode in specialNodes
+        @unpack uIsPrescribed = specialNode.flags
+        @unpack DOF_uF = specialNode.assemblyData
+        for i in 1:3
+            uIsPrescribed[i] || (push!(rows, DOF_uF[i]); push!(cols, i))
+        end
+    end
+    T = sparse(rows, cols, 1.0, size(J,2), 3)
+
+    # Combinations of the translations whose image by the Jacobian vanishes (up to round-off)
+    nT = sqrt.(vec(sum(T, dims=1)))
+    F = svd(Matrix(J*T) ./ nT')
+    isNull = F.S .<= 1e3*eps()*opnorm(J,1)
+    any(isNull) || return zeros(size(J,2), 0)
+
+    return Matrix(T * (F.V[:,isNull] ./ nT))
+
+end
+
+# Solves the linear system J*Δx = r for a (square) Jacobian J. If J has neutral rigid-body translations N in its null space (see `neutral_translations`), as that of a vehicle in free flight in steady analyses, J is singular and the least-squares solution of J*Δx = r, with N'*Δx = 0, is obtained by sparse QR factorization. Otherwise, the LU factorization of J is used. Returns false if the solution is not finite
+function solve_jacobian_system!(Δx, luCache, J, r, N)
+    if isempty(N)
+        ldiv!(Δx, luCache, r)
+    else
+        Δx .= qr([J; sparse(N')]) \ [r; zeros(size(N,2))]
+    end
+    return all(isfinite, Δx)
+end
+
 # Solves the linear system of equations for regular (square Jacobian) problems
 function solve_regular_system!(problem)
 
@@ -722,14 +763,22 @@ function solve_regular_system!(problem)
     # LU factorize Jacobian
     luCache = factorize_jacobian!(problem, jacobian)
 
+    # Neutral rigid-body translations, for steady analyses
+    N = problem isa DynamicProblem ?
+        zeros(length(x), 0) :
+        neutral_translations(problem.model, jacobian)
+
     # Return false if the Jacobian is singular
-    issuccess(luCache) || begin
+    (issuccess(luCache) || !isempty(N)) || begin
         @warn "Jacobian is singular"
         return false
     end
 
     # Solve the linear system for the state increment Δx
-    ldiv!(Δx, luCache, residual)
+    solve_jacobian_system!(Δx, luCache, jacobian, residual, N) || begin
+        @warn "Jacobian is singular"
+        return false
+    end
     rmul!(Δx, -1)
 
     # Update states array
@@ -772,7 +821,7 @@ function trim_newton_step!(problem)
 
     # Solve underdetermined system using selected method
     if method == :LQ
-        solve_trim_LQ!(Δx,J,residual)
+        solve_trim_LQ!(Δx,J,residual,jacobian)
     elseif method == :LM
         solve_trim_LM!(Δx,J,residual,JtJ,Jtr,J_aug,r_aug,damping)
     elseif method == :SVD
@@ -787,10 +836,16 @@ function trim_newton_step!(problem)
 
 end
 
-# Solve for trim problem solution increment with LQ decomposition method
-function solve_trim_LQ!(Δx,J,residual)
+# Solve for trim problem solution increment with LQ decomposition method. If the Jacobian does not have full row rank (as that of a vehicle in free flight whose lateral equilibrium is satisfied by symmetry), the minimum-norm least-squares solution from a pivoted QR factorization is used instead
+function solve_trim_LQ!(Δx,J,residual,jacobian)
     F = lq!(J)
-    Δx .= -(F \ residual)
+    d = abs.(diag(F.L))
+    if minimum(d) > 1e-12*maximum(d)
+        Δx .= -(F \ residual)
+    else
+        copyto!(J, jacobian)
+        Δx .= -(qr!(J, ColumnNorm()) \ residual)
+    end
 end
 
 # Solve for trim problem solution increment with simplified (non-adaptive damping) Levenberg-Marquardt method
@@ -861,8 +916,8 @@ function solve_nonlinear_system!(problem)
     lss.σStep = maxLoadFacStep
     lss.convergedFinalSolution = false
 
-    # Pre-allocate known solution array
-    if isempty(lss.xKnown)
+    # Pre-allocate known solution array (the solver may come from a problem with a different number of states, e.g., a reference trim problem)
+    if length(lss.xKnown) != length(x)
         lss.xKnown = similar(x)
     end
 
@@ -977,8 +1032,11 @@ function solve_load_step!(problem,lss,systemSolver::NLsolver)
             Δx .= .-step  # NLsolve uses inverted sign convention
         else
             luCache = factorize_jacobian!(problem, J; check=false)
-            issuccess(luCache) || @warn "Jacobian is singular"
-            ldiv!(Δx, luCache, F)
+            N = problem isa DynamicProblem ?
+                zeros(length(Δx), 0) :
+                neutral_translations(problem.model, J)
+            (issuccess(luCache) || !isempty(N)) || @warn "Jacobian is singular"
+            solve_jacobian_system!(Δx, luCache, J, F, N)
             # rmul!(Δx, -1) # Not necessary: NLsolve uses inverted sign convention
         end
         s.ϵ_rel = norm(Δx) / max(norm(problem.systemArrays.x), eps())
