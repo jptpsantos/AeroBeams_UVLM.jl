@@ -1311,6 +1311,7 @@ function precompute_motion_basis_A!(problem)
 
     # Resize rotation tensor history vector
     resize!(R_AVec, sizeOfTime)
+    R_AVec[1] = SMatrix{3,3}(R_A0)
 
     # Loop over time steps -- set rotation tensor array
     for i in 2:sizeOfTime
@@ -1319,8 +1320,8 @@ function precompute_motion_basis_A!(problem)
         # Current time step and time factor
         Δt = timeVector[i] - timeVector[i-1]
         α = 2 / Δt
-        # Skew-symmetric operator of the angular velocity vector
-        Ω = tilde(eval_motion(ω_A, t))
+        # Skew-symmetric operator of the angular velocity vector at the midpoint of the time step
+        Ω = tilde(eval_motion(ω_A, t - Δt/2))
         # Update rotation tensor from basis I to basis A, at the current time
         R_A .= (α*I3 - Ω) \ ((α*I3 + Ω) * R_A)
         # Set in rotation tensor history vector
@@ -2582,8 +2583,8 @@ function update_motion_basis_A!(problem; timeNow=problem.time.state.timeNow, Δt
     # Time step factor
     α = 2 / Δt
 
-    # Skew-symmetric operator of the angular velocity vector
-    Ω = tilde(ω_A(timeNow))
+    # Skew-symmetric operator of the angular velocity vector at the midpoint of the time step
+    Ω = tilde(ω_A(timeNow - Δt/2))
 
     # Rotation tensor from basis I to basis A, at the current time, and its transpose
     R_A .= (α*I3 - Ω) \ ((α*I3 + Ω) * R_A)
@@ -2613,7 +2614,7 @@ function update_motion_basis_A!(problem,timeIndex)
     else
         # Rotation tensor from basis I to basis A, updated from the begin of the time step as in precompute_motion_basis_A!
         α = 2 / time_step(problem)
-        Ω = tilde(ω_A)
+        Ω = tilde(value_at_time(ω_AVec,timeIndex,stepFraction/2))
         R_A .= (α*I3 - Ω) \ ((α*I3 + Ω) * R_AVec[timeIndex-1])
     end
     R_AT .= R_A'
