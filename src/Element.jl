@@ -1076,7 +1076,7 @@ struct Jacobians{N,Nδ,N3,Nδ3,NN}
     F_V_V::MMatrix{3,3,Float64,9}
 
     F_Ω_p::MMatrix{3,3,Float64,9}
-    F_Ω_Ω::SMatrix{3,3,Float64,9}
+    F_Ω_Ω::MMatrix{3,3,Float64,9}
 
     F_χ_p::MMatrix{N,3,Float64,N3}
     F_χ_V::MMatrix{N,3,Float64,N3}
@@ -1130,7 +1130,7 @@ Jacobians{N,Nδ}(surface,geometry) where {N,Nδ} =
         SMatrix{3,3,Float64,9}(I), SMatrix{3,3,Float64,9}(-I), ntuple(_ -> zeros(MMatrix{3,3,Float64,9}), 6)...,
         ntuple(_ -> zeros(MMatrix{3,3,Float64,9}), 6)...,
         ntuple(_ -> zeros(MMatrix{3,3,Float64,9}), 3)...,
-        zeros(MMatrix{3,3,Float64,9}), SMatrix{3,3,Float64,9}(I),
+        zeros(MMatrix{3,3,Float64,9}), zeros(MMatrix{3,3,Float64,9}),
         ntuple(_ -> zeros(MMatrix{N,3,Float64,3*N}), 3)..., initial_F_χ_χ(N,surface),
         ntuple(_ -> zeros(MMatrix{3,3,Float64,9}), 6)...,
         ntuple(_ -> zeros(MMatrix{3,3,Float64,9}), 6)...,

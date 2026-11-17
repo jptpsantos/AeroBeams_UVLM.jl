@@ -177,12 +177,12 @@ end
 function element_residual!(residual,model,element,x,σ,timeIndex,stepFraction,timeNow,Δt,isDynamicProblem)
 
     @unpack invForceScaling = model.assemblyData
-    @unpack Δℓ,R0,R0T,hingedNode1Mat,notHingedNode1Mat,notHingedNode2Mat = element.geometry
+    @unpack Δℓ,R0,hingedNode1Mat,notHingedNode1Mat,notHingedNode2Mat = element.geometry
     @unpack eqs_Fu1,eqs_Fu2,eqs_Fp1,eqs_Fp2,eqs_FF1,eqs_FF2,eqs_FM1,eqs_FM2,eqs_FV,eqs_FΩ,eqs_Fχ,isSpecialNode1,isSpecialNode2,eqsNode1Set,eqsNode2Set = element.assemblyIndices
     @unpack u,p,F,M,V,Ω,γ,κ,P,H,χ = element.state.midpoint
     @unpack udot,pdot,Pdot,Hdot,χdot = element.state.rates
     @unpack v,ω = element.stateCache.kinematicsBasisb
-    @unpack RR0,RR0T,RdotR0,HT,HTinv = element.stateCache.rotationMatrices
+    @unpack R,RR0,RdotR0,HT,HTinv = element.stateCache.rotationMatrices
     @unpack f1,f2,m1,m2 = element.stateCache.loadsResultants
     @unpack A,B = element.aero.stateCache.stateMatrices
     @unpack F_u1,F_u2,F_p1,F_p2,F_F1,F_F2,F_M1,F_M2,F_V,F_Ω,F_χ = element.stateCache.residuals
@@ -206,10 +206,10 @@ function element_residual!(residual,model,element,x,σ,timeIndex,stepFraction,ti
     element_static_residual!(F_u1,F_u2,F_p1,F_p2,F_F1,F_F2,F_M1,F_M2,Δℓ,R0,u,p,F,M,γ,κ,RR0,HTinv,f1,f2,m1,m2)
 
     # Steady terms
-    element_steady_residual!(F_u1,F_u2,F_p1,F_p2,F_V,F_Ω,F_χ,Δℓ,u,V,Ω,P,H,χ,v,ω,RR0,RR0T,A,B)
+    element_steady_residual!(F_u1,F_u2,F_p1,F_p2,F_V,F_Ω,F_χ,Δℓ,u,V,Ω,P,H,χ,v,ω,RR0,A,B)
 
     # Transient dynamic terms
-    isDynamicProblem && element_transient_residual!(F_u1,F_u2,F_p1,F_p2,F_V,F_Ω,F_χ,Δℓ,R0T,P,H,udot,pdot,Pdot,Hdot,χdot,RR0,RdotR0,HT)
+    isDynamicProblem && element_transient_residual!(F_u1,F_u2,F_p1,F_p2,F_V,F_Ω,F_χ,Δℓ,P,H,udot,pdot,Pdot,Hdot,χdot,RR0,RdotR0,HT)
 
     # Insert resultants into the residual array
     insert_element_residual!(residual,F_u1,F_u2,F_p1,F_p2,F_F1,F_F2,F_M1,F_M2,F_V,F_Ω,F_χ,invForceScaling,eqs_Fu1,eqs_Fu2,eqs_Fp1,eqs_Fp2,eqs_FF1,eqs_FF2,eqs_FM1,eqs_FM2,eqs_FV,eqs_FΩ,eqs_Fχ,isSpecialNode1,isSpecialNode2,eqsNode1Set,eqsNode2Set,hingedNode1Mat,notHingedNode1Mat,notHingedNode2Mat)
@@ -489,7 +489,7 @@ function element_static_residual!(F_u1,F_u2,F_p1,F_p2,F_F1,F_F2,F_M1,F_M2,Δℓ,
 end
 
 # Computes steady contributions to the residual array for the current element
-function element_steady_residual!(F_u1,F_u2,F_p1,F_p2,F_V,F_Ω,F_χ,Δℓ,u,V,Ω,P,H,χ,v,ω,RR0,RR0T,A,B)
+function element_steady_residual!(F_u1,F_u2,F_p1,F_p2,F_V,F_Ω,F_χ,Δℓ,u,V,Ω,P,H,χ,v,ω,RR0,A,B)
 
     # --- F_u --- #
     tmp = Δℓ/2 * cross(ω, RR0 * P)
@@ -505,7 +505,7 @@ function element_steady_residual!(F_u1,F_u2,F_p1,F_p2,F_V,F_Ω,F_χ,Δℓ,u,V,Ω
     F_V .= RR0 * V - v - cross(ω, u)
     
     # --- F_Ω --- #
-    F_Ω .= Ω - RR0T * ω
+    F_Ω .= RR0 * Ω - ω
 
     # --- F_χ --- #
     F_χ .= - (A * χ + B)
@@ -513,7 +513,7 @@ function element_steady_residual!(F_u1,F_u2,F_p1,F_p2,F_V,F_Ω,F_χ,Δℓ,u,V,Ω
 end
 
 # Computes transient contributions to the residual array for the current element
-function element_transient_residual!(F_u1,F_u2,F_p1,F_p2,F_V,F_Ω,F_χ,Δℓ,R0T,P,H,udot,pdot,Pdot,Hdot,χdot,RR0,RdotR0,HT)
+function element_transient_residual!(F_u1,F_u2,F_p1,F_p2,F_V,F_Ω,F_χ,Δℓ,P,H,udot,pdot,Pdot,Hdot,χdot,RR0,RdotR0,HT)
 
     # --- F_u --- #
     tmp = Δℓ/2 * (RdotR0 * P + RR0 * Pdot)
@@ -529,7 +529,7 @@ function element_transient_residual!(F_u1,F_u2,F_p1,F_p2,F_V,F_Ω,F_χ,Δℓ,R0T
     F_V .+= - udot
     
     # --- F_Ω --- #
-    F_Ω .+= - R0T * SVector(HT * pdot)
+    F_Ω .+= - SVector(HT' * pdot)
 
     # --- F_χ --- #
     F_χ .+= χdot
@@ -678,12 +678,12 @@ function element_jacobian!(jacobian,model,element,timeNow,Δt,isDynamicProblem,s
 
     @unpack forceScaling,invForceScaling = model.assemblyData
     @unpack jacobianMaps = element
-    @unpack Δℓ,R0,R0T,hingedNode1Mat,notHingedNode1Mat,notHingedNode2Mat = element.geometry
+    @unpack Δℓ,R0,hingedNode1Mat,notHingedNode1Mat,notHingedNode2Mat = element.geometry
     @unpack C11,C12,C21,C22,I11,I12,I21,I22 = element.sectional
     @unpack F,M,V,Ω,γ,κ,P,H,χ = element.state.midpoint
     @unpack pdot,Vdot,Ωdot,Pdot,Hdot,χdot = element.state.rates
     @unpack ω = element.stateCache.kinematicsBasisb
-    @unpack RR0,RdotR0,HT,HTinv,R_p1,R_p2,R_p3,RT_p1,RT_p2,RT_p3,HT_p1,HT_p2,HT_p3,HTinv_p1,HTinv_p2,HTinv_p3,Rdot_p1,Rdot_p2,Rdot_p3 = element.stateCache.rotationMatrices
+    @unpack R,RR0,RdotR0,HT,HTinv,R_p1,R_p2,R_p3,HT_p1,HT_p2,HT_p3,HTinv_p1,HTinv_p2,HTinv_p3,Rdot_p1,Rdot_p2,Rdot_p3 = element.stateCache.rotationMatrices
     @unpack f1_p,f2_p,m1_p,m2_p = element.stateCache.loadsJacobians
     @unpack f1χ_V,f2χ_V,f1χ_Ω,f2χ_Ω,m1χ_V,m2χ_V,m1χ_Ω,m2χ_Ω,f1χ_χ,f2χ_χ,m1χ_χ,m2χ_χ,f1χ_δ,f2χ_δ,m1χ_δ,m2χ_δ,f1χ_Vdot,f2χ_Vdot,f1χ_Ωdot,f2χ_Ωdot,m1χ_Vdot,m2χ_Vdot,m1χ_Ωdot,m2χ_Ωdot = element.stateCache.aeroLoadsJacobians
     @unpack F_u1_p,F_u2_p,F_u1_F,F_u2_F,F_u1_V,F_u2_V,F_u1_Ω,F_u2_Ω,F_u1_χ,F_u2_χ,F_u1_δ,F_u2_δ,F_p1_p,F_p2_p,F_p1_F,F_p2_F,F_p1_M,F_p2_M,F_p1_V,F_p2_V,F_p1_Ω,F_p2_Ω,F_p1_χ,F_p2_χ,F_p1_δ,F_p2_δ,F_F1_u,F_F2_u,F_F1_p,F_F2_p,F_F1_F,F_F2_F,F_F1_M,F_F2_M,F_M1_p,F_M2_p,F_M1_F,F_M2_F,F_M1_M,F_M2_M,F_V_u,F_V_p,F_V_V,F_Ω_p,F_Ω_Ω,F_χ_p,F_χ_V,F_χ_Ω,F_χ_χ,F_χ_Vdot,F_χ_Ωdot = element.stateCache.jacobians
@@ -692,6 +692,7 @@ function element_jacobian!(jacobian,model,element,timeNow,Δt,isDynamicProblem,s
     element_rotation_derivatives!(element,isDynamicProblem)
 
     # Convert to static matrices for performance
+    R = SMatrix(R)
     RR0 = SMatrix(RR0)
 
     # Aerodynamic derivatives (contributions to Jacobian matrix)
@@ -707,10 +708,10 @@ function element_jacobian!(jacobian,model,element,timeNow,Δt,isDynamicProblem,s
     element_static_jacobians!(F_u1_p,F_u2_p,F_u1_F,F_u2_F,F_p1_p,F_p2_p,F_p1_F,F_p2_F,F_p1_M,F_p2_M,F_F1_u,F_F2_u,F_F1_p,F_F2_p,F_F1_F,F_F2_F,F_F1_M,F_F2_M,F_M1_p,F_M2_p,F_M1_F,F_M2_F,F_M1_M,F_M2_M,Δℓ,R0,C11,C12,C21,C22,F,M,γ,κ,RR0,HTinv,R_p1,R_p2,R_p3,HTinv_p1,HTinv_p2,HTinv_p3,f1_p,f2_p,m1_p,m2_p)
 
     # Steady-state terms
-    element_steady_jacobians!(F_u1_p,F_u2_p,F_u1_V,F_u2_V,F_u1_Ω,F_u2_Ω,F_u1_χ,F_u2_χ,F_u1_δ,F_u2_δ,F_p1_p,F_p2_p,F_p1_V,F_p2_V,F_p1_Ω,F_p2_Ω,F_p1_χ,F_p2_χ,F_p1_δ,F_p2_δ,F_V_u,F_V_p,F_V_V,F_Ω_p,F_Ω_Ω,Δℓ,I11,I12,I21,I22,R0,R0T,ω,V,P,H,RR0,R_p1,R_p2,R_p3,RT_p1,RT_p2,RT_p3,f1χ_V,f2χ_V,f1χ_Ω,f2χ_Ω,m1χ_V,m2χ_V,m1χ_Ω,m2χ_Ω,f1χ_χ,f2χ_χ,m1χ_χ,m2χ_χ,f1χ_δ,f2χ_δ,m1χ_δ,m2χ_δ)
+    element_steady_jacobians!(F_u1_p,F_u2_p,F_u1_V,F_u2_V,F_u1_Ω,F_u2_Ω,F_u1_χ,F_u2_χ,F_u1_δ,F_u2_δ,F_p1_p,F_p2_p,F_p1_V,F_p2_V,F_p1_Ω,F_p2_Ω,F_p1_χ,F_p2_χ,F_p1_δ,F_p2_δ,F_V_u,F_V_p,F_V_V,F_Ω_p,F_Ω_Ω,Δℓ,I11,I12,I21,I22,R0,ω,V,P,H,Ω,RR0,R_p1,R_p2,R_p3,f1χ_V,f2χ_V,f1χ_Ω,f2χ_Ω,m1χ_V,m2χ_V,m1χ_Ω,m2χ_Ω,f1χ_χ,f2χ_χ,m1χ_χ,m2χ_χ,f1χ_δ,f2χ_δ,m1χ_δ,m2χ_δ)
 
     # Transient dynamic terms
-    isDynamicProblem && element_transient_jacobians!(F_u1_p,F_u2_p,F_u1_V,F_u2_V,F_u1_Ω,F_u2_Ω,F_p1_p,F_p2_p,F_p1_V,F_p2_V,F_p1_Ω,F_p2_Ω,F_V_u,F_Ω_p,F_χ_V,F_χ_Ω,F_χ_χ,F_χ_Vdot,F_χ_Ωdot,f1χ_Vdot,f2χ_Vdot,f1χ_Ωdot,f2χ_Ωdot,m1χ_Vdot,m2χ_Vdot,m1χ_Ωdot,m2χ_Ωdot,element.stateCache.equivStatesRates.c,Δℓ,I11,I12,I21,I22,R0,R0T,P,H,pdot,Pdot,Hdot,RR0,RdotR0,HT,R_p1,R_p2,R_p3,HT_p1,HT_p2,HT_p3,Rdot_p1,Rdot_p2,Rdot_p3)
+    isDynamicProblem && element_transient_jacobians!(F_u1_p,F_u2_p,F_u1_V,F_u2_V,F_u1_Ω,F_u2_Ω,F_p1_p,F_p2_p,F_p1_V,F_p2_V,F_p1_Ω,F_p2_Ω,F_V_u,F_Ω_p,F_χ_V,F_χ_Ω,F_χ_χ,F_χ_Vdot,F_χ_Ωdot,f1χ_Vdot,f2χ_Vdot,f1χ_Ωdot,f2χ_Ωdot,m1χ_Vdot,m2χ_Vdot,m1χ_Ωdot,m2χ_Ωdot,element.stateCache.equivStatesRates.c,Δℓ,I11,I12,I21,I22,R0,P,H,pdot,Pdot,Hdot,RR0,RdotR0,HT,R_p1,R_p2,R_p3,HT_p1,HT_p2,HT_p3,Rdot_p1,Rdot_p2,Rdot_p3)
 
     # Insert element resultants into the Jacobian matrix
     insert_element_jacobians!(jacobian,F_u1_p,F_u2_p,F_u1_F,F_u2_F,F_u1_V,F_u2_V,F_u1_Ω,F_u2_Ω,F_u1_χ,F_u2_χ,F_u1_δ,F_u2_δ,F_p1_p,F_p2_p,F_p1_F,F_p2_F,F_p1_M,F_p2_M,F_p1_V,F_p2_V,F_p1_Ω,F_p2_Ω,F_p1_χ,F_p2_χ,F_p1_δ,F_p2_δ,F_F1_u,F_F2_u,F_F1_p,F_F2_p,F_F1_F,F_F2_F,F_F1_M,F_F2_M,F_M1_p,F_M2_p,F_M1_F,F_M2_F,F_M1_M,F_M2_M,F_V_u,F_V_p,F_V_V,F_Ω_p,F_Ω_Ω,F_χ_p,F_χ_V,F_χ_Ω,F_χ_χ,forceScaling,invForceScaling,hingedNode1Mat,notHingedNode1Mat,notHingedNode2Mat,jacobianMaps)
@@ -1163,7 +1164,7 @@ function element_static_jacobians!(F_u1_p,F_u2_p,F_u1_F,F_u2_F,F_p1_p,F_p2_p,F_p
 end
 
 # Computes steady-state contributions to the Jacobian matrix from the current element
-function element_steady_jacobians!(F_u1_p,F_u2_p,F_u1_V,F_u2_V,F_u1_Ω,F_u2_Ω,F_u1_χ,F_u2_χ,F_u1_δ,F_u2_δ,F_p1_p,F_p2_p,F_p1_V,F_p2_V,F_p1_Ω,F_p2_Ω,F_p1_χ,F_p2_χ,F_p1_δ,F_p2_δ,F_V_u,F_V_p,F_V_V,F_Ω_p,F_Ω_Ω,Δℓ,I11,I12,I21,I22,R0,R0T,ω,V,P,H,RR0,R_p1,R_p2,R_p3,RT_p1,RT_p2,RT_p3,f1χ_V,f2χ_V,f1χ_Ω,f2χ_Ω,m1χ_V,m2χ_V,m1χ_Ω,m2χ_Ω,f1χ_χ,f2χ_χ,m1χ_χ,m2χ_χ,f1χ_δ,f2χ_δ,m1χ_δ,m2χ_δ)
+function element_steady_jacobians!(F_u1_p,F_u2_p,F_u1_V,F_u2_V,F_u1_Ω,F_u2_Ω,F_u1_χ,F_u2_χ,F_u1_δ,F_u2_δ,F_p1_p,F_p2_p,F_p1_V,F_p2_V,F_p1_Ω,F_p2_Ω,F_p1_χ,F_p2_χ,F_p1_δ,F_p2_δ,F_V_u,F_V_p,F_V_V,F_Ω_p,F_Ω_Ω,Δℓ,I11,I12,I21,I22,R0,ω,V,P,H,Ω,RR0,R_p1,R_p2,R_p3,f1χ_V,f2χ_V,f1χ_Ω,f2χ_Ω,m1χ_V,m2χ_V,m1χ_Ω,m2χ_Ω,f1χ_χ,f2χ_χ,m1χ_χ,m2χ_χ,f1χ_δ,f2χ_δ,m1χ_δ,m2χ_δ)
 
     # Repeatedly used variables
     ω̃ = tilde(ω)
@@ -1221,14 +1222,14 @@ function element_steady_jacobians!(F_u1_p,F_u2_p,F_u1_V,F_u2_V,F_u1_Ω,F_u2_Ω,F
     
     # --- F_Ω --- #
     # F_Ω_p
-    F_Ω_p .= - R0T * mul3(RT_p1,RT_p2,RT_p3,ω)
-    # F_Ω_Ω (already set as constant)
-    # F_Ω_Ω .= I3
+    F_Ω_p .= mul3(R_p1,R_p2,R_p3,SVector(R0*Ω))
+    # F_Ω_Ω
+    F_Ω_Ω .= RR0
 
 end
 
 # Computes transient dynamic contributions to the Jacobian matrix from the current element (c is the coefficient of the states in their rates, i.e., the derivative of the rates w.r.t. the states, set by the time integration method)
-function element_transient_jacobians!(F_u1_p,F_u2_p,F_u1_V,F_u2_V,F_u1_Ω,F_u2_Ω,F_p1_p,F_p2_p,F_p1_V,F_p2_V,F_p1_Ω,F_p2_Ω,F_V_u,F_Ω_p,F_χ_V,F_χ_Ω,F_χ_χ,F_χ_Vdot,F_χ_Ωdot,f1χ_Vdot,f2χ_Vdot,f1χ_Ωdot,f2χ_Ωdot,m1χ_Vdot,m2χ_Vdot,m1χ_Ωdot,m2χ_Ωdot,c,Δℓ,I11,I12,I21,I22,R0,R0T,P,H,pdot,Pdot,Hdot,RR0,RdotR0,HT,R_p1,R_p2,R_p3,HT_p1,HT_p2,HT_p3,Rdot_p1,Rdot_p2,Rdot_p3)
+function element_transient_jacobians!(F_u1_p,F_u2_p,F_u1_V,F_u2_V,F_u1_Ω,F_u2_Ω,F_p1_p,F_p2_p,F_p1_V,F_p2_V,F_p1_Ω,F_p2_Ω,F_V_u,F_Ω_p,F_χ_V,F_χ_Ω,F_χ_χ,F_χ_Vdot,F_χ_Ωdot,f1χ_Vdot,f2χ_Vdot,f1χ_Ωdot,f2χ_Ωdot,m1χ_Vdot,m2χ_Vdot,m1χ_Ωdot,m2χ_Ωdot,c,Δℓ,I11,I12,I21,I22,R0,P,H,pdot,Pdot,Hdot,RR0,RdotR0,HT,R_p1,R_p2,R_p3,HT_p1,HT_p2,HT_p3,Rdot_p1,Rdot_p2,Rdot_p3)
 
     # Repeatedly used variables
     RdotR0_plus_cRR0 = SMatrix(RdotR0 + c*RR0)
@@ -1269,7 +1270,7 @@ function element_transient_jacobians!(F_u1_p,F_u2_p,F_u1_V,F_u2_V,F_u1_Ω,F_u2_�
 
     # --- F_Ω --- #
     # F_Ω_p
-    F_Ω_p .+= -R0T * (mul3(HT_p1,HT_p2,HT_p3,pdot) + c*HT)
+    F_Ω_p .+= -mul3(HT_p1',HT_p2',HT_p3',pdot) - c*HT'
 
     # --- F_χ --- #
     # F_χ_V
@@ -1372,7 +1373,7 @@ function element_inertia!(inertia,model,element,timeNow,Δt,isDynamicProblem)
 
     @unpack invForceScaling = model.assemblyData
     @unpack inertiaMaps = element
-    @unpack Δℓ,R0,R0T = element.geometry
+    @unpack Δℓ,R0 = element.geometry
     @unpack I11,I12,I21,I22 = element.sectional
     @unpack P,H = element.state.midpoint
     @unpack RR0,HT,R_p1,R_p2,R_p3 = element.stateCache.rotationMatrices
@@ -1386,7 +1387,7 @@ function element_inertia!(inertia,model,element,timeNow,Δt,isDynamicProblem)
     aero_derivatives_states_rates!(model,element,timeNow,Δt,isDynamicProblem)
 
     # Compute resultants
-    element_inertia_resultants!(F_u1_pdot,F_u2_pdot,F_u1_Vdot,F_u2_Vdot,F_u1_Ωdot,F_u2_Ωdot,F_p1_pdot,F_p2_pdot,F_p1_Vdot,F_p2_Vdot,F_p1_Ωdot,F_p2_Ωdot,F_V_udot,F_Ω_pdot,Δℓ,R0,R0T,I11,I12,I21,I22,P,H,RR0,HT,R_p1,R_p2,R_p3,f1χ_Vdot,f2χ_Vdot,f1χ_Ωdot,f2χ_Ωdot,m1χ_Vdot,m2χ_Vdot,m1χ_Ωdot,m2χ_Ωdot)
+    element_inertia_resultants!(F_u1_pdot,F_u2_pdot,F_u1_Vdot,F_u2_Vdot,F_u1_Ωdot,F_u2_Ωdot,F_p1_pdot,F_p2_pdot,F_p1_Vdot,F_p2_Vdot,F_p1_Ωdot,F_p2_Ωdot,F_V_udot,F_Ω_pdot,Δℓ,R0,I11,I12,I21,I22,P,H,RR0,HT,R_p1,R_p2,R_p3,f1χ_Vdot,f2χ_Vdot,f1χ_Ωdot,f2χ_Ωdot,m1χ_Vdot,m2χ_Vdot,m1χ_Ωdot,m2χ_Ωdot)
 
     # Insert resultants into the inertia matrix
     insert_element_inertias!(inertia,F_u1_pdot,F_u2_pdot,F_u1_Vdot,F_u2_Vdot,F_u1_Ωdot,F_u2_Ωdot,F_p1_pdot,F_p2_pdot,F_p1_Vdot,F_p2_Vdot,F_p1_Ωdot,F_p2_Ωdot,F_V_udot,F_Ω_pdot,F_χ_Vdot,F_χ_Ωdot,F_χ_χdot,invForceScaling,inertiaMaps)
@@ -1572,7 +1573,7 @@ end
 end
 
 # Computes the structural and aerodynamic contributions from the current element to the inertia matrix
-function element_inertia_resultants!(F_u1_pdot,F_u2_pdot,F_u1_Vdot,F_u2_Vdot,F_u1_Ωdot,F_u2_Ωdot,F_p1_pdot,F_p2_pdot,F_p1_Vdot,F_p2_Vdot,F_p1_Ωdot,F_p2_Ωdot,F_V_udot,F_Ω_pdot,Δℓ,R0,R0T,I11,I12,I21,I22,P,H,RR0,HT,R_p1,R_p2,R_p3,f1χ_Vdot,f2χ_Vdot,f1χ_Ωdot,f2χ_Ωdot,m1χ_Vdot,m2χ_Vdot,m1χ_Ωdot,m2χ_Ωdot)
+function element_inertia_resultants!(F_u1_pdot,F_u2_pdot,F_u1_Vdot,F_u2_Vdot,F_u1_Ωdot,F_u2_Ωdot,F_p1_pdot,F_p2_pdot,F_p1_Vdot,F_p2_Vdot,F_p1_Ωdot,F_p2_Ωdot,F_V_udot,F_Ω_pdot,Δℓ,R0,I11,I12,I21,I22,P,H,RR0,HT,R_p1,R_p2,R_p3,f1χ_Vdot,f2χ_Vdot,f1χ_Ωdot,f2χ_Ωdot,m1χ_Vdot,m2χ_Vdot,m1χ_Ωdot,m2χ_Ωdot)
 
     # --- F_u --- #
     # F_u_pdot
@@ -1608,7 +1609,7 @@ function element_inertia_resultants!(F_u1_pdot,F_u2_pdot,F_u1_Vdot,F_u2_Vdot,F_u
 
     # --- F_Ω --- #
     # F_Ω_pdot
-    F_Ω_pdot .= - SMatrix(R0T * HT)
+    F_Ω_pdot .= - SMatrix(HT')
 
 end
 
