@@ -16,7 +16,7 @@ sweepStructuralCorrections = true
 hasTipCorrection = true
 
 # Tip correction function type
-tipLossType = "VLM-undef"
+tipLossType = "VLM-def"
 
 # Aerodynamic solver
 aeroSolver = Indicial()

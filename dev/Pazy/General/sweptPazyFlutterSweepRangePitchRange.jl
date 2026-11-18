@@ -2,9 +2,9 @@ using AeroBeams
 
 # --- Configurations ---
 # Flag for tip correction
-hasTipCorrectionConfig = [false,true,true,true]
+hasTipCorrectionConfig = [false,true,true]
 # Tip correction function type
-tipLossTypeConfig = ["None","Exponential","VLM-undef","VLM-def"]
+tipLossTypeConfig = ["None","Exponential","VLM-def"]
 
 # Sweep angle [rad]
 ΛRange = deg2rad.(vcat(0:10:30))
@@ -113,10 +113,10 @@ absPath = string(pwd(),relPath)
 mkpath(absPath)
 
 # Plot configurations
-configColors = cgrad([:red,:green,:yellow,:blue], length(tipLossTypeConfig), categorical=true)
+configColors = cgrad([:red,:green,:blue], length(tipLossTypeConfig), categorical=true)
 ΛColors = cgrad([:red,:green,:yellow,:blue], length(ΛRange), categorical=true)
 modeColors = cgrad(:rainbow, nModes, categorical=true)
-configLabels = ["No loss" "Exponential loss" "VLM - undeformed" "VLM - deformed"]
+configLabels = ["No loss" "Exponential loss" "VLM - deformed"]
 ts = 10
 fs = 16
 lfs = 10
@@ -223,31 +223,6 @@ for (c,hasTipCorrection,tipLossType) in zip(1:length(tipLossTypeConfig),hasTipCo
                 yθ = [ 72,  72,  71, 70,  68,   67]
                 hardMode = [1 for j in eachindex(θRange)]
             end
-        elseif tipLossType == "VLM-undef"
-            if Λ == deg2rad(0)
-                dispLim = 70
-                xθ = [27, 33, 32, 35, 37, 39]
-                yθ = [87, 82, 70, 64, 56, 51]
-            elseif Λ == deg2rad(10)
-                dispLim = 40
-                xθ = [ 2,  6, 12, 19, 27, 33]
-                yθ = [85, 84, 83, 82, 75, 67]
-                for (j,θ) in enumerate(θRange)
-                    if rad2deg(θ) < 7
-                        hardMode[j] = 1
-                    end
-                end
-            elseif Λ == deg2rad(20)
-                dispLim = 23.5
-                xθ = [ 1,  3,  6, 9.5, 15, 20]
-                yθ = [80, 80, 79,  78, 75, 72]
-                hardMode = [1 for j in eachindex(θRange)]
-            elseif Λ == deg2rad(30)
-                dispLim = 15
-                xθ = [0.7, 1.8,  3.8,  6, 10, 13.5]
-                yθ = [ 85,  85, 84, 83, 81,   78]
-                hardMode = [1 for j in eachindex(θRange)]
-            end    
         elseif tipLossType == "VLM-def"
             if Λ == deg2rad(0)
                 dispLim = 70

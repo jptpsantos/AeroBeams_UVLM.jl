@@ -2,9 +2,9 @@ using AeroBeams
 
 # --- Configurations ---
 # Flag for tip correction
-hasTipCorrectionConfig = [false,true,true,true]
+hasTipCorrectionConfig = [false,true,true]
 # Tip correction function type
-tipLossTypeConfig = ["None","Exponential","VLM-undef","VLM-def"]
+tipLossTypeConfig = ["None","Exponential","VLM-def"]
 
 # Sweep angle range [rad]
 ΛRange = deg2rad.(vcat(0,10,20,30))
@@ -112,7 +112,7 @@ mkpath(absPath)
 xΛ = [ 0.85, 0.95, 0.95, 0.95]
 yΛ = [0.65,  0.43, 0.27, 0.15]
 colors = cgrad(:rainbow, length(ΛRange), categorical=true)
-ls = [:solid, :dash, :dot, :dashdot]
+ls = [:solid, :dash, :dashdot]
 ts = 10
 fs = 16
 lfs = 9
@@ -125,8 +125,7 @@ gr()
 plt_defPos = plot(xlabel="Normalized horizontal position", ylabel="Normalized vertical position", title=string("\$\\alpha_r=7^\\circ\$",", \$U=70\$ m/s"), xlims=[0,1], ylims=[0,0.8], tickfont=font(ts), guidefont=font(fs), legendfontsize=lfs, legend=:topleft)
 plot!([NaN], [NaN], c=:black, lw=lw, ls=ls[1], label="No loss")
 plot!([NaN], [NaN], c=:black, lw=lw, ls=ls[2], label="Exponential loss")
-plot!([NaN], [NaN], c=:black, lw=lw, ls=ls[3], label="VLM - undeformed")
-plot!([NaN], [NaN], c=:black, lw=lw, ls=ls[4], label="VLM - deformed")
+plot!([NaN], [NaN], c=:black, lw=lw, ls=ls[3], label="VLM - deformed")
 scatter!([NaN], [NaN], c=:black, ms=ms, msw=msw, label="Sharpy (VLM)")
 for c in 1:length(tipLossTypeConfig)
     for i in eachindex(ΛRange)

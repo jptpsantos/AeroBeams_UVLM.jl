@@ -1,7 +1,7 @@
 using AeroBeams
 
 # Airspeed range [m/s]
-URange = vcat(1e-3,1:1:120)
+URange = vcat(30:1:120)
 
 # Aerodynamic solver
 aeroSolver = Indicial()
@@ -9,20 +9,23 @@ aeroSolver = Indicial()
 # Airfoil section
 airfoil = deepcopy(FlatPlate)
 
+# Tip correction function type
+tipLossType = "VLM-def"
+
 # Flag for upright position
 upright = true
 
 # Root pitch angle [rad]
-θ = deg2rad(7)
+θ = deg2rad(0)
 
 # Mesh: :nominal or :refined
-mesh = :refined
+mesh = :nominal
 
 # Flag to use old data matrices from AePW3
 useAePW3Matrices = false
 
 # Initialize model
-PazyWingFlutter,nElem,L,chord,normSparPos = create_Pazy(aeroSolver=aeroSolver,airfoil=airfoil,upright=upright,pitchAngle=θ,mesh=mesh,useAePW3Matrices=useAePW3Matrices)
+PazyWingFlutter,nElem,L,chord,normSparPos = create_Pazy(aeroSolver=aeroSolver,airfoil=airfoil,upright=upright,pitchAngle=θ,mesh=mesh,hasTipCorrection=true,tipLossType=tipLossType,useAePW3Matrices=useAePW3Matrices)
 
 # Undeformed nodal and midpoint positions
 wing = PazyWingFlutter.beams[1]

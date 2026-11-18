@@ -13,7 +13,7 @@ URange = vcat(1e-3,1:1:100)
 hasTipCorrection = true
 
 # Tip correction function type
-tipLossType = "VLM-undef"
+tipLossType = "VLM-def"
 
 # Aerodynamic solver
 aeroSolver = Indicial()

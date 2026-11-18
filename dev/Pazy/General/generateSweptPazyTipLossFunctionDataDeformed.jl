@@ -1,270 +1,79 @@
-using Plots, Polynomials, LinearInterpolations, DelimitedFiles
+using AeroBeams
+
+# Directory of the static aeroelastic VLM solutions of the Pazy wing: one folder per sweep angle (S<Λ>), each with one folder per root angle of attack (aoa<θ>deg, with "p" as decimal separator), which holds the spanwise distributions (spanwise_cn_alpha.csv) for a range of airspeeds
+vlmDir = joinpath(pkgdir(AeroBeams), "test", "referenceData", "PazyVLM")
+
+# Speed of sound used for the compressibility factor [m/s] (that of the airfoil's lift slope in AeroBeams, at sea level)
+a = standard_atmosphere(0).a
 
 # Compressibility factor as a function of airspeed
-function β_of(U)
-    return sqrt(1-(U/343)^2)
-end
+β_of(U) = sqrt(1-(U/a)^2)
 
-# Span points of data collection
-x_data = [0.0, 0.2, 0.4, 0.6, 0.8, 1.0]
-nSpanPoints = length(x_data)
-
-# VLM data for lift slope
-# Λ0, θ0
-y_U0θ0Λ0   = [5.59, 5.56, 5.46, 5.20, 4.56, 1.40]/(2π/β_of(0))
-y_U10θ0Λ0  = [5.59, 5.56, 5.46, 5.20, 4.56, 1.40]/(2π/β_of(10))
-y_U20θ0Λ0  = [5.59, 5.56, 5.46, 5.20, 4.56, 1.40]/(2π/β_of(20))
-y_U30θ0Λ0  = [5.59, 5.56, 5.46, 5.20, 4.56, 1.40]/(2π/β_of(30))
-y_U40θ0Λ0  = [5.59, 5.56, 5.46, 5.20, 4.56, 1.40]/(2π/β_of(40))
-y_U50θ0Λ0  = [5.59, 5.56, 5.46, 5.20, 4.56, 1.40]/(2π/β_of(50))
-y_U60θ0Λ0  = [5.59, 5.56, 5.46, 5.20, 4.56, 1.40]/(2π/β_of(60))
-y_U70θ0Λ0  = [5.59, 5.56, 5.46, 5.20, 4.56, 1.40]/(2π/β_of(70))
-y_U120θ0Λ0  = [5.59, 5.56, 5.46, 5.20, 4.56, 1.40]/(2π/β_of(120))
-# Λ0, θ3
-y_U0θ3Λ0   = [5.63, 5.59, 5.47, 5.21, 4.57, 1.40]/(2π/β_of(0))
-y_U10θ3Λ0  = [5.63, 5.59, 5.47, 5.21, 4.57, 1.40]/(2π/β_of(10))
-y_U20θ3Λ0  = [5.68, 5.60, 5.47, 5.20, 4.55, 1.40]/(2π/β_of(20))
-y_U30θ3Λ0  = [5.77, 5.62, 5.45, 5.16, 4.50, 1.38]/(2π/β_of(30))
-y_U40θ3Λ0  = [5.90, 5.65, 5.40, 5.07, 4.42, 1.36]/(2π/β_of(40))*1.05
-y_U50θ3Λ0  = [6.08, 5.65, 5.27, 4.90, 4.25, 1.31]/(2π/β_of(50))*1.10
-y_U60θ3Λ0  = [6.29, 5.62, 5.05, 4.59, 3.97, 1.23]/(2π/β_of(60))*1.20
-y_U70θ3Λ0  = [6.51, 5.52, 4.73, 4.18, 3.59, 1.13]/(2π/β_of(70))*1.25
-y_U120θ3Λ0  = [6.51, 5.52, 4.73, 4.18, 3.59, 1.13]/(2π/β_of(120))*1.5
-# Λ0, θ5
-y_U0θ5Λ0   = [5.61, 5.57, 5.46, 5.20, 4.55, 1.39]/(2π/β_of(0))
-y_U10θ5Λ0  = [5.61, 5.57, 5.46, 5.20, 4.55, 1.39]/(2π/β_of(10))
-y_U20θ5Λ0  = [5.67, 5.59, 5.45, 5.18, 4.53, 1.39]/(2π/β_of(20))
-y_U30θ5Λ0  = [5.76, 5.60, 5.40, 5.10, 4.45, 1.37]/(2π/β_of(30))
-y_U40θ5Λ0  = [5.88, 5.60, 5.28, 4.92, 4.28, 1.32]/(2π/β_of(40))*1.05
-y_U50θ5Λ0  = [6.04, 5.54, 5.04, 4.59, 3.97, 1.23]/(2π/β_of(50))*1.10
-y_U60θ5Λ0  = [6.19, 5.41, 4.67, 4.13, 3.54, 1.11]/(2π/β_of(60))*1.20
-y_U70θ5Λ0  = [6.32, 5.22, 4.24, 3.63, 3.09, 0.98]/(2π/β_of(70))*1.25
-y_U120θ5Λ0  = [6.32, 5.22, 4.24, 3.63, 3.09, 0.98]/(2π/β_of(120))*1.5
-# Λ0, θ7
-y_U0θ7Λ0   = [5.59, 5.54, 5.43, 5.18, 4.53, 1.39]/(2π/β_of(0))
-y_U10θ7Λ0  = [5.59, 5.54, 5.43, 5.18, 4.53, 1.39]/(2π/β_of(10))
-y_U20θ7Λ0  = [5.64, 5.56, 5.41, 5.14, 4.49, 1.38]/(2π/β_of(20))
-y_U30θ7Λ0  = [5.74, 5.57, 5.34, 5.02, 4.38, 1.35]/(2π/β_of(30))
-y_U40θ7Λ0  = [5.86, 5.53, 5.14, 4.74, 4.11, 1.27]/(2π/β_of(40))*1.05
-y_U50θ7Λ0  = [5.99, 5.41, 4.78, 4.28, 3.68, 1.15]/(2π/β_of(50))*1.10
-y_U60θ7Λ0  = [6.11, 5.22, 4.33, 3.74, 3.19, 1.01]/(2π/β_of(60))*1.20
-y_U70θ7Λ0  = [6.19, 4.97, 3.85, 3.22, 2.72, 0.87]/(2π/β_of(70))*1.25
-y_U120θ7Λ0  = [6.19, 4.97, 3.85, 3.22, 2.72, 0.87]/(2π/β_of(120))*1.5
-# Λ10, θ0
-y_U0θ0Λ10   = [5.19, 5.29, 5.29, 5.11, 4.55, 1.41]/(2π/β_of(0))/cosd(10)^2
-y_U10θ0Λ10  = [5.19, 5.29, 5.29, 5.11, 4.55, 1.41]/(2π/β_of(10))/cosd(10)^2
-y_U20θ0Λ10  = [5.19, 5.29, 5.29, 5.11, 4.55, 1.41]/(2π/β_of(20))/cosd(10)^2
-y_U30θ0Λ10  = [5.19, 5.29, 5.29, 5.11, 4.55, 1.41]/(2π/β_of(30))/cosd(10)^2
-y_U40θ0Λ10  = [5.19, 5.29, 5.29, 5.11, 4.55, 1.41]/(2π/β_of(40))/cosd(10)^2
-y_U50θ0Λ10  = [5.19, 5.29, 5.29, 5.11, 4.55, 1.41]/(2π/β_of(50))/cosd(10)^2
-y_U60θ0Λ10  = [5.19, 5.29, 5.29, 5.11, 4.55, 1.41]/(2π/β_of(60))/cosd(10)^2
-y_U70θ0Λ10  = [5.19, 5.29, 5.29, 5.11, 4.55, 1.41]/(2π/β_of(70))/cosd(10)^2
-y_U120θ0Λ10  = [5.19, 5.29, 5.29, 5.11, 4.55, 1.41]/(2π/β_of(120))/cosd(10)^2
-# Λ10, θ3
-y_U0θ3Λ10   = [5.18, 5.31, 5.31, 5.13, 4.56, 1.42]/(2π/β_of(0))/cosd(10)^2
-y_U10θ3Λ10  = [5.18, 5.31, 5.31, 5.13, 4.56, 1.42]/(2π/β_of(10))/cosd(10)^2
-y_U20θ3Λ10  = [5.11, 5.31, 5.33, 5.15, 4.57, 1.42]/(2π/β_of(20))/cosd(10)^2
-y_U30θ3Λ10  = [5.00, 5.31, 5.35, 5.16, 4.57, 1.42]/(2π/β_of(30))/cosd(10)^2
-y_U40θ3Λ10  = [4.86, 5.31, 5.38, 5.18, 4.56, 1.41]/(2π/β_of(40))/cosd(10)^2
-y_U50θ3Λ10  = [4.71, 5.31, 5.41, 5.19, 4.55, 1.41]/(2π/β_of(50))/cosd(10)^2
-y_U60θ3Λ10  = [4.55, 5.30, 5.44, 5.19, 4.53, 1.40]/(2π/β_of(60))/cosd(10)^2
-y_U70θ3Λ10  = [4.40, 5.29, 5.47, 5.20, 4.50, 1.38]/(2π/β_of(70))/cosd(10)^2
-y_U120θ3Λ10  = [4.40, 5.29, 5.47, 5.20, 4.50, 1.38]/(2π/β_of(120))/cosd(10)^2
-# Λ10, θ5
-y_U0θ5Λ10   = [5.16, 5.29, 5.29, 5.12, 4.55, 1.41]/(2π/β_of(0))/cosd(10)^2
-y_U10θ5Λ10  = [5.16, 5.29, 5.29, 5.12, 4.55, 1.41]/(2π/β_of(10))/cosd(10)^2
-y_U20θ5Λ10  = [5.09, 5.30, 5.31, 5.13, 4.55, 1.41]/(2π/β_of(20))/cosd(10)^2
-y_U30θ5Λ10  = [4.98, 5.30, 5.32, 5.13, 4.53, 1.41]/(2π/β_of(30))/cosd(10)^2
-y_U40θ5Λ10  = [4.85, 5.29, 5.33, 5.11, 4.50, 1.39]/(2π/β_of(40))/cosd(10)^2
-y_U50θ5Λ10  = [4.70, 5.27, 5.32, 5.06, 4.43, 1.37]/(2π/β_of(50))/cosd(10)^2
-y_U60θ5Λ10  = [4.56, 5.24, 5.29, 5.00, 4.35, 1.34]/(2π/β_of(60))/cosd(10)^2
-y_U70θ5Λ10  = [4.41, 5.20, 5.26, 4.92, 4.25, 1.31]/(2π/β_of(70))/cosd(10)^2
-y_U120θ5Λ10  = [4.41, 5.20, 5.26, 4.92, 4.25, 1.31]/(2π/β_of(120))/cosd(10)^2
-# Λ10, θ7
-y_U0θ7Λ10   = [5.14, 5.27, 5.27, 5.09, 4.52, 1.40]/(2π/β_of(0))/cosd(10)^2
-y_U10θ7Λ10  = [5.14, 5.27, 5.27, 5.09, 4.52, 1.40]/(2π/β_of(10))/cosd(10)^2
-y_U20θ7Λ10  = [5.07, 5.27, 5.28, 5.10, 4.52, 1.40]/(2π/β_of(20))/cosd(10)^2
-y_U30θ7Λ10  = [4.97, 5.27, 5.28, 5.08, 4.49, 1.39]/(2π/β_of(30))/cosd(10)^2
-y_U40θ7Λ10  = [4.84, 5.25, 5.25, 5.01, 4.41, 1.37]/(2π/β_of(40))/cosd(10)^2
-y_U50θ7Λ10  = [4.70, 5.21, 5.19, 4.90, 4.28, 1.33]/(2π/β_of(50))/cosd(10)^2
-y_U60θ7Λ10  = [4.56, 5.16, 5.10, 4.76, 4.12, 1.28]/(2π/β_of(60))/cosd(10)^2
-y_U70θ7Λ10  = [4.43, 5.10, 4.99, 4.60, 3.95, 1.22]/(2π/β_of(70))/cosd(10)^2
-y_U120θ7Λ10  = [4.43, 5.10, 4.99, 4.60, 3.95, 1.22]/(2π/β_of(120))/cosd(10)^2
-# Λ20, θ0
-y_U0θ0Λ20   = [4.52, 4.73, 4.80, 4.71, 4.26, 1.33]/(2π/β_of(0))/cosd(20)^2
-y_U10θ0Λ20  = [4.52, 4.73, 4.80, 4.71, 4.26, 1.33]/(2π/β_of(10))/cosd(20)^2
-y_U20θ0Λ20  = [4.52, 4.73, 4.80, 4.71, 4.26, 1.33]/(2π/β_of(20))/cosd(20)^2
-y_U30θ0Λ20  = [4.52, 4.73, 4.80, 4.71, 4.26, 1.33]/(2π/β_of(30))/cosd(20)^2
-y_U40θ0Λ20  = [4.52, 4.73, 4.80, 4.71, 4.26, 1.33]/(2π/β_of(40))/cosd(20)^2
-y_U50θ0Λ20  = [4.52, 4.73, 4.80, 4.71, 4.26, 1.33]/(2π/β_of(50))/cosd(20)^2
-y_U60θ0Λ20  = [4.52, 4.73, 4.80, 4.71, 4.26, 1.33]/(2π/β_of(60))/cosd(20)^2
-y_U70θ0Λ20  = [4.52, 4.73, 4.80, 4.71, 4.26, 1.33]/(2π/β_of(70))/cosd(20)^2
-y_U120θ0Λ20  = [4.52, 4.73, 4.80, 4.71, 4.26, 1.33]/(2π/β_of(120))/cosd(20)^2
-# Λ20, θ3
-y_U0θ3Λ20   = [4.50, 4.74, 4.83, 4.73, 4.28, 1.34]/(2π/β_of(0))/cosd(20)^2
-y_U10θ3Λ20  = [4.50, 4.74, 4.83, 4.73, 4.28, 1.34]/(2π/β_of(10))/cosd(20)^2
-y_U20θ3Λ20  = [4.42, 4.75, 4.85, 4.76, 4.29, 1.35]/(2π/β_of(20))/cosd(20)^2
-y_U30θ3Λ20  = [4.29, 4.75, 4.90, 4.80, 4.31, 1.35]/(2π/β_of(30))/cosd(20)^2
-y_U40θ3Λ20  = [4.13, 4.75, 4.96, 4.86, 4.34, 1.36]/(2π/β_of(40))/cosd(20)^2
-y_U50θ3Λ20  = [3.98, 4.75, 5.03, 4.93, 4.38, 1.36]/(2π/β_of(50))/cosd(20)^2
-y_U60θ3Λ20  = [3.83, 4.76, 5.12, 5.01, 4.43, 1.37]/(2π/β_of(60))/cosd(20)^2
-y_U70θ3Λ20  = [3.69, 4.76, 5.22, 5.12, 4.49, 1.38]/(2π/β_of(70))/cosd(20)^2
-y_U120θ3Λ20  = [3.69, 4.76, 5.22, 5.12, 4.49, 1.38]/(2π/β_of(120))/cosd(20)^2
-# Λ20, θ5
-y_U0θ5Λ20   = [4.49, 4.73, 4.81, 4.72, 4.26, 1.34]/(2π/β_of(0))/cosd(20)^2
-y_U10θ5Λ20  = [4.49, 4.73, 4.81, 4.72, 4.26, 1.34]/(2π/β_of(10))/cosd(20)^2
-y_U20θ5Λ20  = [4.40, 4.73, 4.84, 4.74, 4.28, 1.34]/(2π/β_of(20))/cosd(20)^2
-y_U30θ5Λ20  = [4.27, 4.73, 4.88, 4.78, 4.29, 1.34]/(2π/β_of(30))/cosd(20)^2
-y_U40θ5Λ20  = [4.12, 4.73, 4.93, 4.82, 4.31, 1.35]/(2π/β_of(40))/cosd(20)^2
-y_U50θ5Λ20  = [3.97, 4.73, 4.99, 4.88, 4.33, 1.35]/(2π/β_of(50))/cosd(20)^2
-y_U60θ5Λ20  = [3.82, 4.73, 5.06, 4.94, 4.36, 1.35]/(2π/β_of(60))/cosd(20)^2
-y_U70θ5Λ20  = [3.69, 4.72, 5.14, 5.02, 4.39, 1.35]/(2π/β_of(70))/cosd(20)^2
-y_U120θ5Λ20  = [3.69, 4.72, 5.14, 5.02, 4.39, 1.35]/(2π/β_of(120))/cosd(20)^2
-# Λ20, θ7
-y_U0θ7Λ20   = [4.47, 4.71, 4.79, 4.69, 4.24, 1.33]/(2π/β_of(0))/cosd(20)^2
-y_U10θ7Λ20  = [4.47, 4.71, 4.79, 4.69, 4.24, 1.33]/(2π/β_of(10))/cosd(20)^2
-y_U20θ7Λ20  = [4.38, 4.71, 4.82, 4.72, 4.25, 1.33]/(2π/β_of(20))/cosd(20)^2
-y_U30θ7Λ20  = [4.26, 4.71, 4.85, 4.75, 4.26, 1.34]/(2π/β_of(30))/cosd(20)^2
-y_U40θ7Λ20  = [4.11, 4.71, 4.89, 4.77, 4.27, 1.33]/(2π/β_of(40))/cosd(20)^2
-y_U50θ7Λ20  = [3.96, 4.70, 4.93, 4.80, 4.26, 1.33]/(2π/β_of(50))/cosd(20)^2
-y_U60θ7Λ20  = [3.82, 4.69, 4.98, 4.83, 4.25, 1.32]/(2π/β_of(60))/cosd(20)^2
-y_U70θ7Λ20  = [3.69, 4.68, 5.03, 4.87, 4.25, 1.31]/(2π/β_of(70))/cosd(20)^2
-y_U120θ7Λ20  = [3.69, 4.68, 5.03, 4.87, 4.25, 1.31]/(2π/β_of(120))/cosd(20)^2
-# Λ30, θ0
-y_U0θ0Λ30   = [3.69, 3.94, 4.07, 4.04, 3.72, 1.18]/(2π/β_of(0))/cosd(30)^2
-y_U10θ0Λ30  = [3.69, 3.94, 4.07, 4.04, 3.72, 1.18]/(2π/β_of(10))/cosd(30)^2
-y_U20θ0Λ30  = [3.69, 3.94, 4.07, 4.04, 3.72, 1.18]/(2π/β_of(20))/cosd(30)^2
-y_U30θ0Λ30  = [3.69, 3.94, 4.07, 4.04, 3.72, 1.18]/(2π/β_of(30))/cosd(30)^2
-y_U40θ0Λ30  = [3.69, 3.94, 4.07, 4.04, 3.72, 1.18]/(2π/β_of(40))/cosd(30)^2
-y_U50θ0Λ30  = [3.69, 3.94, 4.07, 4.04, 3.72, 1.18]/(2π/β_of(50))/cosd(30)^2
-y_U60θ0Λ30  = [3.69, 3.94, 4.07, 4.04, 3.72, 1.18]/(2π/β_of(60))/cosd(30)^2
-y_U70θ0Λ30  = [3.69, 3.94, 4.07, 4.04, 3.72, 1.18]/(2π/β_of(70))/cosd(30)^2
-y_U120θ0Λ30  = [3.69, 3.94, 4.07, 4.04, 3.72, 1.18]/(2π/β_of(120))/cosd(30)^2
-# Λ30, θ3
-y_U0θ3Λ30   = [3.68, 3.96, 4.09, 4.06, 3.73, 1.19]/(2π/β_of(0))/cosd(30)^2
-y_U10θ3Λ30  = [3.68, 3.96, 4.09, 4.06, 3.73, 1.19]/(2π/β_of(10))/cosd(30)^2
-y_U20θ3Λ30  = [3.62, 3.96, 4.11, 4.08, 3.75, 1.19]/(2π/β_of(20))/cosd(30)^2
-y_U30θ3Λ30  = [3.54, 3.97, 4.14, 4.12, 3.77, 1.00]/(2π/β_of(30))/cosd(30)^2
-y_U40θ3Λ30  = [3.44, 3.98, 4.19, 4.16, 3.79, 1.20]/(2π/β_of(40))/cosd(30)^2
-y_U50θ3Λ30  = [3.33, 3.98, 4.26, 4.22, 3.83, 1.00]/(2π/β_of(50))/cosd(30)^2
-y_U60θ3Λ30  = [3.22, 4.00, 4.33, 4.30, 3.88, 1.00]/(2π/β_of(60))/cosd(30)^2
-y_U70θ3Λ30  = [3.12, 4.01, 4.42, 4.39, 3.93, 1.23]/(2π/β_of(70))/cosd(30)^2
-y_U120θ3Λ30  = [3.12, 4.01, 4.42, 4.39, 3.93, 1.23]/(2π/β_of(120))/cosd(30)^2
-# Λ30, θ5
-y_U0θ5Λ30   = [3.67, 3.94, 4.07, 4.05, 3.72, 1.18]/(2π/β_of(0))/cosd(30)^2
-y_U10θ5Λ30  = [3.67, 3.94, 4.07, 4.05, 3.72, 1.18]/(2π/β_of(10))/cosd(30)^2
-y_U20θ5Λ30  = [3.61, 3.95, 4.10, 4.07, 3.74, 1.19]/(2π/β_of(20))/cosd(30)^2
-y_U30θ5Λ30  = [3.53, 3.96, 4.13, 4.10, 3.75, 1.19]/(2π/β_of(30))/cosd(30)^2
-y_U40θ5Λ30  = [3.42, 3.96, 4.18, 4.15, 3.78, 1.20]/(2π/β_of(40))/cosd(30)^2
-y_U50θ5Λ30  = [3.32, 3.97, 4.24, 4.20, 3.81, 1.20]/(2π/β_of(50))/cosd(30)^2
-y_U60θ5Λ30  = [3.21, 3.98, 4.31, 4.27, 3.85, 1.21]/(2π/β_of(60))/cosd(30)^2
-y_U70θ5Λ30  = [3.11, 3.99, 4.39, 4.36, 3.90, 1.22]/(2π/β_of(70))/cosd(30)^2
-y_U120θ5Λ30  = [3.11, 3.99, 4.39, 4.36, 3.90, 1.22]/(2π/β_of(120))/cosd(30)^2
-# Λ30, θ7
-y_U0θ7Λ30   = [3.65, 3.93, 4.05, 4.03, 3.70, 1.18]/(2π/β_of(0))/cosd(30)^2
-y_U10θ7Λ30  = [3.65, 3.93, 4.05, 4.03, 3.70, 1.18]/(2π/β_of(10))/cosd(30)^2
-y_U20θ7Λ30  = [3.59, 3.93, 4.08, 4.05, 3.72, 1.18]/(2π/β_of(20))/cosd(30)^2
-y_U30θ7Λ30  = [3.51, 3.94, 4.11, 4.08, 3.73, 1.18]/(2π/β_of(30))/cosd(30)^2
-y_U40θ7Λ30  = [3.41, 3.95, 4.16, 4.12, 3.76, 1.19]/(2π/β_of(40))/cosd(30)^2
-y_U50θ7Λ30  = [3.30, 3.95, 4.21, 4.17, 3.78, 1.19]/(2π/β_of(50))/cosd(30)^2
-y_U60θ7Λ30  = [3.20, 3.96, 4.27, 4.23, 3.81, 1.19]/(2π/β_of(60))/cosd(30)^2
-y_U70θ7Λ30  = [3.10, 3.96, 4.34, 4.30, 3.84, 1.20]/(2π/β_of(70))/cosd(30)^2
-y_U120θ7Λ30  = [3.10, 3.96, 4.34, 4.30, 3.84, 1.20]/(2π/β_of(120))/cosd(30)^2
-
-y = [[# Λ0
-        # θ0
-        [y_U0θ0Λ0, y_U10θ0Λ0, y_U20θ0Λ0, y_U30θ0Λ0, y_U40θ0Λ0, y_U50θ0Λ0, y_U60θ0Λ0, y_U70θ0Λ0, y_U120θ0Λ0],
-        # θ3
-        [y_U0θ3Λ0, y_U10θ3Λ0, y_U20θ3Λ0, y_U30θ3Λ0, y_U40θ3Λ0, y_U50θ3Λ0, y_U60θ3Λ0, y_U70θ3Λ0, y_U120θ3Λ0],
-        # θ5
-        [y_U0θ5Λ0, y_U10θ5Λ0, y_U20θ5Λ0, y_U30θ5Λ0, y_U40θ5Λ0, y_U50θ5Λ0, y_U60θ5Λ0, y_U70θ5Λ0, y_U120θ5Λ0],
-        # θ7
-        [y_U0θ7Λ0, y_U10θ7Λ0, y_U20θ7Λ0, y_U30θ7Λ0, y_U40θ7Λ0, y_U50θ7Λ0, y_U60θ7Λ0, y_U70θ7Λ0, y_U120θ7Λ0]],
-    [# Λ10
-        # θ0
-        [y_U0θ0Λ10, y_U10θ0Λ10, y_U20θ0Λ10, y_U30θ0Λ10, y_U40θ0Λ10, y_U50θ0Λ10, y_U60θ0Λ10, y_U70θ0Λ10, y_U120θ0Λ10],
-        # θ3
-        [y_U0θ3Λ10, y_U10θ3Λ10, y_U20θ3Λ10, y_U30θ3Λ10, y_U40θ3Λ10, y_U50θ3Λ10, y_U60θ3Λ10, y_U70θ3Λ10, y_U120θ3Λ10],
-        # θ5
-        [y_U0θ5Λ10, y_U10θ5Λ10, y_U20θ5Λ10, y_U30θ5Λ10, y_U40θ5Λ10, y_U50θ5Λ10, y_U60θ5Λ10, y_U70θ5Λ10, y_U120θ5Λ10],
-        # θ7
-        [y_U0θ7Λ10, y_U10θ7Λ10, y_U20θ7Λ10, y_U30θ7Λ10, y_U40θ7Λ10, y_U50θ7Λ10, y_U60θ7Λ10, y_U70θ7Λ10, y_U120θ7Λ10]],
-     [# Λ20
-        # θ0
-        [y_U0θ0Λ20, y_U10θ0Λ20, y_U20θ0Λ20, y_U30θ0Λ20, y_U40θ0Λ20, y_U50θ0Λ20, y_U60θ0Λ20, y_U70θ0Λ20, y_U120θ0Λ20],
-        # θ3
-        [y_U0θ3Λ20, y_U10θ3Λ20, y_U20θ3Λ20, y_U30θ3Λ20, y_U40θ3Λ20, y_U50θ3Λ20, y_U60θ3Λ20, y_U70θ3Λ20, y_U120θ3Λ20],
-        # θ5
-        [y_U0θ5Λ20, y_U10θ5Λ20, y_U20θ5Λ20, y_U30θ5Λ20, y_U40θ5Λ20, y_U50θ5Λ20, y_U60θ5Λ20, y_U70θ5Λ20, y_U120θ5Λ20],
-        # θ7
-        [y_U0θ7Λ20, y_U10θ7Λ20, y_U20θ7Λ20, y_U30θ7Λ20, y_U40θ7Λ20, y_U50θ7Λ20, y_U60θ7Λ20, y_U70θ7Λ20, y_U120θ7Λ20]],    
-     [# Λ30  
-        # θ0
-        [y_U0θ0Λ30, y_U10θ0Λ30, y_U20θ0Λ30, y_U30θ0Λ30, y_U40θ0Λ30, y_U50θ0Λ30, y_U60θ0Λ30, y_U70θ0Λ30, y_U120θ0Λ30],
-        # θ3
-        [y_U0θ3Λ30, y_U10θ3Λ30, y_U20θ3Λ30, y_U30θ3Λ30, y_U40θ3Λ30, y_U50θ3Λ30, y_U60θ3Λ30, y_U70θ3Λ30, y_U120θ3Λ30],
-        # θ5
-        [y_U0θ5Λ30, y_U10θ5Λ30, y_U20θ5Λ30, y_U30θ5Λ30, y_U40θ5Λ30, y_U50θ5Λ30, y_U60θ5Λ30, y_U70θ5Λ30, y_U120θ5Λ30],
-        # θ7
-        [y_U0θ7Λ30, y_U10θ7Λ30, y_U20θ7Λ30, y_U30θ7Λ30, y_U40θ7Λ30, y_U50θ7Λ30, y_U60θ7Λ30, y_U70θ7Λ30, y_U120θ7Λ30]]]
-
-# Define ranges
-ΛRange = [0,10,20,30]*π/180
-θRange = [0,3,5,7]*π/180
-URange = vcat(0:10:70,120)
-
-# Order of polynomial
-order = 8
-
-# Define coefficient storage
-polyCoeffs = zeros(order+1, length(ΛRange), length(θRange), length(URange))
-
-# Sweep conditions
-for (i, Λ) in enumerate(ΛRange)
-    for (j, θ) in enumerate(θRange)
-        for (k, U) in enumerate(URange)
-            # Lift slope at current condition
-            y_data = y[i][j][k]
-            # Fit polynomial
-            p = fit(x_data, y_data, order)
-            # Store coefficients
-            for n=1:order+1
-                polyCoeffs[n, i, j, k] = p.coeffs[n]
-            end
-        end
+# Read the lift slope along the span (cn_alpha_local_per_rad) and the tip out-of-plane displacement of the VLM data of all conditions (sweep angle [deg], root angle of attack [deg], airspeed [m/s])
+slopes = Dict{NTuple{3,Float64},Vector{Float64}}()
+tipOOP = Dict{NTuple{3,Float64},Float64}()
+zeroLoad = NTuple{2,Float64}[]
+eta = Float64[]
+for sweepDir in filter(d -> occursin(r"^S\d+$", d), readdir(vlmDir)), aoaDir in filter(d -> occursin(r"^aoa[\dp]+deg$", d), readdir(joinpath(vlmDir, sweepDir)))
+    # Read data and set the function to get its columns
+    data,header = readdlm(joinpath(vlmDir, sweepDir, aoaDir, "spanwise_cn_alpha.csv"), ',', header=true)
+    column(name) = data[:, findfirst(==(name), vec(header))]
+    Λ = only(unique(round.(column("sweep_deg"), digits=6)))
+    θ = only(unique(round.(column("alpha_deg"), digits=6)))
+    # Conditions without lift (zero angle of attack) have no slope (cn/α is not defined, and the wing is undeformed): they are set further below
+    valid = column("cn_alpha_local_valid") .== true
+    if !any(valid)
+        println("No valid lift slope (zero load) in $sweepDir/$aoaDir")
+        push!(zeroLoad, (Λ,θ))
+        continue
+    end
+    @assert all(valid) && all(column("central_converged") .== true) "VLM data of $sweepDir/$aoaDir is not valid and converged at all points"
+    # Data of each airspeed
+    for case in unique(column("case"))
+        rows = column("case") .== case
+        U = only(unique(round.(column("U_m_s")[rows], digits=6)))
+        slopes[(Λ,θ,U)] = column("cn_alpha_local_per_rad")[rows]
+        tipOOP[(Λ,θ,U)] = only(unique(column("tip_OOP_m")[rows]))
+        # The span stations are the same for all conditions
+        etaCase = column("eta")[rows]
+        isempty(eta) ? append!(eta, etaCase) : @assert etaCase ≈ eta "the span stations of $sweepDir/$aoaDir differ from the others"
     end
 end
+URange = sort(unique(getindex.(keys(slopes), 3)))
 
-# Save the coefficients
-mkpath(pkgdir(AeroBeams)*"/test/referenceData/sweptPazy")
-for j=1:length(θRange)
-    for k=1:length(URange)
-        writedlm(pkgdir(AeroBeams)*"/test/referenceData/sweptPazy/polyCoeffsDef_"*string(j)*"_"*string(k)*".txt", polyCoeffs[:,:,j,k])
+# Without load, the wing is undeformed, and its lift slope does not depend on the airspeed (apart from the compressibility factor, below): use that of the condition closest to the undeformed state, with the lowest angle of attack and airspeed
+for (Λ,θ) in zeroLoad
+    θClosest = minimum(k[2] for k in keys(slopes) if k[1] == Λ)
+    for U in URange
+        slopes[(Λ,θ,U)] = slopes[(Λ,θClosest,URange[1])]
     end
+    println("Using the lift slope at θ=$(θClosest)° and U=$(URange[1]) m/s, with tip OOP displacement of $(round(1e3*tipOOP[(Λ,θClosest,URange[1])], digits=1)) mm, for the zero load condition at Λ=$(Λ)°, θ=$(θ)°")
 end
 
-# Construct polynomial at query point
-function interpolate_polynomial(polyCoeffs, ΛRange, θRange, URange, Λq, θq, Uq)
-    order = size(polyCoeffs,1)-1
-    q = zeros(order+1)
-    for i=1:order+1
-        q[i] = LinearInterpolations.interpolate((ΛRange, θRange, URange), polyCoeffs[i,:,:,:], [Λq, θq, Uq])
-    end
-    return Polynomial(q)
+# Ranges of the conditions, which must form a complete grid
+ΛRange = sort(unique(getindex.(keys(slopes), 1)))
+θRange = sort(unique(getindex.(keys(slopes), 2)))
+@assert length(slopes) == length(ΛRange)*length(θRange)*length(URange) "the VLM data does not cover all combinations of sweep angle, root angle of attack and airspeed"
+@assert eta ≈ range(0, 1, length=length(eta)) "the span stations must be evenly spaced from the root to the tip"
+println("VLM data at Λ = $ΛRange deg, θ = $θRange deg, U = $URange m/s, and $(length(eta)) span stations")
+
+# The tip loss function is the lift slope along the span normalized by that of the airfoil, 2π/β. No sweep factor is needed: the VLM coefficient is based on the chord of the AeroBeams model and on the spanwise width projected on the unswept direction (Δℓ cosΛ), which matches the sweep correction (cosΛ) of the loads of the strips of AeroBeams. Compare the static equilibria of AeroBeams and of the VLM (tip_OOP_m and tip_twist_deg in the data) to check it
+conditions = Dict(k => slope / (2π/β_of(k[3])) for (k,slope) in slopes)
+
+# Save the tip loss function at the span stations, one row per condition
+table = [[Λ θ U transpose(conditions[(Λ,θ,U)])] for Λ in ΛRange for θ in θRange for U in URange]
+header = ["sweep_deg" "aoa_deg" "U_m_s" ["s=$(k-1)/$(length(eta)-1)" for k in eachindex(eta)]...]
+open(joinpath(pkgdir(AeroBeams), "test", "referenceData", "sweptPazy", "tipLossFunctionVLM.csv"), "w") do io
+    writedlm(io, header, ',')
+    writedlm(io, vcat(table...), ',')
 end
 
-# Example query and corresponding lift slope
-Λq, θq, Uq = 0*π/180, 7*π/180, 70
-y_data = y_U70θ7Λ0
-
-# Interpolation polynomial
-p_q = interpolate_polynomial(polyCoeffs, ΛRange, θRange, URange, Λq, θq, Uq)
-
-# Domain
-x = 0:0.01:1
-
-# Plot
-plt = plot(xlims=[0,1], ylims=[0,1], xlabel="Normalized span", ylabel="Normalized lift slope, \$c_{n_\\alpha}/(2\\pi/\\beta)\$")
-scatter!(x_data, y_data, c=:black, label="Data points")
-plot!(x,p_q.(x), label="Polynomial fit")
+# Plot a grid condition (the data points are exactly reproduced) and a query between grid points, as used by the models. Restart Julia if the data was already loaded
+Λq, θq, Uq = 15, 6, 65
+Λg, θg, Ug = 20, 5, 60
+s = 0:0.01:1
+plt = plot(xlims=[0,1], ylims=[0,1.5], xlabel="Normalized span", ylabel="Normalized lift slope, \$c_{n_\\alpha}/(2\\pi/\\beta)\$")
+scatter!(eta, conditions[(Float64(Λg),Float64(θg),Float64(Ug))], c=:black, label="VLM data: Λ=$(Λg)°, θ=$(θg)°, U=$Ug m/s")
+plot!(s, tip_loss_function_Pazy("VLM-def", deg2rad(θg), Ug, deg2rad(Λg)).(s), c=:black, label=false)
+plot!(s, tip_loss_function_Pazy("VLM-def", deg2rad(θq), Uq, deg2rad(Λq)).(s), c=:red, label="Interpolated: Λ=$(Λq)°, θ=$(θq)°, U=$Uq m/s")
 display(plt)
