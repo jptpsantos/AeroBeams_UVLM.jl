@@ -1,19 +1,16 @@
-using AeroBeams
+using AeroBeams, JLD2
 
 # Sweep angle [rad]
 Λ = deg2rad(20)
 
-# Root pitch angle offset (given by Technion) [rad]
-θoffset = deg2rad(0.4)
+# Root pitch angle offset (assumed) [rad]
+θoffset = deg2rad(0.0)
 
 # Root pitch angle range [rad]
-θRange = deg2rad.(vcat(0,1,3,5,7,10)) .+ θoffset
+θRange = deg2rad.([0,1,3,5,7,10])
 
 # Airspeed range [m/s]
 URange = vcat(1e-3,1:1:70)
-
-# Flag for ad hoc corrections on sectional stiffness matrix
-sweepStructuralCorrections = true
 
 # Flag for tip correction
 hasTipCorrection = true
@@ -30,28 +27,34 @@ airfoil = deepcopy(FlatPlate)
 # Flag for upright position
 upright = true
 
+# Mesh
+mesh = :refined
+
 # Geometric properties
-nElem,L,chord,normSparPos,nodalPositions = geometrical_properties_Pazy()
+nElem,L,chord,normSparPos,nodalPositions = geometrical_properties_Pazy(Λ=Λ, mesh=mesh)
 
-# Tip mass configuration (assumed at tipMassPosOffset behind TE)
-tipMass = 15.5e-3
-tipMassPosOffset = 0.05
-tipMassPos = -(chord*(1-normSparPos) + tipMassPosOffset)
+# Tip mass configuration
+tipMassConfig = :TE
 
-# Root strain gauge coordinates on the cross-section (the spar cs is 60 x 2.25 mm)
-ySG = 0             # Averaged strains over LE and TE of spar
-zSG = 2.23e-3/2     # On top of spar
+# Strain gauge coordinates on the cross-section (the spar cs is 60 x 2.25 mm)
+x2SG = -50e-3/2      # TE strains
+x3SG = 2.25e-3/2     # On top of spar
+
+# Strain gauges' number, corresponding element numbers, and spanwise positions
+gaugeNumber,SGelem,gaugeSpanPct = mesh == :refined ? 
+                                 (7,12,40) : 
+                                 (10,9,60)
 
 # Initialize outputs
 problem = Array{SteadyProblem}(undef,length(θRange),length(URange))
 tipOOP = Array{Float64}(undef,length(θRange),length(URange))
 tipAoA = Array{Float64}(undef,length(θRange),length(URange))
-rootEps = Array{Float64}(undef,length(θRange),length(URange))
+epsSG = Array{Float64}(undef,length(θRange),length(URange))
 
 # Sweep pitch angle
 for (i,θ) in enumerate(θRange)
     # Model
-    model,_ = create_Pazy(aeroSolver=aeroSolver,airfoil=airfoil,upright=upright,sweepAngle=Λ,pitchAngle=θ,hasTipCorrection=hasTipCorrection,tipLossType=tipLossType,sweepStructuralCorrections=sweepStructuralCorrections,tipMasses=[tipMass],ηtipMasses=[[0;tipMassPos;0]],tipMassesInertias=[zeros(3,3)])
+    model,_ = create_Pazy(aeroSolver=aeroSolver,airfoil=airfoil,upright=upright,sweepAngle=Λ,pitchAngle=θ+θoffset,hasTipCorrection=hasTipCorrection,tipLossType=tipLossType,sweptTipMassConfig=tipMassConfig,mesh=mesh)
     # Initialize guess solution
     x0 = zeros(0)
     # Sweep airspeed
@@ -67,38 +70,50 @@ for (i,θ) in enumerate(θRange)
         state = problem[i,j].loadstepHistory.states[end]
         aeroVars = problem[i,j].loadstepHistory.aeroVariables[end]
         # Outputs
-        tipOOP[i,j] = state[nElem].nodal.u2_b[3]
+        tipOOP[i,j] = -state[nElem].nodal.u2[1]
         tipAoA[i,j] = rad2deg(aeroVars[nElem].unsteadyKin.αₑ)
-        ϵ11Root = state[1].midpoint.γ[1]
-        κ2Root = state[1].midpoint.κ[2]
-        κ3Root = state[1].midpoint.κ[3]
-        rootEps[i,j] = (ϵ11Root - κ2Root*zSG - κ3Root*ySG)
+        ϵ11SG = state[SGelem].midpoint.γ[1]
+        κ2SG = state[SGelem].midpoint.κ[2]
+        κ3SG = state[SGelem].midpoint.κ[3]
+        epsSG[i,j] = (ϵ11SG - κ2SG*x3SG - κ3SG*x2SG)
         # Update initial guess for next airspeed
         x0 = problem[i,j].systemArrays.x
     end
 end
 
-# Load reference data (experiments from Technion - https://doi.org/10.5281/zenodo.16354530)
-steady_tipdisp_aoa0_ref = readdlm(pkgdir(AeroBeams)*"/test/referenceData/sweptPazyS20/steady_tipdisp_aoa0.txt")
-steady_tipdisp_aoa1_ref = readdlm(pkgdir(AeroBeams)*"/test/referenceData/sweptPazyS20/steady_tipdisp_aoa1.txt")
-steady_tipdisp_aoa3_ref = readdlm(pkgdir(AeroBeams)*"/test/referenceData/sweptPazyS20/steady_tipdisp_aoa3.txt")
-steady_tipdisp_aoa5_ref = readdlm(pkgdir(AeroBeams)*"/test/referenceData/sweptPazyS20/steady_tipdisp_aoa5.txt")
-steady_tipdisp_aoa7_ref = readdlm(pkgdir(AeroBeams)*"/test/referenceData/sweptPazyS20/steady_tipdisp_aoa7.txt")
-steady_tipdisp_aoa10_ref = readdlm(pkgdir(AeroBeams)*"/test/referenceData/sweptPazyS20/steady_tipdisp_aoa10.txt")
+# Load static results derived from raw data (https://doi.org/10.5281/zenodo.16912763)
+s = load(pkgdir(AeroBeams)*"/test/referenceData/sweptPazyS20/static_results.jld2")
+# Rows: airspeed, tip OOP displacement [mm], std of tip OOP displacement [mm], std of airspeed [m/s]
+tipdisp_aoa0_ref = permutedims(hcat(s["V"][1:6], s["tip"][1:6,3], s["tip_std"][1:6,3], s["V_std"][1:6]))
+tipdisp_aoa1_ref = permutedims(hcat(s["V"][7:12], s["tip"][7:12,3], s["tip_std"][7:12,3], s["V_std"][7:12]))
+tipdisp_aoa3_ref = permutedims(hcat(s["V"][13:18], s["tip"][13:18,3], s["tip_std"][13:18,3], s["V_std"][13:18]))
+tipdisp_aoa5_ref = permutedims(hcat(s["V"][19:24], s["tip"][19:24,3], s["tip_std"][19:24,3], s["V_std"][19:24]))
+tipdisp_aoa7_ref = permutedims(hcat(s["V"][25:30], s["tip"][25:30,3], s["tip_std"][25:30,3], s["V_std"][25:30]))
+tipdisp_aoa10_ref = permutedims(hcat(s["V"][31:end], s["tip"][31:end,3], s["tip_std"][31:end,3], s["V_std"][31:end]))
 
+tipAoA_aoa0_ref = permutedims(hcat(s["V"][1:6], 0 .+ s["twist"][1:6]))
+tipAoA_aoa1_ref = permutedims(hcat(s["V"][7:12], 1 .+ s["twist"][7:12]))
+tipAoA_aoa3_ref = permutedims(hcat(s["V"][13:18], 3 .+ s["twist"][13:18]))
+tipAoA_aoa5_ref = permutedims(hcat(s["V"][19:24], 5 .+ s["twist"][19:24]))
+tipAoA_aoa7_ref = permutedims(hcat(s["V"][25:30], 7 .+ s["twist"][25:30]))
+tipAoA_aoa10_ref = permutedims(hcat(s["V"][31:end], 10 .+ s["twist"][31:end]))
+
+# Strains at the TE gauge of the mesh-matching span position (strain_mean_TE: gauges 1..15 from root to tip)
+# Rows: airspeed, strain [µε], std of strain [µε], std of airspeed [m/s]
+epsSG_aoa0_ref = permutedims(hcat(s["V"][1:6], s["strain_mean_TE"][1:6,gaugeNumber], s["strain_std_TE"][1:6,gaugeNumber], s["V_std"][1:6]))
+epsSG_aoa1_ref = permutedims(hcat(s["V"][7:12], s["strain_mean_TE"][7:12,gaugeNumber], s["strain_std_TE"][7:12,gaugeNumber], s["V_std"][7:12]))
+epsSG_aoa3_ref = permutedims(hcat(s["V"][13:18], s["strain_mean_TE"][13:18,gaugeNumber], s["strain_std_TE"][13:18,gaugeNumber], s["V_std"][13:18]))
+epsSG_aoa5_ref = permutedims(hcat(s["V"][19:24], s["strain_mean_TE"][19:24,gaugeNumber], s["strain_std_TE"][19:24,gaugeNumber], s["V_std"][19:24]))
+epsSG_aoa7_ref = permutedims(hcat(s["V"][25:30], s["strain_mean_TE"][25:30,gaugeNumber], s["strain_std_TE"][25:30,gaugeNumber], s["V_std"][25:30]))
+epsSG_aoa10_ref = permutedims(hcat(s["V"][31:end], s["strain_mean_TE"][31:end,gaugeNumber], s["strain_std_TE"][31:end,gaugeNumber], s["V_std"][31:end]))
+
+# Load tip angle of attack data (digitized from https://doi.org/10.2514/1.J066240, seems more accurate than derived data)
 steady_tipaoa_aoa0_ref = readdlm(pkgdir(AeroBeams)*"/test/referenceData/sweptPazyS20/steady_tipaoa_aoa0.txt")
 steady_tipaoa_aoa1_ref = readdlm(pkgdir(AeroBeams)*"/test/referenceData/sweptPazyS20/steady_tipaoa_aoa1.txt")
 steady_tipaoa_aoa3_ref = readdlm(pkgdir(AeroBeams)*"/test/referenceData/sweptPazyS20/steady_tipaoa_aoa3.txt")
 steady_tipaoa_aoa5_ref = readdlm(pkgdir(AeroBeams)*"/test/referenceData/sweptPazyS20/steady_tipaoa_aoa5.txt")
 steady_tipaoa_aoa7_ref = readdlm(pkgdir(AeroBeams)*"/test/referenceData/sweptPazyS20/steady_tipaoa_aoa7.txt")
 steady_tipaoa_aoa10_ref = readdlm(pkgdir(AeroBeams)*"/test/referenceData/sweptPazyS20/steady_tipaoa_aoa10.txt")
-
-steady_strains_aoa0_ref = readdlm(pkgdir(AeroBeams)*"/test/referenceData/sweptPazyS20/steady_strains_aoa0.txt")
-steady_strains_aoa1_ref = readdlm(pkgdir(AeroBeams)*"/test/referenceData/sweptPazyS20/steady_strains_aoa1.txt")
-steady_strains_aoa3_ref = readdlm(pkgdir(AeroBeams)*"/test/referenceData/sweptPazyS20/steady_strains_aoa3.txt")
-steady_strains_aoa5_ref = readdlm(pkgdir(AeroBeams)*"/test/referenceData/sweptPazyS20/steady_strains_aoa5.txt")
-steady_strains_aoa7_ref = readdlm(pkgdir(AeroBeams)*"/test/referenceData/sweptPazyS20/steady_strains_aoa7.txt")
-steady_strains_aoa10_ref = readdlm(pkgdir(AeroBeams)*"/test/referenceData/sweptPazyS20/steady_strains_aoa10.txt")
 
 ## Plots
 # Set paths
@@ -117,30 +132,30 @@ msw = 0
 gr()
 
 # Tip OOP displacement vs. airspeed
-plt_tipOOP = plot(xlabel="Airspeed [m/s]", ylabel="Tip OOP disp. [% semispan]", xlims=[0,70], tickfont=font(ts), guidefont=font(fs), legend=:topleft, legendfontsize=lfs)
+plt_tipOOP = plot(xlabel="Airspeed [m/s]", ylabel="Tip OOP disp. [% semispan]", xlims=[0,71], xticks=0:10:70, tickfont=font(ts), guidefont=font(fs), legend=:topleft, legendfontsize=lfs)
 plot!([NaN], [NaN], lw=lw, c=:black, label="AeroBeams")
 scatter!([NaN], [NaN], ms=ms, msw=msw, c=:black, label="Exp.")
 for (i,θ) in enumerate(θRange)
     plot!(URange, tipOOP[i,:]/L*100, c=colors[i], lw=lw, ls=:solid, label="\$\\theta = $(round(Int,rad2deg(θ))) ^\\circ\$")
     if θ ≈ 0 + θoffset
-        scatter!(steady_tipdisp_aoa0_ref[1,:], steady_tipdisp_aoa0_ref[2,:]*100, ms=ms, msw=msw, c=colors[i], label=false)
+        scatter!(tipdisp_aoa0_ref[1,:], tipdisp_aoa0_ref[2,:]*1e-3*100/L, xerror=tipdisp_aoa0_ref[4,:], yerror=tipdisp_aoa0_ref[3,:]*1e-3*100/L, ms=ms, msw=msw, c=colors[i], label=false)
     elseif θ ≈ deg2rad(1) + θoffset
-        scatter!(steady_tipdisp_aoa1_ref[1,:], steady_tipdisp_aoa1_ref[2,:]*100, ms=ms, msw=msw, c=colors[i], label=false)
+        scatter!(tipdisp_aoa1_ref[1,:], tipdisp_aoa1_ref[2,:]*1e-3*100/L, xerror=tipdisp_aoa1_ref[4,:], yerror=tipdisp_aoa1_ref[3,:]*1e-3*100/L, ms=ms, msw=msw, c=colors[i], label=false)
     elseif θ ≈ deg2rad(3) + θoffset
-        scatter!(steady_tipdisp_aoa3_ref[1,:], steady_tipdisp_aoa3_ref[2,:]*100, ms=ms, msw=msw, c=colors[i], label=false)
+        scatter!(tipdisp_aoa3_ref[1,:], tipdisp_aoa3_ref[2,:]*1e-3*100/L, xerror=tipdisp_aoa3_ref[4,:], yerror=tipdisp_aoa3_ref[3,:]*1e-3*100/L, ms=ms, msw=msw, c=colors[i], label=false)
     elseif θ ≈ deg2rad(5) + θoffset
-        scatter!(steady_tipdisp_aoa5_ref[1,:], steady_tipdisp_aoa5_ref[2,:]*100, ms=ms, msw=msw, c=colors[i], label=false)
+        scatter!(tipdisp_aoa5_ref[1,:], tipdisp_aoa5_ref[2,:]*1e-3*100/L, xerror=tipdisp_aoa5_ref[4,:], yerror=tipdisp_aoa5_ref[3,:]*1e-3*100/L, ms=ms, msw=msw, c=colors[i], label=false)
     elseif θ ≈ deg2rad(7) + θoffset
-        scatter!(steady_tipdisp_aoa7_ref[1,:], steady_tipdisp_aoa7_ref[2,:]*100, ms=ms, msw=msw, c=colors[i], label=false)
+        scatter!(tipdisp_aoa7_ref[1,:], tipdisp_aoa7_ref[2,:]*1e-3*100/L, xerror=tipdisp_aoa7_ref[4,:], yerror=tipdisp_aoa7_ref[3,:]*1e-3*100/L, ms=ms, msw=msw, c=colors[i], label=false)
     elseif θ ≈ deg2rad(10) + θoffset
-        scatter!(steady_tipdisp_aoa10_ref[1,:], steady_tipdisp_aoa10_ref[2,:]*100, ms=ms, msw=msw, c=colors[i], label=false)
+        scatter!(tipdisp_aoa10_ref[1,:], tipdisp_aoa10_ref[2,:]*1e-3*100/L, xerror=tipdisp_aoa10_ref[4,:], yerror=tipdisp_aoa10_ref[3,:]*1e-3*100/L, ms=ms, msw=msw, c=colors[i], label=false)
     end
 end
 display(plt_tipOOP)
 savefig(string(absPath,"/S20PazySteadyPitchRange_tipOOP.pdf"))
 
 # Tip AoA vs. airspeed
-plt_tipAOA = plot(xlabel="Airspeed [m/s]", ylabel="Tip angle of attack [deg]", xlims=[0,70], tickfont=font(ts), guidefont=font(fs))
+plt_tipAOA = plot(xlabel="Airspeed [m/s]", ylabel="Tip angle of attack [deg]", xlims=[0,71], xticks=0:10:70, ylims=[-1,10], yticks=0:2:10, tickfont=font(ts), guidefont=font(fs))
 for (i,θ) in enumerate(θRange)
     plot!(URange, tipAoA[i,:], c=colors[i], lw=lw, label=false)
     if θ ≈ 0 + θoffset
@@ -148,7 +163,7 @@ for (i,θ) in enumerate(θRange)
     elseif θ ≈ deg2rad(1) + θoffset
         scatter!(steady_tipaoa_aoa1_ref[1,:], steady_tipaoa_aoa1_ref[2,:], ms=ms, msw=msw, c=colors[i], label=false)
     elseif θ ≈ deg2rad(3) + θoffset
-        scatter!(steady_tipaoa_aoa1_ref[1,:], steady_tipaoa_aoa3_ref[2,:], ms=ms, msw=msw, c=colors[i], label=false)
+        scatter!(steady_tipaoa_aoa3_ref[1,:], steady_tipaoa_aoa3_ref[2,:], ms=ms, msw=msw, c=colors[i], label=false)
     elseif θ ≈ deg2rad(5) + θoffset
         scatter!(steady_tipaoa_aoa5_ref[1,:], steady_tipaoa_aoa5_ref[2,:], ms=ms, msw=msw, c=colors[i], label=false)
     elseif θ ≈ deg2rad(7) + θoffset
@@ -160,25 +175,25 @@ end
 display(plt_tipAOA)
 savefig(string(absPath,"/S20PazySteadyPitchRange_tipAoA.pdf"))
 
-# Root axial strains vs. airspeed
-plt_rootEps = plot(xlabel="Airspeed [m/s]", ylabel="Root axial strains (\$\\mu\$)", xlims=[0,70], tickfont=font(ts), guidefont=font(fs), legend=:topleft, legendfontsize=lfs)
+# Strains at the TE gauge located at gaugeSpanPct span vs. airspeed
+plt_eps = plot(xlabel="Airspeed [m/s]", ylabel="Strains @ $gaugeSpanPct% span (\$\\mu\\varepsilon\$)", xlims=[0,71], xticks=0:10:70, tickfont=font(ts), guidefont=font(fs), legend=:topleft, legendfontsize=lfs)
 for (i,θ) in enumerate(θRange)
-    plot!(URange, rootEps[i,:]*1e6, c=colors[i], lw=lw, ls=:solid, label=false)
-    if θ ≈ 0 + θoffset
-        scatter!(steady_strains_aoa0_ref[1,:], steady_strains_aoa0_ref[2,:], ms=ms, msw=msw, c=colors[i], label=false)
+    plot!(URange, epsSG[i,:]*1e6, c=colors[i], lw=lw, ls=:solid, label=false)
+    if θ ≈ deg2rad(0) + θoffset
+        scatter!(epsSG_aoa0_ref[1,:], epsSG_aoa0_ref[2,:], xerror=epsSG_aoa0_ref[4,:], yerror=epsSG_aoa0_ref[3,:], ms=ms, msw=msw, c=colors[i], label=false)
     elseif θ ≈ deg2rad(1) + θoffset
-        scatter!(steady_strains_aoa1_ref[1,:], steady_strains_aoa1_ref[2,:], ms=ms, msw=msw, c=colors[i], label=false)
+        scatter!(epsSG_aoa1_ref[1,:], epsSG_aoa1_ref[2,:], xerror=epsSG_aoa1_ref[4,:], yerror=epsSG_aoa1_ref[3,:], ms=ms, msw=msw, c=colors[i], label=false)
     elseif θ ≈ deg2rad(3) + θoffset
-        scatter!(steady_strains_aoa3_ref[1,:], steady_strains_aoa3_ref[2,:], ms=ms, msw=msw, c=colors[i], label=false)
+        scatter!(epsSG_aoa3_ref[1,:], epsSG_aoa3_ref[2,:], xerror=epsSG_aoa3_ref[4,:], yerror=epsSG_aoa3_ref[3,:], ms=ms, msw=msw, c=colors[i], label=false)
     elseif θ ≈ deg2rad(5) + θoffset
-        scatter!(steady_strains_aoa5_ref[1,:], steady_strains_aoa5_ref[2,:], ms=ms, msw=msw, c=colors[i], label=false)
+        scatter!(epsSG_aoa5_ref[1,:], epsSG_aoa5_ref[2,:], xerror=epsSG_aoa5_ref[4,:], yerror=epsSG_aoa5_ref[3,:], ms=ms, msw=msw, c=colors[i], label=false)
     elseif θ ≈ deg2rad(7) + θoffset
-        scatter!(steady_strains_aoa7_ref[1,:], steady_strains_aoa7_ref[2,:], ms=ms, msw=msw, c=colors[i], label=false)
+        scatter!(epsSG_aoa7_ref[1,:], epsSG_aoa7_ref[2,:], xerror=epsSG_aoa7_ref[4,:], yerror=epsSG_aoa7_ref[3,:], ms=ms, msw=msw, c=colors[i], label=false)
     elseif θ ≈ deg2rad(10) + θoffset
-        scatter!(steady_strains_aoa10_ref[1,:], steady_strains_aoa10_ref[2,:], ms=ms, msw=msw, c=colors[i], label=false)
+        scatter!(epsSG_aoa10_ref[1,:], epsSG_aoa10_ref[2,:], xerror=epsSG_aoa10_ref[4,:], yerror=epsSG_aoa10_ref[3,:], ms=ms, msw=msw, c=colors[i], label=false)
     end
 end
-display(plt_rootEps)
-savefig(string(absPath,"/S20PazySteadyPitchRange_rootEps.pdf"))
+display(plt_eps)
+savefig(string(absPath,"/S20PazySteadyPitchRange_eps.pdf"))
 
 println("Finished S20PazySteadyPitchRange.jl")

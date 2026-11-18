@@ -85,8 +85,12 @@ end
 # Load reference data (experiments from Technion - https://doi.org/10.5281/zenodo.16354530)
 Uf_vs_aoa_LE = readdlm(pkgdir(AeroBeams)*"/test/referenceData/sweptPazyS10/Uf_vs_aoa_LE.txt")
 Uf_vs_aoa_TE = readdlm(pkgdir(AeroBeams)*"/test/referenceData/sweptPazyS10/Uf_vs_aoa_TE.txt")
+Uf_vs_tipdisp_LE = readdlm(pkgdir(AeroBeams)*"/test/referenceData/sweptPazyS10/Uf_vs_tipdisp_LE.txt")
+Uf_vs_tipdisp_TE = readdlm(pkgdir(AeroBeams)*"/test/referenceData/sweptPazyS10/Uf_vs_tipdisp_TE.txt")
 omegaf_vs_aoa_LE = readdlm(pkgdir(AeroBeams)*"/test/referenceData/sweptPazyS10/omegaf_vs_aoa_LE.txt")
 omegaf_vs_aoa_TE = readdlm(pkgdir(AeroBeams)*"/test/referenceData/sweptPazyS10/omegaf_vs_aoa_TE.txt")
+omegaf_vs_tipdisp_LE = readdlm(pkgdir(AeroBeams)*"/test/referenceData/sweptPazyS10/omegaf_vs_tipdisp_LE.txt")
+omegaf_vs_tipdisp_TE = readdlm(pkgdir(AeroBeams)*"/test/referenceData/sweptPazyS10/omegaf_vs_tipdisp_TE.txt")
 
 ## Plots
 # Set paths
@@ -134,9 +138,43 @@ for (c,config) in enumerate(tipMassConfigs)
     end
 end
 
+# Flutter onset speed vs. normalized tip displacement
+plt3 = plot(ylabel="Flutter speed [m/s]", xlims=[0,40], ylims=[0,85], tickfont=font(ts), guidefont=font(fs), legendfontsize=lfs, legend=:bottomleft)
+plot!([NaN], [NaN], lw=lw, c=:black, label="AeroBeams")
+plot!([NaN], [NaN], lw=lw, ls=:dash, c=:black, marker=:circle, ms=ms, msw=msw, mc=:white, msc=:black, label="Exp.")
+plot!([NaN], [NaN], lw=lw, c=configColors[1], label="LE weight")
+plot!([NaN], [NaN], lw=lw, c=configColors[2], label="TE weight")
+for (c,config) in enumerate(tipMassConfigs)
+    plot!(flutterOnsetTipOOP[c,:]/L*100, flutterOnsetSpeed[c,:], c=configColors[c], lw=lw, label=false)
+    if config == :LE
+        plot!(Uf_vs_tipdisp_LE[1,:]*100, Uf_vs_tipdisp_LE[2,:], lw=lw, ls=:dash, c=configColors[c], marker=:circle, ms=ms, msw=msw, mc=:white, msc=configColors[c], label=false)
+    elseif config == :TE
+        plot!(Uf_vs_tipdisp_TE[1,:]*100, Uf_vs_tipdisp_TE[2,:], lw=lw, ls=:dash, c=configColors[c], marker=:circle, ms=ms, msw=msw, mc=:white, msc=configColors[c], label=false)
+    end
+end
+
+# Flutter onset frequency vs. tip displacement
+plt4 = plot(xlabel="Normalized tip displacement [% semispan]", ylabel="Flutter frequency [Hz]", xlims=[0,40], ylims=[0,35], tickfont=font(ts), guidefont=font(fs), legendfontsize=lfs)
+plot!([NaN], [NaN], lw=lw, c=:black, label=false)
+plot!([NaN], [NaN], lw=lw, ls=:dash, c=:black, marker=:circle, ms=ms, msw=msw, mc=:white, msc=:black, label=false)
+plot!([NaN], [NaN], lw=lw, c=configColors[1], label=false)
+plot!([NaN], [NaN], lw=lw, c=configColors[2], label=false)
+for (c,config) in enumerate(tipMassConfigs)
+    plot!(flutterOnsetTipOOP[c,:]/L*100, rads2Hz.(flutterOnsetFreq[c,:]), c=configColors[c], lw=lw, label=false)
+    if config == :LE
+        plot!(omegaf_vs_tipdisp_LE[1,:]*100, omegaf_vs_tipdisp_LE[2,:], lw=lw, ls=:dash, c=configColors[c], marker=:circle, ms=ms, msw=msw, mc=:white, msc=configColors[c], label=false)
+    elseif config == :TE
+        plot!(omegaf_vs_tipdisp_TE[1,:]*100, omegaf_vs_tipdisp_TE[2,:], lw=lw, ls=:dash, c=configColors[c], marker=:circle, ms=ms, msw=msw, mc=:white, msc=configColors[c], label=false)
+    end
+end
+
 # Combine plots and save
-plt = plot(plt1, plt2, layout=(2,1))
-display(plt)
-savefig(plt,string(absPath,"/S10PazyFlutterOnsetPitchRange_Uf_omegaf.pdf"))
+plt_aoa = plot(plt1, plt2, layout=(2,1))
+display(plt_aoa)
+savefig(plt_aoa,string(absPath,"/S10PazyFlutterOnsetPitchRange_Uf_omegaf_vs_aoa.pdf"))
+
+plt_disp = plot(plt3, plt4, layout=(2,1))
+display(plt_disp)
+savefig(plt_disp,string(absPath,"/S10PazyFlutterOnsetPitchRange_Uf_omegaf_vs_tipdisp.pdf"))
 
 println("Finished S10PazyFlutterOnsetPitchRange.jl")
