@@ -225,8 +225,8 @@ function wingtip_rod_Pazy(Λ,config)
                 offset = [0.0, 
                           0.5569833 + s*(0.5566833 - 0.5569833) - 0.5519937, 
                           -3.167e-4 + s*(-1.667e-5 + 3.167e-4) - 9.2695e-8],
-                tied = (inPlane = (0.0070 - xSpar, 0.0854 - xSpar),
-                        outOfPlane = (0.012 - xSpar, 0.073 - xSpar)),
+                tied = (inPlane = (0.0075 - xSpar, 0.0847 - xSpar),
+                        outOfPlane = (0.0108 - xSpar, 0.0742 - xSpar)),
                 calibrationMass = 0.015 + 0.0011, xCalibration = -xSpar + 0.05,
                 hinge = nothing)
     elseif isapprox(rad2deg(Λ), 10; atol=1e-8)
