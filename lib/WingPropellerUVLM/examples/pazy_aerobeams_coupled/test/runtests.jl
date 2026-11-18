@@ -4,6 +4,7 @@ using Test
 originalArgs = copy(ARGS)
 fullSuite = "--full" in ARGS
 testFiles = [
+    "test_pazy_model_options.jl",
     "test_coupling.jl",
     "verify_pazy_coupling.jl",
     "test_visualization.jl",
@@ -18,6 +19,7 @@ if fullSuite
     "--dynamic" in ARGS || push!(ARGS,"--dynamic")
     append!(testFiles,[
         "test_static_uvlm.jl",
+        "test_static_spanwise_cn_alpha.jl",
         "test_pazy_LCO.jl",
         "test_pazy_continuous_LCO.jl",
         "test_pazy_LCO_diagnostic.jl",

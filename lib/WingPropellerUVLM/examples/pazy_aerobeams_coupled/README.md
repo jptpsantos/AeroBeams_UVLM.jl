@@ -12,8 +12,55 @@ compatible. Restart existing Julia sessions when switching from the 0.8.1 baseli
 
 Start with `run_pazy_wing_uvlm.jl`. All inputs are ordinary variables in that
 file: airspeed, angle of attack, chordwise/spanwise panel counts, wake length,
-duration, tip pulse and animation frame count. Run the whole file to simulate,
+duration, tip pulse, animation frame count and the native Pazy structural options.
+Run the whole file to simulate,
 generate both GIFs, and save the wingtip time-history plot.
+
+For a **static velocity/incidence/sweep study with spanwise cn_alpha**, run
+`run_pazy_wing_uvlm_static_sweep.jl`. Edit `velocity_range`,
+`angles_of_attack_deg` and `sweep_angles_deg` at its top. By default it holds
+the prescribed incidence constant during each static solve and computes
+`cn/alpha_local` on the deformed equilibrium wing, without perturbations. It saves
+spanwise CSV data, plots and convergence diagnostics in
+`output/static_spanwise_cn_alpha/`, with a separate angle folder such as
+`aoa3deg/` for each prescribed incidence. See [STATIC_SPANWISE.md](STATIC_SPANWISE.md)
+for coefficient definitions, units, controls and validation.
+
+The dynamic runner and `run_pazy_wing_uvlm_static.jl` expose the same structural
+keywords as the updated `AeroBeams.create_Pazy`:
+
+| Setting | Default | Meaning |
+| --- | --- | --- |
+| `mesh` | `:nominal` | Native structural mesh; also accepts `:refined`. Independent of the UVLM mesh. |
+| `sweepAngle` | `deg2rad(0.0)` | Available sweep angles: 0, 10 and 20 degrees, supplied in radians. |
+| `useAePW3Matrices` | `false` | `true` selects the original AePW3 matrices and reference axis; straight wing and nominal mesh only. |
+| `withWingtipRod` | `true` | `false` selects the straight wing without its rod, using the no-rod stiffness and inertia data. |
+| `rootTorsionCorr` | `true` | Correct root torsional stiffness for the straight wing with rod; ignored for other configurations and AePW3 data. |
+| `beamWingtipRod` | `false` | `true` models the flexible rod and rigid link explicitly; available for 0 and 10 degrees with the new matrices. Requires `withWingtipRod=true`. |
+| `nElementsWingtipRod` | `12` | Explicit rod mesh; at least 6 elements for the straight wing and 4 for the 10-degree wing. |
+| `sweptTipMassConfig` | `:baseline` | Swept-wing mass configuration: `:baseline`, `:LE` or `:TE`. |
+| `sweptTipMassInertiaCorrection` | `false` | Native lumped-inertia correction for swept LE/TE cases. Must be false with an explicit rod. |
+
+For example, set `sweepAngle=deg2rad(10.0)` and `sweptTipMassConfig=:TE`
+in the runner for the swept TE case. Add `beamWingtipRod=true` to resolve
+the rod flexibility. For a straight wing without the rod, keep
+`sweepAngle=0.0`, `useAePW3Matrices=false`, `beamWingtipRod=false`, and set
+`withWingtipRod=false`.
+
+The shared constructor obtains the matrices, mesh, chord, reference axis and
+rod connections from native AeroBeams. Its combination checks and missing-data
+errors also apply here. The default now follows the new condensed matrices,
+including the native root correction; select `useAePW3Matrices=true` explicitly
+to use the original AePW3 data. These choices change the physical model and can
+change flutter results.
+
+All aerodynamic loads come from UVLM. Gravity and root pitch remain zero;
+`angle_of_attack` sets incidence through the freestream. Swept lattices retain
+the physical streamwise chord and use the projected span for reference area
+and span. Explicit rod/link beams receive no aerodynamic panels. Tip motion
+and the tip pulse refer to the main spar tip. Both solver results record the
+structural settings in `pazy_parameters`; a supplied `initial_equilibrium`
+must use the same settings as the dynamic call.
 
 The wingtip twist time history is `result.tip_twist_degrees`, sampled at
 `result.time`. With `analyze_tip_twist=true`, the runner applies the library's
@@ -84,7 +131,7 @@ iteration limit and tolerances are also defined in the runner.
 
 `PazyWingUVLMCoupling.jl` contains one main function, read from top to bottom:
 
-1. Create the original 15-element nonlinear Pazy beam and clamp its root.
+1. Create the selected native Pazy structure and clamp its root.
 2. Set `dt = time_step_chords * chord / airspeed`. The runner uses 0.25 by
    default or `1/chordwise_panels` when wake and bound chord lengths are matched.
 3. Create the independent UVLM mesh and its interpolation weights.

@@ -26,13 +26,21 @@ end
 # This reads the existing eigenanalysis, not a new strip-theory time-domain run.
 function sweep_aerobeams_boundary()
     root = normpath(joinpath(@__DIR__,"..","..","..",".."))
-    angles = unique(vcat(collect(0:0.25:1),collect(1:0.5:7)))
-    onset,offset = fill(NaN,length(angles)),fill(NaN,length(angles))
     speeds = vcat(1e-3,collect(1:120))
     # v1 stores one flattened, column-major damping matrix per pitch angle.
     file = joinpath(root,"test","newTestDataGenerators","PazyWingFlutterPitchRange","damps.txt")
     data = readdlm(file,Float64)
-    size(data,1) == length(angles) && iszero(size(data,2) % length(speeds)) ||
+    # The updated eigenexample uses 0:0.5:1 and 1:1:7 degrees (9 rows).
+    # Keep support for the previous 0:0.25:1 and 1:0.5:7 cache (17 rows).
+    angles = if size(data,1) == 9
+        unique(vcat(collect(0:0.5:1),collect(1:1:7)))
+    elseif size(data,1) == 17
+        unique(vcat(collect(0:0.25:1),collect(1:0.5:7)))
+    else
+        error("Unexpected AeroBeams Pazy damping reference pitch grid")
+    end
+    onset,offset = fill(NaN,length(angles)),fill(NaN,length(angles))
+    size(data,2) >= 3 * length(speeds) && iszero(size(data,2) % length(speeds)) ||
         error("Unexpected AeroBeams Pazy damping reference layout")
     for (i,angle) in enumerate(angles)
         damping = reshape(data[i,:],:,length(speeds))

@@ -243,16 +243,17 @@ function run_pitch_reviewer_analysis(; output_directory=joinpath(@__DIR__,"outpu
                     ylabel=normalized ? "Normalized angle" : "Angle (deg)",
                     xlims=normalized ? (3.65,4.25) : (0.0,5.0),
                     xticks=normalized ? collect(range(3.65,4.25;length=7)) : collect(0.0:1.0:5.0),
-                    ylims=normalized ? (-1.5,1.5) : (-7.5,7.5),
-                    yticks=normalized ? collect(-1.5:0.5:1.5) : collect(-7.5:2.5:7.5),
-                    grid=false,title="",legend=normalized ? :top : false,legend_column=2,
-                    legend_foreground_color=:black,legend_background_color=:white,
-                    fontfamily="DejaVu Sans",guidefontsize=24,tickfontsize=22,legendfontsize=20,
-                    framestyle=:axes,tick_direction=:in,margin=6Plots.mm,size=(1200,540),dpi=300)
+                    ylims=normalized ? (-1.5,1.5) : (-10.0,10.0),
+                    yticks=normalized ? collect(-1.5:0.5:1.5) : collect(-10.0:2.5:10.0),
+                    grid=false,title="",legend=normalized ? false : :topright,
+                    fontfamily="DejaVu Sans",guidefontsize=28,tickfontsize=26,legendfontsize=20,
+                    framestyle=:axes,tick_direction=:in,
+                    left_margin=14Plots.mm,right_margin=18Plots.mm,
+                    top_margin=10Plots.mm,bottom_margin=12Plots.mm,size=(1200,760),dpi=300)
                 plot!(panel,plotTime,values[:,2];label="Propeller-pylon pitch",color=:black,linewidth=2.5)
                 if normalized
                     annotate!(panel,3.95,-1.25,
-                        text(@sprintf("Δφ = %+.2f°",mode.wing_minus_propeller_phase_deg),"DejaVu Sans",20,:center))
+                        text(@sprintf("Δφ = %+.2f°",mode.wing_minus_propeller_phase_deg),"DejaVu Sans",24,:center))
                 end
                 push!(panels,panel)
             end
@@ -263,7 +264,7 @@ function run_pitch_reviewer_analysis(; output_directory=joinpath(@__DIR__,"outpu
             push!(panels,plot(;axis=false,legend=false))
         end
     end
-    for (figure,basename) in zip(panels,("pitch_mode_comparison_83mps","pitch_amplitude_83mps")), extension in ("pdf","png")
+    for (figure,basename) in zip(panels,("pitch_mode_comparison_85","pitch_amplitude_85")), extension in ("pdf","png")
         # Write a fresh file before replacing a figure open in a Windows preview.
         temporaryPath = tempname(output_directory)*"."*extension
         savefig(figure,temporaryPath)

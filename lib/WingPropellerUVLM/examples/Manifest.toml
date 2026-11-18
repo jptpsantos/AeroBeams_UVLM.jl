@@ -2,7 +2,7 @@
 
 julia_version = "1.13.3"
 manifest_format = "2.1"
-project_hash = "5c793ed438ead09b61bade64394e4484dd9ef9ce"
+project_hash = "e16949d5ec861fcda451cef19b2ac0de6e984c2b"
 
 [[deps.ADTypes]]
 deps = ["PrecompileTools"]
@@ -71,10 +71,10 @@ weakdeps = ["SparseArrays", "StaticArrays"]
     AdaptStaticArraysExt = "StaticArrays"
 
 [[deps.AeroBeams]]
-deps = ["ADTypes", "ArnoldiMethod", "Arpack", "ColorSchemes", "DSP", "DelimitedFiles", "FFTW", "FiniteDifferences", "ForwardDiff", "FunctionWrappers", "Hungarian", "JLD2", "KrylovKit", "LineSearches", "LinearAlgebra", "LinearInterpolations", "LinearMaps", "Measures", "NLsolve", "Parameters", "PlotlyJS", "Plots", "PrettyTables", "QuadGK", "Random", "Roots", "SparseArrays", "StaticArrays", "Statistics"]
+deps = ["ADTypes", "ArnoldiMethod", "Arpack", "ColorSchemes", "DSP", "DelimitedFiles", "FFTW", "FiniteDifferences", "ForwardDiff", "FunctionWrappers", "Hungarian", "JLD2", "KrylovKit", "LineSearches", "LinearAlgebra", "LinearInterpolations", "LinearMaps", "Measures", "NLsolve", "Parameters", "PlotlyJS", "Plots", "PrettyTables", "QuadGK", "Random", "Roots", "SparseArrays", "StaticArrays"]
 path = "../../.."
 uuid = "4684ee71-20c3-4c77-8fc5-ebacc9f0342e"
-version = "1.0.0"
+version = "1.1.0"
 
 [[deps.AliasTables]]
 deps = ["PtrArrays", "Random"]
@@ -427,6 +427,20 @@ git-tree-sha1 = "9e2f36d3c96a820c678f2f1f1782582fcf685bae"
 registries = "General"
 uuid = "8bb1440f-4735-579b-a4ab-409b98df4dab"
 version = "1.9.1"
+
+[[deps.Dierckx]]
+deps = ["Dierckx_jll"]
+git-tree-sha1 = "7da4b14cc4c3443a1afc64abee17f4fcb45ad837"
+registries = "General"
+uuid = "39dd38d3-220a-591b-8e3c-4c3a8c710a94"
+version = "0.5.4"
+
+[[deps.Dierckx_jll]]
+deps = ["Artifacts", "CompilerSupportLibraries_jll", "JLLWrappers", "Libdl"]
+git-tree-sha1 = "3251f44b3cac6fec4cec8db45d3ab0bfed51c4d8"
+registries = "General"
+uuid = "cd4c43a9-7502-52ba-aa6d-59fb2a88580b"
+version = "0.2.0+0"
 
 [[deps.DiffResults]]
 deps = ["StaticArraysCore"]

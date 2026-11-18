@@ -77,7 +77,11 @@ function run_pazy_wing_uvlm_static(; airspeed,density,angle_of_attack,
     load_tolerance,consecutive_equilibrium_iterations,
     newton_maximum_iterations,newton_absolute_tolerance,
     newton_relative_tolerance,newton_display_iterations,progress_frequency,
-    time_step_chords=1 / chordwise_panels)
+    mesh=:nominal,sweepAngle=0.0,useAePW3Matrices=false,
+    withWingtipRod=true,rootTorsionCorr=true,beamWingtipRod=false,
+    nElementsWingtipRod=12,sweptTipMassConfig=:baseline,
+    sweptTipMassInertiaCorrection=false,
+    time_step_chords=1 / chordwise_panels,load_residual_force_floor=1.0)
 
     @assert airspeed > 0 && density > 0
     @assert chordwise_panels >= 1 && spanwise_panels >= 1 && maximum_wake_rows >= 1
@@ -86,39 +90,18 @@ function run_pazy_wing_uvlm_static(; airspeed,density,angle_of_attack,
     @assert aerodynamic_force_tolerance > 0 && aerodynamic_circulation_tolerance > 0
     @assert maximum_static_iterations >= 1 && 0 < static_relaxation <= 1
     @assert geometry_tolerance > 0 && load_tolerance > 0
+    @assert isfinite(load_residual_force_floor) && load_residual_force_floor > 0
     @assert consecutive_equilibrium_iterations >= 1 && progress_frequency >= 1
     @assert isfinite(time_step_chords) && time_step_chords > 0
 
-    # Same skin-on Pazy structural properties as the dynamic example and
-    # AeroBeams' Pazy model. Gravity is zero, as in PazyWingPitchRange.jl.
-    # Incidence is applied ONCE, through UVLM's freestream angle, not root p0.
-    ne,span,chord,spar = AeroBeams.geometrical_properties_Pazy()
-    beamNodes = last(AeroBeams.geometrical_properties_Pazy())
-    beam = AeroBeams.create_Beam(name="Pazy static UVLM",
-        length=span,
-        nElements=ne,
-        normalizedNodalPositions=beamNodes,
-        S=AeroBeams.stiffness_matrices_Pazy(withSkin=true,
-            sweepStructuralCorrections=false,GAy=1e16,GAz=1e16,Λ=0.0),
-        I=AeroBeams.inertia_matrices_Pazy(withSkin=true),
-        p0=AeroBeams.transform_to_WM([-pi / 2; 0.0; 0.0]; from=:E231),
-        surface=nothing)
-    clamp = AeroBeams.create_BC(name="root clamp",
-        beam=beam,
-        node=1,
-        conditions=Dict(Symbol.(["u1A","u2A","u3A","p1A","p2A","p3A"]) .=> zeros(6)))
-    bcs = [clamp]
-    for node = 1:ne+1
-        push!(
-            bcs,
-            AeroBeams.create_BC(name="UVLM loads $node",
-        beam=beam,
-        node=node,
-        conditions=Dict(Symbol.(["F1A","F2A","F3A","M1A","M2A","M3A"]) .=> zeros(6)))
-        )
-    end
-    model = AeroBeams.create_Model(beams=[beam],BCs=bcs,
-        gravityVector=zeros(3),v_A=t -> zeros(3))
+    # Share the native Pazy structure with the dynamic solver. Incidence is
+    # applied once through UVLM's freestream; gravity and root pitch are zero.
+    pazy = create_pazy_uvlm_structure(; mesh,sweepAngle,useAePW3Matrices,
+        withWingtipRod,rootTorsionCorr,beamWingtipRod,nElementsWingtipRod,
+        sweptTipMassConfig,sweptTipMassInertiaCorrection)
+    (; model,span,chord,beamNodes) = pazy
+    ne,spar = pazy.n_elements,pazy.sparFraction
+    projectedSpan = span * cos(sweepAngle)
     newton = AeroBeams.create_NewtonRaphson(maxIter=newton_maximum_iterations,
         absTol=newton_absolute_tolerance,
         relTol=newton_relative_tolerance,
@@ -140,7 +123,7 @@ function run_pazy_wing_uvlm_static(; airspeed,density,angle_of_attack,
     end
     dt = time_step_chords * chord / airspeed
     @assert maximum_aerodynamic_time >= dt "Aerodynamic time must include at least one step"
-    reference = UVLM.Reference(span * chord,chord,span,zeros(3),airspeed,density)
+    reference = UVLM.Reference(projectedSpan * chord,chord,projectedSpan,zeros(3),airspeed,density)
     point = UVLM.create_OperatingPoint(airspeed=airspeed,density=density,
         angleOfAttack=angle_of_attack,sideslip=0.0)
     solver = UVLM.create_UVLMSolver(coreRadius=core_radius,
@@ -163,15 +146,16 @@ function run_pazy_wing_uvlm_static(; airspeed,density,angle_of_attack,
 
     for iteration = 1:maximum_static_iterations
         println("Static iteration $iteration/$maximum_static_iterations")
-        grid,_,offsets = wing_geometry(structure.model,chord,spar,chordwise_panels,weights)
+        grid,_,offsets = wing_geometry(structure.model,chord,spar,chordwise_panels,weights; sweepAngle)
         wake = settle_static_uvlm(grid,offsets,weights,reference,point,solver;
             symmetric_wing,maximum_wake_rows,dt,
             maximum_time=maximum_aerodynamic_time,minimum_time=minimum_aerodynamic_time,
             window_time=aerodynamic_window_time,force_tolerance=aerodynamic_force_tolerance,
             circulation_tolerance=aerodynamic_circulation_tolerance,progress_frequency)
         total_aerodynamic_time += wake.time
-        load_residual = interface_load_residual(wake.nodal_loads,appliedLoads,chord)
-        tip = structure.model.assemblyData.elements[end].state.nodal
+        load_residual = interface_load_residual(wake.nodal_loads,appliedLoads,chord;
+            force_floor=load_residual_force_floor)
+        tip = structure.model.beams[1].elements[end].state.nodal
         twist = wingtip_twist_degrees(structure.model)
         push!(
             historyRows,
@@ -207,20 +191,22 @@ function run_pazy_wing_uvlm_static(; airspeed,density,angle_of_attack,
         AeroBeams.solve!(structure)
         structure.systemSolver.loadStepState.convergedFinalSolution ||
             error("Static Newton solve failed at iteration $iteration; no equilibrium claimed")
-        nextGrid,_,_ = wing_geometry(structure.model,chord,spar,chordwise_panels,weights)
+        nextGrid,_,_ = wing_geometry(structure.model,chord,spar,chordwise_panels,weights; sweepAngle)
         geometry_residual = maximum(abs,nextGrid - grid) / chord
     end
 
     # Preserve a standard AeroBeams steady solution for later inspection/plotting.
     AeroBeams.save_loadstep_data!(structure)
-    tip = structure.model.assemblyData.elements[end].state.nodal
+    tip = structure.model.beams[1].elements[end].state.nodal
     println(reason)
     return (; converged,termination_reason=reason,structural_problem=structure,
+        pazy_parameters=pazy.parameters,
         aerodynamic_problem=wake.aerodynamic_problem,dt,airspeed,angle_of_attack,
         history=permutedims(hcat(historyRows...)),history_columns,
         tip_displacement_A=copy(tip.u2),tip_out_of_plane=tip.u2_b[3],
         tip_in_plane=-tip.u2_b[2],tip_twist_degrees=wingtip_twist_degrees(structure.model),
         applied_nodal_loads=copy(appliedLoads),aerodynamic_nodal_loads=wake.nodal_loads,
-        geometry_residual,load_residual=interface_load_residual(wake.nodal_loads,appliedLoads,chord),
+        geometry_residual,load_residual=interface_load_residual(wake.nodal_loads,appliedLoads,chord;
+            force_floor=load_residual_force_floor),
         total_aerodynamic_time)
 end

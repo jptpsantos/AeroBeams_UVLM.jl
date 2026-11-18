@@ -33,7 +33,7 @@ end
 function elastic_fixture()
     # Planning tests own their controls rather than the editable entry preset.
     return merge(
-        E.aeroelastic_study(runMode=:full),
+        E.aeroelastic_study(runMode=:full,dampingTarget=:propeller),
         (; dry_run=true,make_plots=false,
             speed_mps=nothing,nominal=nothing,families=collect(C.FIELDS[2:end]),
             sweeps=(wing_chord=nothing,prop_radial=nothing,prop_chord=nothing,

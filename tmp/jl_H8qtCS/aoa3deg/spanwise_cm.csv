@@ -1,0 +1,5 @@
+case,U_m_s,alpha_deg,sweep_deg,alpha_step_deg,eta,s_reference_m,y_reference_m,cm_quarter_chord,cm_spar,cm_quarter_chord_alpha_equilibrium_per_rad,cm_spar_alpha_equilibrium_per_rad,cm_quarter_chord_alpha_fixed_shape_per_rad,cm_spar_alpha_fixed_shape_per_rad,central_converged,equilibrium_slope_converged,fixed_shape_slope_converged
+1,15.0,3.0000000000000004,10.0,NaN,0.0,0.0,0.0,0.0007048055590980408,0.05253799923623986,NaN,NaN,NaN,NaN,true,false,false
+1,15.0,3.0000000000000004,10.0,NaN,0.3333333333333333,0.18505473050543111,0.1822433333333333,0.0008279745669197574,0.05207056215028461,NaN,NaN,NaN,NaN,true,false,false
+1,15.0,3.0000000000000004,10.0,NaN,0.6666666666666666,0.37010946101086223,0.3644866666666666,0.001372097242600698,0.04938519355594775,NaN,NaN,NaN,NaN,true,false,false
+1,15.0,3.0000000000000004,10.0,NaN,1.0,0.5551641915162934,0.5467299999999999,0.001777078210135715,0.047152472380737914,NaN,NaN,NaN,NaN,true,false,false

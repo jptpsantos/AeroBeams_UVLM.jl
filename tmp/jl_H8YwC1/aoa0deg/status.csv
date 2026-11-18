@@ -1,0 +1,21 @@
+case,U_m_s,alpha_deg,sweep_deg,solve,converged,reason,wake_time_s,wake_force_residual,wake_circulation_residual
+1,10.0,0.0,0.0,central,true,Static aeroelastic equilibrium reached,NaN,NaN,NaN
+1,10.0,0.0,0.0,equilibrium_minus,true,Static aeroelastic equilibrium reached,NaN,NaN,NaN
+1,10.0,0.0,0.0,equilibrium_plus,true,Static aeroelastic equilibrium reached,NaN,NaN,NaN
+1,10.0,0.0,0.0,fixed_shape_minus,true,Fixed-shape wake settled,0.24712600000000004,3.5732688630912834e-8,3.5538419598261837e-6
+1,10.0,0.0,0.0,fixed_shape_plus,true,Fixed-shape wake settled,0.24712600000000004,3.5732688630912834e-8,3.5538419598261837e-6
+2,20.0,0.0,0.0,central,true,Static aeroelastic equilibrium reached,NaN,NaN,NaN
+2,20.0,0.0,0.0,equilibrium_minus,true,Static aeroelastic equilibrium reached,NaN,NaN,NaN
+2,20.0,0.0,0.0,equilibrium_plus,true,Static aeroelastic equilibrium reached,NaN,NaN,NaN
+2,20.0,0.0,0.0,fixed_shape_minus,true,Fixed-shape wake settled,0.12356300000000002,1.4293075452365134e-7,3.5538419598261837e-6
+2,20.0,0.0,0.0,fixed_shape_plus,true,Fixed-shape wake settled,0.12356300000000002,1.4293075452365134e-7,3.5538419598261837e-6
+3,10.0,0.0,20.0,central,true,Static aeroelastic equilibrium reached,NaN,NaN,NaN
+3,10.0,0.0,20.0,equilibrium_minus,true,Static aeroelastic equilibrium reached,NaN,NaN,NaN
+3,10.0,0.0,20.0,equilibrium_plus,true,Static aeroelastic equilibrium reached,NaN,NaN,NaN
+3,10.0,0.0,20.0,fixed_shape_minus,true,Fixed-shape wake settled,0.2375,2.7281835240575147e-8,3.40983177797763e-6
+3,10.0,0.0,20.0,fixed_shape_plus,true,Fixed-shape wake settled,0.2375,2.728183524751404e-8,3.4098317779776343e-6
+4,20.0,0.0,20.0,central,true,Static aeroelastic equilibrium reached,NaN,NaN,NaN
+4,20.0,0.0,20.0,equilibrium_minus,true,Static aeroelastic equilibrium reached,NaN,NaN,NaN
+4,20.0,0.0,20.0,equilibrium_plus,true,Static aeroelastic equilibrium reached,NaN,NaN,NaN
+4,20.0,0.0,20.0,fixed_shape_minus,true,Fixed-shape wake settled,0.11875,1.0912734096230059e-7,3.40983177797763e-6
+4,20.0,0.0,20.0,fixed_shape_plus,true,Fixed-shape wake settled,0.11875,1.0912734099005617e-7,3.4098317779776343e-6

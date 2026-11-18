@@ -135,6 +135,7 @@ function run_explicit_aeroelastic(s)
     println("Explicit aeroelastic inputs: aerodynamic convergence is unverified")
     println("Aeroelastic operating point: $(selection.physical.speed_mps) m/s, $(selection.physical.rpm) RPM")
     println("Aeroelastic coupling: $(s.coupling.scheme); structural integrator: $(s.integration.time_integrator)")
+    println(Convergence.damping_description(s))
     s.make_plots && !s.dry_run && (@eval WingPropellerUVLMStudies using Plots)
     Convergence.load_model()
     wrapped = ExplicitAeroelasticSettings(MovingBlockStudy(s),explicit_driver_fingerprint())
@@ -145,6 +146,7 @@ function run_explicit_aeroelastic(s)
     report = "# Aeroelastic convergence\n\nInput mode: explicit. Aerodynamic convergence is **unverified**; no aerodynamic selection was loaded or certified.\n\n"
     report *= "Operating point: $(selection.physical.speed_mps) m/s, $(selection.physical.rpm) RPM.\n\n"
     report *= "Aeroelastic coupling: `$(s.coupling.scheme)`. Structural integrator: `$(s.integration.time_integrator)`.\n\n"
+    report *= Convergence.damping_description(s) * "\n\n"
     if get(s,:run_mode,:full) == :preview
         report *= "**Preview only:** this coarse, short run checks solver execution and coupling. Damping convergence is disabled; an indeterminate fit is expected. Use the full mode for damping sensitivity.\n\n"
     end
@@ -153,7 +155,7 @@ function run_explicit_aeroelastic(s)
     if :wing_span in s.families
         report *= "The wing span-panel sweep changes both the aerodynamic and structural meshes.\n\n"
     end
-    report *= "Positive lambda means growth; negative lambda means decay. Compare pitch/yaw growth rates and frequencies, and inspect damping_fit.toml and raw histories. Damping convergence does not establish aerodynamic convergence or a flutter boundary.\n"
+    report *= "Positive lambda means growth; negative lambda means decay. Compare both selected response growth rates and frequencies, and inspect damping_fit.toml and raw histories. Damping convergence does not establish aerodynamic convergence or a flutter boundary.\n"
     write(joinpath(result.directory,"report.md"),report)
     return merge(result,(; aerodynamic_reference=nothing))
 end

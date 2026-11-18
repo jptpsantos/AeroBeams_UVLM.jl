@@ -1,5 +1,8 @@
 # Plot archived damping results without loading a study or rerunning simulations.
 # julia --project=lib/WingPropellerUVLM/studies path/to/this_script.jl [results_directory]
+# Add --current to plot the latest root run instead of the two archived cases.
+# Add --mesh-case1 to combine Mesh_case1 with the latest root run (or Mesh_case2).
+# Add --reference-style for compact serif figures: pitch above yaw, mesh directions across.
 module ChangConvergenceAeroelasticPlots
 using DelimitedFiles,Plots,Printf,TOML
 
@@ -33,7 +36,8 @@ end
 same_numbers(a,b) = all(isapprox.(a,b; rtol=1e-10,atol=1e-12))
 
 # A relative error is undefined at zero growth/decay rate.
-relative_error_percent(error,value) = iszero(value) ? NaN : 100error / abs(value)
+relative_error_percent(error,value) =
+    !isfinite(error) || !isfinite(value) || iszero(value) ? NaN : 100error / abs(value)
 successive_errors_percent(row) = ntuple(i -> relative_error_percent(row.previous[i],row.values[i]),2)
 relative_limits_percent(row) = ntuple(i -> relative_error_percent(row.limits[i],row.values[i]),2)
 reference_errors_percent(row,reference) =
@@ -45,7 +49,8 @@ reference_errors_percent(row,reference) =
 membership in each sweep, so the common baseline can be used in both panels.
 Saved errors and level numbers are discarded and recomputed on the merged grid.
 """
-function load_results(directory=DEFAULT_DIRECTORY; case_names=CASE_NAMES)
+function load_results(directory=DEFAULT_DIRECTORY; case_names=CASE_NAMES,
+    families=FAMILIES,allow_invalid=false)
     isempty(case_names) && error("At least one archived case is required")
     cases = NamedTuple[]
     memberships = Dict{Tuple{String,Float64},Int}()
@@ -67,7 +72,7 @@ function load_results(directory=DEFAULT_DIRECTORY; case_names=CASE_NAMES)
             (string(c["family"]),Int(number(c["level"]))) => c
             for c in read_table(joinpath(archive,"case_matrix.csv"))
         )
-        saved = filter(r -> string(r["family"]) in FAMILIES,
+        saved = filter(r -> string(r["family"]) in families,
             read_table(joinpath(archive,"convergence.csv")))
         isempty(saved) && error("No blade convergence results in $archive")
         for r in saved
@@ -76,7 +81,8 @@ function load_results(directory=DEFAULT_DIRECTORY; case_names=CASE_NAMES)
             c = matrix[(family,Int(number(r["level"])))]
             label = string(r["label"])
             string(c["label"]) == label || error("Case label mismatch: $caseName/$label")
-            string(r["status"]) == "completed" && truth(r["valid"]) ||
+            valid = string(r["status"]) == "completed" && truth(r["valid"])
+            valid || allow_invalid ||
                 error("Cannot compare an incomplete or invalid case: $caseName/$label")
             controls = Tuple(number(c[k]) for k in CONTROLS)
             all(x -> isfinite(x) && x > 0,controls) || error("Invalid controls: $caseName/$label")
@@ -107,12 +113,14 @@ function load_results(directory=DEFAULT_DIRECTORY; case_names=CASE_NAMES)
                 push!(
                     cases,
                     (; id=@sprintf("case_%03d",index),controls,values,limits,
+                        valid,status=string(r["status"]),reason=string(r["reason"]),
                         sources=String[source],families=String[family])
                 )
             else
                 canonical = cases[index]
                 same_numbers(values,canonical.values) && same_numbers(limits,canonical.limits) ||
                     error("Conflicting duplicate results: $source and $(first(canonical.sources))")
+                canonical.valid == valid || error("Conflicting duplicate validity: $source")
                 push!(canonical.sources,source)
                 family in canonical.families || push!(canonical.families,family)
             end
@@ -123,7 +131,7 @@ function load_results(directory=DEFAULT_DIRECTORY; case_names=CASE_NAMES)
         end
     end
     rows = NamedTuple[]
-    for family in FAMILIES
+    for family in families
         levels = sort([x for (f,x) in keys(memberships) if f == family])
         length(levels) >= 3 || error("$family needs at least three distinct panel counts")
         reference = cases[memberships[(family,last(levels))]]
@@ -406,11 +414,255 @@ function plot_saved_convergence(directory=DEFAULT_DIRECTORY; case_names=CASE_NAM
     foreach(println,paths)
     return paths
 end
+
+"""Read the current run without merging older archived studies.
+
+Indeterminate fits remain diagnostic data and retain their validity flags.
+Differences use adjacent saved levels, including gaps with nonfinite values.
+"""
+function load_current_results(directory=DEFAULT_DIRECTORY; metrics=METRICS)
+    saved = read_table(joinpath(directory,"convergence.csv"))
+    matrix = Dict((string(c["family"]),Int(number(c["level"]))) => c
+                  for c in read_table(joinpath(directory,"case_matrix.csv")))
+    isempty(saved) && error("No current convergence results in $directory")
+    rows = NamedTuple[]
+    for family in unique(string(r["family"]) for r in saved)
+        group = sort(filter(r -> string(r["family"]) == family,saved);
+                     by=r -> number(r["level"]))
+        reference = last(group)
+        referenceValues = Tuple(number(reference[k]) for k in metrics)
+        previousValues = ntuple(_ -> NaN,4)
+        previousValid = false
+        for r in group
+            level = Int(number(r["level"]))
+            c = matrix[(family,level)]
+            string(c["label"]) == string(r["label"]) || error("Case label mismatch")
+            values = Tuple(number(r[k]) for k in metrics)
+            limits = Tuple(number(r["limit_$k"]) for k in metrics)
+            valid = truth(r["valid"]) && string(r["status"]) == "completed"
+            previous = abs.(values .- previousValues)
+            errors = abs.(values .- referenceValues)
+            successivePercent = ntuple(i -> relative_error_percent(previous[i],values[i]),4)
+            referencePercent = ntuple(i -> relative_error_percent(errors[i],referenceValues[i]),4)
+            push!(rows,(; family,level,label=string(r["label"]),x=number(c[family]),
+                values,limits,valid,status=string(r["status"]),reason=string(r["reason"]),
+                previous,errors,successive_percent=successivePercent,
+                reference_percent=referencePercent,
+                successive_valid=valid && previousValid,
+                reference_valid=valid && truth(reference["valid"]) && string(reference["status"]) == "completed",
+                reference_label=string(reference["label"]),sources=string(r["label"])))
+            previousValues = values
+            previousValid = valid
+        end
+    end
+    settings = TOML.parsefile(joinpath(directory,"study.toml"))["settings"]
+    return (; rows,settings)
+end
+
+mesh_case_names(directory) =
+    ("Mesh_case1",isfile(joinpath(directory,"convergence.csv")) ? "." : "Mesh_case2")
+
+"""Merge Mesh_case1 with the latest run by complete numerical configuration.
+
+Compatibility and duplicate checks are shared with the archived plotter.
+Invalid fits remain flagged; differences are recomputed on the merged grid.
+"""
+function load_mesh_results(directory=DEFAULT_DIRECTORY; case_names=mesh_case_names(directory),
+    families=("wing_span","wing_chord","prop_radial","prop_chord"))
+    combined = load_results(directory; case_names,families,allow_invalid=true)
+    identities = Dict(c.id => c for c in combined.cases)
+    rows = NamedTuple[]
+    for family in unique(r.family for r in combined.rows)
+        group = filter(r -> r.family == family,combined.rows)
+        reference = identities[last(group).case_id]
+        for (level,r) in enumerate(group)
+            c = identities[r.case_id]
+            previousValid = level > 1 && identities[group[level-1].case_id].valid
+            push!(rows,(; r.family,level,label=c.id,r.x,r.values,r.limits,c.valid,c.status,c.reason,
+                r.previous,r.errors,
+                successive_percent=ntuple(i -> relative_error_percent(r.previous[i],r.values[i]),4),
+                reference_percent=ntuple(i -> relative_error_percent(r.errors[i],reference.values[i]),4),
+                successive_valid=c.valid && previousValid,
+                reference_valid=c.valid && reference.valid,
+                reference_label=reference.id,sources=join(c.sources,"; ")))
+        end
+    end
+    return (; rows,combined.settings,input_count=combined.input_count,cases=combined.cases,combined)
+end
+
+"""Compact two-by-two figures matching the supplied black/red reference style.
+
+Lines connect computed values directly. Fit validity remains in the data tables.
+"""
+function plot_reference_style(results,out)
+    paths = String[]
+    meshes = (("wing",("wing_span","wing_chord"),("Spanwise panels","Chordwise panels")),
+              ("propeller",("prop_radial","prop_chord"),("Radial panels","Chordwise panels")))
+    for (name,families,xlabels) in meshes
+        all(family -> any(r -> r.family == family,results.rows),families) || continue
+        for comparison in (:successive,:reference)
+            panels = Any[]
+            for (i,metric) in enumerate(("Pitch","Yaw")),(family,xlabel) in zip(families,xlabels)
+                group = filter(r -> r.family == family,results.rows)
+                points = comparison == :successive ? group[2:end] : group
+                differences = [comparison == :successive ? r.successive_percent[i] : r.reference_percent[i]
+                               for r in points]
+                finiteValues = filter(isfinite,differences)
+                ymax = isempty(finiteValues) ? 1.0 : max(1.08 * maximum(finiteValues),1e-3)
+                xmax = maximum(r.x for r in group)
+                # Regular ticks keep the smallest mesh levels from crowding the axis.
+                step = xmax <= 15 ? 5 : 10
+                ticks = collect(0:step:xmax)
+                p = plot([r.x for r in points],differences;
+                    color=i == 1 ? :black : "#EF4444",linestyle=i == 1 ? :solid : :dash,
+                    linewidth=1.1,label="",legend=false,grid=false,
+                    framestyle=:axes,mirror=false,tick_direction=:in,
+                    fontfamily="Times",guidefontsize=9,tickfontsize=8,
+                    foreground_color_axis=:black,foreground_color_border=:black,
+                    foreground_color_text=:black,background_color=:white,
+                    ylabel="$metric difference (%)",xlabel=i == 2 ? xlabel : "",
+                    xlims=(0.0,xmax),xticks=ticks,ylims=(0.0,ymax),widen=false,
+                    left_margin=20Plots.mm,right_margin=7Plots.mm,
+                    top_margin=3Plots.mm,bottom_margin=i == 2 ? 10Plots.mm : 1Plots.mm)
+                push!(panels,p)
+            end
+            figure = plot(panels...; layout=(2,2),size=(1000,390),
+                background_color=:white,dpi=220)
+            for extension in (".svg",".png")
+                path = joinpath(out,"$(name)_damping_$(comparison)_percent" * extension)
+                savefig(figure,path)
+                push!(paths,path)
+            end
+        end
+    end
+    isempty(paths) && error("Reference style requires both mesh directions for a wing or propeller")
+    return paths
+end
+
+"""Plot current-run percent differences; no simulations or fit changes."""
+function plot_current_convergence(directory=DEFAULT_DIRECTORY; case_names=nothing,reference_style=false)
+    directory = abspath(directory)
+    results = isnothing(case_names) ? load_current_results(directory) : load_mesh_results(directory; case_names)
+    out = joinpath(directory,"plots",isnothing(case_names) ? "current_run" : "mesh_case1_and_latest")
+    mkpath(out)
+    labels = Dict("wing_span" => ("Wing span mesh","Spanwise panels"),
+        "wing_chord" => ("Wing chord mesh","Chordwise panels"),
+        "prop_radial" => ("Propeller radial mesh","Radial panels per blade"),
+        "prop_chord" => ("Propeller chord mesh","Chordwise panels per blade"))
+    families = unique(r.family for r in results.rows)
+    paths = String[]
+    if reference_style
+        append!(paths,plot_reference_style(results,out))
+    end
+    comparisons = reference_style ? () : (:successive,:reference)
+    for comparison in comparisons
+        panels = Any[]
+        for family in families
+            group = filter(r -> r.family == family,results.rows)
+            points = comparison == :successive ? group[2:end] : group
+            title,xlabel = get(labels,family,(family,family))
+            valid_pair(r) = comparison == :successive ? r.successive_valid : r.reference_valid
+            diagnostic = any(r -> !valid_pair(r),points)
+            title *= diagnostic ? "\nDiagnostic: unvalidated fits (x)" : ""
+            ticks = [r.x for r in group]
+            padding = max(0.04 * (maximum(ticks) - minimum(ticks)),0.01 * maximum(abs.(ticks)),1e-8)
+            plottedValues = Float64[]
+            for r in points,i in 1:2
+                difference = comparison == :successive ? r.successive_percent[i] : r.reference_percent[i]
+                limit = relative_error_percent(r.limits[i],
+                    comparison == :successive ? r.values[i] : last(group).values[i])
+                isfinite(difference) && push!(plottedValues,difference)
+                isfinite(limit) && push!(plottedValues,limit)
+            end
+            ymax = isempty(plottedValues) ? 1.0 : max(1.12 * maximum(plottedValues),1e-3)
+            p = plot(; title,xlabel,ylabel="Damping difference (%)",ylims=(0.0,ymax),
+                xticks=ticks,xlims=(minimum(ticks) - padding,maximum(ticks) + padding),
+                legend=:topright,titlefontsize=11,guidefontsize=10,tickfontsize=9,
+                legendfontsize=8,gridalpha=0.16,framestyle=:box,
+                left_margin=7Plots.mm,bottom_margin=6Plots.mm,top_margin=4Plots.mm)
+            for (i,name) in enumerate(("Pitch","Yaw"))
+                differences = [comparison == :successive ? r.successive_percent[i] : r.reference_percent[i]
+                               for r in points]
+                plot!(p,[r.x for r in points],differences; label=name,color=COLORS[i],
+                    linewidth=2,linestyle=i == 1 ? :solid : :dash)
+                for validated in (true,false)
+                    indices = findall(r -> valid_pair(r) == validated,points)
+                    isempty(indices) && continue
+                    scatter!(p,[points[j].x for j in indices],differences[indices];
+                        label="",color=COLORS[i],marker=validated ? MARKERS[i] : :xcross,
+                        markersize=i == 1 ? 6 : 4,markerstrokecolor=COLORS[i])
+                end
+                limits = [relative_error_percent(r.limits[i],
+                    comparison == :successive ? r.values[i] : last(group).values[i]) for r in points]
+                plot!(p,[r.x for r in points],limits; label="$name tolerance",color=COLORS[i],
+                    linestyle=:dot,linewidth=1.2,alpha=0.7)
+            end
+            push!(panels,p)
+        end
+        title = comparison == :successive ? "Successive mesh differences" : "Differences from finest mesh in each sweep"
+        isnothing(case_names) || (title *= " | Mesh_case1 + latest")
+        physical = results.settings["physical"]
+        title *= @sprintf(" | U = %g m/s, alpha = %g deg",physical["speed_mps"],physical["alpha_deg"])
+        figure = plot(panels...; layout=(cld(length(panels),2),2),
+            size=(1400,450 * cld(length(panels),2)),plot_title=title,
+            plot_titlefontsize=13,background_color=:white,dpi=180)
+        for extension in (".png",".svg")
+            path = joinpath(out,"damping_$(comparison)_percent" * extension)
+            savefig(figure,path)
+            push!(paths,path)
+        end
+    end
+    open(joinpath(out,"percentage_differences.csv"),"w") do io
+        headers = ["family","level","label","control_value","status","valid","reason","sources",
+            "reference_label","successive_valid","reference_valid",
+            ("successive_percent_$k" for k in METRICS)...,
+            ("reference_percent_$k" for k in METRICS)...]
+        writedlm(io,permutedims(headers),',')
+        for r in results.rows
+            writedlm(io,permutedims(Any[r.family,r.level,r.label,r.x,r.status,r.valid,r.reason,r.sources,
+                r.reference_label,r.successive_valid,r.reference_valid,
+                r.successive_percent...,r.reference_percent...]),',')
+        end
+    end
+    isnothing(case_names) || write_tables(out,results.combined)
+    open(joinpath(out,"plot_notes.md"),"w") do io
+        println(io,"# Damping percentage differences\n")
+        println(io,"Source: $directory. Reads saved CSV/TOML files only; no simulations or damping fits run.\n")
+        if !isnothing(case_names)
+            println(io,"Combined sources: $(join(case_names," + ")) (. means the latest root run). Study settings and source fingerprints match after excluding sweep lists and output controls.")
+            println(io,"$(results.input_count) input rows produce $(length(results.rows)) sweep points and $(length(results.cases)) unique configurations. Duplicate configurations are checked for matching metrics, limits and validity.\n")
+            println(io,"Panel counts are sorted before recomputing differences. CSV sources identify every contributing case; source level numbers are not configuration identities.")
+        end
+        println(io,"Successive (%) = 100 * abs(lambda_i - lambda_previous) / abs(lambda_i). The first level is undefined (NaN).")
+        println(io,"Finest reference (%) = 100 * abs(lambda_i - lambda_finest) / abs(lambda_finest). The finest reference is the last saved refinement level in each family, not an exact solution.")
+        println(io,"Zero denominators and unavailable values give NaN. Dotted tolerances use the saved absolute damping tolerance with the corresponding denominator.\n")
+        if reference_style
+            println(io,"Compact reference style: serif type, black solid pitch curves above red dashed yaw curves, mesh directions in columns, no grid, legend, tolerance curves or markers. Lines directly connect saved mesh levels; no interpolation is applied.")
+            println(io,"Each mesh has separate successive and finest-reference figures. Fit validity is retained in the CSV rather than marked on these compact curves.")
+        else
+            println(io,"Crosses mark comparisons involving a fit that was not completed and valid.")
+        end
+        println(io,"These are diagnostic differences, not verified convergence. Saved validity, acceptance flags and source files are unchanged.")
+        println(io,"$(count(r -> !r.valid,results.rows)) of $(length(results.rows)) saved mesh points have unvalidated fits. The CSV retains their status and reason.")
+        println(io,"The CSV also includes the corresponding frequency differences; the figures show damping rates only.")
+    end
+    foreach(println,paths)
+    return paths
+end
 end
 
 if abspath(PROGRAM_FILE) == @__FILE__
-    ChangConvergenceAeroelasticPlots.plot_saved_convergence(
-        isempty(ARGS) ?
-        ChangConvergenceAeroelasticPlots.DEFAULT_DIRECTORY : only(ARGS)
-    )
+    current = "--current" in ARGS
+    meshCase1 = "--mesh-case1" in ARGS
+    referenceStyle = "--reference-style" in ARGS
+    directories = filter(arg -> !(arg in ("--current","--mesh-case1","--reference-style")),ARGS)
+    directory = isempty(directories) ? ChangConvergenceAeroelasticPlots.DEFAULT_DIRECTORY : only(directories)
+    if meshCase1
+        ChangConvergenceAeroelasticPlots.plot_current_convergence(directory;
+            case_names=ChangConvergenceAeroelasticPlots.mesh_case_names(directory),reference_style=referenceStyle)
+    elseif current
+        ChangConvergenceAeroelasticPlots.plot_current_convergence(directory; reference_style=referenceStyle)
+    else
+        ChangConvergenceAeroelasticPlots.plot_saved_convergence(directory)
+    end
 end

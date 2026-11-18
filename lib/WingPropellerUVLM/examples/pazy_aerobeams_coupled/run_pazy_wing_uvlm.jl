@@ -4,17 +4,28 @@ include(joinpath(@__DIR__,"PazyWingUVLMVisualization.jl"))
 include(joinpath(@__DIR__,"..","..","studies","src","MovingBlockDamping.jl"))
 using .MovingBlockDamping: moving_block_damping
 
+# Native AeroBeams Pazy options (same keyword names as create_Pazy).
+mesh = :nominal                      # :nominal or :refined structural mesh
+sweepAngle = deg2rad(0.0)             # available data: 0, 10 or 20 degrees
+useAePW3Matrices = false              # original AePW3 data: straight, nominal only
+withWingtipRod = true                 # false: straight wing without the rod
+rootTorsionCorr = true                # corrected root stiffness: straight with rod
+beamWingtipRod = false                # explicit flexible rod: straight or 10 degrees
+nElementsWingtipRod = 12              # explicit rod mesh (S0 >= 6, S10 >= 4)
+sweptTipMassConfig = :baseline        # swept wing: :baseline, :LE or :TE
+sweptTipMassInertiaCorrection = false # lumped rod correction; disable for beam rod
+
 # Flight conditions
-airspeed = 45                       # m/s
+airspeed = 64                       # m/s
 density = 1.225                       # kg/m^3
-angle_of_attack = deg2rad(3.0)
+angle_of_attack = deg2rad(0.0)
 sideslip = deg2rad(0.0)               # use symmetric_wing=false for nonzero sideslip
 
 # Smooth startup: ramp from 5% to 100% airspeed, then hold before the tip pulse.
 initial_airspeed_fraction = 1.0
 airspeed_ramp_duration = 0.0           # seconds; must not exceed settling_time
 
-# UVLM mesh (independent of the 15-element AeroBeams mesh)
+# UVLM mesh (independent of the selected AeroBeams structural mesh)
 chordwise_panels = 10
 spanwise_panels = 20
 symmetric_wing = true                 # mirror wing and wake across UVLM y=0
@@ -99,6 +110,9 @@ case_suffix = "aoa$(filename_number(rad2deg(angle_of_attack)))_V$(filename_numbe
 
 # Solve, then generate the AeroBeams deformation and UVLM wake GIFs.
 result = run_pazy_wing_uvlm(;
+    mesh,sweepAngle,useAePW3Matrices,withWingtipRod,rootTorsionCorr,
+    beamWingtipRod,nElementsWingtipRod,sweptTipMassConfig,
+    sweptTipMassInertiaCorrection,
     airspeed,density,angle_of_attack,sideslip,
     initial_airspeed_fraction,airspeed_ramp_duration,
     duration,settling_time,

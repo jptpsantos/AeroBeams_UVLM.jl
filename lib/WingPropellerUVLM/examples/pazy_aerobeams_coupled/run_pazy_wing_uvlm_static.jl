@@ -5,12 +5,23 @@
 include(joinpath(@__DIR__,"PazyWingUVLMStatic.jl"))
 using DelimitedFiles
 
+# Native AeroBeams Pazy options; restrictions match create_Pazy.
+mesh = :nominal                      # :nominal or :refined
+sweepAngle = deg2rad(0.0)             # 0, 10 or 20 degrees
+useAePW3Matrices = false              # straight wing, nominal mesh only
+withWingtipRod = true                 # false is available for the straight wing
+rootTorsionCorr = true                # straight wing with rod, condensed data only
+beamWingtipRod = false                # explicit rod: straight or 10 degrees
+nElementsWingtipRod = 12              # S0 >= 6, S10 >= 4
+sweptTipMassConfig = :baseline        # :baseline, :LE or :TE
+sweptTipMassInertiaCorrection = false # cannot combine with an explicit rod
+
 # Flight condition. Incidence is imposed through the freestream, once only.
 airspeed = 55.0
 density = 1.225
 angle_of_attack = deg2rad(2.0)
 
-# UVLM controls. The structural mesh remains the original 15-element Pazy mesh.
+# UVLM controls, independent of the selected structural mesh.
 chordwise_panels = 4
 spanwise_panels = 15
 symmetric_wing = true
@@ -49,6 +60,9 @@ output_directory = joinpath(@__DIR__,"output","static_uvlm")
 save_convergence_plot = true
 
 static_result = run_pazy_wing_uvlm_static(;
+    mesh,sweepAngle,useAePW3Matrices,withWingtipRod,rootTorsionCorr,
+    beamWingtipRod,nElementsWingtipRod,sweptTipMassConfig,
+    sweptTipMassInertiaCorrection,
     airspeed,density,angle_of_attack,chordwise_panels,spanwise_panels,
     symmetric_wing,maximum_wake_rows,core_radius,wake_shedding_fraction,
     aerodynamic_interaction,maximum_aerodynamic_time,minimum_aerodynamic_time,

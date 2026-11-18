@@ -76,6 +76,7 @@ function validate_elastic(s,selection)
     nominal = elastic_nominal(selection.selected,s)
     cases = build_cases(nominal,elastic_sweeps(nominal,s),s.families; elastic=true)
     d = s.damping
+    Damping.response_channels(get(d,:target,:propeller))
     start = fit_start(s,selection.physical)
     0 <= start < s.response.end_time_s || error("Damping fit must start inside the response interval")
     0 < d.block_duration_s < s.response.end_time_s - start ||
@@ -94,9 +95,30 @@ function validate_elastic(s,selection)
     end
     return cases
 end
+
+# This remains a limit on physical propeller angles, even when the fitted
+# wing-bending response is a displacement in metres.
+function damping_amplitude_ok(history,s,response)
+    target = get(s.damping,:target,:propeller)
+    limit = s.integration.propeller_angle_limit_deg
+    target == :wing && limit == Inf && return true
+    angles = target == :propeller ? response : Damping.read_response_history(history)
+    return max(maximum(abs,angles.pitch),maximum(abs,angles.yaw)) < limit
+end
+
+function damping_description(s)
+    target = get(s.damping,:target,:propeller)
+    channels = Damping.response_channels(target)
+    signals = join(["$(channels.prefixes[i]) from $(channels.columns[i]) ($(channels.units[i]))" for i in 1:2],"; ")
+    return "Damping target: $target. Signals: $signals."
+end
+
 function damping_result(history,s,p)
-    response = Damping.read_response_history(history)
-    all(isfinite,response.time) && all(isfinite,response.pitch) && all(isfinite,response.yaw) ||
+    target = get(s.damping,:target,:propeller)
+    channels = Damping.response_channels(target)
+    response = Damping.read_response_history(history; target)
+    signals = map(name -> getproperty(response,name),channels.names)
+    all(isfinite,response.time) && all(signal -> all(isfinite,signal),signals) ||
         error("Nonfinite aeroelastic response")
     all(>(0),diff(response.time)) || error("Nonmonotone response times")
     Damping.completed_requested_window(response.time,s.response.end_time_s) ||
@@ -108,12 +130,12 @@ function damping_result(history,s,p)
         initial_block_size=512,size_ratio_lower=0.25,size_ratio_upper=0.5,
         peak_from_start=1,peak_from_end=0,block_duration_s=d.block_duration_s,block_overlap=d.block_overlap,
         frequency_min_hz=d.frequency_band_hz[1],frequency_max_hz=d.frequency_band_hz[2],apply_hann_window=true)
-    pitch = metric(response.pitch)
-    yaw = metric(response.yaw)
-    amplitudeOk =
-        max(maximum(abs,response.pitch),maximum(abs,response.yaw)) < s.integration.propeller_angle_limit_deg
-    valid = pitch.valid_for_convergence && yaw.valid_for_convergence && amplitudeOk
-    return (; pitch,yaw,valid)
+    fits = NamedTuple{channels.names}(map(metric,signals))
+    amplitudeOk = damping_amplitude_ok(history,s,response)
+    valid = all(fit -> fit.valid_for_convergence,values(fits)) && amplitudeOk
+    metadata = NamedTuple{channels.names}(ntuple(i ->
+        (; column=channels.columns[i],unit=channels.units[i]),2))
+    return merge(fits,(; valid,target,signals=metadata))
 end
 function aeroelastic_case(c,s,selection,directory)
     mkpath(directory)
@@ -139,11 +161,14 @@ function aeroelastic_case(c,s,selection,directory)
     history = joinpath(directory,"response_history.csv")
     fits = damping_result(history,s,selection.physical)
     save_toml(joinpath(directory,"damping_fit.toml"),fits)
+    channels = Damping.response_channels(get(s.damping,:target,:propeller))
+    firstFit,secondFit = (getproperty(fits,name) for name in channels.names)
+    description = join(channels.prefixes,"/")
     return (; status=fits.valid ? "completed" : "indeterminate",
-        reason=fits.valid ? "Pitch/yaw damping fits verified" :
+        reason=fits.valid ? "$description damping fits verified" :
                "Damping fit unavailable, poor quality, or amplitude limit exceeded",
-        values=(fits.pitch.moving_block_lambda_per_s,fits.yaw.moving_block_lambda_per_s,
-            fits.pitch.frequency_hz,fits.yaw.frequency_hz),phases=(),periodic=(),valid=fits.valid,history,log,reused=false)
+        values=(firstFit.moving_block_lambda_per_s,secondFit.moving_block_lambda_per_s,
+            firstFit.frequency_hz,secondFit.frequency_hz),phases=(),periodic=(),valid=fits.valid,history,log,reused=false)
 end
 function run_aeroelastic(s)
     selection = load_selection(s.selection_file)
@@ -161,11 +186,12 @@ function run_aeroelastic_loaded(s,selection)
     rows = annotate(results,cases,s; elastic=true)
     if !s.dry_run && s.make_plots
         @eval using Plots
-        Base.invokelatest(plot_results,directory,rows; elastic=true)
+        Base.invokelatest(plot_results,directory,rows; elastic=true,
+            damping_target=get(s.damping,:target,:propeller))
     end
     write(
         joinpath(directory,"report.md"),
-        "# Aeroelastic convergence\n\nAerodynamic selection: $(s.selection_file)\n\nNominal numerical controls (after overrides):\n\n```toml\n$(toml_text(nominal))```\n\nWing span/structural elements: $(selection.selected.wing_span). Positive lambda means growth; negative lambda means decay. Compare both pitch/yaw growth rates and tracked frequencies, and inspect damping_fit.toml and raw histories. This is a damping sensitivity study at one operating point, not a flutter boundary calculation.\n"
+        "# Aeroelastic convergence\n\nAerodynamic selection: $(s.selection_file)\n\n$(damping_description(s))\n\nNominal numerical controls (after overrides):\n\n```toml\n$(toml_text(nominal))```\n\nWing span/structural elements: $(selection.selected.wing_span). Positive lambda means growth; negative lambda means decay. Compare both selected response growth rates and tracked frequencies, and inspect damping_fit.toml and raw histories. This is a damping sensitivity study at one operating point, not a flutter boundary calculation.\n"
     )
     println("Results: $directory")
     return (; directory,cases,results=rows,selection,nominal)

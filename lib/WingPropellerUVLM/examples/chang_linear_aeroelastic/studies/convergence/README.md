@@ -20,7 +20,7 @@ Only two entry files need editing:
 | File | Purpose |
 |---|---|
 | [chang_convergence_aerodynamic.jl](chang_convergence_aerodynamic.jl) | Define independent physical/numerical inputs; converge propeller CT and CQ |
-| [chang_convergence_aeroelastic.jl](chang_convergence_aeroelastic.jl) | Set explicit inputs or read a verified aerodynamic selection; converge pitch/yaw damping |
+| [chang_convergence_aeroelastic.jl](chang_convergence_aeroelastic.jl) | Set explicit inputs or read a verified aerodynamic selection; select wing or propeller damping |
 | `src/` | Shared-package compatibility includes and the explicit aeroelastic driver |
 | `archive/` | Previous drivers, their editable presets, and reference notes |
 
@@ -124,6 +124,40 @@ Its execution guard runs a study only when the file is executed directly, so
 
 ### Full explicit analysis and runtime planning
 
+Choose the measured responses with `dampingTarget` in `create_study()`:
+
+```julia
+study = ChangConvergenceAeroelastic.create_study(; dampingTarget=:wing)
+# Or keep the original propeller pitch/yaw analysis:
+study = ChangConvergenceAeroelastic.create_study(; dampingTarget=:propeller)
+```
+
+The editable entry defaults to `:wing` for the wing mesh investigation. The
+corresponding nested setting is `damping=(target=:wing, ...)`; settings from
+older scripts without `target` retain `:propeller`. Both choices use the same
+coupled simulation and moving-block estimator. Only the measured responses
+change; selecting a component does not isolate an intrinsic component damping
+or decouple the structural model.
+
+| Target | Responses used for damping | Convergence columns |
+|---|---|---|
+| `:wing` | `tip_displacement_m` (wing-tip bending, m) and `tip_twist_deg` (wing-tip torsion, deg) | `wing_bending_lambda_per_s`, `wing_torsion_lambda_per_s`, and corresponding `*_frequency_hz` columns |
+| `:propeller` | `propeller_1_pitch_deg` and `propeller_1_yaw_deg` | Existing `pitch_lambda_per_s`, `yaw_lambda_per_s`, `pitch_frequency_hz`, `yaw_frequency_hz` |
+
+The chosen target is recorded in `study.toml`; source columns and units are
+also recorded in `damping_fit.toml` and the report. Wing diagnostics use
+`wing_bending_moving_block.csv/.png` and `wing_torsion_moving_block.csv/.png`;
+propeller diagnostic filenames remain unchanged. The propeller angular limit
+still applies to propeller angles, never to wing displacement in metres.
+
+Wing results default to `output/convergence_aeroelastic_wing/`; propeller
+results default to `output/convergence_aeroelastic_explicit/`. Existing
+propeller archives and figures are therefore preserved when starting a wing
+study. Set `damping.frequencyBandHz` for the coupled mode you intend to track
+in the selected responses. The band checks the measured global dominant
+frequency; it does not filter out other modes. A signal dominated by a different
+mode can fail the band check. Inspect both fit quality and recorded frequencies.
+
 The default `runMode=:full` runs the editable nominal settings and sweeps with
 `coupling.scheme=:loose_explicit`. Each physical step evaluates UVLM once at the
 target time and rotor azimuth, using the known structural displacement `U[n]`,
@@ -133,21 +167,20 @@ aerodynamic and structural solvers. `maximumIterations` does not affect this
 scheme because there are no coupling subiterations. The equilibrium tolerances
 still check the structural solve against its prescribed aerodynamic load.
 
-The full profile uses 4 s instead of the previous 2 s: a saved 2 s case took about
-10 hours and retained only six positive peaks, below `minimumPeaks=8`. A longer
-record is still needed for damping estimation; 4 s supplies more cycles but
-does not guarantee an acceptable fit. The four mesh families are retained, and
-`azimuthStepDeg=[5.0, 2.5, 1.25]` adds a three-level time-step sweep to check
-sensitivity to the lagged explicit exchange. The five families produce 15 case
-entries and 11 unique simulations because their nominal cases coincide. Full
-results go to `output/convergence_aeroelastic_explicit/`.
+The editable full profile currently varies wing span panels
+`[5, 10, 20, 30, 40, 50]` and wing chord panels `[5, 10, 20, 30, 40]`.
+Span refinement changes both the UVLM and structural meshes. The requested
+record is 2 s; extend it if the selected wing responses contain too few peaks
+or fail the damping-fit checks. The example counts, duration and frequency band
+are inputs to investigate, not established convergence settings. Additional
+families, including time-step refinement, can be enabled in `sweeps`.
 
 Select `--preview` for a very short coupled response. It uses
 0.15 s, a 4-by-2 wing mesh, four physical blades with one chordwise panel and
 radial counts `[2, 3, 4]`, a 10-degree azimuth increment, and 0.5 retained wake
-revolutions (18 rows). At the supplied RPM this gives 110 time steps per case,
-330 across the three cases, and 16/20/24 bound panels respectively. Plots are
-disabled and results go to `output/convergence_aeroelastic_explicit_preview/`,
+revolutions (18 rows), with 16/20/24 bound panels respectively. The number of
+time steps follows the speed-scaled RPM; inspect `runtime_plan.csv`. Plots are
+disabled and results go to the selected target's output folder with `_preview` appended,
 keeping the full-study directory separate. Preview damping validity is forced to
 `false`: this short interval checks the solver and its response output, and
 cannot establish convergence of damping at 3--6 Hz.
@@ -160,11 +193,15 @@ julia --startup-file=no --project=lib/WingPropellerUVLM/studies lib/WingPropelle
 julia --startup-file=no --project=lib/WingPropellerUVLM/studies lib/WingPropellerUVLM/examples/chang_linear_aeroelastic/studies/convergence/chang_convergence_aeroelastic.jl --preview
 julia --startup-file=no --project=lib/WingPropellerUVLM/studies lib/WingPropellerUVLM/examples/chang_linear_aeroelastic/studies/convergence/chang_convergence_aeroelastic.jl --dry-run
 julia --startup-file=no --project=lib/WingPropellerUVLM/studies lib/WingPropellerUVLM/examples/chang_linear_aeroelastic/studies/convergence/chang_convergence_aeroelastic.jl --preview --dry-run
+julia --startup-file=no --project=lib/WingPropellerUVLM/studies lib/WingPropellerUVLM/examples/chang_linear_aeroelastic/studies/convergence/chang_convergence_aeroelastic.jl --damping-target=wing --dry-run
+julia --startup-file=no --project=lib/WingPropellerUVLM/studies lib/WingPropellerUVLM/examples/chang_linear_aeroelastic/studies/convergence/chang_convergence_aeroelastic.jl --damping-target=propeller
 ```
 
 `--full` explicitly selects the default full profile. `--dry-run` writes
 `runtime_plan.csv` with time steps, step counts, panel counts and wake capacities.
 These are workload indicators, not predictions of elapsed wall time.
+Use a fresh Julia process after changing the convergence implementation; its
+source fingerprints deliberately prevent continuing with stale loaded methods.
 
 For REPL planning, including the entry does not run it:
 
@@ -375,6 +412,29 @@ running it. Focused checks for the supplied archives can be run with:
 ```powershell
 julia --startup-file=no --project=lib/WingPropellerUVLM/studies lib/WingPropellerUVLM/test/chang_aeroelastic_convergence_plots.jl
 ```
+
+### Plot wing damping with the propeller procedure
+
+The wing plotter reads `output/convergence_aeroelastic_wing/` and uses the
+saved bending/torsion metrics. Run both commands for damping-rate and
+successive-percentage figures:
+
+```powershell
+julia --startup-file=no --project=lib/WingPropellerUVLM/examples lib/WingPropellerUVLM/examples/chang_linear_aeroelastic/studies/convergence/plot_wing_mesh_damping.jl
+julia --startup-file=no --project=lib/WingPropellerUVLM/examples lib/WingPropellerUVLM/examples/chang_linear_aeroelastic/studies/convergence/plot_wing_mesh_damping.jl --differences
+```
+
+An optional directory argument selects another saved wing run. Outputs in
+`plots/wing_mesh_damping/` include separate spanwise/chordwise PNG and SVG
+figures, solved samples, interpolated curves and notes. Bending is black solid;
+torsion uses the propeller yaw color and dashed line. Rates use Dierckx cubic
+splines; percentage changes use the same shape-preserving interpolation as
+the propeller script. Percentages are computed before interpolation, with
+the current damping magnitude as denominator. No extrapolation is used.
+
+The original fit validity and status remain in the exports. Indeterminate
+fits are diagnostic data; small mesh changes do not validate them. Span
+refinement changes both the structural and aerodynamic meshes.
 
 ## Previous scripts and verification
 

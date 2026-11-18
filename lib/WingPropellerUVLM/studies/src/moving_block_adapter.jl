@@ -14,9 +14,11 @@ function moving_block_fingerprint()
 end
 MovingBlockStudy(s) = MovingBlockStudy(s,moving_block_fingerprint())
 Convergence.data(s::MovingBlockStudy) = Convergence.data(merge(s.settings,
-    (; damping_method="moving_block_2",damping_method_sha256=s.estimator_sha256)))
+    (; damping_method="moving_block_2",damping_method_sha256=s.estimator_sha256,
+        damping_target=get(s.damping,:target,:propeller))))
 
 function moving_block_options(d)
+    Convergence.Damping.response_channels(get(d,:target,:propeller))
     mode = get(d,:block_size_mode,:record_fraction)
     mode in (:record_fraction,:duration) ||
         throw(ArgumentError("block_size_mode must be :record_fraction or :duration"))
@@ -57,10 +59,10 @@ function write_moving_block_diagnostics(directory,label,result)
     end
     return nothing
 end
-function plot_moving_block(directory,label,result)
+function plot_moving_block(directory,label,result; signal_unit="deg")
     d = result.diagnostics
     p1 = Plots.plot(d.time_s,d.signal; label="Analyzed segment",xlabel="Time (s)",
-        ylabel="Angle (deg)",title="$label response")
+        ylabel="Response ($signal_unit)",title="$label response")
     p2 = Plots.plot(d.block_start_s,d.log_amplitude; label="Moving-block log amplitude",
         xlabel="Block start time (s)",ylabel="Log amplitude")
     Plots.plot!(p2,d.block_start_s,d.fitted_log_amplitude; label="Linear fit",linestyle=:dash)
@@ -70,27 +72,30 @@ end
 
 function Convergence.damping_result(history,s::MovingBlockStudy,p)
     moving_block_fingerprint() == s.estimator_sha256 || error("Moving-block source changed during the study")
-    response = Convergence.Damping.read_response_history(history)
+    target = get(s.damping,:target,:propeller)
+    channels = Convergence.Damping.response_channels(target)
+    response = Convergence.Damping.read_response_history(history; target)
     Convergence.Damping.completed_requested_window(response.time,s.response.end_time_s) ||
         error("Response stopped before the requested end time")
     options = moving_block_options(s.damping)
     metric(signal) = MovingBlockDamping.moving_block_metrics(response.time,signal;
         fit_start_s=Convergence.fit_start(s,p),fit_end_s=s.response.end_time_s,options...)
-    pitch = metric(response.pitch)
-    yaw = metric(response.yaw)
+    fits = map(name -> metric(getproperty(response,name)),channels.names)
     directory = dirname(history)
-    for (label,result) in (("pitch",pitch),("yaw",yaw))
+    for i in 1:2
+        label,result = channels.prefixes[i],fits[i]
         write_moving_block_diagnostics(directory,label,result)
         if s.make_plots && result.summary.available
             @eval using Plots
-            Base.invokelatest(plot_moving_block,directory,label,result)
+            Base.invokelatest(plot_moving_block,directory,label,result; signal_unit=channels.units[i])
         end
     end
-    amplitudeOk =
-        max(maximum(abs,response.pitch),maximum(abs,response.yaw)) < s.integration.propeller_angle_limit_deg
-    return (; pitch=pitch.summary,yaw=yaw.summary,
-        valid=pitch.summary.valid_for_convergence && yaw.summary.valid_for_convergence && amplitudeOk,
-        method="moving_block_2",method_sha256=s.estimator_sha256)
+    amplitudeOk = Convergence.damping_amplitude_ok(history,s,response)
+    summaries = NamedTuple{channels.names}(map(fit -> fit.summary,fits))
+    metadata = NamedTuple{channels.names}(ntuple(i ->
+        (; column=channels.columns[i],unit=channels.units[i]),2))
+    return merge(summaries,(; valid=all(fit -> fit.valid_for_convergence,values(summaries)) && amplitudeOk,
+        target,signals=metadata,method="moving_block_2",method_sha256=s.estimator_sha256))
 end
 
 # The previously documented nested entry now uses the same operating-point and

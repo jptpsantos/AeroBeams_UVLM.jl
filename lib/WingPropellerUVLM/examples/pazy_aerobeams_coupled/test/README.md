@@ -19,11 +19,19 @@ These are implementation regressions, not flutter convergence studies.
 Every test file can also run directly. Existing optional switches remain:
 
 - `test_coupling.jl --dynamic`: coupled startup/pulse and final animation frame.
+- `test_pazy_model_options.jl --dynamic`: native matrices, rod configurations,
+  swept geometry and load conservation, plus short coupled runs with AePW3,
+  a refined no-rod mesh, 20-degree sweep and a 10-degree explicit LE rod.
+  Also checks static-to-dynamic initialization and rejects mismatched model
+  settings. Add `--animations` to save swept-rod preview GIFs under `tmp/`.
 - `test_pazy_stepped_bifurcation.jl --physical`: stepped physical continuation.
 - `test_pazy_bifurcation.jl --parallel`: distributed sweep consistency.
 - `test_pazy_stability_sweep.jl --plots`: stability plot smoke check.
+- `test_static_spanwise_cn_alpha.jl --plots`: constant-incidence equilibrium,
+  local-angle cn/alpha ratios, load conservation, optional derivative modes and convergence gates,
+  with an optional plot smoke check. Included in `--full`.
 
-The last three options are opt-in even with `--full`; they can also be passed
+The physical, parallel and plotting switches are opt-in even with `--full`; they can also be passed
 to `runtests.jl`. Each script runs in a separate module within that process.
 Shared moving-block damping tests live in the package's `test/` directory and
 are covered by its study suite, rather than being duplicated here.

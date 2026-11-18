@@ -1,0 +1,7 @@
+Wing held fixed in its undeformed native AeroBeams geometry.
+sweep=20deg alpha=3deg U=45m/s symmetric=true nc=10 ns=20 steps=10
+chord=0.095 span=0.5551602603452338 dt=0.0005277777777777778 eta=0.1 core=0.001
+freestream_velocity=[44.93832906395582, -0.0, 2.3551180309324726] nominal_row_length=0.023750000000000004
+shedding_offset=[0.002371745145042113, -0.0, 0.00012429789607699163]
+wake_z_extrema=(0.00012429789607699187, 0.015834456251238745)
+structural_main_wing_elements=15

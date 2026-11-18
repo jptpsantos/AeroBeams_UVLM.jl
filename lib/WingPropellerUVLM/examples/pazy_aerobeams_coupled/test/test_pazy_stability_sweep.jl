@@ -20,7 +20,7 @@ include(joinpath(PAZY_EXAMPLE_DIR,"..","..","studies","src","MovingBlockDamping.
     @test isempty(sweep_crossings([40.0,50.0],[0.0,1.0]))
 
     angles,onset,offset = sweep_aerobeams_boundary()
-    @test length(angles) == 17
+    @test angles == [0.0,0.5,1.0,2.0,3.0,4.0,5.0,6.0,7.0]
     @test all(isfinite,onset) && all(isfinite,offset)
     i = findfirst(==(3.0),angles)
     @test 40 < onset[i] < offset[i] < 70
@@ -43,27 +43,22 @@ include(joinpath(PAZY_EXAMPLE_DIR,"..","..","studies","src","MovingBlockDamping.
     end
 end
 
-# Optional: exercise the actual postprocessing loop using synthetic data.
+# Optional: render the native comparison with synthetic UVLM boundaries.
 if "--plots" in ARGS
-    driver = joinpath(PAZY_EXAMPLE_DIR,"run_pazy_stability_sweep.jl")
-    source = replace(read(driver,String),
-        "run_simulations = true" => "run_simulations = false",
-        "sweep_result = run_stability_sweep()" => "")
-    include_string(@__MODULE__,source,driver)
-    global pitch_angles_deg = [3.0]
-    global airspeeds_mps = [40.0,50.0,60.0]
-    global output_directory = mktempdir(; cleanup=false)
-    for (u,lambda) in zip(airspeeds_mps,[-0.3,0.3,-0.3])
-        folder = joinpath(output_directory,"aoa3_V$(sweep_number(u))")
-        mkpath(folder)
-        t = collect(0.0:0.002:3.0)
-        x = exp.(lambda .* t) .* sin.(2pi * 25 .* t)
-        write_sweep_csv(joinpath(folder,"response.csv"),["t","U","bending","twist"],
-            hcat(t,fill(u,length(t)),0.001 .* x,0.01 .* x))
+    @testset "Native stability comparison plot" begin
+        mktempdir() do directory
+            labels = (; uvlm_region="Synthetic UVLM",aerobeams_onset="AeroBeams onset",
+                aerobeams_offset="AeroBeams offset",test_onset_up="Test onset up",
+                test_offset_up="Test offset up",test_onset_down="Test onset down",
+                test_offset_down="Test offset down",umnast_loss="UM/NAST",
+                umnast_panel="UM/NAST panels",sharpy="SHARPy")
+            boundaries = [[3.0,45.0,"onset"],[3.0,55.0,"offset"],
+                [5.0,40.0,"onset"],[5.0,50.0,"offset"]]
+            figure = plot_sweep_comparison(boundaries,[3.0,5.0];
+                aerobeams_color=:blue,literature_colors=(:gold,:brown,:magenta),labels)
+            path = joinpath(directory,"pazy_stability_boundary.png")
+            savefig(figure,path)
+            @test filesize(path) > 1000
+        end
     end
-    checked = run_stability_sweep()
-    @test length(checked.boundary_rows) == 2
-    @test all(isfinite,checked.growth)
-    @test isfile(joinpath(output_directory,"pazy_stability_boundary.png"))
-    println("Synthetic test plots (not physical results): $output_directory")
 end

@@ -184,9 +184,13 @@ function annotate(results,cases,s; elastic=false)
     end
     return rows
 end
-metric_names(elastic) =
-    elastic ? ("pitch_lambda_per_s","yaw_lambda_per_s","pitch_frequency_hz","yaw_frequency_hz") : ("CT","CQ")
-function write_tables(directory,rows,cases,p,mode; elastic=false)
+function metric_names(elastic; damping_target=:propeller)
+    elastic || return ("CT","CQ")
+    prefixes = Damping.response_channels(damping_target).prefixes
+    return ((name * "_lambda_per_s" for name in prefixes)...,
+            (name * "_frequency_hz" for name in prefixes)...)
+end
+function write_tables(directory,rows,cases,p,mode; elastic=false,damping_target=:propeller)
     mkpath(directory)
     open(joinpath(directory,"case_matrix.csv"),"w") do io
         writedlm(
@@ -202,7 +206,7 @@ function write_tables(directory,rows,cases,p,mode; elastic=false)
                 ),',')
         end
     end
-    names = metric_names(elastic)
+    names = metric_names(elastic; damping_target)
     open(joinpath(directory,"convergence.csv"),"w") do io
         headers =
             ["family","level","label","status","reason","reused","valid","family_complete","reference_stable",
@@ -222,9 +226,9 @@ function write_tables(directory,rows,cases,p,mode; elastic=false)
         end
     end
 end
-function plot_results(directory,rows; elastic=false)
+function plot_results(directory,rows; elastic=false,damping_target=:propeller)
     panels = Any[]
-    names = metric_names(elastic)
+    names = metric_names(elastic; damping_target)
     for family in unique(r.case.family for r in rows),(i,name) in enumerate(names)
         group = sort(filter(r -> r.case.family == family,rows); by=r -> r.case.level)
         p = Plots.plot([r.case.level for r in group],[r.values[i] for r in group]; marker=:circle,label=name,
@@ -244,7 +248,8 @@ function execute_cases(cases,s,p,mode; elastic=false,runner)
     mkpath(directory)
     fingerprint = SOURCE()
     save_toml(joinpath(directory,"study.toml"),(; source_sha256=fingerprint,settings=s))
-    write_tables(directory,NamedTuple[],cases,p,mode; elastic)
+    dampingTarget = elastic ? get(s.damping,:target,:propeller) : :propeller
+    write_tables(directory,NamedTuple[],cases,p,mode; elastic,damping_target=dampingTarget)
     println(
         "$(elastic ? "Aeroelastic" : "Aerodynamic"): $(length(cases)) entries, $(length(unique(key.(cases)))) unique cases"
     )
@@ -275,7 +280,8 @@ function execute_cases(cases,s,p,mode; elastic=false,runner)
         end
         SOURCE() == fingerprint || error("Solver source changed during a case")
         push!(results,merge(result,(; case=c,elapsed_s=time() - start)))
-        write_tables(directory,annotate(results,cases,s; elastic),cases,p,mode; elastic)
+        write_tables(directory,annotate(results,cases,s; elastic),cases,p,mode;
+            elastic,damping_target=dampingTarget)
         println("  $(result.status); valid=$(result.valid); values=$(result.values)")
     end
     return results

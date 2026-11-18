@@ -16,6 +16,41 @@ using .AeroBeamsCoupling
 #   UVLM +z (up)         = AeroBeams -x
 const A_TO_UVLM = [0.0 -1.0 0.0; 0.0 0.0 1.0; -1.0 0.0 0.0]
 
+"""Create AeroBeams' native Pazy structure with external UVLM load BCs only.
+
+The Pazy keywords and their restrictions are those of `AeroBeams.create_Pazy`.
+Incidence is imposed through UVLM's freestream; the root pitch stays zero.
+Rod/link beams retain their inertia, springs and connections, without UVLM panels.
+"""
+function create_pazy_uvlm_structure(; mesh=:nominal,sweepAngle=0.0,
+    useAePW3Matrices=false,withWingtipRod=true,rootTorsionCorr=true,
+    beamWingtipRod=false,nElementsWingtipRod=12,
+    sweptTipMassConfig=:baseline,sweptTipMassInertiaCorrection=false)
+
+    parameters = (; mesh,sweepAngle,useAePW3Matrices,withWingtipRod,
+        rootTorsionCorr,beamWingtipRod,nElementsWingtipRod,
+        sweptTipMassConfig,sweptTipMassInertiaCorrection)
+    model,n_elements,span,chord,sparFraction = AeroBeams.create_Pazy(;
+        parameters...,upright=true,pitchAngle=0.0,airspeed=0.0,
+        gravityVector=zeros(3),hasTipCorrection=false)
+    beam = model.beams[1]
+    # Element's aerodynamic field is concrete in AeroBeams v1. Rebuild the
+    # main wing's elements without a surface instead of assigning `nothing`
+    # to an Element{AeroProperties}. Keep the beam identity for connections.
+    beam.attachments.surface = nothing
+    beam.elements = AeroBeams.create_beam_elements(beam.geometry,beam.sectional,
+        beam.discretization,beam.hinges,beam.attachments)
+    boundaryConditions = copy(model.BCs) # Native root clamp comes first.
+    for node = 1:n_elements+1
+        push!(boundaryConditions,AeroBeams.create_BC(name="UVLM loads $node",
+            beam=beam,node=node,
+            conditions=Dict(type=>0.0 for type in (:F1A,:F2A,:F3A,:M1A,:M2A,:M3A))))
+    end
+    AeroBeams.update_model_BCs!(model; BCs=boundaryConditions)
+    beamNodes = copy(beam.discretization.normalizedNodalPositions)
+    return (; model,n_elements,span,chord,sparFraction,beamNodes,parameters)
+end
+
 """Run the Pazy coupling, retaining scalar responses at every accepted step.
 
 `save_structural_history` and `save_aerodynamic_load_history` default to true.
@@ -37,6 +72,13 @@ the supplied equilibrium is preserved. No unloaded startup solve is performed.
 `accepted_step_callback(i, time, structure, aerodynamic)` observes each accepted
 dynamic step, after wake commit and response extraction. The callback must not
 modify either problem; it can save scalar histories and phase checkpoints.
+
+Pazy structural keywords match `AeroBeams.create_Pazy`: `mesh`, `sweepAngle`
+(radians, 0/10/20 degrees), `useAePW3Matrices`, `withWingtipRod`,
+`rootTorsionCorr`, `beamWingtipRod`, `nElementsWingtipRod`,
+`sweptTipMassConfig` and `sweptTipMassInertiaCorrection`.
+Both static and dynamic runs return these as `pazy_parameters`; equilibrium
+initialization requires the same parameters.
 """
 function run_pazy_wing_uvlm(; airspeed,density,angle_of_attack,sideslip,
     initial_airspeed_fraction,airspeed_ramp_duration,
@@ -47,6 +89,10 @@ function run_pazy_wing_uvlm(; airspeed,density,angle_of_attack,sideslip,
     newton_relative_tolerance,newton_display_iterations,
     newton_always_update_jacobian,perturbation_amplitude,
     perturbation_duration,animation_frames,progress_frequency,
+    mesh=:nominal,sweepAngle=0.0,useAePW3Matrices=false,
+    withWingtipRod=true,rootTorsionCorr=true,beamWingtipRod=false,
+    nElementsWingtipRod=12,sweptTipMassConfig=:baseline,
+    sweptTipMassInertiaCorrection=false,
     time_step_chords=1 / chordwise_panels,
     airspeed_profile=nothing,
     initial_equilibrium=nothing,
@@ -81,48 +127,22 @@ function run_pazy_wing_uvlm(; airspeed,density,angle_of_attack,sideslip,
         coreRadius=core_radius,wakeSheddingFraction=wake_shedding_fraction,
         interaction=aerodynamic_interaction)
 
-    # 1. Create the nonlinear Pazy beam, clamped at its root.
-    n_elements,span,chord,sparFraction = AeroBeams.geometrical_properties_Pazy()
-    beamNodes = last(AeroBeams.geometrical_properties_Pazy())
-    stiffness = AeroBeams.stiffness_matrices_Pazy(
-        withSkin=true,sweepStructuralCorrections=false,
-        GAy=1e16,GAz=1e16,Λ=0.0)
-    inertia = AeroBeams.inertia_matrices_Pazy(withSkin=true)
-    beam = AeroBeams.create_Beam(name="Pazy wing",
-        length=span,
-        nElements=n_elements,
-        normalizedNodalPositions=beamNodes,
-        S=stiffness,
-        I=inertia,
-        p0=AeroBeams.transform_to_WM([-pi / 2; 0.0; 0.0]; from=:E231),
-        surface=nothing) # All aerodynamic forces come from UVLM.
-    rootClamp = AeroBeams.create_BC(name="root clamp",
-        beam=beam,
-        node=1,
-        conditions=Dict(Symbol.(["u1A","u2A","u3A","p1A","p2A","p3A"]) .=> zeros(6)))
+    # 1. Use the native Pazy properties and keep any structural rod/link beams.
+    pazy = create_pazy_uvlm_structure(; mesh,sweepAngle,useAePW3Matrices,
+        withWingtipRod,rootTorsionCorr,beamWingtipRod,nElementsWingtipRod,
+        sweptTipMassConfig,sweptTipMassInertiaCorrection)
+    (; model,n_elements,span,chord,sparFraction,beamNodes) = pazy
+    projectedSpan = span * cos(sweepAngle)
 
     # Each column contains [Fx, Fy, Fz, Mx, My, Mz] at one beam node.
     # Copy these values into the active model's BCs before every structural solve.
     # Numeric BCs remain valid if Newton restores a deep copy of the model.
     nodal_loads = zeros(6,n_elements + 1)
-    boundary_conditions = [rootClamp]
-    for node = 1:n_elements+1
-        push!(
-            boundary_conditions,
-            AeroBeams.create_BC(name="UVLM loads $node",
-        beam=beam,
-        node=node,
-        conditions=Dict(Symbol.(["F1A","F2A","F3A","M1A","M2A","M3A"]) .=> zeros(6)))
-        )
-    end
-    model = AeroBeams.create_Model(
-        name="Pazy with UVLM",beams=[beam],BCs=boundary_conditions,
-        gravityVector=zeros(3),v_A=t -> zeros(3),
-        units=AeroBeams.create_UnitsSystem(frequency="Hz"))
     if !isnothing(initial_equilibrium)
         @assert initial_equilibrium.converged "Initial coupled static equilibrium must have converged"
+        @assert hasproperty(initial_equilibrium,:pazy_parameters) && initial_equilibrium.pazy_parameters == pazy.parameters "Equilibrium and dynamic Pazy parameters must match"
         model = deepcopy(initial_equilibrium.structural_problem.model)
-        @assert length(model.assemblyData.elements) == n_elements
+        @assert model.beams[1].discretization.nElements == n_elements
     end
 
     # 2. Choose the physical timestep independently of the aerodynamic mesh.
@@ -165,7 +185,7 @@ function run_pazy_wing_uvlm(; airspeed,density,angle_of_attack,sideslip,
         trackingTimeSteps=save_structural_history,
         trackingFrequency=1,
         displayProgress=true)
-    prepare_structural_problem!(structure)
+    AeroBeamsCoupling.prepare_structural_problem!(structure)
     isnothing(initial_equilibrium) && AeroBeams.solve_initial_dynamic!(structure)
     save_structural_history && AeroBeams.save_time_step_data!(structure)
 
@@ -185,7 +205,7 @@ function run_pazy_wing_uvlm(; airspeed,density,angle_of_attack,sideslip,
     grid = zeros(3,chordwise_panels + 1,spanwise_panels + 1)
     vortex_offsets = zeros(3,chordwise_panels + 1,n_elements + 1)
     wing_geometry!(grid,vortex_offsets,structure.model,chord,sparFraction,
-        chordwise_panels,spanMap,geometryWorkspace)
+        chordwise_panels,spanMap,geometryWorkspace; sweepAngle)
     previous_grid,previous_offsets = copy(grid),copy(vortex_offsets)
     candidate_grid,candidateOffsets = similar(grid),similar(vortex_offsets)
     gridGuess,offsetsGuess = similar(grid),similar(vortex_offsets)
@@ -193,7 +213,7 @@ function run_pazy_wing_uvlm(; airspeed,density,angle_of_attack,sideslip,
     finalAerodynamicLoads = similar(nodal_loads)
     previousAerodynamicLoads = similar(nodal_loads)
     initialAirspeed = first(airspeed_history)
-    reference = UVLM.Reference(span * chord,chord,span,zeros(3),airspeed,density)
+    reference = UVLM.Reference(projectedSpan * chord,chord,projectedSpan,zeros(3),airspeed,density)
     aerodynamicModel = UVLM.create_UVLMModel(
         surfaces=[grid],reference=reference,name="Pazy UVLM",
         symmetric=symmetric_wing,interactionGroups=[1])
@@ -227,7 +247,7 @@ function run_pazy_wing_uvlm(; airspeed,density,angle_of_attack,sideslip,
     tip_out_of_plane = zeros(length(time))
     tip_twist_degrees = zeros(length(time))
     if !isnothing(initial_equilibrium)
-        tip_out_of_plane[1] = -structure.model.assemblyData.elements[end].state.nodal.u2[1]
+        tip_out_of_plane[1] = -structure.model.beams[1].elements[end].state.nodal.u2[1]
         tip_twist_degrees[1] = wingtip_twist_degrees(structure.model)
     end
     # Near-root section values (first element midpoint), retained even when
@@ -305,7 +325,7 @@ function run_pazy_wing_uvlm(; airspeed,density,angle_of_attack,sideslip,
             airspeed=currentAirspeed,density=density,
             angleOfAttack=angle_of_attack,sideslip=sideslip)
         aerodynamic.state.system.reference[] = UVLM.Reference(
-            span * chord,chord,span,zeros(3),currentAirspeed,density)
+            projectedSpan * chord,chord,projectedSpan,zeros(3),currentAirspeed,density)
 
         # The extrapolated geometry is the first n+1 interface guess. Reusing
         # the accepted grid would incorrectly impose zero wing velocity on the
@@ -349,7 +369,7 @@ function run_pazy_wing_uvlm(; airspeed,density,angle_of_attack,sideslip,
                     error("AeroBeams failed at t=$(time[i]), loose coupling pass")
 
                 wing_geometry!(candidate_grid,candidateOffsets,structure.model,chord,
-                    sparFraction,chordwise_panels,spanMap,geometryWorkspace)
+                    sparFraction,chordwise_panels,spanMap,geometryWorkspace; sweepAngle)
                 geometry_residual = maximum_absolute_difference(candidate_grid,gridGuess) / chord
                 # A load convergence residual requires at least two FSI passes.
                 load_residual = NaN
@@ -377,7 +397,7 @@ function run_pazy_wing_uvlm(; airspeed,density,angle_of_attack,sideslip,
                     # Newton may replace structure.model during a retry. Always
                     # read the active model, not the original construction reference.
                     wing_geometry!(candidate_grid,candidateOffsets,structure.model,chord,
-                        sparFraction,chordwise_panels,spanMap,geometryWorkspace)
+                        sparFraction,chordwise_panels,spanMap,geometryWorkspace; sweepAngle)
                     geometry_residual = maximum_absolute_difference(candidate_grid,gridGuess) / chord
                     load_residual =
                         !havePreviousLoads ? Inf :
@@ -443,7 +463,7 @@ function run_pazy_wing_uvlm(; airspeed,density,angle_of_attack,sideslip,
         couplingLoadResidualHistory[i] = load_residual
 
         save_structural_history && AeroBeams.save_time_step_data!(structure)
-        tip_out_of_plane[i] = -structure.model.assemblyData.elements[end].state.nodal.u2[1]
+        tip_out_of_plane[i] = -structure.model.beams[1].elements[end].state.nodal.u2[1]
         tip_twist_degrees[i] = wingtip_twist_degrees(structure.model)
         rootSection = structure.model.assemblyData.elements[1].state.midpoint
         root_axial_strain[i] = rootSection.γ[1]
@@ -471,6 +491,7 @@ function run_pazy_wing_uvlm(; airspeed,density,angle_of_attack,sideslip,
     end
 
     return (structural_problem=structure,aerodynamic_problem=aerodynamic,
+        pazy_parameters=pazy.parameters,
         initial_equilibrium_state=initial_equilibrium_state,
         coupling_scheme=coupling_scheme,
         time=time,dt=dt,time_step_chords=time_step_chords,
@@ -500,16 +521,17 @@ function apply_pazy_nodal_loads!(problem,nodal_loads,time)
     @assert length(problem.model.BCs) == size(nodal_loads,2) + 1
     for node in axes(nodal_loads,2)
         bc = problem.model.BCs[node+1]
-        set_nodal_wrench!(bc,view(nodal_loads,:,node),time)
+        AeroBeamsCoupling.set_nodal_wrench!(bc,view(nodal_loads,:,node),time)
     end
     return nothing
 end
 
 # Relative interface-load change. Forces and moments are normalized separately;
 # moments use force*chord as their minimum physical scale.
-function interface_load_residual(current,previous,chord)
+# force_floor sets the minimum force scale in newtons.
+function interface_load_residual(current,previous,chord; force_floor=1.0)
     size(current) == size(previous) || throw(DimensionMismatch("Interface load shapes differ"))
-    forceScale,momentScale = 1.0,0.0
+    forceScale,momentScale = force_floor,0.0
     forceChange,momentChange = 0.0,0.0
     for node in axes(current,2),d = 1:3
         forceScale = max(forceScale,abs(current[d,node]),abs(previous[d,node]))
@@ -537,7 +559,8 @@ end
 # Same wingtip-twist definition used by the AeroBeams Pazy examples: rotate
 # the local chord direction and measure its angle out of the wing plane.
 function wingtip_twist_degrees(model)
-    tipRotationLocal = model.assemblyData.elements[end].state.nodal.p2_b
+    elements = hasproperty(model,:beams) ? model.beams[1].elements : model.assemblyData.elements
+    tipRotationLocal = elements[end].state.nodal.p2_b
     rotation = AeroBeams.rotation_tensor_WM(tipRotationLocal)
     chordDirection = rotation * [0.0; 1.0; 0.0]
     return asind(clamp(chordDirection[3],-1.0,1.0))
@@ -546,18 +569,19 @@ end
 # Beam deformation -> aerodynamic grid. The chord rotates with each beam node.
 # Also return the beam-node-to-vortex-vertex offsets in AeroBeams axes, so the
 # reverse load transfer uses the same motion mapping (preserving virtual work).
-function wing_geometry(model,chord,sparFraction,chordwise_panels,weights)
-    nNodes = length(model.assemblyData.elements) + 1
+function wing_geometry(model,chord,sparFraction,chordwise_panels,weights; sweepAngle=0.0)
+    nNodes = size(weights,2) # Only the main wing belongs to the UVLM interface.
     workspace = (positions=zeros(3,nNodes),beam_grid=zeros(3,chordwise_panels + 1,nNodes))
     offsets = zeros(3,chordwise_panels + 1,nNodes)
     grid = zeros(3,chordwise_panels + 1,size(weights,1))
-    wing_geometry!(grid,offsets,model,chord,sparFraction,chordwise_panels,PazySpanMap(weights),workspace)
+    wing_geometry!(grid,offsets,model,chord,sparFraction,chordwise_panels,PazySpanMap(weights),workspace; sweepAngle)
     return grid,workspace.positions,offsets
 end
 
 function wing_geometry!(grid,vortex_offsets,model,chord,sparFraction,chordwise_panels,
-    map::PazySpanMap,workspace)
-    nNodes = length(model.assemblyData.elements) + 1
+    map::PazySpanMap,workspace; sweepAngle=0.0)
+    elements = hasproperty(model,:beams) ? model.beams[1].elements : model.assemblyData.elements
+    nNodes = length(elements) + 1
     positions,beam_grid = workspace.positions,workspace.beam_grid
     size(grid) == (3,chordwise_panels + 1,length(map.nodes)) &&
         size(vortex_offsets) == size(beam_grid) == (3,chordwise_panels + 1,nNodes) &&
@@ -565,7 +589,7 @@ function wing_geometry!(grid,vortex_offsets,model,chord,sparFraction,chordwise_p
         throw(DimensionMismatch("Pazy geometry workspace does not match mesh"))
     for node = 1:nNodes
         if node == 1
-            element = model.assemblyData.elements[1]
+            element = elements[1]
             # This root is fully clamped. Enforce its prescribed values exactly:
             # recovered beam outputs can have small residuals, which move the
             # root off y=0 and make its mirrored UVLM vortex nearly coincident.
@@ -573,7 +597,7 @@ function wing_geometry!(grid,vortex_offsets,model,chord,sparFraction,chordwise_p
             rotation = UVLM.SVector(0.0,0.0,0.0)
             reference_rotation = element.geometry.R0_n1
         else
-            element = model.assemblyData.elements[node-1]
+            element = elements[node-1]
             for d = 1:3
                 positions[d,node] = element.assemblyData.r_n2[d] + element.state.nodal.u2[d]
             end
@@ -581,11 +605,13 @@ function wing_geometry!(grid,vortex_offsets,model,chord,sparFraction,chordwise_p
             reference_rotation = element.geometry.R0_n2
         end
         R = AeroBeams.rotation_tensor_WM(rotation)
-        # AeroBeams +local-y points forward, from the spar toward the leading
-        # edge. UVLM chord fractions instead increase from leading to trailing.
+        # The physical chord is rotated by +sweepAngle about local z relative
+        # to the spar-normal local y (AeroBeams' R0*Rw⁺ convention). In the
+        # undeformed wing it points forward, parallel to the freestream.
+        referenceChord = UVLM.SMatrix{3,3}(reference_rotation) *
+                         UVLM.SVector(-sin(sweepAngle),cos(sweepAngle),0.0)
         chordDirection =
-            UVLM.SMatrix{3,3}(R) *
-            UVLM.SVector(reference_rotation[1,2],reference_rotation[2,2],reference_rotation[3,2])
+            UVLM.SMatrix{3,3}(R) * referenceChord
         for k = 1:chordwise_panels+1
             chordFraction = (k - 1) / chordwise_panels
             offset = chordDirection *

@@ -1,0 +1,13 @@
+Default :local_ratio uses cn/alpha_local at one static equilibrium, without perturbations.
+alpha_local = atan(V_inf dot n_deformed, V_inf dot chord_downstream); radians.
+Local incidence includes deformation; induced downwash is excluded from its definition.
+Ratios are secant approximations, not tangent derivatives; units 1/rad.
+Local incidence cutoff [rad]: 1.0e-8
+Optional derivative modes use central differences at alpha +/- alpha_step.
+cn = F_strip dot n_deformed / (q_inf * chord * undeformed projected strip width).
+eta follows undeformed spar arclength; positive sweep is the native aft sweep.
+UVLM axes: x downstream, y spanwise, z up. Leading edge upstream; wake downstream.
+symmetric_wing=true includes the image; forces describe only the explicit semispan.
+Requested slope modes: (:equilibrium, :fixed_shape)
+Static options: (density = 1.225, chordwise_panels = 2, spanwise_panels = 3, symmetric_wing = true, maximum_wake_rows = 6, core_radius = 0.001, wake_shedding_fraction = 0.1, aerodynamic_interaction = true, aerodynamic_force_tolerance = 1.0e-5, aerodynamic_circulation_tolerance = 1.0e-5, maximum_static_iterations = 65, static_relaxation = 0.5, geometry_tolerance = 1.0e-6, load_tolerance = 1.0e-5, consecutive_equilibrium_iterations = 2, newton_maximum_iterations = 50, newton_absolute_tolerance = 1.0e-9, newton_relative_tolerance = 1.0e-9, newton_display_iterations = false, progress_frequency = 10000)
+Wake U*t/c (maximum, minimum, window): (80.0, 25.0, 4.0)

@@ -72,7 +72,12 @@ function create_AerodynamicConvergenceStudy(settings::NamedTuple; kwargs...)
 end
 create_AerodynamicConvergenceStudy(; kwargs...) = create_AerodynamicConvergenceStudy((; kwargs...))
 function create_AeroelasticConvergenceStudy(settings::NamedTuple; kwargs...)
-    resolved = merge_settings(canonical_settings(settings),canonical_settings((; kwargs...)))
+    base = canonical_settings(settings)
+    # Old settings without a target retain propeller pitch/yaw damping.
+    if hasproperty(base,:damping)
+        base = merge(base,(; damping=merge((; target=:propeller),base.damping)))
+    end
+    resolved = merge_settings(base,canonical_settings((; kwargs...)))
     legacy = legacy_settings(resolved)
     hasproperty(legacy,:selection_file) || throw(ArgumentError("selectionFile is required"))
     MovingBlockDamping.moving_block_metrics(Float64[],Float64[]; moving_block_options(legacy.damping)...)

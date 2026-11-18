@@ -1,0 +1,3 @@
+case,U_m_s,alpha_deg,sweep_deg,solve,converged,reason,wake_time_s,wake_force_residual,wake_circulation_residual
+1,10.0,3.0000000000000004,0.0,central,true,Static equilibrium reached,NaN,NaN,NaN
+2,30.0,3.0000000000000004,20.0,central,true,Static equilibrium reached,NaN,NaN,NaN

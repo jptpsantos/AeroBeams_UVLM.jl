@@ -32,6 +32,9 @@ const C = E.Convergence
     @test_throws ArgumentError E.cli_main(["--unknown"])
 
     s = E.aeroelastic_study(runMode=:preview)
+    # Own the planning fixture's operating point; the editable preset may vary.
+    s = merge(s,(; speed_mps=65.0,
+        physical=merge(s.physical,(; speed_mps=65.0,rpm=1232.63301527))))
     @test s.run_mode == :preview
     pulse_end = s.response.trim_revolutions * 60 / s.physical.rpm + s.response.impulse_duration_s
     @test 0 < pulse_end < s.damping.fit_start_s < s.response.end_time_s
@@ -97,7 +100,7 @@ end
             println(io,"time_s,propeller_1_pitch_deg,propeller_1_yaw_deg")
             writedlm(io,hcat(t,wave,0.5wave),',')
         end
-        base = E.aeroelastic_study(runMode=:full)
+        base = E.aeroelastic_study(runMode=:full,dampingTarget=:propeller)
         settings = merge(
             base,
             (; response=merge(base.response,(; end_time_s=last(t))),

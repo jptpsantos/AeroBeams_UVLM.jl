@@ -37,7 +37,7 @@ function beam_node_positions(result,time_index)
     problem = result.structural_problem
     isempty(problem.solutionHistory.states) && throw(ArgumentError(
         "Enable save_structural_history when generating structural animations"))
-    elements = problem.model.assemblyData.elements
+    elements = problem.model.beams[1].elements
     states = problem.solutionHistory.states[time_index]
     positions = zeros(3,length(elements) + 1)
     positions[:,1] = elements[1].assemblyData.r_n1
@@ -68,15 +68,18 @@ function save_structural_animation(result;
 
     # Build a display-only model with a surface at construction. The solved
     # UVLM structure and its typed aerodynamic/state containers stay untouched.
-    originalBeam = problem.model.beams[1]
-    _,span,chord,sparFraction = AeroBeams.geometrical_properties_Pazy()
+    parameters = hasproperty(result,:pazy_parameters) ? result.pazy_parameters : (;)
+    sweepAngle = get(parameters,:sweepAngle,0.0)
+    _,span,chord,sparFraction = AeroBeams.geometrical_properties_Pazy(;
+        mesh=get(parameters,:mesh,:nominal),Λ=sweepAngle,
+        useAePW3Matrices=get(parameters,:useAePW3Matrices,false))
     surface = AeroBeams.create_AeroSurface(airfoil=deepcopy(AeroBeams.NACA0018),
-        c=chord,normSparPos=sparFraction,ppSolver=AeroBeams.QuasiSteady())
-    beam = AeroBeams.create_Beam(name="Pazy UVLM visualization",length=span,
-        nElements=originalBeam.discretization.nElements,
-        normalizedNodalPositions=originalBeam.discretization.normalizedNodalPositions,
-        S=originalBeam.sectional.S,I=originalBeam.sectional.I,
-        p0=originalBeam.geometry.p0,surface=surface)
+        c=chord,normSparPos=sparFraction,Λ=sweepAngle,ppSolver=AeroBeams.QuasiSteady())
+    model = deepcopy(problem.model)
+    beam = model.beams[1]
+    beam.attachments.surface = AeroBeams.update_aero_surface!(span,surface)
+    beam.elements = AeroBeams.create_beam_elements(beam.geometry,beam.sectional,
+        beam.discretization,beam.hinges,beam.attachments)
     bcs = AeroBeams.BC[]
     if show_clamped_root
         push!(bcs,AeroBeams.create_BC(beam=beam,node=1,
@@ -94,7 +97,20 @@ function save_structural_animation(result;
             push!(bcs,AeroBeams.create_BC(beam=beam,node=node,conditions=conditions))
         end
     end
-    model = AeroBeams.create_Model(beams=[beam],BCs=bcs)
+    AeroBeams.update_model_BCs!(model; BCs=bcs)
+    # The v1 renderer applies Rw⁺*R0 to airfoil coordinates. Its left factor
+    # must therefore be resolved in A, while native Rw⁺ is resolved in b.
+    # Correct only this display copy so the rendered chord matches the UVLM
+    # lattice's R0*Rw⁺ direction for an upright swept wing.
+    for element in beam.elements
+        geometry = element.aero.geometry
+        R0 = element.geometry.R0
+        RwA = R0 * geometry.Rw⁺ * R0'
+        element.aero.geometry = AeroBeams.AeroGeometry(
+            geometry.b,geometry.c,geometry.normSparPos,geometry.aₕ,
+            geometry.Λ,geometry.φ,geometry.cosΛ,geometry.cosΛ²,geometry.csecΛ,
+            RwA,RwA',geometry.RwR0,geometry.isFlapped,geometry.Th)
+    end
     history = problem.solutionHistory
     savedCount = history.index - 1
     savedCount >= 2 || throw(ArgumentError("Structural animation requires two saved states"))
@@ -109,7 +125,7 @@ function save_structural_animation(result;
     displayProblem.solutionHistory.index = length(frameIndices) + 1
     model.kinematicsBasisA = deepcopy(problem.model.kinematicsBasisA)
     timeIndices = 1 .+ (frameIndices .- 1) .* problem.trackingFrequency
-    for field in (:u_AVec,:v_AVec,:ω_AVec,:vdot_AVec,:ωdot_AVec,:R_AVec)
+    for field in (:u_AVec,:v_AVec,:ω_AVec,:R_AVec)
         setfield!(model.kinematicsBasisA,field,
             getfield(problem.model.kinematicsBasisA,field)[timeIndices])
     end
@@ -224,7 +240,7 @@ function save_wake_animation(result;
     Plots.gr()
     animation = Plots.Animation()
     maximumForce = show_force_vectors ? maximum_aerodynamic_force(result) : 0.0
-    _,span,_,_ = AeroBeams.geometrical_properties_Pazy()
+    span = result.aerodynamic_problem.model.reference.b
     arrowMargin = show_force_vectors && maximumForce > 0 ?
                   force_vector_scale * span / 10 : 0.0
     limits = animation_limits(result; extra_padding=arrowMargin)

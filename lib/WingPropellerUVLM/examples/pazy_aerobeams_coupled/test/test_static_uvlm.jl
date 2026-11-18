@@ -22,7 +22,8 @@ options = (; airspeed=15.0,density=1.225,angle_of_attack=deg2rad(3.0),
         @test result.structural_problem isa AeroBeams.SteadyProblem
         @test norm(result.tip_displacement_A) < 1e-10
         @test abs(result.tip_twist_degrees) < 1e-10
-        @test result.dt ≈ 0.0989 / (2 * 15)
+        chord = result.aerodynamic_problem.model.reference.c
+        @test result.dt ≈ chord / (2 * 15)
         @test size(result.history,2) == length(result.history_columns)
         @test all(diff(result.history[:,2]) .> 0)
     end

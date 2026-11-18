@@ -1,8 +1,20 @@
 # Shared moving-block damping analysis, extracted from the archived driver.
 using DelimitedFiles,Statistics,FFTW
-function read_response_history(history_path)
+"""Identify the recorded responses without changing their signs or units."""
+function response_channels(target=:propeller)
+    target == :propeller && return (;
+        names=(:pitch,:yaw),prefixes=("pitch","yaw"),
+        columns=("propeller_1_pitch_deg","propeller_1_yaw_deg"),units=("deg","deg"))
+    target == :wing && return (;
+        names=(:bending,:torsion),prefixes=("wing_bending","wing_torsion"),
+        columns=("tip_displacement_m","tip_twist_deg"),units=("m","deg"))
+    throw(ArgumentError("damping.target must be :wing or :propeller"))
+end
+
+function read_response_history(history_path; target=:propeller)
     # Only the columns needed by the convergence metric are loaded. The full
     # production history remains on disk for later inspection.
+    channels = response_channels(target)
     raw,header_matrix = readdlm(history_path,',',header=true)
     headers = String.(vec(header_matrix))
     column(name) = begin
@@ -10,11 +22,8 @@ function read_response_history(history_path)
         isnothing(index) && error("Column '$name' is missing from $history_path")
         Float64.(raw[:,index])
     end
-    return (;
-        time=column("time_s"),
-        pitch=column("propeller_1_pitch_deg"),
-        yaw=column("propeller_1_yaw_deg")
-    )
+    signals = NamedTuple{channels.names}(map(column,channels.columns))
+    return merge((; time=column("time_s")),signals)
 end
 
 """

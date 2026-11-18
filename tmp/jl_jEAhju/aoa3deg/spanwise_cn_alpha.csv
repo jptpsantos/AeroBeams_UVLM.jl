@@ -1,0 +1,5 @@
+case,U_m_s,alpha_deg,sweep_deg,alpha_step_deg,eta,s_reference_m,y_reference_m,x_deformed_UVLM_m,y_deformed_UVLM_m,z_deformed_UVLM_m,cn,cn_alpha_equilibrium_per_rad,cn_alpha_fixed_shape_per_rad,central_converged,equilibrium_slope_converged,fixed_shape_slope_converged,tip_OOP_m,tip_twist_deg,alpha_local_deg,alpha_local_rad,cn_alpha_local_per_rad,cn_alpha_local_valid
+1,10.0,3.0000000000000004,0.0,NaN,0.25,0.15,0.15,0.0,0.0,0.0,0.2,NaN,NaN,true,false,false,0.0,0.0,3.0000000000000004,0.05235987755982989,3.819718634205488,true
+1,10.0,3.0000000000000004,0.0,NaN,0.75,0.45,0.45,0.0,0.0,0.0,0.1,NaN,NaN,true,false,false,0.0,0.0,3.0000000000000004,0.05235987755982989,1.909859317102744,true
+2,30.0,3.0000000000000004,20.0,NaN,0.25,0.15,0.15,0.0,0.0,0.0,0.2,NaN,NaN,true,false,false,0.0,0.0,3.0000000000000004,0.05235987755982989,3.819718634205488,true
+2,30.0,3.0000000000000004,20.0,NaN,0.75,0.45,0.45,0.0,0.0,0.0,0.1,NaN,NaN,true,false,false,0.0,0.0,3.0000000000000004,0.05235987755982989,1.909859317102744,true

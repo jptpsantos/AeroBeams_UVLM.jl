@@ -1,0 +1,10 @@
+case,U_m_s,alpha_deg,sweep_deg,alpha_step_deg,eta,s_reference_m,y_reference_m,cm_quarter_chord,cm_spar,cm_quarter_chord_alpha_equilibrium_per_rad,cm_spar_alpha_equilibrium_per_rad,cm_quarter_chord_alpha_fixed_shape_per_rad,cm_spar_alpha_fixed_shape_per_rad,central_converged,equilibrium_slope_converged,fixed_shape_slope_converged
+1,60.0,1.0e-6,0.0,NaN,0.0,0.0,0.0,1.3869506178571698e-10,2.4466239034529204e-8,NaN,NaN,NaN,NaN,true,false,false
+1,60.0,1.0e-6,0.0,NaN,0.125,0.0687304625,0.0687304625,2.473313422454995e-10,2.525925065395813e-8,NaN,NaN,NaN,NaN,true,false,false
+1,60.0,1.0e-6,0.0,NaN,0.25,0.137460925,0.137460925,4.6115452337996656e-10,2.7026958467145322e-8,NaN,NaN,NaN,NaN,true,false,false
+1,60.0,1.0e-6,0.0,NaN,0.375,0.20619138750000002,0.20619138750000002,6.513318728625586e-10,2.8822340659553074e-8,NaN,NaN,NaN,NaN,true,false,false
+1,60.0,1.0e-6,0.0,NaN,0.5,0.27492185,0.27492185,8.24883320095409e-10,3.016010806080607e-8,NaN,NaN,NaN,NaN,true,false,false
+1,60.0,1.0e-6,0.0,NaN,0.625,0.34365231250000006,0.34365231250000006,1.0356320727516961e-9,3.07226619001606e-8,NaN,NaN,NaN,NaN,true,false,false
+1,60.0,1.0e-6,0.0,NaN,0.75,0.41238277500000003,0.41238277500000003,1.3859656896331718e-9,3.0054938322953864e-8,NaN,NaN,NaN,NaN,true,false,false
+1,60.0,1.0e-6,0.0,NaN,0.875,0.4811132375,0.4811132375,2.088854602963931e-9,2.6964802407529286e-8,NaN,NaN,NaN,NaN,true,false,false
+1,60.0,1.0e-6,0.0,NaN,1.0,0.5498437,0.5498437,2.5635976539938255e-9,2.4587862506181692e-8,NaN,NaN,NaN,NaN,true,false,false

@@ -113,6 +113,83 @@ end
     end
 end
 
+@testset "Current-run diagnostic percentage differences" begin
+    mktempdir() do directory
+        # Unsorted levels, a rejected intermediate fit, and zero reference:
+        # compare adjacent saved levels without dropping the rejected point.
+        open(joinpath(directory,"case_matrix.csv"),"w") do io
+            println(io,"family,level,label,wing_span")
+            for i in (3,1,2)
+                println(io,"wing_span,$i,L$i,$(10i)")
+            end
+        end
+        open(joinpath(directory,"convergence.csv"),"w") do io
+            writedlm(io,permutedims(["family","level","label","status","valid","reason",
+                P.METRICS...,("limit_$k" for k in P.METRICS)...]),',')
+            for i in (3,1,2)
+                values = ((-2.0,-4.0,3.0,3.0),(-1.0,-2.0,3.0,3.0),(-0.5,0.0,3.0,3.0))[i]
+                valid = i != 2
+                status = valid ? "completed" : "indeterminate"
+                writedlm(io,permutedims(Any["wing_span",i,"L$i",status,valid,
+                    valid ? "OK" : "Poor fit",values...,0.01,0.01,0.1,0.1]),',')
+            end
+        end
+        open(joinpath(directory,"study.toml"),"w") do io
+            TOML.print(io,Dict("settings" => Dict("physical" => Dict("speed_mps" => 75.0,"alpha_deg" => 3.0))))
+        end
+        result = P.load_current_results(directory)
+        @test [r.x for r in result.rows] == [10.0,20.0,30.0]
+        @test all(isnan,first(result.rows).successive_percent)
+        @test result.rows[2].successive_percent[1:2] == (100.0,100.0)
+        @test result.rows[3].successive_percent[1] == 100.0
+        @test isnan(result.rows[3].successive_percent[2])
+        @test result.rows[1].reference_percent[1] == 300.0
+        @test all(r -> isnan(r.reference_percent[2]),result.rows)
+        @test all(r -> !r.successive_valid,result.rows)
+        @test [r.reference_valid for r in result.rows] == [true,false,true]
+        @test result.rows[2].reason == "Poor fit"
+        @test result.rows[2].status == "indeterminate"
+        @test P.relative_error_percent(Inf,2.0) |> isnan
+        @test P.relative_error_percent(1.0,Inf) |> isnan
+    end
+end
+
+@testset "Merged diagnostic mesh runs" begin
+    mktempdir() do directory
+        copy_tables(directory)
+        # Preserve the rejected point and compare its successor against it.
+        edit_result!(directory; case="First case",family="prop_radial",level=1) do data,row,columns
+            data[row,columns["valid"]] = false
+            data[row,columns["status"]] = "indeterminate"
+            data[row,columns["reason"]] = "Poor fit"
+        end
+        result = P.load_mesh_results(directory; case_names=CASE_NAMES,families=P.FAMILIES)
+        radial = filter(r -> r.family == "prop_radial",result.rows)
+        @test [r.x for r in radial] == [5.0,10.0,20.0,30.0,40.0,50.0]
+        @test length(result.cases) == 11
+        @test length(result.rows) == 12
+        @test !radial[1].valid
+        @test !radial[2].successive_valid
+        @test radial[3].successive_valid
+        @test !radial[1].reference_valid
+        @test radial[2].reference_valid
+        @test radial[1].reason == "Poor fit"
+        @test all(isnan,radial[1].successive_percent)
+        @test radial[4].successive_percent[1] ≈ 1.064102457484329
+        @test radial[1].reference_percent[1] ≈ 10.980152498327723
+        @test radial[end].reference_percent == (0.0,0.0,0.0,0.0)
+        @test occursin("First case/",radial[2].sources)
+        @test occursin("Second case/",radial[2].sources)
+        @test_throws ErrorException P.load_results(directory)
+        # Diagnostic plotting still enforces study compatibility.
+        path = joinpath(directory,"Second case","study.toml")
+        study = TOML.parsefile(path)
+        study["settings"]["physical"]["alpha_deg"] = 4.0
+        open(io -> TOML.print(io,study),path,"w")
+        @test_throws ErrorException P.load_mesh_results(directory; case_names=CASE_NAMES,families=P.FAMILIES)
+    end
+end
+
 @testset "Reject incompatible saved damping results" begin
     mktempdir() do directory
         copy_tables(directory)

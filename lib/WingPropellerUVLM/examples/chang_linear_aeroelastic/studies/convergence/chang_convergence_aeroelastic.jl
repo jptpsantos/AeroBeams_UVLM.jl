@@ -20,11 +20,13 @@ function run_aeroelastic(s=aeroelastic_study())
            run_explicit_aeroelastic(s) : WingPropellerUVLMStudies.run_aeroelastic(s)
 end
 
-function create_study(; runMode=:full,dryRun=false)
+# Select :wing for tip bending/twist, or :propeller for propeller pitch/yaw.
+function create_study(; runMode=:full,dryRun=false,dampingTarget=:wing)
     # :preview checks the coupled solver on a tiny mesh and time interval.
     # :full uses the convergence controls below and estimates damping.
     runMode in (:preview,:full) || throw(ArgumentError("runMode must be :preview or :full"))
-    airspeed = 65.0
+    Convergence.Damping.response_channels(dampingTarget)
+    airspeed = 75.0
     trimSpeed = 65.0
     trimRpm = 1232.63301527
     physical = (
@@ -56,10 +58,10 @@ function create_study(; runMode=:full,dryRun=false)
         wingSpanPanels=20,
         wingChordPanels=10,
         propellerRadialPanels=10,
-        propellerChordPanels=10,
+        propellerChordPanels=5,
         wakeRevolutions=1.0,
         core=0.014 * 0.197,
-        azimuthStepDeg=10
+        azimuthStepDeg=10.0
     )
 
     # Each family varies one parameter; others retain their nominal values.
@@ -68,13 +70,13 @@ function create_study(; runMode=:full,dryRun=false)
     # nothing generates three refinement levels from the resolved nominal.
     # wingSpanPanels also refines the structural mesh in explicit mode.
     sweeps = (
-        #wingSpanPanels = [10, 20, 30],
-        #wingChordPanels = [5, 10, 15],
-        #propellerRadialPanels = [10, 20, 30, 40, 50],
-        #propellerChordPanels = [10, 20, 30, 40, 50],
+        wingSpanPanels = [5, 10, 20, 30, 40, 50],
+        wingChordPanels = [5, 10, 20, 30, 40],
+        #propellerRadialPanels = [2, 5, 7],
+        #propellerChordPanels = [2, 5, 7],
         #        wakeRevolutions = [2.0, 4.0, 6.0],
         # Explicit coupling also needs a time-step convergence check.
-        azimuthStepDeg=[5.0,2.5,1.25],
+        #azimuthStepDeg=[5.0,2.5,1.25],
     )
 
     settings = (;
@@ -83,7 +85,8 @@ function create_study(; runMode=:full,dryRun=false)
         # unverified. A TOML path enables the strict verified-selection workflow.
         selectionFile=nothing,
         physical,coreMode,
-        outputDirectory=normpath(joinpath(@__DIR__,"..","..","output","convergence_aeroelastic_explicit")),
+        outputDirectory=normpath(joinpath(@__DIR__,"..","..","output",
+            dampingTarget == :wing ? "convergence_aeroelastic_wing" : "convergence_aeroelastic_explicit")),
         dryRun,
         makePlots=true,
 
@@ -92,7 +95,7 @@ function create_study(; runMode=:full,dryRun=false)
         airspeed=airspeed,nominal,sweeps,
         families=collect(keys(sweeps)),
         response=(
-            finalTime=3.0,# Eight peaks need more than the previous 2 s record.
+            finalTime=2.0,# Eight peaks need more than the previous 2 s record.
             baselineRevolutions=5.0,
             baselineAverageRevolutions=1.0,
             impulseStartS=0.1,# nothing: after baselineRevolutions
@@ -100,6 +103,9 @@ function create_study(; runMode=:full,dryRun=false)
             impulseMagnitudeNm=1200.0
         ),
         damping=(
+            target=dampingTarget,
+            # :wing: tip_displacement_m (bending), tip_twist_deg (torsion).
+            # :propeller: propeller_1_pitch_deg, propeller_1_yaw_deg.
             fitStartS=nothing,# after pulse + one revolution; at least 0.75 s
             # moving_block_2.jl: rectangular, mean-removed FFT blocks shifted
             # one sample; lambda is the slope of log amplitude against time.
@@ -111,7 +117,7 @@ function create_study(; runMode=:full,dryRun=false)
             peakFromEnd=0,
             blockDurationS=1.0,# used only with :duration
             blockOverlap=0.9,# used only with :duration
-            frequencyBandHz=(3.0,6.0),# acceptance check on GLOBAL dominant frequency
+            frequencyBandHz=(3.0,6.0),# set to the coupled mode tracked in the selected responses
             minimumPeaks=4,
             minimumFitRSquared=0.8,
             lambdaTolerancePerS=0.01,
@@ -176,6 +182,7 @@ main(; kwargs...) = WingPropellerUVLMStudies.solve!(create_study(; kwargs...)).r
 function cli_main(args=ARGS)
     runMode = :full
     dryRun = false
+    dampingTarget = nothing # Without a flag, use the editable create_study() default.
     for arg in args
         if arg == "--full"
             runMode = :full
@@ -183,15 +190,17 @@ function cli_main(args=ARGS)
             runMode = :preview
         elseif arg == "--dry-run"
             dryRun = true
+        elseif startswith(arg,"--damping-target=")
+            dampingTarget = Symbol(last(split(arg,'='; limit=2)))
         else
-            throw(ArgumentError("Unknown argument $arg; use --preview, --full or --dry-run"))
+            throw(ArgumentError("Unknown argument $arg; use --preview, --full, --dry-run or --damping-target=wing|propeller"))
         end
     end
-    return main(; runMode,dryRun)
+    return isnothing(dampingTarget) ? main(; runMode,dryRun) : main(; runMode,dryRun,dampingTarget)
 end
 end
 
-if abspath(PROGRAM_FILE) == @__FILE__
+if abspath(PROGRAM_FILE) == (@__FILE__)
     ChangConvergenceAeroelastic.cli_main()
 end
 

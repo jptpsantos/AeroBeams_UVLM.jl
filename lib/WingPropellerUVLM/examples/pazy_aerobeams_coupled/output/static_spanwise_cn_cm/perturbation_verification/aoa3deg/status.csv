@@ -1,0 +1,6 @@
+case,U_m_s,alpha_deg,sweep_deg,solve,converged,reason,wake_time_s,wake_force_residual,wake_circulation_residual
+1,50.0,3.0000000000000004,0.0,central,true,Static aeroelastic equilibrium reached,NaN,NaN,NaN
+1,50.0,3.0000000000000004,0.0,equilibrium_minus,true,Static aeroelastic equilibrium reached,NaN,NaN,NaN
+1,50.0,3.0000000000000004,0.0,equilibrium_plus,true,Static aeroelastic equilibrium reached,NaN,NaN,NaN
+1,50.0,3.0000000000000004,0.0,fixed_shape_minus,true,Fixed-shape wake settled,0.0494252,1.8775621598356792e-6,3.5807657494100396e-6
+1,50.0,3.0000000000000004,0.0,fixed_shape_plus,true,Fixed-shape wake settled,0.0494252,1.8629965767795128e-6,3.5800229004214773e-6
