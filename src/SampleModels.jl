@@ -28,14 +28,17 @@ const _VLM_tipLoss = let
 
 end
 
-## PRIVATE API
-# ------------------------------------------------------------------------------
-# Chordwise position of the reference axis of the straight Pazy wing in the original AePW3 data (https://github.com/UM-A2SRL/AePW3-LDWG)
-const normSparPos_Pazy_AePW3 = 0.44096
-
 # Chord and chordwise position of the shear center of the TU Delft Pazy wing
 const chord_PazyDelft = 0.0988504
 const shear_center_PazyDelft = 0.4450
+
+# Chordwise position of the reference axis of the straight Pazy wing in the original AePW3 data (https://github.com/UM-A2SRL/AePW3-LDWG)
+const normSparPos_Pazy_AePW3 = 0.44096
+
+## PRIVATE API
+# ------------------------------------------------------------------------------
+# Chord of the Pazy wing [m], measured along the chordwise (x) direction of the MSC Nastran frame
+chord_Pazy(Λ::Real) = isapprox(rad2deg(Λ), 0; atol=1e-8) ? 0.0988504 : 0.0950
 
 # Chordwise position of the reference axis (spar) of the Pazy wing, a fraction of the chord: the shear center, which depends on the sweep angle
 function shear_center_Pazy(Λ)
@@ -58,9 +61,6 @@ function validate_mesh_Pazy(mesh)
     return mesh
 
 end
-
-# Chord of the Pazy wing [m], measured along the chordwise (x) direction of the MSC Nastran frame
-chord_Pazy(Λ::Real) = isapprox(rad2deg(Λ), 0; atol=1e-8) ? 0.0988504 : 0.0950
 
 # Path of the CSV file with the reference data of the Pazy wing with sweep angle Λ (0, 10 or 20 degrees) for the given mesh (:nominal or :refined), in test/referenceData/Pazy, or in test/referenceData/PazyNoRod for the wing without the tip rod (the straight wing, and only the inertia of the swept wing). `kind` is :inertia (S<Λ>_inertia_matrices_<mesh>mesh.csv for the straight wing, and S<Λ>_<config>_inertia_matrices_<mesh>mesh.csv for the swept one, with the tip mass configuration `config`, which the straight wing does not have, so it is ignored; without the tip rod, the suffix _norod goes after the configuration: S<Λ>_norod_inertia_matrices_<mesh>mesh.csv for the straight wing, and S<Λ>_<config>_norod_inertia_matrices_<mesh>mesh.csv for the swept one) or :stiffness, S<Λ>_stiffness_matrices_<mesh>mesh_<tip>.csv (S0_norod_stiffness_matrices_<mesh>mesh.csv without the tip rod, which has no `tip`; for the swept wing, S<Λ>_baseline_stiffness_matrices_<mesh>mesh_<tip>.csv (or S<Λ>_baseline_norod_stiffness… without the tip rod) is also accepted, as the BeamROM scripts name the stiffness data of the baseline Nastran model, which the tip mass configurations do not change), the least squares ones, selected by the Nastran model with the rigid (`tip = :rigidtip`, the tip section of the wing is rigid, as the stiffness matrices require) or flexible (`:flextip`) tip rod. With `rootTorsionCorr = true` the stiffness data is that with the correction of the root torsional stiffness (and bending-torsion coupling) of the straight wing with the tip rod, S0_stiffness_matrices_<mesh>mesh_<tip>_corr.csv. Throws a descriptive error if the data is not available
 function Pazy_data_file(kind::Symbol, Λ, mesh::Symbol; config::Symbol=:baseline, withWingtipRod::Bool=true, tip::Symbol=:rigidtip, rootTorsionCorr::Bool=false)
@@ -468,6 +468,130 @@ function stiffness_matrices_PazyS0_AePW3()
     columns = [findfirst(==("S$(min(i,j))$(max(i,j))"), vec(header)) for i in 1:6, j in 1:6]
 
     return [Float64.(data[k, columns]) for k in 1:nElem]
+
+end
+
+# Path of the CSV file with the reference data of the TU Delft Pazy wing, in test/referenceData/PazyDelft, from the Nastran model pazy_delft.bdf (which has the wingtip rod). `kind` is :inertia (pazy_delft_inertia_matrices_<mesh>mesh.csv, with the rod lumped in the tip node) or :stiffness (pazy_delft_stiffness_matrices_<mesh>mesh_<tip>.csv, least squares data of the nodal segments, with the rigid or flexible tip rod `tip`, as in `Pazy_data_file`)
+function PazyDelft_data_file(kind::Symbol, mesh::Symbol; tip::Symbol=:rigidtip)
+
+    @assert kind in (:inertia, :stiffness) "kind must be :inertia or :stiffness"
+    validate_mesh_Pazy(mesh)
+    @assert tip in (:rigidtip, :flextip) "tip must be :rigidtip or :flextip"
+    stem = kind == :inertia ? "pazy_delft_inertia_matrices_$(mesh)mesh" : "pazy_delft_stiffness_matrices_$(mesh)mesh_$(tip)"
+    file = joinpath(pkgdir(AeroBeams), "test", "referenceData", "PazyDelft", stem * ".csv")
+    isfile(file) || throw(ArgumentError("no $kind matrices for the TU Delft Pazy wing with mesh=:$mesh (expected file $file)"))
+
+    return file
+
+end
+
+# Fixed geometrical and discretization properties of the TU Delft Pazy wing, which is straight: the reference axis is at the shear center (`shear_center_PazyDelft`), and the nodes are those of its nodal inertia data. The outputs are those of `geometrical_properties_Pazy`
+function geometrical_properties_PazyDelft(; mesh)
+
+    # Reference axis coordinates (chordwise from the leading edge, spanwise) of the nodes
+    data, _ = readdlm(PazyDelft_data_file(:inertia, mesh), ','; header=true)
+    x, y = Float64.(data[:,2]), Float64.(data[:,3])
+
+    # Length of each segment and total length [m]
+    segmentLengths = sqrt.(diff(x).^2 .+ diff(y).^2)
+    L = sum(segmentLengths)
+
+    # Normalized nodal positions and number of elements
+    nodalPositions = [0.0; cumsum(segmentLengths)]/L
+    nodalPositions[end] = 1.0 # avoid rounding error
+    nElem = length(nodalPositions) - 1
+
+    return nElem,L,chord_PazyDelft,shear_center_PazyDelft,nodalPositions
+
+end
+
+# Sectional stiffness matrices of the TU Delft Pazy wing, with the rigid or flexible tip rod `tip` of the Nastran model, read from the least squares data of the nodal segments (see `PazyDelft_data_file`). The matrices of the segments are assigned to the elements they contain, as in `stiffness_matrices_Pazy`
+function stiffness_matrices_PazyDelft(; mesh::Symbol=:nominal, tip::Symbol=:rigidtip)
+
+    # Geometrical properties
+    nElem,L,_,_,nodalPositions = geometrical_properties_PazyDelft(mesh=mesh)
+
+    # Stiffness matrix of each segment (or element), given by its upper triangle terms row by row (S11, S12, ..., S16, S22, ..., S66, as the matrices are symmetric) and the coordinates of its ends from the root
+    data, header = readdlm(PazyDelft_data_file(:stiffness, mesh; tip=tip), ','; header=true)
+    # The lower terms are equal to the upper ones
+    columns = [findfirst(==("S$(min(i,j))$(max(i,j))"), vec(header)) for i in 1:6, j in 1:6]
+    y1, y2 = Float64.(data[:, 2]), Float64.(data[:, 3])
+
+    # The segments must span the beam from the root to the tip, and each element belongs to the segment that contains its middle
+    desc = "the stiffness matrices data of the TU Delft Pazy wing for mesh=:$mesh"
+    @assert isapprox(y1[1], 0; atol=1e-6*L) && isapprox(y2[end], L; atol=1e-6*L) "$desc do not span the beam, from 0 to $L m"
+    yMid = L*(nodalPositions[1:end-1] + nodalPositions[2:end])/2
+    segmentOfElement = [findfirst(i -> y1[i] <= y && y <= y2[i], eachindex(y1)) for y in yMid]
+    @assert !any(isnothing, segmentOfElement) "$desc do not match the nodes of the beam"
+    @assert size(data,1) == nElem "$desc has $(size(data,1)) rows, but $nElem are expected"
+
+    return [Float64.(data[segmentOfElement[k], columns]) for k in 1:nElem]
+
+end
+
+# Inertia tensor about the tip node (reference axis) of a mass `m`, with center of mass at the offset `η` from it, and inertia tensor `J` about its own center of mass (parallel axis theorem)
+inertia_about_node_PazyDelft(m,η,J) = J + m*(dot(η,η)*I3 - η*η')
+
+# Mass, center of mass offset from the tip node and inertia tensor about its center of mass of the wingtip rod of the TU Delft Pazy wing (`rod` in the format of `wingtip_rod_PazyDelft`), in the MSC Nastran frame. The rod is a homogeneous bar along the chordwise direction (x), so its center of mass is at the midpoint of its length, and its attachment point (`offset`) is at the midpoint in the other directions
+function wingtip_rod_mass_inertia_PazyDelft(rod)
+
+    ℓ = rod.xEnd - rod.xStart
+    m = rod.ρ*rod.A*ℓ
+    η = [(rod.xStart + rod.xEnd)/2, rod.offset[2], rod.offset[3]]
+    J = m*diagm([rod.d^2/8, ℓ^2/12 + rod.d^2/16, ℓ^2/12 + rod.d^2/16])
+
+    return m,η,J
+
+end
+
+# Sectional inertia matrices of the TU Delft Pazy wing, from its nodal data in the MSC Nastran frame (see `inertia_matrices_Pazy`). The Nastran model lumps the mass and inertia of the wingtip rod in the tip node. If `rod` (in the format of `wingtip_rod_PazyDelft`) is given, it is removed from the tip node, so that the wing alone is modeled when the rod is a beam (`beamWingtipRod=true` in `create_PazyDelft`)
+function inertia_matrices_PazyDelft(; mesh::Symbol=:nominal, rod::Union{Nothing,NamedTuple}=nothing)
+
+    # Geometrical properties
+    nElem,L,_,_,nodalPositions = geometrical_properties_PazyDelft(mesh=mesh)
+
+    # Nodal data of the equivalent beam mass model (Nastran frame): mass, center of mass offsets from the reference axis and inertia tensor about the center of mass
+    data, header = readdlm(PazyDelft_data_file(:inertia, mesh), ','; header=true)
+    column(name) = Float64.(data[:, findfirst(==(name), vec(header))])
+    @assert size(data,1) == nElem+1 "the beam mass model data of the TU Delft Pazy wing for mesh=:$mesh has $(size(data,1)) nodes, but $(nElem+1) are expected"
+    m, mx, my, mz = column("m"), column("dx"), column("dy"), column("dz")
+    Ixx, Iyy, Izz = column("Ixx"), column("Iyy"), column("Izz")
+    Ixy, Ixz, Iyz = column("Ixy"), column("Ixz"), column("Iyz")
+
+    # Remove the rod from the tip node: the mass and the inertia of the wing are those of the tip node minus those of the rod, all of them about the reference axis at the tip node, and then about the center of mass of the wing
+    if !isnothing(rod)
+        mT, ηT = m[end], [mx[end], my[end], mz[end]]
+        JT = [Ixx[end] Ixy[end] Ixz[end]; Ixy[end] Iyy[end] Iyz[end]; Ixz[end] Iyz[end] Izz[end]]
+        mR, ηR, JR = wingtip_rod_mass_inertia_PazyDelft(rod)
+        mW = mT - mR
+        ηW = (mT*ηT - mR*ηR)/mW
+        JW = inertia_about_node_PazyDelft(mT,ηT,JT) - inertia_about_node_PazyDelft(mR,ηR,JR) - inertia_about_node_PazyDelft(mW,ηW,zeros(3,3))
+        m[end] = mW
+        mx[end], my[end], mz[end] = ηW
+        Ixx[end], Iyy[end], Izz[end] = JW[1,1], JW[2,2], JW[3,3]
+        Ixy[end], Ixz[end], Iyz[end] = JW[1,2], JW[1,3], JW[2,3]
+    end
+
+    # Set sectional inertia matrices, in the local beam frame of the straight wing
+    return inertia_matrices_from_Nastran_data(Λ=0,nElem=nElem,L=L,nodalPositions=nodalPositions,m=m,m_x=mx,m_y=my,m_z=mz,Ixx=Ixx,Iyy=Iyy,Izz=Izz,Ixy=Ixy,Ixz=Ixz,Iyz=Iyz)
+
+end
+
+# Data of the wingtip rod of the TU Delft Pazy wing (Nastran model pazy_delft.bdf), to model it as a beam, in the format of `wingtip_rod_Pazy`. The rod is the same as that of the straight Pazy wing (S0): a circular nylon bar of diameter 10 mm along the chordwise direction, from x = -0.0841 to 0.1841 m, at y = 0.5569833 to 0.5566833 m and z = -3.167e-4 to -1.667e-5 m (x is measured from the leading edge in the Nastran frame, and `xStart` and `xEnd` are relative to the tip node at the shear center). Its midpoint is the grid 1212 of the Nastran model (x = 0.05 m, y = 0.5568333 m, z = -1.667e-4 m), and the RBE2 elements tie the grids 1202 to 1222 of the rod to the shell grids of the tip section. The Nastran model has no concentrated masses, so there is no calibration mass, and no hinge (no FPS weights). The limits of the effectively rigid parts (`tied`) are calibrated with the natural frequencies of the Nastran model with the flexible rod (see dev/PazyDelft/BeamRod/PazyDelftBeamRodCalibration.jl)
+function wingtip_rod_PazyDelft()
+
+    d = 0.01                                  # diameter of the rod
+    xSpar = chord_PazyDelft*shear_center_PazyDelft # x-coordinate of the tip node of the spar at the reference axis (shear center)
+    return (d = d, A = π*d^2/4, I = π*d^4/64, J = π*d^4/32,
+            E = 1.1e9, G = 3.9454806e8, ρ = 930.0, Ks = 0.886177,
+            xStart = -xSpar - 0.0841, xEnd = -xSpar + 0.1841,
+            offset = [0.0,
+                      0.5568333 - 0.5519937,         # y of the grid 1212 minus that of the tip node
+                      -1.667e-4 - 6.1795e-8],        # z of the grid 1212 minus that of the tip node
+            tied = (inPlane = (0.0074 - xSpar, 0.0856 - xSpar),
+                    outOfPlane = (0.0265 - xSpar, 0.0862 - xSpar)),
+            calibrationMass = 0.0, xCalibration = 0.0,
+            hinge = nothing)
 
 end
 
@@ -1124,6 +1248,190 @@ function create_Pazy(;
 
 end
 export create_Pazy
+
+
+"""
+    create_PazyDelft(; kwargs...)
+
+Creates the TU Delft Pazy wing (`pazy_delft.bdf`)
+
+Returns the wing model, number of elements, total length, chord and normalized position of the reference axis (shear center)
+
+# Keyword Arguments
+- `aeroSolver::AeroSolver`: aerodynamic solver
+- `gustSolver::GustAeroSolver`: indicial gust loads solver
+- `derivationMethod::DerivationMethod`: method for aerodynamic derivatives
+- `updateAirfoilParameters::Bool`: flag to update airfoil parameters with airspeed
+- `upright::Bool`: flag to set the wing in the upright position
+- `airfoil::Airfoil`: airfoil section
+- `pitchAngle::Real`: pitch angle at the root [rad]
+- `hasTipCorrection::Bool`: flag for aerodynamic tip correction
+- `altitude::Real`: altitude
+- `gravityVector::Real`: acceleration of gravity vector (resolved in the inertial basis I)
+- `airspeed::Union{Real,<:Function}`: airspeed
+- `smallAngles::Bool`: flag for small angles approximation
+- `tipLossType::String`: tip loss function type, can be `"Exponential"` or `"FixedExponential-<τ>"` (see [`tip_loss_function_Pazy`](@ref))
+- `tipLossFunctionIsAirspeedDependent::Bool`: flag to update the tip loss function with the instantaneous airspeed along the problem
+- `mesh::Symbol`: beam mesh, can be `:nominal` (nodes at the root, at the ribs and at the tip of the spar) or `:refined` (approximately twice as many elements, with a node at the middle of each element of the nominal mesh)
+- `beamWingtipRod::Bool`: flag to model the wingtip rod as a beam attached to the tip of the wing (`true`), instead of lumping its inertia in the tip node (`false`, the conventional model). With `true`, the wing has the stiffness matrices of the Nastran model with the flexible tip rod and its inertia without the rod, and the model has two more beams, in this order: a rigid link, from the tip node of the wing to the attachment point of the rod, and the rod, connected to the end of the link (default: `false`)
+- `nElementsWingtipRod::Int`: number of elements of the wingtip rod beam (at least 4), as in `create_Pazy` (default: 12)
+- `wingtipRodData::Union{Nothing,NamedTuple}`: data of the wingtip rod modeled as a beam, in the format returned by `wingtip_rod_PazyDelft` (default: `nothing`). To recalibrate the rigid parts of the rod (`tied`), modify a copy of the default data with `merge`
+- `additionalBCs::Vector{BC}`: additional BCs (beyond the clamp)
+- `flightDirection::Vector{<:Real}`: flight direction vector, resolved in basis A
+- `tipLossPitchAngle::Real`: pitch angle at the root used to evaluate the tip loss function [rad] (default: `pitchAngle`). Useful when the angle of attack is set through `flightDirection` instead of `pitchAngle`
+- `gust::Union{Nothing,Gust}`: gust
+- `μWing::Union{Real,AbstractVector,AbstractMatrix{<:Real}}`: stiffness-proportional (Kelvin-Voigt) structural damping coefficients for the wing (default: `0`)
+- `μRod::Union{Real,AbstractVector,AbstractMatrix{<:Real}}`: stiffness-proportional (Kelvin-Voigt) structural damping coefficients for the wingtip rod (default: `0`)
+"""
+function create_PazyDelft(;
+    aeroSolver::AeroSolver=Indicial(),
+    gustSolver::GustAeroSolver=_defaultGustAeroSolver(aeroSolver),
+    derivationMethod::DerivationMethod=AD(),
+    updateAirfoilParameters::Bool=true,
+    upright::Bool=false,
+    airfoil::Airfoil=deepcopy(NACA0018),
+    pitchAngle::Real=0,
+    hasTipCorrection::Bool=true,
+    altitude::Real=0,
+    gravityVector::AbstractVector{<:Real}=[0,0,-standard_atmosphere(altitude).g],
+    airspeed::Union{Real,<:Function}=0,
+    smallAngles::Bool=false,
+    tipLossType::String="Exponential",
+    tipLossFunctionIsAirspeedDependent::Bool=false,
+    mesh::Symbol=:nominal,
+    beamWingtipRod::Bool=false,
+    nElementsWingtipRod::Int=12,
+    wingtipRodData::Union{Nothing,NamedTuple}=nothing,
+    additionalBCs::Vector{BC}=Vector{BC}(),
+    flightDirection::AbstractVector{<:Real}=a2,
+    tipLossPitchAngle::Real=pitchAngle,
+    gust::Union{Nothing,Gust}=nothing,
+    μWing::Union{Real,AbstractVector,AbstractMatrix{<:Real}}=0,
+    μRod::Union{Real,AbstractVector,AbstractMatrix{<:Real}}=0,
+    )
+
+    # Validate
+    @assert altitude >= 0 "altitude must be non-negative"
+    @assert length(gravityVector) == 3 "gravityVector must be a 3-element vector"
+    validate_mesh_Pazy(mesh)
+    if hasTipCorrection
+        @assert tipLossType == "Exponential" || occursin("FixedExponential", tipLossType) "tipLossType must be \"Exponential\" or \"FixedExponential-<value>\""
+    end
+    @assert isnothing(wingtipRodData) || beamWingtipRod "wingtipRodData requires beamWingtipRod=true"
+    if beamWingtipRod
+        @assert nElementsWingtipRod >= 4 "nElementsWingtipRod must be at least 4"
+    end
+    @assert all(μ -> μ >= 0, μWing) "μWing must be non-negative"
+    @assert all(μ -> μ >= 0, μRod) "μRod must be non-negative"
+
+    # Set airspeed as function of time
+    if airspeed isa Real
+        @assert airspeed >= 0 "airspeed must be non-negative"
+        airspeedConst = Float64(airspeed)
+        airspeed = t -> airspeedConst
+    end
+
+    # Atmosphere
+    atmosphere = standard_atmosphere(altitude)
+
+    # Update airfoil parameters
+    update_all_airfoil_parameters!(airfoil,airspeed(0)/atmosphere.a)
+
+    # Tip loss function, as a function of the airspeed (straight wing)
+    tipLossFunction = U -> tip_loss_function_Pazy(tipLossType,tipLossPitchAngle,U,0)
+
+    # Fixed geometrical and discretization properties
+    nElem,L,chord,normSparPos,nodalPositions = geometrical_properties_PazyDelft(mesh=mesh)
+
+    # Stiffness matrices, with the rigid tip, or with the flexible tip rod when it is modeled as a beam
+    S = stiffness_matrices_PazyDelft(mesh=mesh, tip=beamWingtipRod ? :flextip : :rigidtip)
+
+    # Wingtip rod data, if modeled as a beam
+    rod = !beamWingtipRod ? nothing : isnothing(wingtipRodData) ? wingtip_rod_PazyDelft() : wingtipRodData
+
+    # Inertia matrices (the rod is lumped in the tip node, unless it is modeled as a beam, in which case it is removed from there)
+    I = inertia_matrices_PazyDelft(mesh=mesh, rod=rod)
+
+    # Rotation parametrization and rotation parameters from basis A to basis b(0)
+    rotationParametrization = upright ?
+                              :E231 :
+                              :E321
+    p0 = upright ?
+         [-π/2, 0, pitchAngle] :
+         [0, 0, pitchAngle]
+
+    # Aerodynamic surface
+    surf = create_AeroSurface(
+        ppSolver=aeroSolver,
+        gustSolver=gustSolver,
+        derivationMethod=derivationMethod,
+        airfoil=airfoil,
+        c=chord,
+        normSparPos=normSparPos,
+        hasTipCorrection=hasTipCorrection,
+        tipLossFunction=tipLossFunction,
+        updateAirfoilParameters=updateAirfoilParameters,
+        Λ=0,
+        smallAngles=smallAngles,
+        tipLossFunctionIsAirspeedDependent=hasTipCorrection,
+        updateTipLossWithAirspeed=tipLossFunctionIsAirspeedDependent
+        )
+
+    # Wing beam
+    mainWing = create_Beam(
+        name="wingSpar",
+        length=L,
+        nElements=nElem,
+        normalizedNodalPositions=nodalPositions,
+        S=S,
+        I=I,
+        μ=μWing,
+        p0=transform_to_WM(p0; from=rotationParametrization),
+        surface=surf
+        )
+
+    # Wingtip rod modeled as beams (rigid link and rod, with their connections to the wing). The straight wing has no tip mass configuration
+    beams = [mainWing]
+    connections = Tuple{Pair{Beam,Beam},Pair{Int,Int}}[]
+    if beamWingtipRod
+        beams,connections = create_wingtip_rod_beams_Pazy(mainWing,nElem,0,:baseline,nElementsWingtipRod,μRod; rod=rod)
+    end
+
+    # Update beam of additional BCs, if applicable
+    for BC in additionalBCs
+        reset_BC_beam!(BC,mainWing)
+    end
+    BCs = additionalBCs
+
+    # Add root clamp to BCs
+    clamp = create_BC(
+        name="clamp",
+        beam=mainWing,
+        node=1,
+        conditions=Dict(:u1A=>0,:u2A=>0,:u3A=>0,:p1A=>0,:p2A=>0,:p3A=>0)
+        )
+    push!(BCs,clamp)
+
+    # Set basis A velocity vector
+    v_A(t) = airspeed(t) * flightDirection / norm(flightDirection)
+
+    # Model
+    pazyDelft = create_Model(
+        name="PazyDelft",
+        beams=beams,
+        connections=connections,
+        BCs=BCs,
+        gravityVector=gravityVector,
+        v_A=v_A,
+        atmosphere=atmosphere,
+        gust=gust,
+        units=create_UnitsSystem(frequency="Hz")
+        )
+
+    return pazyDelft,nElem,L,chord,normSparPos
+
+end
+export create_PazyDelft
 
 
 """

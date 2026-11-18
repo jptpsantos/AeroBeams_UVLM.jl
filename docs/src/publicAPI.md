@@ -126,6 +126,7 @@ get_sweptPazy_tip_inertias_from_baseline
 tip_loss_function_Pazy
 typical_section_data
 create_Pazy
+create_PazyDelft
 create_SMW
 create_TDWing
 create_Helios
