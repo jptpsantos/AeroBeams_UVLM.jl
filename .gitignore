@@ -9,3 +9,4 @@
 /.vscode
 /dev/**/*.gif
 /dev/**/*.jld2
+.DS_Store
