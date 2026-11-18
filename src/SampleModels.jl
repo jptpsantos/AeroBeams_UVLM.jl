@@ -279,7 +279,7 @@ function wingtip_rod_Pazy(Λ,config)
 end
 
 # Creates the beams that model the wingtip rod of the Pazy wing attached to its tip, and their connections: a rigid link from the tip node of the wing `mainWing` (with `nElem` elements) to the attachment point of the rod, and the rod, connected at the attachment point to the end of the link. The rod is uniform, with `nElementsRod` elements: the part glued to the wing is rigid, with one element between each pair of nodes at the ends of its rigid parts (`tied` in `wingtip_rod_Pazy`, one for each plane of bending, so that in the part where only one of them is rigid the other bending is flexible) and at the attachment point, and the others are distributed beyond it in proportion to their lengths. In the S10 and S20 LE and TE configurations the rod is extended beyond its end with rigid elements, up to the center of mass of the FPS weights, with the masses of the adapter and of the FPS weights as in the Nastran model. When the rod has a breaking beam (all of them except the S20 LE), the extension is of two elements and is connected to the rod by a hinge, restrained by springs of the stiffness of the breaking beam in torsion and bending (times empirical factors), and the element of the rod at the hinge is short; otherwise, the extension is of one element, rigidly attached to the rod
-function create_wingtip_rod_beams_Pazy(mainWing,nElem,Λ,config,nElementsRod; rod=wingtip_rod_Pazy(Λ,config))
+function create_wingtip_rod_beams_Pazy(mainWing,nElem,Λ,config,nElementsRod,μRod; rod=wingtip_rod_Pazy(Λ,config))
 
     # Rotation tensor of the wing's beam basis from basis A, and rotation tensor from the Nastran frame to the wing's beam basis (as in `inertia_matrices_from_Nastran_data`)
     R0wing = mainWing.geometry.R0
@@ -374,6 +374,7 @@ function create_wingtip_rod_beams_Pazy(mainWing,nElem,Λ,config,nElementsRod; ro
         normalizedNodalPositions=normalizedNodalPositions,
         S=[elementStiffness(e) for e in 1:nElements],
         I=fill(Irod,nElements),
+        μ=μRod,
         p0=rotation_parameters_WM(R0rod),
         hingedNodes=isnothing(hingeNode) ? Int[] : [hingeNode],
         hingedNodesDoF=isnothing(hingeNode) ? Vector{Vector{Bool}}() : [trues(3)]
@@ -875,6 +876,8 @@ Returns the wing model and geometrical properties
 - `kSpring::Union{Nothing,Real}`: stiffness of the spring around the hinge
 - `sweptTipMassConfig::Symbol`: configuration of the swept tip mass, can be `:baseline`, `:TE` or `:LE` (with `beamWingtipRod=true`, this sets the rod and the masses at its end)
 - `sweptTipMassInertiaCorrection::Bool`: flag to apply an ad hoc factor on the tip node's torsional inertia for the `:LE` and `:TE` swept tip mass configurations (approximates the GVT torsional frequencies, which are lowered by the tip rod flexibility not captured by the stiffened-tip NASTRAN model from which the swept wing mass data was derived). Can be true only if `beamWingtipRod=false`
+- `μWing::Union{Real,AbstractVector,AbstractMatrix{<:Real}}`: stiffness-proportional (Kelvin-Voigt) structural damping coefficients for the wing (default: `0`)
+- `μRod::Union{Real,AbstractVector,AbstractMatrix{<:Real}}`: stiffness-proportional (Kelvin-Voigt) structural damping coefficients for the wingtip rod (default: `0`)
 """
 function create_Pazy(; 
     aeroSolver::AeroSolver=Indicial(),
@@ -913,6 +916,8 @@ function create_Pazy(;
     kSpring::Union{Nothing,Real} = hinged ? 1e-5 : nothing,
     sweptTipMassConfig::Symbol=:baseline,
     sweptTipMassInertiaCorrection::Bool=false,
+    μWing::Union{Real,AbstractVector,AbstractMatrix{<:Real}}=0,
+    μRod::Union{Real,AbstractVector,AbstractMatrix{<:Real}}=0,
     )
 
     # Validate
@@ -1029,6 +1034,7 @@ function create_Pazy(;
         normalizedNodalPositions=nodalPositions,
         S=S,
         I=I,
+        μ=μWing,
         p0=transform_to_WM(p0; from=rotationParametrization),
         surface=surf,
         hingedNodes= hinged ? [hingeNode] : Int[],
@@ -1055,7 +1061,7 @@ function create_Pazy(;
     beams = [mainWing]
     connections = Tuple{Pair{Beam,Beam},Pair{Int,Int}}[]
     if beamWingtipRod
-        beams,connections = create_wingtip_rod_beams_Pazy(mainWing,nElem,sweepAngle,sweptTipMassConfig,nElementsWingtipRod; rod=rod)
+        beams,connections = create_wingtip_rod_beams_Pazy(mainWing,nElem,sweepAngle,sweptTipMassConfig,nElementsWingtipRod,μRod; rod=rod)
     end
 
     # Update beam of additional BCs, if applicable

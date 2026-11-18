@@ -1,7 +1,7 @@
 using AeroBeams, LinearInterpolations, JLD2
 
 # Reference data IDs (available: 4021, 4022, 4023, 4024, 4031, 4032, 4033, 4034, 4035, 4303, 4306, 4307, 5206, 5208, 5209)
-refIDs = [4303,4307]
+refIDs = [5209]
 
 # Angle of sweep [rad]
 Λ = deg2rad(10)
@@ -23,10 +23,13 @@ integrationMethod = GeneralizedAlpha(ρ∞=0.9)
 mesh = :nominal
 
 # Aerodynamic solver
-aeroSolver = Indicial()
+aeroSolver = BLi()
 
 # Airfoil section
 airfoil = deepcopy(NACA0018)
+
+# Structural damping coefficients for the wing
+μWing = 0
 
 # Time variables [s]
 Δt = 1e-4
@@ -79,7 +82,7 @@ for (i,refID) in enumerate(refIDs)
     # Find flutter speed of configuration
     URangeFlutter = collect(0.5:0.5:100)
     nModes = 3
-    eigenModel,_ = create_Pazy(aeroSolver=aeroSolver,mesh=mesh,airfoil=airfoil,upright=true,sweepAngle=Λ,pitchAngle=deg2rad(θ),hasTipCorrection=true,tipLossType=tipLossType,sweptTipMassConfig=tipMassConfig,sweptTipMassInertiaCorrection=sweptTipMassInertiaCorrection)
+    eigenModel,_ = create_Pazy(aeroSolver=aeroSolver,mesh=mesh,airfoil=airfoil,upright=true,sweepAngle=Λ,pitchAngle=deg2rad(θ),hasTipCorrection=true,tipLossType=tipLossType,sweptTipMassConfig=tipMassConfig,sweptTipMassInertiaCorrection=sweptTipMassInertiaCorrection,μWing=μWing)
     eigensols = Array{EigenSolution}(undef,length(URangeFlutter))
     x0 = zeros(0)
     for (j,U) in enumerate(URangeFlutter)
@@ -124,12 +127,12 @@ for (i,refID) in enumerate(refIDs)
     plt_Vgf = plot(plt_Vf,plt_Vg, layout=(2,1))
     display(plt_Vgf)
     # Model for steady problem
-    steadyModel,_ = create_Pazy(aeroSolver=aeroSolver,mesh=mesh,airfoil=airfoil,upright=true,sweepAngle=Λ,pitchAngle=deg2rad(θ),airspeed=U_exp[1],hasTipCorrection=true,tipLossType=tipLossType,sweptTipMassConfig=tipMassConfig,sweptTipMassInertiaCorrection=sweptTipMassInertiaCorrection)
+    steadyModel,_ = create_Pazy(aeroSolver=aeroSolver,mesh=mesh,airfoil=airfoil,upright=true,sweepAngle=Λ,pitchAngle=deg2rad(θ),airspeed=U_exp[1],hasTipCorrection=true,tipLossType=tipLossType,sweptTipMassConfig=tipMassConfig,sweptTipMassInertiaCorrection=sweptTipMassInertiaCorrection,μWing=μWing)
     # Create and solve steady problem for initial airspeed
     steadyProblem = create_SteadyProblem(model=steadyModel)
     solve!(steadyProblem)
     # Model for dynamic problem
-    dynamicModel,_ = create_Pazy(aeroSolver=aeroSolver,mesh=mesh,airfoil=airfoil,upright=true,sweepAngle=Λ,pitchAngle=deg2rad(θ),airspeed=Uprofile[i],hasTipCorrection=true,tipLossType=tipLossType,tipLossFunctionIsAirspeedDependent=true,sweptTipMassConfig=tipMassConfig,sweptTipMassInertiaCorrection=sweptTipMassInertiaCorrection)
+    dynamicModel,_ = create_Pazy(aeroSolver=aeroSolver,mesh=mesh,airfoil=airfoil,upright=true,sweepAngle=Λ,pitchAngle=deg2rad(θ),airspeed=Uprofile[i],hasTipCorrection=true,tipLossType=tipLossType,tipLossFunctionIsAirspeedDependent=true,sweptTipMassConfig=tipMassConfig,sweptTipMassInertiaCorrection=sweptTipMassInertiaCorrection,μWing=μWing)
     # Create and solve dynamic problem
     dynamicProblem[i] = create_DynamicProblem(model=dynamicModel,integrationMethod=integrationMethod,initialTime=t_exp[1],finalTime=t_exp[end],Δt=Δt,systemSolver=systemSolver,x0=steadyProblem.systemArrays.x,trackingFrequency=trackingFrequency)
     solve!(dynamicProblem[i])
