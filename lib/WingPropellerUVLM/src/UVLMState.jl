@@ -51,20 +51,45 @@ The facade uses this for trial reset and a separate commit buffer. Include both
 history and scratch fields so repeated/failed trials retain deepcopy semantics.
 """
 function copy_system!(destination::System{TF},source::System{TF}) where {TF}
-    for field in (:AIC,:w,:Γ,:invert_normals,:reference,:freestream,:symmetric,
-        :nwake,:surface_id,:wake_finite_core,:trailing_vortices,:xhat,
-        :near_field_analysis,:derivatives,:dΓdt)
-        copyto!(getfield(destination,field),getfield(source,field))
+    # Fields are accessed explicitly (not by looping over `Symbol`s with
+    # `getfield`) so that every copy is type-stable and does not allocate.
+    copyto!(destination.AIC,source.AIC)
+    copyto!(destination.w,source.w)
+    copyto!(destination.Γ,source.Γ)
+    copyto!(destination.invert_normals,source.invert_normals)
+    copyto!(destination.reference,source.reference)
+    copyto!(destination.freestream,source.freestream)
+    copyto!(destination.symmetric,source.symmetric)
+    copyto!(destination.nwake,source.nwake)
+    copyto!(destination.surface_id,source.surface_id)
+    copyto!(destination.wake_finite_core,source.wake_finite_core)
+    copyto!(destination.trailing_vortices,source.trailing_vortices)
+    copyto!(destination.xhat,source.xhat)
+    copyto!(destination.near_field_analysis,source.near_field_analysis)
+    copyto!(destination.derivatives,source.derivatives)
+    copyto!(destination.dΓdt,source.dΓdt)
+    restore_nested_arrays!(destination.V,source.V)
+    restore_nested_arrays!(destination.grids,source.grids)
+    restore_nested_arrays!(destination.ratios,source.ratios)
+    restore_nested_arrays!(destination.surfaces,source.surfaces)
+    restore_nested_arrays!(destination.properties,source.properties)
+    restore_nested_arrays!(destination.wakes,source.wakes)
+    restore_nested_arrays!(destination.trefftz,source.trefftz)
+    restore_nested_arrays!(destination.wake_shedding_locations,source.wake_shedding_locations)
+    restore_nested_arrays!(destination.previous_surfaces,source.previous_surfaces)
+    restore_nested_arrays!(destination.Vcp,source.Vcp)
+    restore_nested_arrays!(destination.Vh,source.Vh)
+    restore_nested_arrays!(destination.Vv,source.Vv)
+    restore_nested_arrays!(destination.Vte,source.Vte)
+    restore_nested_arrays!(destination.chord_seg_forces,source.chord_seg_forces)
+    restore_nested_arrays!(destination.span_seg_forces,source.span_seg_forces)
+    restore_nested_arrays!(destination.unsteady_forces,source.unsteady_forces)
+    restore_nested_arrays!(destination.span_force_velocities,source.span_force_velocities)
+    for (output,input) in zip(destination.dw,source.dw)
+        copyto!(output,input)
     end
-    for field in (:V,:grids,:ratios,:surfaces,:properties,:wakes,:trefftz,
-        :wake_shedding_locations,:previous_surfaces,:Vcp,:Vh,:Vv,:Vte,
-        :chord_seg_forces,:span_seg_forces,:unsteady_forces,:span_force_velocities)
-        restore_nested_arrays!(getfield(destination,field),getfield(source,field))
-    end
-    for field in (:dw,:dΓ)
-        for (output,input) in zip(getfield(destination,field),getfield(source,field))
-            copyto!(output,input)
-        end
+    for (output,input) in zip(destination.dΓ,source.dΓ)
+        copyto!(output,input)
     end
     for (output,input) in zip(destination.dproperties,source.dproperties)
         restore_nested_arrays!(output,input)

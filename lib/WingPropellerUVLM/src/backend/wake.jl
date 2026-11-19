@@ -129,13 +129,15 @@ end
  - `trailing_vortices`: Flags to enable/disable trailing vortices, defaults to
     `true` for each surface
  - `xhat`: Direction in which to shed trailing vortices, defaults to [1, 0, 0]
+ - `threaded`: Calculate the velocities at the wake vertices in parallel when
+    Julia has more than one thread (e.g., `julia -t auto`), defaults to `true`
 """
-
 function get_wake_velocities!(wake_velocities,surfaces,wakes,ref,fs,Γ,
     additional_velocity,Vte,symmetric,repeated_points,nwake,
     surface_id,wake_finite_core,wake_shedding_locations,trailing_vortices,xhat;
     interaction_id=surface_id,
-    interaction::Bool=true)
+    interaction::Bool=true,
+    threaded::Bool=true)
 
     # number of surfaces
     nsurf = length(surfaces)
@@ -176,8 +178,9 @@ function get_wake_velocities!(wake_velocities,surfaces,wakes,ref,fs,Γ,
         # velocity at all other wake vertices
         cr = CartesianIndices((2:nw+1,1:ns+1))
 
-        # loop through all vertices
-        for I in cr
+        # velocity at a single vertex (each vertex is independent of the others,
+        # so the vertices may be processed in parallel)
+        function calculate_vertex_velocity!(I)
 
             # get vertex location
             if I[1] <= nw && I[2] <= ns
@@ -278,6 +281,18 @@ function get_wake_velocities!(wake_velocities,surfaces,wakes,ref,fs,Γ,
                 end
 
                 jΓ += Ns # increment Γ index
+            end
+            return nothing
+        end
+
+        # loop through all vertices
+        if threaded && Threads.nthreads() > 1
+            Threads.@threads :static for I in cr
+                calculate_vertex_velocity!(I)
+            end
+        else
+            for I in cr
+                calculate_vertex_velocity!(I)
             end
         end
     end

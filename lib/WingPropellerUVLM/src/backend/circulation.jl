@@ -47,7 +47,8 @@ Computes the downwash at the control points.
 function normal_velocity!(w,surfaces,wakes,ref,fs; additional_velocity,
     Vcp,symmetric,nwake,surface_id,wake_finite_core,trailing_vortices,xhat,
     interaction_id=surface_id,
-    interaction::Bool=true) # <--- [NEW] Argument
+    interaction::Bool=true,
+    threaded::Bool=true) # <--- [NEW] Argument
 
     nsurf = length(surfaces)
 
@@ -60,8 +61,9 @@ function normal_velocity!(w,surfaces,wakes,ref,fs; additional_velocity,
         # current surface
         surface = surfaces[isurf]
 
-        # iterate through all control points on this surface
-        for i = 1:length(surface)
+        # downwash at a single control point (each control point is independent
+        # of the others, so they may be processed in parallel)
+        function calculate_control_point_downwash!(i)
 
             # control point
             rcp = controlpoint(surface[i])
@@ -107,6 +109,18 @@ function normal_velocity!(w,surfaces,wakes,ref,fs; additional_velocity,
 
             # get normal component
             w[iw+i] = -dot(V,nhat)
+            return nothing
+        end
+
+        # iterate through all control points on this surface
+        if threaded && Threads.nthreads() > 1
+            Threads.@threads :static for i = 1:length(surface)
+                calculate_control_point_downwash!(i)
+            end
+        else
+            for i = 1:length(surface)
+                calculate_control_point_downwash!(i)
+            end
         end
 
         # increment position in AIC matrix
@@ -232,6 +246,27 @@ circulation(AIC,w) = AIC \ w
 Pre-allocated version of `circulation`
 """
 circulation!(Γ,AIC,w) = ldiv!(Γ,lu(AIC),w)
+
+"""
+    circulation!(Γ, AIC, w, AICfactor, ipiv)
+
+Allocation-free version of `circulation!` for BLAS-compatible element types. `AIC` is preserved (it is reused between time steps), so the LU factorization is
+performed on the scratch matrix `AICfactor` with the pivot buffer `ipiv`.
+"""
+function circulation!(Γ::Vector{TF},AIC::Matrix{TF},w::Vector{TF},
+    AICfactor::Matrix{TF},ipiv::Vector{LinearAlgebra.BlasInt}) where {TF<:LinearAlgebra.BlasFloat}
+
+    copyto!(AICfactor,AIC)
+    _,_,info = LAPACK.getrf!(AICfactor,ipiv)
+    info > 0 && throw(SingularException(info))
+    copyto!(Γ,w)
+    LAPACK.getrs!('N',AICfactor,ipiv,Γ)
+
+    return Γ
+end
+
+# generic fallback (e.g., for automatic differentiation types)
+circulation!(Γ,AIC,w,AICfactor,ipiv) = circulation!(Γ,AIC,w)
 
 """
     circulation_derivatives(AIC, w, dw)

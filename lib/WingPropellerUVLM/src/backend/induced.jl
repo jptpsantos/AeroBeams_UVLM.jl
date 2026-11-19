@@ -7,35 +7,39 @@ Compute the induced velocity (per unit circulation) for a bound vortex, at a
 control point located at `r1` relative to the start of the bound vortex and `r2`
 relative to the end of the bound vortex
 """
-function bound_induced_velocity(r1,r2,finite_core,core_size)
+@inline function bound_induced_velocity(r1,r2,finite_core,core_size)
 
     segment = r1 - r2
     segmentSquared = dot(segment,segment)
     iszero(segmentSquared) && return zero(r1)
 
-    nr1 = norm(r1)
-    nr2 = norm(r2)
+    rdot = dot(r1,r2)
+    r1s = dot(r1,r1)
+    r2s = dot(r2,r2)
+    cross12 = cross(r1,r2)
 
+    # The velocity is the cross product times a scalar factor. Combining the
+    # fractions into a single scalar saves divisions and square roots, which are
+    # the most expensive operations of this kernel.
     if finite_core
-        rdot = dot(r1,r2)
-        r1s,r2s,εs = nr1^2,nr2^2,core_size^2
-        cross12 = cross(r1,r2)
+        εs = core_size^2
 
         # Regularize with the physical vortex-segment length.  Using
         # (norm(r1)-norm(r2))^2 here would make the core term vanish on the
         # perpendicular-bisector plane and would leave the 1/r singularity
         # at the middle of the segment.
         denominator = dot(cross12,cross12) + εs * segmentSquared
-        f1 = cross12 / denominator
-        f2 = (r1s - rdot) / sqrt(r1s + εs) + (r2s - rdot) / sqrt(r2s + εs)
+        s1 = sqrt(r1s + εs)
+        s2 = sqrt(r2s + εs)
+        f2 = ((r1s - rdot) * s2 + (r2s - rdot) * s1) / (s1 * s2)
     else
-        f1 = cross(r1,r2) / (nr1 * nr2 + dot(r1,r2))
-        f2 = (1 / nr1 + 1 / nr2)
+        nr1 = sqrt(r1s)
+        nr2 = sqrt(r2s)
+        denominator = nr1 * nr2 + rdot
+        f2 = (nr1 + nr2) / (nr1 * nr2)
     end
 
-    Vhat = (f1 * f2) / (4 * pi)
-
-    return Vhat
+    return cross12 * (f2 / (4 * pi * denominator))
 end
 
 """
@@ -226,11 +230,7 @@ end
 """
     ring_induced_velocity(rcp, panel; kwargs...)
 
-Compute the velocity (per unit circulation) induced by `panel` at a control point
-located at `rcp`
-
-Also returns the velocity induced by the shared edges of adjacent panels
-on the top, bottom, left, and right sides of `panel`.
+Compute the velocity (per unit circulation) induced by `panel` at a control point located at `rcp`. Also returns the velocity induced by the shared edges of adjacent panels on the top, bottom, left, and right sides of `panel`.
 """
 function ring_induced_velocity(rcp,panel; kwargs...)
 
@@ -269,7 +269,7 @@ influence_coefficients!(AIC,surface::AbstractMatrix; kwargs...) =
 """
     influence_coefficients!(AIC, surfaces; kwargs...)
 
-Construct the aerodynamic influence coefficient matrix for multiple surfaces.
+Construct the aerodynamic influence coefficient matrix for multiple surfaces. Added `interaction` flag to toggle interference between different surfaces.
 
 # Arguments:
  - `surfaces`: Vector of surfaces, represented by matrices of surface panels
@@ -288,13 +288,6 @@ Construct the aerodynamic influence coefficient matrix for multiple surfaces.
     each surface. Defaults to `true` for each surface.
  - `xhat`: Direction in which trailing vortices are shed if `trailing_vortices = true`.
     Defaults to [1, 0, 0]
-"""
-
-"""
-    influence_coefficients!(AIC, surfaces; kwargs...)
-
-Construct the aerodynamic influence coefficient matrix for multiple surfaces.
-[MODIFIED] Added `interaction` flag to toggle interference between different surfaces.
 """
 function influence_coefficients!(AIC,surfaces::AbstractVector{<:AbstractMatrix};
     symmetric=fill(false,length(surfaces)),
@@ -1105,6 +1098,19 @@ function induced_velocity(I::CartesianIndex,wake::AbstractMatrix{<:WakePanel};
 end
 
 """
+    uniform_core_size(surface, nc, ns)
+
+Check whether the first `nc` by `ns` panels in `surface` all have the same core size
+"""
+function uniform_core_size(surface,nc,ns)
+    core_size = get_core_size(surface[1,1])
+    for j2 = 1:ns,j1 = 1:nc
+        get_core_size(surface[j1,j2]) == core_size || return false
+    end
+    return true
+end
+
+"""
     induced_velocity(rcp, surface, Γ = nothing, dΓ = nothing; kwargs...)
 
 Compute the induced velocity from the grid of panels in `surface` at `rcp` using
@@ -1187,8 +1193,9 @@ function induced_velocity(rcp,surface,Γ=nothing,dΓ=nothing;
         end
     end
 
-    # we can reuse edges if the finite core model is disabled
-    reuseEdges = !finite_core
+    # we can reuse edges if the finite core model is disabled or if all panels have
+    # the same core size (an edge shared by two panels is then identical for both)
+    reuseEdges = !finite_core || uniform_core_size(surface,nc,ns)
 
     # when skipping vortices, keep their reflections unless `rcp` lies on the symmetry plane
     keepReflected = not_on_symmetry_plane(rcp)

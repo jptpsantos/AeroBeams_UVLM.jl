@@ -95,10 +95,9 @@ function _imperial_induced_velocity(rc,receivingIndex,segment_kind,
                              nothing : wake_shedding_locations[jsurf]
         circulation = view(Γ,jΓ+1:jΓ+nPanels)
 
-        skip_top = ()
-        skip_bottom = ()
-        skip_left = ()
-        skip_right = ()
+        # Sentinel index matching no panel, so that the skip tuples keep a single
+        # concrete type (empty tuples would make `induced_velocity` type-unstable)
+        skip_top = skip_bottom = skip_left = skip_right = (CartesianIndex(0,0),)
         if isurf == jsurf
             i,j = Tuple(receivingIndex)
             if segment_kind === :span
@@ -179,7 +178,8 @@ function near_field_forces!(props,surfaces,wakes,ref,fs,Γ;
     wake_finite_core,wake_shedding_locations,trailing_vortices,xhat,
     interaction_id=surface_id,interaction::Bool=true,
     chord_force_buffers=nothing,span_force_buffers=nothing,
-    unsteady_force_buffers=nothing,span_velocity_buffers=nothing)
+    unsteady_force_buffers=nothing,span_velocity_buffers=nothing,
+    threaded::Bool=true)
 
     nsurf = length(surfaces)
     TF = eltype(Γ)
@@ -211,7 +211,9 @@ function near_field_forces!(props,surfaces,wakes,ref,fs,Γ;
 
         # Spanwise segments. As in Imperial's loop, the final chordwise row of
         # spanwise segments is allocated but remains zero.
-        for j = 1:ns,i = 1:nc
+        # Each segment is independent of the others, so they may be processed in parallel.
+        function calculate_span_segment!(I)
+            i,j = Tuple(I)
             panel = panels[i,j]
             r1 = top_left(panel)
             r2 = top_right(panel)
@@ -227,10 +229,12 @@ function near_field_forces!(props,surfaces,wakes,ref,fs,Γ;
             span_forces[i,j] = imperial_segment_force(
                 velocity,r1,r2,delta_gamma,ref.rho)
             spanVelocities[i,j] = velocity
+            return nothing
         end
 
         # Chordwise segments, including both outer spanwise boundaries.
-        for j = 1:ns+1,i = 1:nc
+        function calculate_chord_segment!(I)
+            i,j = Tuple(I)
             if j <= ns
                 panel = panels[i,j]
                 r1 = top_left(panel)
@@ -251,6 +255,23 @@ function near_field_forces!(props,surfaces,wakes,ref,fs,Γ;
             delta_gamma = -_imperial_chordwise_circulation_jump(Γjulia,i,j)
             chord_forces[i,j] = imperial_segment_force(
                 velocity,r1,r2,delta_gamma,ref.rho)
+            return nothing
+        end
+
+        if threaded && Threads.nthreads() > 1
+            Threads.@threads :static for I in CartesianIndices((nc,ns))
+                calculate_span_segment!(I)
+            end
+            Threads.@threads :static for I in CartesianIndices((nc,ns + 1))
+                calculate_chord_segment!(I)
+            end
+        else
+            for I in CartesianIndices((nc,ns))
+                calculate_span_segment!(I)
+            end
+            for I in CartesianIndices((nc,ns + 1))
+                calculate_chord_segment!(I)
+            end
         end
 
         if !isnothing(dΓdt)

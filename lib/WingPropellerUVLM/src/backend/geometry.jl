@@ -1019,7 +1019,18 @@ end
 
 Return points on the trailing edge of each surface.
 """
-trailing_edge_points(surfaces) = [bottom_left.(surfaces[end,:])...,bottom_right(surfaces[end,end])]
+function trailing_edge_points(surfaces)
+
+    ns = size(surfaces,2)
+    # explicit loop (instead of splatting) so that the element type is inferred
+    points = Vector{typeof(bottom_left(surfaces[end,1]))}(undef,ns+1)
+    for j = 1:ns
+        points[j] = bottom_left(surfaces[end,j])
+    end
+    points[ns+1] = bottom_right(surfaces[end,ns])
+
+    return points
+end
 
 """
     repeated_trailing_edge_points(surface[s])

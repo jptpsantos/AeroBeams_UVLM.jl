@@ -2,6 +2,10 @@
 # Follows AeroBeams' PazyWingPitchRange.jl structural procedure: SteadyProblem,
 # nonlinear Newton balance, and the same wingtip OOP/IP displacement and twist.
 # UVLM replaces strip aerodynamics; no linearized UVLM or dynamic beam settling.
+
+# The wake velocities are computed in parallel. The number of threads is fixed. When in VSCode, set "julia.NumThreads" (e.g., to 8 or auto) and restart the REPL; from a terminal, use `julia -t 8`.
+Threads.nthreads() > 1 || @warn "Running with a single thread: the UVLM wake calculation will be serial"
+
 include(joinpath(@__DIR__,"PazyWingUVLMStatic.jl"))
 using DelimitedFiles
 
@@ -59,6 +63,7 @@ progress_frequency = 100             # UVLM wake steps; every static iteration p
 output_directory = joinpath(@__DIR__,"output","static_uvlm")
 save_convergence_plot = true
 
+# Standard static run
 static_result = run_pazy_wing_uvlm_static(;
     mesh,sweepAngle,useAePW3Matrices,withWingtipRod,rootTorsionCorr,
     beamWingtipRod,nElementsWingtipRod,sweptTipMassConfig,
@@ -70,6 +75,48 @@ static_result = run_pazy_wing_uvlm_static(;
     maximum_static_iterations,static_relaxation,geometry_tolerance,load_tolerance,
     consecutive_equilibrium_iterations,newton_maximum_iterations,newton_absolute_tolerance,
     newton_relative_tolerance,newton_display_iterations,progress_frequency)
+
+# Static run with measured time and allocations    
+# @time static_result = run_pazy_wing_uvlm_static(;
+#     mesh,sweepAngle,useAePW3Matrices,withWingtipRod,rootTorsionCorr,
+#     beamWingtipRod,nElementsWingtipRod,sweptTipMassConfig,
+#     sweptTipMassInertiaCorrection,
+#     airspeed,density,angle_of_attack,chordwise_panels,spanwise_panels,
+#     symmetric_wing,maximum_wake_rows,core_radius,wake_shedding_fraction,
+#     aerodynamic_interaction,maximum_aerodynamic_time,minimum_aerodynamic_time,
+#     aerodynamic_window_time,aerodynamic_force_tolerance,aerodynamic_circulation_tolerance,
+#     maximum_static_iterations,static_relaxation,geometry_tolerance,load_tolerance,
+#     consecutive_equilibrium_iterations,newton_maximum_iterations,newton_absolute_tolerance,
+#     newton_relative_tolerance,newton_display_iterations,progress_frequency)
+
+# Static run with time profiling
+# using Profile
+# Profile.clear()
+# Profile.init()
+# @profview static_result = run_pazy_wing_uvlm_static(;
+#     mesh,sweepAngle,useAePW3Matrices,withWingtipRod,rootTorsionCorr,
+#     beamWingtipRod,nElementsWingtipRod,sweptTipMassConfig,
+#     sweptTipMassInertiaCorrection,
+#     airspeed,density,angle_of_attack,chordwise_panels,spanwise_panels,
+#     symmetric_wing,maximum_wake_rows,core_radius,wake_shedding_fraction,
+#     aerodynamic_interaction,maximum_aerodynamic_time,minimum_aerodynamic_time,
+#     aerodynamic_window_time,aerodynamic_force_tolerance,aerodynamic_circulation_tolerance,
+#     maximum_static_iterations,static_relaxation,geometry_tolerance,load_tolerance,
+#     consecutive_equilibrium_iterations,newton_maximum_iterations,newton_absolute_tolerance,
+#     newton_relative_tolerance,newton_display_iterations,progress_frequency)
+
+# Static run with allocation profiling
+# @profview_allocs static_result = run_pazy_wing_uvlm_static(;
+#     mesh,sweepAngle,useAePW3Matrices,withWingtipRod,rootTorsionCorr,
+#     beamWingtipRod,nElementsWingtipRod,sweptTipMassConfig,
+#     sweptTipMassInertiaCorrection,
+#     airspeed,density,angle_of_attack,chordwise_panels,spanwise_panels,
+#     symmetric_wing,maximum_wake_rows,core_radius,wake_shedding_fraction,
+#     aerodynamic_interaction,maximum_aerodynamic_time,minimum_aerodynamic_time,
+#     aerodynamic_window_time,aerodynamic_force_tolerance,aerodynamic_circulation_tolerance,
+#     maximum_static_iterations,static_relaxation,geometry_tolerance,load_tolerance,
+#     consecutive_equilibrium_iterations,newton_maximum_iterations,newton_absolute_tolerance,
+#     newton_relative_tolerance,newton_display_iterations,progress_frequency) sample_rate = 1e-3
 
 mkpath(output_directory)
 writedlm(joinpath(output_directory,"static_convergence.csv"),

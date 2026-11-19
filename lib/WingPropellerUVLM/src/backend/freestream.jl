@@ -284,7 +284,7 @@ rotational_velocity
 rotational_velocity(r,fs::Freestream,ref::Reference) = rotational_velocity(r,fs.Omega,ref.r)
 
 function rotational_velocity(r,Omega,rref)
-    Ω = [-Omega[1],Omega[2],-Omega[3]]  # swap signs for p and r to follow standard dynamics convention
+    Ω = SVector(-Omega[1],Omega[2],-Omega[3])  # swap signs for p and r to follow standard dynamics convention
     return cross(r - rref,Ω)
 end
 
@@ -301,7 +301,7 @@ rotational_velocity_derivatives(r,fs::Freestream,ref::Reference) = rotational_ve
 function rotational_velocity_derivatives(r,Omega,rref)
 
     tmp = r - rref
-    Ω = [-Omega[1],Omega[2],-Omega[3]]  # swap signs for p and r to follow standard dynamics convention
+    Ω = SVector(-Omega[1],Omega[2],-Omega[3])  # swap signs for p and r to follow standard dynamics convention
 
     Vrot = cross(tmp,Ω)
     Vrot_p = -SVector(0,tmp[3],-tmp[2])

@@ -4,6 +4,20 @@ if !isdefined(@__MODULE__,:run_pazy_wing_uvlm)
     include(joinpath(@__DIR__,"PazyWingUVLMCoupling.jl"))
 end
 
+# Elementwise maximum and minimum over a window of arrays, written in place
+function window_extrema!(xmax,xmin,window)
+    copyto!(xmax,window[1])
+    copyto!(xmin,window[1])
+    for k = 2:length(window)
+        x = window[k]
+        for i in eachindex(xmax,xmin,x)
+            xmax[i] = max(xmax[i],x[i])
+            xmin[i] = min(xmin[i],x[i])
+        end
+    end
+    return nothing
+end
+
 # Hold the wing fixed and let its free wake develop. Each new static trial
 # starts with an empty wake: a shape iteration is NOT a physical wing velocity.
 function settle_static_uvlm(grid,offsets,weights,reference,operating_point,solver;
@@ -19,9 +33,14 @@ function settle_static_uvlm(grid,offsets,weights,reference,operating_point,solve
     aero = UVLM.create_UVLMDynamicProblem(model=model,aeroSolver=solver,
         operatingPoint=operating_point,timeVector=collect(0:steps) .* dt,
         maximumWakeRows=maximum_wake_rows,trackingTimeSteps=false)
-    forceWindow = Matrix{Float64}[]
-    circulationWindow = Vector{Float64}[]
     nodal_loads = zeros(6,size(weights,2))
+    # Circular buffers holding the last windowSteps loads and circulations, and
+    # buffers for their extrema, all reused at every step
+    forceWindow = [similar(nodal_loads) for _ = 1:windowSteps]
+    fmax = similar(nodal_loads)
+    fmin = similar(nodal_loads)
+    circulationWindow = Vector{Float64}[]
+    gmax = gmin = Float64[]
     spanMap = PazySpanMap(weights)
     force_residual = circulation_residual = Inf
     converged = false
@@ -35,22 +54,24 @@ function settle_static_uvlm(grid,offsets,weights,reference,operating_point,solve
             UVLM.rollback_time_step!(aero)
             rethrow()
         end
-        push!(forceWindow,copy(nodal_loads))
-        push!(circulationWindow,copy(aero.state.system.Γ))
-        if length(forceWindow) > windowSteps
-            popfirst!(forceWindow)
-            popfirst!(circulationWindow)
+        if step == 1
+            # Allocate the circulation buffers once its size is known
+            Γ = aero.state.system.Γ
+            circulationWindow = [similar(Γ) for _ = 1:windowSteps]
+            gmax = similar(Γ)
+            gmin = similar(Γ)
         end
-        if length(forceWindow) == windowSteps
+        slot = mod1(step,windowSteps)
+        copyto!(forceWindow[slot],nodal_loads)
+        copyto!(circulationWindow[slot],aero.state.system.Γ)
+        if step >= windowSteps
             # Peak-to-peak change across the WHOLE window, not just two steps.
-            fmax = reduce((a,b) -> max.(a,b),forceWindow)
-            fmin = reduce((a,b) -> min.(a,b),forceWindow)
+            window_extrema!(fmax,fmin,forceWindow)
             force_residual = interface_load_residual(fmax,fmin,reference.c)
-            gmax = reduce((a,b) -> max.(a,b),circulationWindow)
-            gmin = reduce((a,b) -> min.(a,b),circulationWindow)
+            window_extrema!(gmax,gmin,circulationWindow)
             circulationScale = max(maximum(abs,gmax),maximum(abs,gmin),
                 1e-12 * reference.V * reference.c)
-            circulation_residual = maximum(abs,gmax - gmin) / circulationScale
+            circulation_residual = mapreduce((a,b) -> abs(a - b),max,gmax,gmin) / circulationScale
             converged =
                 step >= minimumSteps && force_residual <= force_tolerance &&
                 circulation_residual <= circulation_tolerance

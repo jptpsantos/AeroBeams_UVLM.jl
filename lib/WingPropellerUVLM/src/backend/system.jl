@@ -85,6 +85,8 @@ Contains pre-allocated storage for internal system variables.
  - `unsteady_forces`: Unsteady forces for each surface, stored as matrices of 3D vectors
  - `span_force_velocities`: Reusable segment velocities for the default near-field force calculation
  - `dΓdt`: Derivative of the circulation strength with respect to non-dimensional time
+ - `AICfactor`: Scratch matrix for the LU factorization of `AIC`
+ - `ipiv`: Scratch pivot indices for the LU factorization
 """
 struct System{TF}
     AIC::Matrix{TF}
@@ -124,6 +126,9 @@ struct System{TF}
     # Reusable total velocity at the spanwise force segments (not surface motion).
     span_force_velocities::Vector{Matrix{SVector{3,TF}}}
     dΓdt::Vector{TF}
+    # Scratch storage for the LU factorization of `AIC` (not part of the state)
+    AICfactor::Matrix{TF}
+    ipiv::Vector{LinearAlgebra.BlasInt}
 end
 
 Base.eltype(::Type{System{TF}}) where {TF} = TF
@@ -273,12 +278,15 @@ function System(TF::Type,nc,ns; nw=zero(nc),grids=nothing,ratios=nothing,section
     unsteady_forces = [fill((@SVector zeros(TF,3)),nc[i],ns[i]) for i = 1:nsurf]
     span_force_velocities = [fill((@SVector zeros(TF,3)),nc[i],ns[i]) for i = 1:nsurf]
     dΓdt = zeros(TF,N)
+    AICfactor = zeros(TF,N,N)
+    ipiv = zeros(LinearAlgebra.BlasInt,N)
 
     return System{TF}(AIC,w,Γ,V,grids,ratios,surfaces,invert_normals,sections,
         properties,wakes,trefftz,reference,freestream,symmetric,nwake,surface_id,
         wake_finite_core,trailing_vortices,xhat,near_field_analysis,derivatives,
         dw,dΓ,dproperties,wake_shedding_locations,previous_surfaces,Vcp,Vh,
-        Vv,Vte,chord_seg_forces,span_seg_forces,unsteady_forces,span_force_velocities,dΓdt)
+        Vv,Vte,chord_seg_forces,span_seg_forces,unsteady_forces,span_force_velocities,dΓdt,
+        AICfactor,ipiv)
 end
 
 """

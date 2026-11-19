@@ -157,7 +157,7 @@ function steady_analysis!(system,ref,fs;
     if derivatives
         circulation_derivatives!(Γ,dΓ,AIC,w,dw)
     else
-        circulation!(Γ,AIC,w)
+        circulation!(Γ,AIC,w,system.AICfactor,system.ipiv)
     end
 
     if near_field_analysis
@@ -631,7 +631,7 @@ function propagate_system!(system,fs,dt;
     if derivatives
         circulation_derivatives!(Γ,dΓ,AIC,w,dw)
     else
-        circulation!(Γ,AIC,w)
+        circulation!(Γ,AIC,w,system.AICfactor,system.ipiv)
     end
 
     # solve for dΓdt using finite difference `dΓdt = (Γ - Γp)/dt`
