@@ -149,12 +149,20 @@ global incidence change. static_options supplies the existing
 run_pazy_wing_uvlm_static controls, except speed/incidence/sweep and wake times.
 Wake times are specified here in convective units U*t/c, consistently at all
 speeds. Unconverged cases retain diagnostics but export NaN slopes.
+
+With warm_start=true each equilibrium starts from the previous one at the same sweep and
+incidence angles, if the dynamic pressure ratio is within [1/5,5] (structure and applied loads
+scaled by that ratio; otherwise the case starts cold),
+and the perturbed solves of a case start from its central equilibrium (and reuse
+its wake if static_options has wake_reuse=true). The converged equilibria satisfy
+the same tolerances; only the path to them changes. See run_pazy_wing_uvlm_static
+for relaxation_mode, geometry_cap_chords and wake_reuse.
 """
 function run_pazy_wing_uvlm_static_sweep(; airspeeds,angles_of_attack,
     sweep_angles=[0.0],alpha_step=deg2rad(0.25),
     slope_modes=(:local_ratio,),static_options,local_alpha_tolerance=1e-8,
     maximum_aerodynamic_chords=120.0,minimum_aerodynamic_chords=25.0,
-    aerodynamic_window_chords=4.0,output_directory=nothing,save_plots=true)
+    aerodynamic_window_chords=4.0,output_directory=nothing,save_plots=true,warm_start=true)
 
     for (name,values) in (("airspeeds",airspeeds),("angles_of_attack",angles_of_attack),
         ("sweep_angles",sweep_angles))
@@ -187,6 +195,7 @@ function run_pazy_wing_uvlm_static_sweep(; airspeeds,angles_of_attack,
         # Validate native data availability before starting this sweep.
         _,span,chord,sparFraction,_ = AeroBeams.geometrical_properties_Pazy(; Λ=sweepAngle,
             mesh=get(static_options,:mesh,:nominal),useAePW3Matrices=get(static_options,:useAePW3Matrices,false))
+        previous = nothing
         for angle_of_attack in angles_of_attack,airspeed in airspeeds
             println("\nStatic spanwise slope: sweep=$(rad2deg(sweepAngle)) deg, " *
                 "alpha=$(rad2deg(angle_of_attack)) deg, U=$airspeed m/s")
@@ -194,7 +203,22 @@ function run_pazy_wing_uvlm_static_sweep(; airspeeds,angles_of_attack,
                 maximum_aerodynamic_time=maximum_aerodynamic_chords * chord / airspeed,
                 minimum_aerodynamic_time=minimum_aerodynamic_chords * chord / airspeed,
                 aerodynamic_window_time=aerodynamic_window_chords * chord / airspeed)
-            equilibrium = run_pazy_wing_uvlm_static(; options...)
+            startArguments = (;)
+            # Only the previous equilibrium at the SAME prescribed incidence and a comparable dynamic pressure
+            # (ratio within [1/5,5]) is a good starting point: otherwise (e.g. the first speed of a new incidence,
+            # which would inherit the largest deformation of the previous incidence, or a jump from 0.01 m/s)
+            # the case starts cold
+            if warm_start && !isnothing(previous) && previous.angle_of_attack == angle_of_attack &&
+                0.2 <= (airspeed / previous.airspeed)^2 <= 5
+                # Dynamic-pressure scaling as predictor; the wake cannot be reused (time step changes with speed)
+                startArguments = (; warm_start=(; previous.warm_start...,aero=nothing),
+                    warm_start_target_loads=previous.warm_start.loads .* (airspeed / previous.airspeed)^2)
+            end
+            equilibrium = run_pazy_wing_uvlm_static(; options...,startArguments...)
+            # Interface of the central shape, taken before any perturbed solve modifies the structure
+            interface = :fixed_shape in slope_modes && equilibrium.converged ? pazy_static_interface(equilibrium) : nothing
+            # Perturbed solves chain from the central state: same structure, loads and (if wake_reuse) wake
+            perturbationStart = equilibrium.warm_start
             section = pazy_spanwise_cn(equilibrium.aerodynamic_problem,span,sweepAngle;
                 local_alpha_tolerance,spar_fraction=sparFraction)
             localRatioValid = section.local_alpha_valid .& (equilibrium.converged && :local_ratio in slope_modes)
@@ -215,7 +239,9 @@ function run_pazy_wing_uvlm_static_sweep(; airspeeds,angles_of_attack,
                     flags = Bool[]
                     for (label,sign) in ((:equilibrium_minus,-1),(:equilibrium_plus,1))
                         perturbed = run_pazy_wing_uvlm_static(; options...,
-                            angle_of_attack=angle_of_attack + sign * alpha_step)
+                            angle_of_attack=angle_of_attack + sign * alpha_step,
+                            (warm_start ? (; warm_start=perturbationStart) : (;))...)
+                        perturbationStart = perturbed.warm_start
                         push!(sections,pazy_spanwise_cn(perturbed.aerodynamic_problem,span,sweepAngle;
                             spar_fraction=sparFraction))
                         push!(flags,perturbed.converged)
@@ -228,8 +254,9 @@ function run_pazy_wing_uvlm_static_sweep(; airspeeds,angles_of_attack,
                         (equilibriumSlope = pazy_static_derivatives(sections,alpha_step; local_alpha_tolerance))
                 end
                 if :fixed_shape in slope_modes
-                    interface = pazy_static_interface(equilibrium)
                     problem = equilibrium.aerodynamic_problem
+                    # Fixed shape: the central wake is a good initial condition for the perturbed incidences
+                    fixedShapeAero = warm_start && get(options,:wake_reuse,false) ? perturbationStart.aero : nothing
                     sections = typeof(section)[]
                     flags = Bool[]
                     for (label,sign) in ((:fixed_shape_minus,-1),(:fixed_shape_plus,1))
@@ -242,7 +269,8 @@ function run_pazy_wing_uvlm_static_sweep(; airspeeds,angles_of_attack,
                             minimum_time=options.minimum_aerodynamic_time,window_time=options.aerodynamic_window_time,
                             force_tolerance=options.aerodynamic_force_tolerance,
                             circulation_tolerance=options.aerodynamic_circulation_tolerance,
-                            progress_frequency=options.progress_frequency)
+                            progress_frequency=options.progress_frequency,aero=fixedShapeAero)
+                        fixedShapeAero = warm_start && get(options,:wake_reuse,false) ? wake.aerodynamic_problem : nothing
                         push!(sections,pazy_spanwise_cn(wake.aerodynamic_problem,span,sweepAngle;
                             spar_fraction=sparFraction))
                         push!(flags,wake.converged)
@@ -274,6 +302,8 @@ function run_pazy_wing_uvlm_static_sweep(; airspeeds,angles_of_attack,
                 tip_out_of_plane=equilibrium.tip_out_of_plane,tip_twist_degrees=equilibrium.tip_twist_degrees,
                 pazy_parameters=equilibrium.pazy_parameters,diagnostics)
             push!(cases,case)
+            previous = equilibrium.converged ?
+                (; airspeed,angle_of_attack,warm_start=(; equilibrium.warm_start...,aero=nothing)) : nothing
             if !all(d.converged for d in diagnostics)
                 @warn "Unconverged static/wake solves: inspect status.csv; corresponding slopes are NaN" airspeed sweepAngle angle_of_attack
             end

@@ -21,9 +21,9 @@ sweptTipMassConfig = :baseline        # :baseline, :LE or :TE
 sweptTipMassInertiaCorrection = false # cannot combine with an explicit rod
 
 # Flight condition. Incidence is imposed through the freestream, once only.
-airspeed = 55.0
+airspeed = 1e-2
 density = 1.225
-angle_of_attack = deg2rad(2.0)
+angle_of_attack = deg2rad(7.0)
 
 # UVLM controls, independent of the selected structural mesh.
 chordwise_panels = 4
@@ -31,14 +31,14 @@ spanwise_panels = 15
 symmetric_wing = true
 wake_length_chords = 10.0
 maximum_wake_rows = ceil(Int,wake_length_chords * chordwise_panels)
-core_radius = 1e-3                    # metres
+core_radius = 1e-6                    # metres
 wake_shedding_fraction = 0.1
 aerodynamic_interaction = true
 # dt = chord/(chordwise_panels*airspeed), as in the dynamic run.
 
 # Time marching at EACH fixed trial shape. A fresh free wake is developed each
 # time, avoiding fictitious aerodynamic forces from static shape updates.
-maximum_aerodynamic_time = 0.20       # seconds per trial shape, NOT total runtime
+maximum_aerodynamic_time = 300/airspeed       # seconds per trial shape, NOT total runtime
 minimum_aerodynamic_time = 0.05       # also requires at least 2 retained wake ages
 aerodynamic_window_time = 0.01        # force/circulation peak-to-peak check window
 aerodynamic_force_tolerance = 1e-4
@@ -47,7 +47,12 @@ aerodynamic_circulation_tolerance = 1e-4
 # Static outer iteration: relax the applied loads, solve the nonlinear beam,
 # settle UVLM on that deformed shape, and check the unrelaxed load mismatch.
 maximum_static_iterations = 100
-static_relaxation = 0.3
+# Load update: :anderson (mixing parameter static_relaxation = 1) or :fixed relaxation with factor static_relaxation
+relaxation_mode = :anderson
+anderson_depth = 4
+static_relaxation = 1.0
+geometry_cap_chords = 2.0            # maximum UVLM grid change per load update, in chords
+wake_reuse = true                    # keep the wake between static iterations
 geometry_tolerance = 1e-5            # maximum grid change / chord
 load_tolerance = 1e-4               # same force/moment scaling as dynamic coupling
 consecutive_equilibrium_iterations = 2
@@ -64,7 +69,21 @@ output_directory = joinpath(@__DIR__,"output","static_uvlm")
 save_convergence_plot = true
 
 # Standard static run
-static_result = run_pazy_wing_uvlm_static(;
+# static_result = run_pazy_wing_uvlm_static(;
+#     mesh,sweepAngle,useAePW3Matrices,withWingtipRod,rootTorsionCorr,
+#     beamWingtipRod,nElementsWingtipRod,sweptTipMassConfig,
+#     sweptTipMassInertiaCorrection,
+#     airspeed,density,angle_of_attack,chordwise_panels,spanwise_panels,
+#     symmetric_wing,maximum_wake_rows,core_radius,wake_shedding_fraction,
+#     aerodynamic_interaction,maximum_aerodynamic_time,minimum_aerodynamic_time,
+#     aerodynamic_window_time,aerodynamic_force_tolerance,aerodynamic_circulation_tolerance,
+#     maximum_static_iterations,static_relaxation,geometry_tolerance,load_tolerance,
+#     consecutive_equilibrium_iterations,newton_maximum_iterations,newton_absolute_tolerance,
+#     newton_relative_tolerance,newton_display_iterations,progress_frequency,
+#     relaxation_mode,anderson_depth,geometry_cap_chords,wake_reuse)
+
+# Static run with measured time and allocations    
+@time static_result = run_pazy_wing_uvlm_static(;
     mesh,sweepAngle,useAePW3Matrices,withWingtipRod,rootTorsionCorr,
     beamWingtipRod,nElementsWingtipRod,sweptTipMassConfig,
     sweptTipMassInertiaCorrection,
@@ -74,49 +93,39 @@ static_result = run_pazy_wing_uvlm_static(;
     aerodynamic_window_time,aerodynamic_force_tolerance,aerodynamic_circulation_tolerance,
     maximum_static_iterations,static_relaxation,geometry_tolerance,load_tolerance,
     consecutive_equilibrium_iterations,newton_maximum_iterations,newton_absolute_tolerance,
-    newton_relative_tolerance,newton_display_iterations,progress_frequency)
-
-# Static run with measured time and allocations    
-# @time static_result = run_pazy_wing_uvlm_static(;
-#     mesh,sweepAngle,useAePW3Matrices,withWingtipRod,rootTorsionCorr,
-#     beamWingtipRod,nElementsWingtipRod,sweptTipMassConfig,
-#     sweptTipMassInertiaCorrection,
-#     airspeed,density,angle_of_attack,chordwise_panels,spanwise_panels,
-#     symmetric_wing,maximum_wake_rows,core_radius,wake_shedding_fraction,
-#     aerodynamic_interaction,maximum_aerodynamic_time,minimum_aerodynamic_time,
-#     aerodynamic_window_time,aerodynamic_force_tolerance,aerodynamic_circulation_tolerance,
-#     maximum_static_iterations,static_relaxation,geometry_tolerance,load_tolerance,
-#     consecutive_equilibrium_iterations,newton_maximum_iterations,newton_absolute_tolerance,
-#     newton_relative_tolerance,newton_display_iterations,progress_frequency)
+    newton_relative_tolerance,newton_display_iterations,progress_frequency,
+    relaxation_mode,anderson_depth,geometry_cap_chords,wake_reuse)
 
 # Static run with time profiling
 # using Profile
 # Profile.clear()
 # Profile.init()
 # @profview static_result = run_pazy_wing_uvlm_static(;
-#     mesh,sweepAngle,useAePW3Matrices,withWingtipRod,rootTorsionCorr,
-#     beamWingtipRod,nElementsWingtipRod,sweptTipMassConfig,
-#     sweptTipMassInertiaCorrection,
-#     airspeed,density,angle_of_attack,chordwise_panels,spanwise_panels,
-#     symmetric_wing,maximum_wake_rows,core_radius,wake_shedding_fraction,
-#     aerodynamic_interaction,maximum_aerodynamic_time,minimum_aerodynamic_time,
-#     aerodynamic_window_time,aerodynamic_force_tolerance,aerodynamic_circulation_tolerance,
-#     maximum_static_iterations,static_relaxation,geometry_tolerance,load_tolerance,
-#     consecutive_equilibrium_iterations,newton_maximum_iterations,newton_absolute_tolerance,
-#     newton_relative_tolerance,newton_display_iterations,progress_frequency)
+    # mesh,sweepAngle,useAePW3Matrices,withWingtipRod,rootTorsionCorr,
+    # beamWingtipRod,nElementsWingtipRod,sweptTipMassConfig,
+    # sweptTipMassInertiaCorrection,
+    # airspeed,density,angle_of_attack,chordwise_panels,spanwise_panels,
+    # symmetric_wing,maximum_wake_rows,core_radius,wake_shedding_fraction,
+    # aerodynamic_interaction,maximum_aerodynamic_time,minimum_aerodynamic_time,
+    # aerodynamic_window_time,aerodynamic_force_tolerance,aerodynamic_circulation_tolerance,
+    # maximum_static_iterations,static_relaxation,geometry_tolerance,load_tolerance,
+    # consecutive_equilibrium_iterations,newton_maximum_iterations,newton_absolute_tolerance,
+    # newton_relative_tolerance,newton_display_iterations,progress_frequency,
+    # relaxation_mode,anderson_depth,geometry_cap_chords,wake_reuse)
 
 # Static run with allocation profiling
 # @profview_allocs static_result = run_pazy_wing_uvlm_static(;
-#     mesh,sweepAngle,useAePW3Matrices,withWingtipRod,rootTorsionCorr,
-#     beamWingtipRod,nElementsWingtipRod,sweptTipMassConfig,
-#     sweptTipMassInertiaCorrection,
-#     airspeed,density,angle_of_attack,chordwise_panels,spanwise_panels,
-#     symmetric_wing,maximum_wake_rows,core_radius,wake_shedding_fraction,
-#     aerodynamic_interaction,maximum_aerodynamic_time,minimum_aerodynamic_time,
-#     aerodynamic_window_time,aerodynamic_force_tolerance,aerodynamic_circulation_tolerance,
-#     maximum_static_iterations,static_relaxation,geometry_tolerance,load_tolerance,
-#     consecutive_equilibrium_iterations,newton_maximum_iterations,newton_absolute_tolerance,
-#     newton_relative_tolerance,newton_display_iterations,progress_frequency) sample_rate = 1e-3
+    # mesh,sweepAngle,useAePW3Matrices,withWingtipRod,rootTorsionCorr,
+    # beamWingtipRod,nElementsWingtipRod,sweptTipMassConfig,
+    # sweptTipMassInertiaCorrection,
+    # airspeed,density,angle_of_attack,chordwise_panels,spanwise_panels,
+    # symmetric_wing,maximum_wake_rows,core_radius,wake_shedding_fraction,
+    # aerodynamic_interaction,maximum_aerodynamic_time,minimum_aerodynamic_time,
+    # aerodynamic_window_time,aerodynamic_force_tolerance,aerodynamic_circulation_tolerance,
+    # maximum_static_iterations,static_relaxation,geometry_tolerance,load_tolerance,
+    # consecutive_equilibrium_iterations,newton_maximum_iterations,newton_absolute_tolerance,
+    # newton_relative_tolerance,newton_display_iterations,progress_frequency,
+    # relaxation_mode,anderson_depth,geometry_cap_chords,wake_reuse) sample_rate = 1e-3
 
 mkpath(output_directory)
 writedlm(joinpath(output_directory,"static_convergence.csv"),

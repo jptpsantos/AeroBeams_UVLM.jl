@@ -27,6 +27,9 @@ Every test file can also run directly. Existing optional switches remain:
 - `test_pazy_stepped_bifurcation.jl --physical`: stepped physical continuation.
 - `test_pazy_bifurcation.jl --parallel`: distributed sweep consistency.
 - `test_pazy_stability_sweep.jl --plots`: stability plot smoke check.
+- `test_static_acceleration.jl`: Anderson mixing, wake reuse, geometry cap and warm starts of the
+  static solver and of the static sweep reach the same equilibria as the original fixed-relaxation
+  algorithm with fewer UVLM steps. Included in `--full`.
 - `test_static_spanwise_cn_alpha.jl --plots`: constant-incidence equilibrium,
   local-angle cn/alpha ratios, load conservation, optional derivative modes and convergence gates,
   with an optional plot smoke check. Included in `--full`.

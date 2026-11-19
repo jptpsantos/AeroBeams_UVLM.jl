@@ -1,0 +1,40 @@
+case,U_m_s,alpha_deg,sweep_deg,solve,converged,reason,wake_time_s,wake_force_residual,wake_circulation_residual
+1,0.01,7.0,0.0,central,true,Static aeroelastic equilibrium reached,NaN,NaN,NaN
+1,0.01,7.0,0.0,fixed_shape_minus,true,Fixed-shape wake settled,207.58584000000002,1.0462553968540405e-12,9.384974010631261e-6
+1,0.01,7.0,0.0,fixed_shape_plus,true,Fixed-shape wake settled,223.401904,1.120976563885443e-12,9.824000879534084e-6
+2,10.0,7.0,0.0,central,true,Static aeroelastic equilibrium reached,NaN,NaN,NaN
+2,10.0,7.0,0.0,fixed_shape_minus,true,Fixed-shape wake settled,0.20758584000000002,1.0457097589788855e-6,9.336747394891886e-6
+2,10.0,7.0,0.0,fixed_shape_plus,true,Fixed-shape wake settled,0.223401904,1.1201526129711592e-6,9.771909746815109e-6
+3,20.0,7.0,0.0,central,true,Static aeroelastic equilibrium reached,NaN,NaN,NaN
+3,20.0,7.0,0.0,fixed_shape_minus,true,Fixed-shape wake settled,0.10280441600000001,4.506938253490134e-6,9.907616571845883e-6
+3,20.0,7.0,0.0,fixed_shape_plus,true,Fixed-shape wake settled,0.111700952,4.4641404217671266e-6,9.594521797426842e-6
+4,30.0,7.0,0.0,central,true,Static aeroelastic equilibrium reached,NaN,NaN,NaN
+4,30.0,7.0,0.0,fixed_shape_minus,true,Fixed-shape wake settled,0.06853627733333334,7.024549862783685e-6,9.51289521378469e-6
+4,30.0,7.0,0.0,fixed_shape_plus,true,Fixed-shape wake settled,0.07380829866666667,7.313830389993059e-6,9.950980287289524e-6
+5,40.0,7.0,0.0,central,true,Static aeroelastic equilibrium reached,NaN,NaN,NaN
+5,40.0,7.0,0.0,fixed_shape_minus,true,Fixed-shape wake settled,0.050907956000000004,7.3028512062478785e-6,9.665742216113892e-6
+5,40.0,7.0,0.0,fixed_shape_plus,true,Fixed-shape wake settled,0.055356224,7.018948576524088e-6,9.345329967601192e-6
+6,50.0,7.0,0.0,central,true,Static aeroelastic equilibrium reached,NaN,NaN,NaN
+6,50.0,7.0,0.0,fixed_shape_minus,true,Fixed-shape wake settled,0.04033096320000001,7.441666604634864e-6,9.714189917342742e-6
+6,50.0,7.0,0.0,fixed_shape_plus,true,Fixed-shape wake settled,0.04388957760000001,7.1393271751117e-6,9.37841048028099e-6
+7,60.0,7.0,0.0,central,true,Static aeroelastic equilibrium reached,NaN,NaN,NaN
+7,60.0,7.0,0.0,fixed_shape_minus,true,Fixed-shape wake settled,0.03327963466666667,7.427971068814286e-6,9.703473976106453e-6
+7,60.0,7.0,0.0,fixed_shape_plus,true,Fixed-shape wake settled,0.03624514666666667,7.111175739123703e-6,9.333038857708867e-6
+8,70.0,7.0,0.0,central,true,Static aeroelastic equilibrium reached,NaN,NaN,NaN
+8,70.0,7.0,0.0,fixed_shape_minus,true,Fixed-shape wake settled,0.028242971428571434,7.2524975370591935e-6,9.457426948958534e-6
+8,70.0,7.0,0.0,fixed_shape_plus,true,Fixed-shape wake settled,0.03050240914285715,7.487250104609644e-6,9.774096938428826e-6
+9,80.0,7.0,0.0,central,true,Static aeroelastic equilibrium reached,NaN,NaN,NaN
+9,80.0,7.0,0.0,fixed_shape_minus,true,Fixed-shape wake settled,0.024218348,7.474589083026628e-6,9.625974647432726e-6
+9,80.0,7.0,0.0,fixed_shape_plus,true,Fixed-shape wake settled,0.026195356000000003,7.681475140835507e-6,9.898028693342725e-6
+10,90.0,7.0,0.0,central,true,Static aeroelastic equilibrium reached,NaN,NaN,NaN
+10,90.0,7.0,0.0,fixed_shape_minus,true,Fixed-shape wake settled,0.021088085333333336,7.5073423065315115e-6,9.571881910423602e-6
+10,90.0,7.0,0.0,fixed_shape_plus,true,Fixed-shape wake settled,0.02284542577777778,7.673654224459633e-6,9.779249623942165e-6
+11,100.0,7.0,0.0,central,true,Static aeroelastic equilibrium reached,NaN,NaN,NaN
+11,100.0,7.0,0.0,fixed_shape_minus,true,Fixed-shape wake settled,0.018583875200000002,7.359327415425788e-6,9.307481243664624e-6
+11,100.0,7.0,0.0,fixed_shape_plus,true,Fixed-shape wake settled,0.020165481600000004,7.474479883807696e-6,9.434635010280317e-6
+12,110.0,7.0,0.0,central,true,Static aeroelastic equilibrium reached,NaN,NaN,NaN
+12,110.0,7.0,0.0,fixed_shape_minus,true,Fixed-shape wake settled,0.016355248,7.66226994138468e-6,9.630750126374311e-6
+12,110.0,7.0,0.0,fixed_shape_plus,true,Fixed-shape wake settled,0.017793072,7.726278379225408e-6,9.674416867186262e-6
+13,120.0,7.0,0.0,central,true,Static aeroelastic equilibrium reached,NaN,NaN,NaN
+13,120.0,7.0,0.0,fixed_shape_minus,true,Fixed-shape wake settled,0.01449805866666667,7.821434950808806e-6,9.789586760336933e-6
+13,120.0,7.0,0.0,fixed_shape_plus,true,Fixed-shape wake settled,0.015816064,7.820328634132106e-6,9.728604992745724e-6

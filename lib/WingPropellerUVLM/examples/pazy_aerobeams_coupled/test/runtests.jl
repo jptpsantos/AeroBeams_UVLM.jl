@@ -19,6 +19,7 @@ if fullSuite
     "--dynamic" in ARGS || push!(ARGS,"--dynamic")
     append!(testFiles,[
         "test_static_uvlm.jl",
+        "test_static_acceleration.jl",
         "test_static_spanwise_cn_alpha.jl",
         "test_pazy_LCO.jl",
         "test_pazy_continuous_LCO.jl",

@@ -26,6 +26,21 @@ spanwise CSV data, plots and convergence diagnostics in
 `aoa3deg/` for each prescribed incidence. See [STATIC_SPANWISE.md](STATIC_SPANWISE.md)
 for coefficient definitions, units, controls and validation.
 
+The static iteration (`run_pazy_wing_uvlm_static`) accepts options that change only the path to the
+equilibrium, not the acceptance tests (wake window, unrelaxed load residual, geometry change):
+
+| Option | Default | Meaning |
+| --- | --- | --- |
+| `relaxation_mode` | `:fixed` | `:fixed`: loads ← (1-ω) loads + ω G(loads), ω = `static_relaxation`. `:anderson`: Anderson mixing of depth `anderson_depth` (default 4) with mixing parameter `static_relaxation` (use 1.0); needs no tuning and converges in far fewer iterations than any fixed ω. |
+| `geometry_cap_chords` | `Inf` | Maximum grid change per load update in chords; the load step is halved (and also when the structural Newton solve fails) until it complies. Recommended 2 with `:anderson`, otherwise the first full step at high load can move the wing so far that its free wake never settles. |
+| `wake_reuse` | `false` | Keep the wake and circulation between static iterations (the accepted UVLM state is moved onto the new shape without surface velocity) instead of starting from an empty wake. Each iteration then needs about a window of steps instead of at least two wake ages. |
+| `warm_start`, `warm_start_target_loads` | `nothing` | Start from the `warm_start` field of a previous result (same structure and discretization), moving the loads to the target (e.g. previous loads scaled by the dynamic-pressure ratio). The wake is used only with `wake_reuse` and if the entry `aero` is not `nothing` (same time step, e.g. a perturbed incidence). |
+
+`run_pazy_wing_uvlm_static_sweep(; warm_start=true)` starts each equilibrium of a sweep angle from the previous
+one and the `:equilibrium`/`:fixed_shape` perturbations from the central one (with `wake_reuse=true` in
+`static_options` also from its wake). On the Pazy S0 at U = 10:10:120 m/s and 7° this needed 11 times fewer UVLM steps than
+fixed relaxation 0.3, and high-load cases where relaxation 1 fails converge in 10-20 iterations.
+
 The dynamic runner and `run_pazy_wing_uvlm_static.jl` expose the same structural
 keywords as the updated `AeroBeams.create_Pazy`:
 
