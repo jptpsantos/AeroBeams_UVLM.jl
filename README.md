@@ -61,12 +61,11 @@ A few limitations of the theory to keep in mind when using this package:
 
 - The strain measures considered yield a "Timoshenko" beam theory, which is valid for beams of solid or thin-walled, but closed cross-sections, and beams of strip-like cross-sections. It is not accurate for beams of thin-walled, open cross-section (like "C", "I", "L", "T", "Z", etc) for which the warping of the cross-section caused by torsion is important. For these, a "Vlasov" beam theory would be required.
 - The force-strain relationship of the material is assumed to be linear, *i.e.*, the strains are assumed to be small.
-- Structural damping is not modeled.
 - The formulation does not account for the *trapeze effect*, which is the tendency of a twisted beam to untwist (twist) as a traction (compression) force is applied. This effect can be important for beams of open cross-section (whose torsional compliance is high) under axial loads.
 - Three-dimensional aerodynamic effects in wings are not modeled directly (such as in panel methods), but rather only through a specified distribution function.
 
 ## Related packages
-[GXBeam](https://github.com/byuflowlab/GXBeam.jl) is a similar package for solving problems in beam structures. It also makes use of Hodges' equations for Timoshenko beams, though modified to include structural damping. It can also compute the sectional properties (stiffness and inertia matrices) and recover the cross-sectional strains and stresses for arbitrary (geometry- and material-wise) cross sections.
+[GXBeam](https://github.com/byuflowlab/GXBeam.jl) is a similar package for solving problems in beam structures. It also makes use of Hodges' equations for Timoshenko beams. It can also compute the sectional properties (stiffness and inertia matrices) and recover the cross-sectional strains and stresses for arbitrary (geometry- and material-wise) cross sections.
 
 [BeamDyn](https://github.com/old-NWTC/BeamDyn) is a module of the [OpenFAST](https://github.com/OpenFAST/openfast) wind turbine simulation tool. It also employs a geometrically exact beam theory, though it uses Legendre spectral finite elements for faster grid convergence, specially when dealing with varying properties along the beam arclength.
 
