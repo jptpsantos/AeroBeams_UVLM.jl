@@ -1,15 +1,15 @@
 # Runs the calculation part (up to "## Plots") of a flutter or static script of the Pazy wing with beam rod, with the variant of the aerodynamic model selected by environment variables (see variants.jl), and prints the errors relative to the experiments:
 #   julia -t 1 --project=<AeroBeams> runVariant.jl <script> <tag>
-# <script>: s0 (S0/BeamRod/PazyWingBeamRodHumpFlutterRegion.jl), s10 (S10/BeamRod/S10PazyBeamRodFlutterOnsetPitchRange.jl), s20 (S20/BeamRod/S20PazyBeamRodFlutterOnsetPitchRange.jl) or s0static (S0/BeamRod/PazyWingBeamRodPitchRange.jl). The raw metrics of the run are saved in outputs/<script>_<tag>.txt
+# <script>: s0 (S0/BeamRod/S0BeamRodHumpFlutterRegion.jl), s10 (S10/BeamRod/S10BeamRodFlutterOnsetPitchRange.jl), s20 (S20/BeamRod/S20BeamRodFlutterOnsetPitchRange.jl) or s0static (S0/BeamRod/S0BeamRodPitchRange.jl). The raw metrics of the run are saved in outputs/<script>_<tag>.txt
 # Example (airfoil of the data of Timmer with the tangent lift slope in the eigenproblem): AF=timmerfull TLMODE=swap julia -t 1 --project=. dev/Pazy/General/aeroCenterStudy/runVariant.jl s10 timmer_swap
 using Printf, DelimitedFiles
 using AeroBeams
 
 const SCRIPTS = Dict(
-    "s0"       => "dev/Pazy/S0/BeamRod/PazyWingBeamRodHumpFlutterRegion.jl",
-    "s10"      => "dev/Pazy/S10/BeamRod/S10PazyBeamRodFlutterOnsetPitchRange.jl",
-    "s20"      => "dev/Pazy/S20/BeamRod/S20PazyBeamRodFlutterOnsetPitchRange.jl",
-    "s0static" => "dev/Pazy/S0/BeamRod/PazyWingBeamRodPitchRange.jl",
+    "s0"       => "dev/Pazy/S0/BeamRod/S0BeamRodHumpFlutterRegion.jl",
+    "s10"      => "dev/Pazy/S10/BeamRod/S10BeamRodFlutterOnsetPitchRange.jl",
+    "s20"      => "dev/Pazy/S20/BeamRod/S20BeamRodFlutterOnsetPitchRange.jl",
+    "s0static" => "dev/Pazy/S0/BeamRod/S0BeamRodPitchRange.jl",
 )
 key, tag = ARGS[1], ARGS[2]
 OVERRIDES = Pair{String,String}[]
