@@ -18,7 +18,7 @@ Let's begin by setting the variables of our problem. In this example we will ana
 using AeroBeams
 
 # Fixed geometrical properties
-nElem,L,chord,normSparPos,_ = geometrical_properties_Pazy()
+nElem,L,chord,referenceAxis,_ = geometrical_properties_Pazy()
 
 # Set tip mass range
 mRange = collect(0:0.1:3)
@@ -37,14 +37,14 @@ In the following loop, we create new model instances for each tip mass value, cr
 # Sweep tip mass
 for (i,m) in enumerate(mRange)
     # Create model with current tip mass 80 mm behind the trailing-edge
-    PazyWingTorsionTest,_ = create_Pazy(tipMasses=[m],ηtipMasses=[[0;-(chord*(1-normSparPos)+0.08);0]],tipMassesInertias=[zeros(3,3)])
+    PazyWingTorsionTest,_ = create_Pazy(upright=false,tipMasses=[m],ηtipMasses=[[0;-(chord*(1-referenceAxis)+0.08);0]],tipMassesInertias=[zeros(3,3)])
     # Create and solve problem
     problem[i] = create_SteadyProblem(model=PazyWingTorsionTest)
     solve!(problem[i])
     # Get twist and OOP displacement at midchord
     tipNodeFinalState = problem[i].loadstepHistory.states[end][nElem].nodal
     tip_twist[i] = twist_angle(tipNodeFinalState.p2_b)
-    tip_OOP[i] = tipNodeFinalState.u2[3] - chord*(1/2-normSparPos)*sind(tip_twist[i])
+    tip_OOP[i] = tipNodeFinalState.u2[3] - chord*(1/2-referenceAxis)*sind(tip_twist[i])
 end
 nothing #hide
 ````

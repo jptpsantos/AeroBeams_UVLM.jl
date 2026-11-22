@@ -24,9 +24,6 @@ aeroSolver = Indicial()
 # Airfoil section
 airfoil = deepcopy(NACA0018)
 
-# Flag for upright position
-upright = true
-
 # Mesh (defines number of elements)
 mesh = :nominal
 
@@ -34,11 +31,11 @@ mesh = :nominal
 useAePW3Matrices = false
 
 # Fixed geometrical and discretization properties
-nElem,L,chord,normSparPos,nodalPositions = geometrical_properties_Pazy(; mesh=mesh, useAePW3Matrices=useAePW3Matrices)
+nElem,L,chord,referenceAxis,nodalPositions = geometrical_properties_Pazy(; mesh=mesh, useAePW3Matrices=useAePW3Matrices)
 
 # Tip mass (for test 1, 0.01 kg, 40 mm behind the trailing-edge)
 tipMass = 0.01
-ηtipMass = [0; -chord*(1-normSparPos)-0.04; 0]
+ηtipMass = [0; -chord*(1-referenceAxis)-0.04; 0]
 
 # Strain gauge coordinates (the spar cs is 60 x 2.25 mm)
 SGelem = 3          # element number where the strain gauge is located (see Fig. 12 of https://doi.org/10.2514/1.J060621: FBG^1_3 is @ 127 mm spanwise, but wing root is at 32 mm -> actual spanwise position is 127 - 32 = 95 mm which is at the midpoint of element 3)
@@ -70,7 +67,7 @@ for (i,θ) in enumerate(θRange)
     # Sweep airspeed
     for (j,U) in enumerate(URange)
         # Update model
-        PazyWingPitchRange,_ = create_Pazy(aeroSolver=aeroSolver,airfoil=airfoil,upright=upright,pitchAngle=θ,airspeed=U,tipMasses=[tipMass],ηtipMasses=[ηtipMass],tipMassesInertias=[zeros(3,3)],mesh=mesh,useAePW3Matrices=useAePW3Matrices)
+        PazyWingPitchRange,_ = create_Pazy(aeroSolver=aeroSolver,airfoil=airfoil,pitchAngle=θ,airspeed=U,tipMasses=[tipMass],ηtipMasses=[ηtipMass],tipMassesInertias=[zeros(3,3)],mesh=mesh,useAePW3Matrices=useAePW3Matrices)
         # Create and solve problem
         problem[i,j] = create_SteadyProblem(model=PazyWingPitchRange,x0=x0)
         solve!(problem[i,j])
