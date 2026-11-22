@@ -6,12 +6,6 @@ refIDs = [5209]
 # Angle of sweep [rad]
 Λ = deg2rad(10)
 
-# Flag for ad hoc correction of torsional inertia of wingtip rod
-sweptTipMassInertiaCorrection = true
-
-# Tip correction function type
-tipLossType = "VLM-def"
-
 # Flag to smooth airspeed signal and corresponding moving average window
 smoothAirspeedSignal = true
 smoothingWindow = Int(2e3)
@@ -24,9 +18,6 @@ mesh = :nominal
 
 # Aerodynamic solver
 aeroSolver = BLi()
-
-# Airfoil section
-airfoil = deepcopy(NACA0018)
 
 # Structural damping coefficients for the wing
 μWing = 0
@@ -74,7 +65,7 @@ for (i,refID) in enumerate(refIDs)
     println("ID $refID configuration: Λ=$(round(Int, rad2deg(Λ))) deg, θ=$(θ) deg, $(data["tip_weight_config"]),")
     println("Runtime of $(round(t_exp[end]-t_exp[1],digits=1)) s, airspeed ranging from $(round(minimum(U_exp),digits=1)) to $(round(maximum(U_exp),digits=1)) m/s")
     # Geometric properties
-    nElem,L,chord,normSparPos,nodalPositions = geometrical_properties_Pazy(Λ=Λ,mesh=mesh)
+    nElem,L,chord,referenceAxis,nodalPositions = geometrical_properties_Pazy(Λ=Λ,mesh=mesh)
     # Smooth airspeed signal, if applicable
     U_exp = smoothAirspeedSignal ? moving_average(U_exp,smoothingWindow) : U_exp
     # Airspeed profile (interpolate linearly between experimental time steps, constant outside)
@@ -82,7 +73,7 @@ for (i,refID) in enumerate(refIDs)
     # Find flutter speed of configuration
     URangeFlutter = collect(0.5:0.5:100)
     nModes = 3
-    eigenModel,_ = create_Pazy(aeroSolver=aeroSolver,mesh=mesh,airfoil=airfoil,upright=true,sweepAngle=Λ,pitchAngle=deg2rad(θ),hasTipCorrection=true,tipLossType=tipLossType,sweptTipMassConfig=tipMassConfig,sweptTipMassInertiaCorrection=sweptTipMassInertiaCorrection,μWing=μWing)
+    eigenModel,_ = create_Pazy(aeroSolver=aeroSolver,mesh=mesh,sweepAngle=Λ,pitchAngle=deg2rad(θ),tipMassConfig=tipMassConfig,tipRodInertiaCorrection=true,μWing=μWing)
     eigensols = Array{EigenSolution}(undef,length(URangeFlutter))
     x0 = zeros(0)
     for (j,U) in enumerate(URangeFlutter)
@@ -127,12 +118,12 @@ for (i,refID) in enumerate(refIDs)
     plt_Vgf = plot(plt_Vf,plt_Vg, layout=(2,1))
     display(plt_Vgf)
     # Model for steady problem
-    steadyModel,_ = create_Pazy(aeroSolver=aeroSolver,mesh=mesh,airfoil=airfoil,upright=true,sweepAngle=Λ,pitchAngle=deg2rad(θ),airspeed=U_exp[1],hasTipCorrection=true,tipLossType=tipLossType,sweptTipMassConfig=tipMassConfig,sweptTipMassInertiaCorrection=sweptTipMassInertiaCorrection,μWing=μWing)
+    steadyModel,_ = create_Pazy(aeroSolver=aeroSolver,mesh=mesh,sweepAngle=Λ,pitchAngle=deg2rad(θ),airspeed=U_exp[1],tipMassConfig=tipMassConfig,tipRodInertiaCorrection=true,μWing=μWing)
     # Create and solve steady problem for initial airspeed
     steadyProblem = create_SteadyProblem(model=steadyModel)
     solve!(steadyProblem)
     # Model for dynamic problem
-    dynamicModel,_ = create_Pazy(aeroSolver=aeroSolver,mesh=mesh,airfoil=airfoil,upright=true,sweepAngle=Λ,pitchAngle=deg2rad(θ),airspeed=Uprofile[i],hasTipCorrection=true,tipLossType=tipLossType,tipLossFunctionIsAirspeedDependent=true,sweptTipMassConfig=tipMassConfig,sweptTipMassInertiaCorrection=sweptTipMassInertiaCorrection,μWing=μWing)
+    dynamicModel,_ = create_Pazy(aeroSolver=aeroSolver,mesh=mesh,sweepAngle=Λ,pitchAngle=deg2rad(θ),airspeed=Uprofile[i],tipLossFunctionIsAirspeedDependent=true,tipMassConfig=tipMassConfig,tipRodInertiaCorrection=true,μWing=μWing)
     # Create and solve dynamic problem
     dynamicProblem[i] = create_DynamicProblem(model=dynamicModel,integrationMethod=integrationMethod,initialTime=t_exp[1],finalTime=t_exp[end],Δt=Δt,systemSolver=systemSolver,x0=steadyProblem.systemArrays.x,trackingFrequency=trackingFrequency)
     solve!(dynamicProblem[i])
@@ -184,7 +175,7 @@ end
 # Sweep IDs
 for (i,refID) in enumerate(refIDs)
     # Case ID
-    idString = string("ID", refID, "_", tipLossType, "_", aeroSolver.name)
+    idString = "ID_" * string(refID) * "_" * string(mesh) * "mesh_" * aeroSolver.name * "_μWing" * string(μWing) * "_ρGenα" * string(ρGenα)
     # Load reference data (https://zenodo.org/communities/technion_ae_lab/records?q=&l=list&p=1&s=10)
     data = load(pkgdir(AeroBeams)*"/test/referenceData/sweptPazyS10/ID_"*string(refID)*".jld2")
     Λ = deg2rad(10)

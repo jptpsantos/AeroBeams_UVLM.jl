@@ -19,13 +19,7 @@ URangeFlutter = collect(0.5:0.5:90)
 flexibleWingtipRod = true
 
 # Flag for ad hoc correction of torsional inertia of wingtip rod
-sweptTipMassInertiaCorrection = flexibleWingtipRod
-
-# Flag for tip correction
-hasTipCorrection = true
-
-# Tip correction function type
-tipLossType = "VLM-def"
+tipRodInertiaCorrection = flexibleWingtipRod
 
 # Flag to update tip correction with airspeed
 tipLossFunctionIsAirspeedDependent = true
@@ -33,14 +27,8 @@ tipLossFunctionIsAirspeedDependent = true
 # Aerodynamic solver
 aeroSolver = BLi()
 
-# Airfoil section
-airfoil = deepcopy(NACA0018)
-
-# Flag for upright position
-upright = true
-
 # Geometric properties
-nElem,L,chord,normSparPos,nodalPositions = geometrical_properties_Pazy(Λ=Λ)
+nElem,L,chord,referenceAxis,nodalPositions = geometrical_properties_Pazy(Λ=Λ)
 
 # Tip mass configuration
 tipMassConfig = :LE
@@ -63,7 +51,7 @@ systemSolver = aeroSolver isa DynamicStallSolver ?
                create_NLsolver(method=:newton,linesearch=false,displayStatus=false)
 
 # Case ID
-idString = string(tipMassConfig, "_Theta", round(rad2deg(θ),digits=1), "_", tipLossType, "_", aeroSolver.name)
+idString = string(tipMassConfig, "_Theta", round(rad2deg(θ),digits=1), "_", aeroSolver.name)
 
 # Set paths
 relPath = "/dev/Pazy/S10/InertiaRod/outputs/S10PazyAirspeedSteps"
@@ -82,7 +70,7 @@ if solveFlutter
     epsSG_f = Array{Float64}(undef,length(URangeFlutter))
 
     # Initialize model
-    flutterModel,_ = create_Pazy(aeroSolver=aeroSolver,airfoil=airfoil,upright=upright,sweepAngle=Λ,pitchAngle=θ,hasTipCorrection=hasTipCorrection,tipLossType=tipLossType,sweptTipMassConfig=tipMassConfig,sweptTipMassInertiaCorrection=sweptTipMassInertiaCorrection)
+    flutterModel,_ = create_Pazy(aeroSolver=aeroSolver,sweepAngle=Λ,pitchAngle=θ,tipMassConfig=tipMassConfig,tipRodInertiaCorrection=tipRodInertiaCorrection)
 
     # Sweep airspeed
     for (j,U) in enumerate(URangeFlutter)
@@ -178,7 +166,7 @@ trackingFrequency = clamp(round(Int,1e-3/Δt), 1, 10)
 println("Solving initial steady problem")
 
 # Create and solve steady problem for initial airspeed
-steadyModel,_ = create_Pazy(aeroSolver=aeroSolver,airfoil=airfoil,upright=upright,sweepAngle=Λ,pitchAngle=θ,airspeed=URangeDyn[1],hasTipCorrection=hasTipCorrection,tipLossType=tipLossType,tipLossFunctionIsAirspeedDependent=tipLossFunctionIsAirspeedDependent,sweptTipMassConfig=tipMassConfig,sweptTipMassInertiaCorrection=sweptTipMassInertiaCorrection)
+steadyModel,_ = create_Pazy(aeroSolver=aeroSolver,sweepAngle=Λ,pitchAngle=θ,airspeed=URangeDyn[1],tipLossFunctionIsAirspeedDependent=tipLossFunctionIsAirspeedDependent,tipMassConfig=tipMassConfig,tipRodInertiaCorrection=tipRodInertiaCorrection)
 steadyProblem = create_SteadyProblem(model=steadyModel)
 solve!(steadyProblem)
 
@@ -209,7 +197,7 @@ for (j,U) in enumerate(URangeDyn[1:end-1])
     # Set airspeed profile
     airspeed = t -> ifelse(t<=initialTime[j]+τ₀Range[j], U, ifelse(t>=initialTime[j]+τ₀Range[j]+τ₁Range[j], URangeDyn[j+1], U + (URangeDyn[j+1]-U)*(t-τ₀Range[j]-initialTime[j])/τ₁Range[j]))
     # Model
-    dynModel,_ = create_Pazy(aeroSolver=aeroSolver,airfoil=airfoil,upright=upright,sweepAngle=Λ,hasTipCorrection=hasTipCorrection,tipLossType=tipLossType,pitchAngle=θ,airspeed=airspeed,tipLossFunctionIsAirspeedDependent=tipLossFunctionIsAirspeedDependent,sweptTipMassConfig=tipMassConfig,sweptTipMassInertiaCorrection=sweptTipMassInertiaCorrection)
+    dynModel,_ = create_Pazy(aeroSolver=aeroSolver,sweepAngle=Λ,pitchAngle=θ,airspeed=airspeed,tipLossFunctionIsAirspeedDependent=tipLossFunctionIsAirspeedDependent,tipMassConfig=tipMassConfig,tipRodInertiaCorrection=tipRodInertiaCorrection)
     # Reference dynamic problem
     refDynamicProblem = j==1 ? nothing : dynamicProblem[j-1]
     # Create and solve dynamic problem
@@ -237,7 +225,7 @@ tipOOPAll = vcat(tipOOP...)
 epsSGAll = vcat(epsSG...)
 
 # Set case ID for dynamic plots
-idString = URangeDyn[end] > URangeDyn[1] ? string(tipMassConfig, "_Theta", round(rad2deg(θ),digits=1), "_", tipLossType, "_", aeroSolver.name, "_upsteps") : string(tipMassConfig, "_Theta", round(rad2deg(θ),digits=1), "_", tipLossType, "_", aeroSolver.name, "_downsteps")
+idString = URangeDyn[end] > URangeDyn[1] ? string(tipMassConfig, "_Theta", round(rad2deg(θ),digits=1), "_", aeroSolver.name, "_upsteps") : string(tipMassConfig, "_Theta", round(rad2deg(θ),digits=1), "_", aeroSolver.name, "_downsteps")
 
 ## Plots
 # Plot configurations

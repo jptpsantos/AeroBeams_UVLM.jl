@@ -7,7 +7,7 @@ using AeroBeams
 tipMassConfigs = [:LE, :TE]
 
 # Mesh
-mesh = :nominal
+mesh = :refined
 
 # Number of elements of the wingtip rod beam
 nElementsWingtipRod = 12
@@ -18,17 +18,11 @@ nElementsWingtipRod = 12
 # Airspeed range [m/s]
 URange = collect(35:1:85)
 
-# Tip correction function type
-tipLossType = "VLM-def"
-
 # Aerodynamic solver
 aeroSolver = Indicial()
 
-# Airfoil section
-airfoil = deepcopy(NACA0018)
-
 # Geometric properties
-nElem,L,chord,normSparPos,nodalPositions = geometrical_properties_Pazy(Λ=Λ,mesh=mesh)
+nElem,L,chord,referenceAxis,nodalPositions = geometrical_properties_Pazy(Λ=Λ,mesh=mesh)
 
 # Number of modes to track
 nModes = 3
@@ -57,7 +51,7 @@ for (c,config) in enumerate(tipMassConfigs)
             # Display progress
             println("Solving for tip mass at $config, θ = $(round(rad2deg(θ),digits=1)) deg, U = $U m/s")
             # Model
-            model,_ = create_Pazy(aeroSolver=aeroSolver,mesh=mesh,airfoil=airfoil,upright=true,hasTipCorrection=true,tipLossType=tipLossType,sweepAngle=Λ,pitchAngle=θ,airspeed=U,sweptTipMassConfig=config,beamWingtipRod=true,nElementsWingtipRod=nElementsWingtipRod)
+            model,_ = create_Pazy(aeroSolver=aeroSolver,mesh=mesh,sweepAngle=Λ,pitchAngle=θ,airspeed=U,tipMassConfig=config,beamWingtipRod=true,nElementsWingtipRod=nElementsWingtipRod)
             # Create and solve problem
             problem = create_EigenProblem(model=model,eigenmethod=eigenmethod,nev=nev,x0=x0)
             solve!(problem)

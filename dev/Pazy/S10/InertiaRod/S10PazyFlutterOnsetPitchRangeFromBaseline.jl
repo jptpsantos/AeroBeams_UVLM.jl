@@ -4,13 +4,13 @@ using AeroBeams
 Λ = deg2rad(10)
 
 # Flag for ad hoc correction of torsional inertia of wingtip rod
-sweptTipMassInertiaCorrection = true
+tipRodInertiaCorrection = true
 
 # Mesh
 mesh = :nominal
 
 # Tip mass configurations: baseline model + point masses removed from the LE/TE beam mass models
-tipMasses, ηtipMasses, tipMassesInertias, tipMassesElementIDs = get_sweptPazy_tip_inertias_from_baseline(; Λ=Λ, mesh=mesh, configs=(:LE, :TE), withFPSMass=true, withAdapterMass=true, withCalibrationMass=true, sweptTipMassInertiaCorrection=sweptTipMassInertiaCorrection)
+tipMasses, ηtipMasses, tipMassesInertias, tipMassesElementIDs = get_sweptPazy_tip_inertias_from_baseline(; Λ=Λ, mesh=mesh, configs=(:LE, :TE), withFPSMass=true, withAdapterMass=true, withCalibrationMass=true, tipRodInertiaCorrection=tipRodInertiaCorrection)
 
 # Root pitch angle range [rad]
 θRange = deg2rad.([0,1,3,5,7,8.5,10])
@@ -18,20 +18,8 @@ tipMasses, ηtipMasses, tipMassesInertias, tipMassesElementIDs = get_sweptPazy_t
 # Airspeed range [m/s]
 URange = collect(30:1:90)
 
-# Flag for tip correction
-hasTipCorrection = true
-
-# Tip correction function type
-tipLossType = "VLM-def"
-
 # Aerodynamic solver
 aeroSolver = Indicial()
-
-# Airfoil section
-airfoil = deepcopy(NACA0018)
-
-# Flag for upright position
-upright = true
 
 # Number of modes to track
 nModes = 3
@@ -41,7 +29,7 @@ eigenmethod = :krylovkit
 nev = 50
 
 # Geometric properties
-nElem,L,chord,normSparPos,nodalPositions = geometrical_properties_Pazy(Λ=Λ)
+nElem,L,chord,referenceAxis,nodalPositions = geometrical_properties_Pazy(Λ=Λ)
 
 # Initialize outputs
 eigensols = Array{EigenSolution}(undef,length(tipMasses),length(θRange),length(URange))
@@ -63,7 +51,7 @@ for (c,m,η,I,elementIDs) in zip(1:length(tipMasses), tipMasses, ηtipMasses, ti
             # Display progress
             println("Solving for configuration $c, θ = $(round(rad2deg(θ),digits=1)) deg, U = $U m/s")
             # Model
-            model,_ = create_Pazy(aeroSolver=aeroSolver,mesh=mesh,airfoil=airfoil,upright=upright,hasTipCorrection=hasTipCorrection,tipLossType=tipLossType,sweepAngle=Λ,pitchAngle=θ,airspeed=U,sweptTipMassConfig=:baseline,tipMasses=m,ηtipMasses=η,tipMassesInertias=I,tipMassesElementIDs=elementIDs)
+            model,_ = create_Pazy(aeroSolver=aeroSolver,mesh=mesh,sweepAngle=Λ,pitchAngle=θ,airspeed=U,tipMassConfig=:baseline,tipMasses=m,ηtipMasses=η,tipMassesInertias=I,tipMassesElementIDs=elementIDs)
             # Create and solve problem
             problem = create_EigenProblem(model=model,eigenmethod=eigenmethod,nev=nev,x0=x0)
             solve!(problem)

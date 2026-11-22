@@ -37,7 +37,7 @@ rodShapesNastran = Dict(config => readdlm(joinpath(referenceDir,"S10_$(config)_m
 nNastranModes = length(modalFreqsNastran[configs[1]])
 
 # Chord of the wing and normalized position of the reference axis
-_,_,chord,normSparPos,_ = geometrical_properties_Pazy(Λ=Λ)
+_,_,chord,referenceAxis,_ = geometrical_properties_Pazy(Λ=Λ)
 
 # Linear interpolation of the data `ys` at the increasing points `xs`, evaluated at `x` (constant beyond the ends)
 function interpolate_data(x,xs,ys)
@@ -74,7 +74,7 @@ end
 
 # Modes of the beam model of the configuration and mesh with the rod `rod`, paired with those of Nastran: frequency [Hz] and MAC of the beam mode paired with each Nastran mode (NaN and zero when it is not paired)
 function paired_modes(config,mesh,rod)
-    model,nElemWing,_ = create_Pazy(aeroSolver=QuasiSteady(),sweepAngle=Λ,sweptTipMassConfig=config,mesh=mesh,beamWingtipRod=true,nElementsWingtipRod=nElementsWingtipRod,wingtipRodData=rod,gravityVector=zeros(3))
+    model,nElemWing,_ = create_Pazy(aeroSolver=QuasiSteady(),sweepAngle=Λ,tipMassConfig=config,mesh=mesh,beamWingtipRod=true,nElementsWingtipRod=nElementsWingtipRod,wingtipRodData=rod,gravityVector=zeros(3))
     problem = create_EigenProblem(model=model,eigenmethod=:krylovkit,nev=nev)
     solve!(problem)
     modeShapes = sort(filter(m -> m.frequency > 0, problem.eigensolution.modeShapes), by=m -> m.frequency)[1:nModes]
@@ -83,7 +83,7 @@ function paired_modes(config,mesh,rod)
     wingElements = 1:nElemWing
     rodElements = (nElemWing + 2 + (config == :LE ? 2 : 0)):(model.assemblyData.nElementsTotal - (config == :TE ? 2 : 0))
     # Translations (in basis A) of the leading and trailing edge points of the wing and of the rod at the sampling points, for the beam and for the Nastran modes
-    beam_vector(m) = vcat([vcat([m.state[e].midpoint.u + cross(m.state[e].midpoint.p,[0,η,0]) for η in (normSparPos*chord, (normSparPos-1)*chord)]...) for e in wingElements]..., [m.state[e].midpoint.u for e in rodElements]...)
+    beam_vector(m) = vcat([vcat([m.state[e].midpoint.u + cross(m.state[e].midpoint.p,[0,η,0]) for η in (referenceAxis*chord, (referenceAxis-1)*chord)]...) for e in wingElements]..., [m.state[e].midpoint.u for e in rodElements]...)
     function nastran_vector(mode)
         wing = wingShapesNastran[config][wingShapesNastran[config][:,1] .== mode, :]
         rodShape = rodShapesNastran[config][rodShapesNastran[config][:,1] .== mode, :]
@@ -93,7 +93,7 @@ function paired_modes(config,mesh,rod)
             append!(v, toBasisA([interpolate_data(midpoints[e][1],wing[:,2],wing[:,c]) for c in columns]))
         end
         for e in rodElements
-            x = normSparPos*chord - midpoints[e][2] - tan(Λ)*midpoints[e][1]
+            x = referenceAxis*chord - midpoints[e][2] - tan(Λ)*midpoints[e][1]
             append!(v, toBasisA([interpolate_data(x,rodShape[:,2],rodShape[:,c]) for c in 3:5]))
         end
         return v

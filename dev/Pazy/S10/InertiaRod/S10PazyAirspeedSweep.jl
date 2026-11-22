@@ -22,13 +22,7 @@ URange = collect(0.5:0.5:90)
 Λ = deg2rad(10)
 
 # Flag for ad hoc correction of torsional inertia of wingtip rod
-sweptTipMassInertiaCorrection = true
-
-# Flag for tip correction
-hasTipCorrection = true
-
-# Tip correction function type
-tipLossType = "VLM-def"
+tipRodInertiaCorrection = true
 
 # Flag to update tip correction with airspeed
 tipLossFunctionIsAirspeedDependent = true
@@ -36,14 +30,8 @@ tipLossFunctionIsAirspeedDependent = true
 # Aerodynamic solver
 aeroSolver = BLi()
 
-# Airfoil section
-airfoil = deepcopy(NACA0018)
-
-# Flag for upright position
-upright = true
-
 # Geometric properties
-nElem,L,chord,normSparPos,nodalPositions = geometrical_properties_Pazy(Λ=Λ)
+nElem,L,chord,referenceAxis,nodalPositions = geometrical_properties_Pazy(Λ=Λ)
 
 # Tip mass configuration
 tipMassConfig = :LE
@@ -71,7 +59,7 @@ x2SG = 50e-3/2      # chordwise position: close to LE
 x3SG = 2.25e-3/2    # height: on top
 
 # Case ID
-idString = string(tipMassConfig, "_Theta", round(rad2deg(θ),digits=1), "_Umax", Umax, "_", tipLossType, "_", aeroSolver.name)
+idString = string(tipMassConfig, "_Theta", round(rad2deg(θ),digits=1), "_Umax", Umax, "_", aeroSolver.name)
 
 # Set paths
 relPath = "/dev/Pazy/S10/InertiaRod/outputs/S10PazyAirspeedSweep"
@@ -91,7 +79,7 @@ if solveFlutter
     epsSG_f = Array{Float64}(undef,length(URange))
 
     # Initialize model
-    flutterModel,_ = create_Pazy(aeroSolver=aeroSolver,airfoil=airfoil,upright=upright,sweepAngle=Λ,pitchAngle=θ,hasTipCorrection=hasTipCorrection,tipLossType=tipLossType,sweptTipMassConfig=tipMassConfig,sweptTipMassInertiaCorrection=sweptTipMassInertiaCorrection)
+    flutterModel,_ = create_Pazy(aeroSolver=aeroSolver,sweepAngle=Λ,pitchAngle=θ,tipMassConfig=tipMassConfig,tipRodInertiaCorrection=tipRodInertiaCorrection)
 
     # Sweep airspeed
     for (j,U) in enumerate(URange)
@@ -169,7 +157,7 @@ end
 println("Solving dynamic problem")
 
 # Model
-dynModel,_ = create_Pazy(aeroSolver=aeroSolver,airfoil=airfoil,upright=upright,sweepAngle=Λ,pitchAngle=θ,airspeed=U,hasTipCorrection=hasTipCorrection,tipLossType=tipLossType,tipLossFunctionIsAirspeedDependent=tipLossFunctionIsAirspeedDependent,sweptTipMassConfig=tipMassConfig,sweptTipMassInertiaCorrection=sweptTipMassInertiaCorrection)
+dynModel,_ = create_Pazy(aeroSolver=aeroSolver,sweepAngle=Λ,pitchAngle=θ,airspeed=U,tipLossFunctionIsAirspeedDependent=tipLossFunctionIsAirspeedDependent,tipMassConfig=tipMassConfig,tipRodInertiaCorrection=tipRodInertiaCorrection)
 
 # Create and solve steady problem for initial airspeed
 steadyProblem = create_SteadyProblem(model=dynModel)
