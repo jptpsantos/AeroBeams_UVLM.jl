@@ -1,0 +1,4 @@
+# dev/Pazy/S10/BeamRod/S10PazyBeamRodFlutterOnsetPitchRange.jl [n_sec]: AF=script, FWL=default, TLMODE=sec, XS=false, WS=1.0, WN=false (139.5 s)
+S10 LE: flutter speed error [m/s] at θ [deg]: 0:+3.7 1:+3.5 3:+1.3 5:-0.4 7:-1.1 10:-0.4 | mean +1.08 | frequency error [Hz]: 0:+0.7 1:+1.0 3:+0.4 5:+0.5 7:+0.2 10:-0.1
+S10 TE: flutter speed error [m/s] at θ [deg]: 0:+0.2 1:-0.8 3:-1.6 5:-1.5 7:-1.6 | mean -1.04 | frequency error [Hz]: 0:-1.2 1:-0.9 3:-0.7 5:-0.2 7:-0.5
+mean absolute error of the flutter speeds: 1.46 m/s

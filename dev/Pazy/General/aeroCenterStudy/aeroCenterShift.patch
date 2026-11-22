@@ -1,0 +1,68 @@
+--- a/src/AeroProperties.jl
++++ b/src/AeroProperties.jl
+@@ -1131,7 +1131,7 @@
+     # The tip loss function at the last airspeed is cached, because it is expensive to build and the airspeed is the same over many calls
+     f0 = tipLossFunction(0.0)
+     cache = Ref((0.0, f0))
+-    return (U,ζ) -> begin
++    ϖfun = (U,ζ) -> begin
+         Ulast,f = cache[]
+         if U != Ulast
+             fNew = tipLossFunction(U)
+\ No newline at end of file
+@@ -1140,10 +1140,38 @@
+             f = fNew
+         end
+         f(s(ζ))
++    end
++    if f0 isa TipLossWithShift
++        Δfun = (U,ζ) -> begin
++            Ulast,f = cache[]
++            if U != Ulast
++                fNew = tipLossFunction(U)
++                fNew isa typeof(f0) || return fNew.d(s(ζ))
++                cache[] = (U, fNew)
++                f = fNew
++            end
++            f.d(s(ζ))
++        end
++        return VarpiXac(ϖfun, Δfun)
+     end
++    return ϖfun
+ end
+ 
++# PROTOTYPE: tip loss function accompanied by a spanwise shift of the aerodynamic center
++struct TipLossWithShift{W,D}
++    w::W
++    d::D
++end
++(t::TipLossWithShift)(s) = t.w(s)
++struct VarpiXac{F,G} <: Function
++    ϖ::F
++    Δ::G
++end
++(v::VarpiXac)(U,ζ) = v.ϖ(U,ζ)
++xshift(ϖ,U,ζ) = 0.0
++xshift(v::VarpiXac,U,ζ) = v.Δ(U,ζ)
+ 
++
+ # Computes the initial value of χ (for zero relative airspeed)
+ function initial_χ(N,surface)
+ 
+\ No newline at end of file
+--- a/src/Aerodynamics.jl
++++ b/src/Aerodynamics.jl
+@@ -2087,10 +2087,11 @@
+ # Aerodynamic loads per unit length, as a function of the local element coordinate (ζ)
+ @inline function aero_load_at_ζ(ζ, fac, ϖ, Uref, ϖMid, cosΛ², csecΛ, ct, cn, cm, ctNC, cnNC, cmNC)
+     k = ϖ(Uref, ζ) / ϖMid * cosΛ²
++    Δ = xshift(ϖ, Uref, ζ)
+     return fac * SVector(
+         k*(ct-ctNC) + ctNC,
+         k*(cn-cnNC) + cnNC,
+-        csecΛ*(k*(cm-cmNC) + cmNC)
++        csecΛ*(k*(cm-cmNC-(cn-cnNC)*Δ) + cmNC)
+     )
+ end
+ 
+\ No newline at end of file

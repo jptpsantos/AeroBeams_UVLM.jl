@@ -38,7 +38,7 @@ freqs = [[rads2Hz.(imag(λ)) for λ in eigensols[i].λ if imag(λ) > 0][1:nModes
 
 # Chord of the wing (along the chordwise direction of the Nastran frame) and normalized position of the reference axis (shear center)
 chord = AeroBeams.chord_PazyDelft
-normSparPos = AeroBeams.shear_center_PazyDelft
+referenceAxis = AeroBeams.shear_center_PazyDelft
 
 # Classify the modes by their dominant displacement component, in the order of frequency. Wing modes: axial (A), in-plane bending (IP), out-of-plane bending (OOP) or torsion (T), the latter with the rotation weighted by half of the chord. Rod modes (R): those in which the energy of the wing (the same displacement components, summed over its elements) is less than a fraction `rodModeRatio` of that of the rod (summed over its elements), as the rod follows the motion of the tip of the wing in the wing modes, but with a larger energy
 rodModeRatio = 0.07
@@ -86,7 +86,7 @@ function beam_mode_vector(modeShape,wingElements,rodElements)
     for e in wingElements
         u = modeShape.state[e].midpoint.u
         p = modeShape.state[e].midpoint.p
-        for η in (normSparPos*chord, (normSparPos-1)*chord) # position of the leading and trailing edges along a2, from the reference axis (in the section of the Nastran frame, at constant y)
+        for η in (referenceAxis*chord, (referenceAxis-1)*chord) # position of the leading and trailing edges along a2, from the reference axis (in the section of the Nastran frame, at constant y)
             append!(v, u + cross(p,[0,η,0]))
         end
     end
@@ -106,7 +106,7 @@ function nastran_mode_vector(mode,midpoints,wingElements,rodElements)
         append!(v, toBasisA([interpolate_data(midpoints[e][1],wing[:,2],wing[:,c]) for c in columns]))
     end
     for e in rodElements
-        x = normSparPos*chord - midpoints[e][2] # chordwise position of the element, from the leading edge of the section at its span position
+        x = referenceAxis*chord - midpoints[e][2] # chordwise position of the element, from the leading edge of the section at its span position
         append!(v, toBasisA([interpolate_data(x,rod[:,2],rod[:,c]) for c in 3:5]))
     end
     return v

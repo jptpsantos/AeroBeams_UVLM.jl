@@ -1,0 +1,12 @@
+# dev/Pazy/S0/BeamRod/PazyWingBeamRodHumpFlutterRegion.jl [n_swap]: AF=script, FWL=default, TLMODE=swap, XS=false, WS=1.0, WN=false (141.2 s)
+θ [deg] | onset  offset | exp. onset up / down | errors (m/s)
+   0.0  |   70.4   97.2 |       -       - |     -     -
+   0.5  |   66.8   80.8 |       -       - |     -     -
+   1.0  |   62.2   74.1 |       -       - |     -     -
+   2.0  |   54.9   63.4 |       -       - |     -     -
+   3.0  |   49.8   56.4 |      49      55 |  +0.8  +1.4
+   4.0  |   46.2   51.4 |       -       - |     -     -
+   5.0  |   43.3   47.5 |      43      48 |  +0.3  -0.5
+   6.0  |   40.9   44.4 |       -       - |     -     -
+   7.0  |   39.0   41.9 |      38       - |  +1.0     -
+mean error lower edge +0.70, upper edge +0.47 m/s
