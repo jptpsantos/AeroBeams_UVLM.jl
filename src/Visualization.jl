@@ -302,7 +302,7 @@ function get_undeformed_airfoil_coords(element::Element)
 
     @unpack x1_n1,x1_n2,R0_n1,R0_n2 = element.geometry
     @unpack r_n1,r_n2 = element.assemblyData
-    @unpack airfoil,c,normSparPos = element.aero.surface.geometry
+    @unpack airfoil,c,referenceAxis = element.aero.surface.geometry
     @unpack Rw⁺ = element.aero.geometry
 
     # Airfoil coordinates, rotated to face forward
@@ -313,7 +313,7 @@ function get_undeformed_airfoil_coords(element::Element)
 
     # Nodal chords and normalized spar positions
     c1,c2 = c isa Real ? (c,c) : (c(x1_n1),c(x1_n2))
-    s1,s2 = normSparPos isa Real ? (normSparPos,normSparPos) : (normSparPos(x1_n1),normSparPos(x1_n2))
+    s1,s2 = referenceAxis isa Real ? (referenceAxis,referenceAxis) : (referenceAxis(x1_n1),referenceAxis(x1_n2))
 
     # Sections offset to the spar, scaled by the chord, rotated to the nodal orientation and translated to the nodal position
     section(R0_n,r_n,c_n,s_n) = (Rw⁺*R0_n)*vcat(zeros(1,N),((Y .- (1-s_n))*c_n)',(Z*c_n)') .+ r_n

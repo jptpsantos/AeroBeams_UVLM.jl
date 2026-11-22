@@ -23,7 +23,7 @@ end
 # - `c`: chord
 # - `Λ`: sweep angle [rad]
 # - `φ`: twist angle [rad]
-# - `normSparPos`: normalized position of the spar (beam reference line) on the chord
+# - `referenceAxis`: normalized position of the beam reference axis on the chord
 # - `normFlapPos`: normalized position of the trailing-edge flap hinge on the chord
 # - `normFlapSpan`: normalized position of the trailing-edge flap along the span (beam arclength)
 # - `flapParameters`: parameters of the trailing-edge flap
@@ -41,7 +41,7 @@ struct AeroSurfaceGeometry
     Λ::Union{<:Function,Float64}
     φ::Union{<:Function,Float64}
 
-    normSparPos::Union{<:Function,Float64}
+    referenceAxis::Union{<:Function,Float64}
     normFlapPos::Union{Nothing,Float64}
     normFlapSpan::Union{Nothing,SVector{2,Float64}}
 
@@ -268,7 +268,7 @@ Aerodynamic surface constructor
 - `c::Union{<:Function,Real}`: chord
 - `Λ::Union{<:Function,Real}`: sweep angle [rad]
 - `φ::Union{<:Function,Real}`: twist angle [rad]
-- `normSparPos::Union{<:Function,Real}`: normalized position of the spar (beam reference line) on the chord
+- `referenceAxis::Union{<:Function,Real}`: normalized position of the reference axis (beam reference line) on the chord
 - `normFlapSpan::Union{Nothing,Vector{<:Real}}`: normalized position of the trailing-edge flap along the span (beam arclength)
 - `normFlapPos::Union{Nothing,Real}`: normalized position of the trailing-edge flap hinge on the chord
 - `δIsTrimVariable::Bool`: flag for trailing-edge deflection being a trim variable
@@ -292,7 +292,7 @@ function create_AeroSurface(;
     c::Union{<:Function,Real},
     Λ::Union{<:Function,Real}=0.0,
     φ::Union{<:Function,Real}=0.0,
-    normSparPos::Union{<:Function,Real},
+    referenceAxis::Union{<:Function,Real},
     normFlapSpan::Union{Nothing,Vector{<:Real}}=nothing,
     normFlapPos::Union{Nothing,Real}=nothing,
     δIsTrimVariable::Bool=false,
@@ -307,7 +307,7 @@ function create_AeroSurface(;
     )
 
     # Validate and set correct types of inputs
-    c,Λ,φ,normSparPos,normFlapSpan,normFlapPos,tipLossDecayFactor,gustSolver = validate_aero_surface(c,Λ,φ,normSparPos,normFlapSpan,normFlapPos,tipLossFunctionIsAirspeedDependent,updateTipLossWithAirspeed,hasTipCorrection,tipLossFunction,δ,δIsTrimVariable,tipLossDecayFactor,ppSolver,gustSolver)
+    c,Λ,φ,referenceAxis,normFlapSpan,normFlapPos,tipLossDecayFactor,gustSolver = validate_aero_surface(c,Λ,φ,referenceAxis,normFlapSpan,normFlapPos,tipLossFunctionIsAirspeedDependent,updateTipLossWithAirspeed,hasTipCorrection,tipLossFunction,δ,δIsTrimVariable,tipLossDecayFactor,ppSolver,gustSolver)
 
     # Get types
     S1 = typeof(ppSolver)
@@ -318,7 +318,7 @@ function create_AeroSurface(;
     solvers = AeroSurfaceSolvers{S1,S2,S3}(ppSolver,flapSolver,gustSolver,derivationMethod)
 
     # Set geometry
-    geometry = aero_surface_geometry(airfoil,c,Λ,φ,normSparPos,normFlapPos,normFlapSpan,updateAirfoilParameters,smallAngles,hasInducedDrag,hasSymmetricCounterpart,ppSolver)
+    geometry = aero_surface_geometry(airfoil,c,Λ,φ,referenceAxis,normFlapPos,normFlapSpan,updateAirfoilParameters,smallAngles,hasInducedDrag,hasSymmetricCounterpart,ppSolver)
 
     # Set tip loss correction data
     tipLoss = AeroSurfaceTipLoss(hasTipCorrection,tipLossFunctionIsAirspeedDependent,updateTipLossWithAirspeed,tipLossFunction,tipLossDecayFactor)
@@ -344,7 +344,7 @@ export create_AeroSurface
 ## PRIVATE API
 # ------------------------------------------------------------------------------
 # Validate the inputs for creating an aerodynamic surface
-function validate_aero_surface(c,Λ,φ,normSparPos,normFlapSpan,normFlapPos,tipLossFunctionIsAirspeedDependent,updateTipLossWithAirspeed,hasTipCorrection,tipLossFunction,δ,δIsTrimVariable,tipLossDecayFactor,ppSolver,gustSolver)
+function validate_aero_surface(c,Λ,φ,referenceAxis,normFlapSpan,normFlapPos,tipLossFunctionIsAirspeedDependent,updateTipLossWithAirspeed,hasTipCorrection,tipLossFunction,δ,δIsTrimVariable,tipLossDecayFactor,ppSolver,gustSolver)
 
     # Validate and set correct types of inputs
     if c isa Real
@@ -359,9 +359,9 @@ function validate_aero_surface(c,Λ,φ,normSparPos,normFlapSpan,normFlapPos,tipL
         @assert -π/4 <= φ <= π/4 "twist angle too large (input modulus must be in radians and smaller than or equal than π/4)"
         φ = Float64(φ)
     end
-    if normSparPos isa Real
-        @assert 0 < normSparPos < 1 "normalized spar position must be between 0 and 1"
-        normSparPos = Float64(normSparPos)
+    if referenceAxis isa Real
+        @assert 0 < referenceAxis < 1 "normalized reference axis position must be between 0 and 1"
+        referenceAxis = Float64(referenceAxis)
     end
     if !isnothing(normFlapSpan)
         @assert !isnothing(normFlapPos) "flap span was set, but chord-normalized position was not"
@@ -397,12 +397,12 @@ function validate_aero_surface(c,Λ,φ,normSparPos,normFlapSpan,normFlapPos,tipL
         gustSolver = IndicialGust(:QuasiSteady)
     end
 
-    return c,Λ,φ,normSparPos,normFlapSpan,normFlapPos,tipLossDecayFactor,gustSolver
+    return c,Λ,φ,referenceAxis,normFlapSpan,normFlapPos,tipLossDecayFactor,gustSolver
 
 end
 
 # Generate the geometry for an aerodynamic surface
-function aero_surface_geometry(airfoil,c,Λ,φ,normSparPos,normFlapPos,normFlapSpan,updateAirfoilParameters,smallAngles,hasInducedDrag,hasSymmetricCounterpart,ppSolver)
+function aero_surface_geometry(airfoil,c,Λ,φ,referenceAxis,normFlapPos,normFlapSpan,updateAirfoilParameters,smallAngles,hasInducedDrag,hasSymmetricCounterpart,ppSolver)
 
     # Set flap site ID and flap parameters
     flapSiteID = !isnothing(normFlapPos) ? 
@@ -420,7 +420,7 @@ function aero_surface_geometry(airfoil,c,Λ,φ,normSparPos,normFlapPos,normFlapS
     end
 
     # Surface geometry data
-    geometry = AeroSurfaceGeometry(airfoil,γbC,c,Λ,φ,normSparPos,normFlapPos,normFlapSpan,flapParameters,updateAirfoilParameters,smallAngles,hasInducedDrag,hasSymmetricCounterpart)
+    geometry = AeroSurfaceGeometry(airfoil,γbC,c,Λ,φ,referenceAxis,normFlapPos,normFlapSpan,flapParameters,updateAirfoilParameters,smallAngles,hasInducedDrag,hasSymmetricCounterpart)
 
     return geometry
 

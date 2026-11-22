@@ -43,6 +43,8 @@ end
 
     QuasiSteady AeroSolver composite type
 
+Quasi-steady aerodynamic solver for attached flow.
+
 """
 struct QuasiSteady
     
@@ -81,6 +83,13 @@ export QuasiSteady
 
     Indicial AeroSolver composite type
 
+Unsteady aerodynamic solver for attached flow based on the indicial response of the airfoil.
+
+# Keyword arguments
+- `circulatoryIndicialFunction::Symbol`: indicial function of the circulatory loads, which can be `:Wagner` (default), `:Beddoes` or `:Jose`
+- `inertialIndicialFunction::Symbol`: indicial function of the inertial (non-circulatory) loads (`:Leishman`)
+- `incompressibleInertialLoads::Bool`: flag to compute the inertial loads with the incompressible (closed-form) expressions, which has no inertial states (default: `true`)
+- `finiteWingLag::Bool`: flag to apply a finite-wing correction to the lag of the circulatory loads of the elements with tip correction (default: `true`). The tip loss factor ϖ models the steady loss of lift due to three-dimensional effects, but when it scales the whole circulatory response it also reduces the initial (impulsive) circulatory load of the Wagner-type function, 1-ΣAₙ = 1/2, which is that of the two-dimensional wing regardless of the aspect ratio (the three-dimensional effects take time to develop). With this option, the amplitudes Aₙ of the circulatory indicial function are scaled by κ = (1-(1-ΣAₙ)/ϖ)/ΣAₙ = 2 - 1/ϖ (not less than zero), so that the initial circulatory load, ϖ(1-κΣAₙ) = 1-ΣAₙ, is the two-dimensional one, while the steady one remains ϖ. The circulatory loads at the reduced frequencies of the flutter of wings of low aspect ratio are then closer to those of a three-dimensional unsteady potential flow solution, with less lag where the loss of lift is higher. Elements without tip correction (ϖ=1) are not affected
 """
 struct Indicial{Nc,Ni}
 
@@ -88,6 +97,7 @@ struct Indicial{Nc,Ni}
     circulatoryIndicialFunction::Symbol
     inertialIndicialFunction::Symbol
     incompressibleInertialLoads::Bool
+    finiteWingLag::Bool
     nCirculatoryStates::Int
     nInertialStates::Int
     nStates::Int
@@ -99,7 +109,8 @@ struct Indicial{Nc,Ni}
     function Indicial(; 
         circulatoryIndicialFunction::Symbol=:Wagner,
         inertialIndicialFunction::Symbol=:Leishman, 
-        incompressibleInertialLoads::Bool=true
+        incompressibleInertialLoads::Bool=true,
+        finiteWingLag::Bool=true
         )
 
         # Validate
@@ -131,6 +142,7 @@ struct Indicial{Nc,Ni}
             circulatoryIndicialFunction,
             inertialIndicialFunction,
             incompressibleInertialLoads,
+            finiteWingLag,
             nCirculatoryStates,
             nInertialStates,
             nStates,
@@ -150,6 +162,14 @@ export Indicial
 
     Inflow AeroSolver composite type
 
+Unsteady aerodynamic solver based on the Peters's et al. inflow theory.
+
+# Keyword arguments:
+- `nInflowStates::Int`: number of inflow states (default: 6, can be either 4, 6, or 8)
+- `circulatoryIndicialFunction::Symbol`: indicial function of the circulatory loads, which can be `:Wagner` (default), `:Beddoes` or `:Jose`
+- `inertialIndicialFunction::Symbol`: indicial function of the inertial (non-circulatory) loads (`:Leishman`)
+- `incompressibleInertialLoads::Bool`: flag to compute the inertial loads with the incompressible (closed-form) expressions, which has no inertial states (default: `true`)
+- `finiteWingLag::Bool`: whether to include finite wing lag effects (default: `true`)
 """
 struct Inflow{N,Nc,Ni,NN}
 
@@ -157,6 +177,7 @@ struct Inflow{N,Nc,Ni,NN}
     circulatoryIndicialFunction::Symbol
     inertialIndicialFunction::Symbol
     incompressibleInertialLoads::Bool
+    finiteWingLag::Bool
     nInflowStates::Int
     nInertialStates::Int
     nStates::Int
@@ -171,10 +192,11 @@ struct Inflow{N,Nc,Ni,NN}
     bI::SVector{Ni,Float64}
 
     function Inflow(; 
-        circulatoryIndicialFunction::Symbol=:Jose,
+        nInflowStates::Int=6,
+        circulatoryIndicialFunction::Symbol=:Wagner,
         inertialIndicialFunction::Symbol=:Leishman,
         incompressibleInertialLoads::Bool=true,
-        nInflowStates::Int=6
+        finiteWingLag::Bool=true,
         )
 
         # Validate
@@ -212,6 +234,7 @@ struct Inflow{N,Nc,Ni,NN}
             circulatoryIndicialFunction,
             inertialIndicialFunction,
             incompressibleInertialLoads,
+            finiteWingLag,
             nInflowStates,
             nInertialStates,
             nStates,
@@ -235,8 +258,14 @@ export Inflow
 
     Incompressible modified Beddoes-Leishman AeroSolver composite type
 
-The transition between the upstroke and downstroke phases is smoothed over the non-dimensional pitch rate `qTransition` (a hard switch is recovered with `qTransition=0`).
+Modified Beddoes-Leishman model matched to low-speed aerodynamics.
 
+# Keyword arguments
+- `circulatoryIndicialFunction::Symbol`: indicial function of the circulatory loads, which can be `:Wagner`, `:Beddoes` (default) or `:Jose`
+- `inertialIndicialFunction::Symbol`: indicial function of the inertial (non-circulatory) loads (`:Leishman`)
+- `incompressibleInertialLoads::Bool`: flag to compute the inertial loads with the incompressible (closed-form) expressions, which has no inertial states (default: `true`)
+- `finiteWingLag::Bool`: whether to include finite wing lag effects (default: `true`)
+- `qTransition::Real`: non-dimensional pitch rate for smoothing the transition between upstroke and downstroke. The transition between the upstroke and downstroke phases is smoothed over the non-dimensional pitch rate `qTransition`. A hard switch is recovered with `qTransition=0` (default: `1e-3`).
 """
 struct BLi{Nc,Ni}
 
@@ -244,6 +273,7 @@ struct BLi{Nc,Ni}
     circulatoryIndicialFunction::Symbol
     inertialIndicialFunction::Symbol
     incompressibleInertialLoads::Bool
+    finiteWingLag::Bool
     nCirculatoryStates::Int
     nInertialStates::Int
     nNonlinearStates::Int
@@ -258,6 +288,7 @@ struct BLi{Nc,Ni}
         circulatoryIndicialFunction::Symbol=:Beddoes,
         inertialIndicialFunction::Symbol=:Leishman,
         incompressibleInertialLoads::Bool=true,
+        finiteWingLag::Bool=true,
         qTransition::Real=1e-3
         )
 
@@ -292,6 +323,7 @@ struct BLi{Nc,Ni}
             circulatoryIndicialFunction,
             inertialIndicialFunction,
             incompressibleInertialLoads,
+            finiteWingLag,
             nCirculatoryStates,
             nInertialStates,
             nNonlinearStates,
@@ -313,8 +345,14 @@ export BLi
 
     Original Beddoes-Leishman AeroSolver composite type
 
-The transition between the upstroke and downstroke phases is smoothed over the non-dimensional pitch rate `qTransition` (a hard switch is recovered with `qTransition=0`).
+Interpretation of the original Beddoes-Leishman model for dynamic stall.
 
+# Keyword arguments
+- `circulatoryIndicialFunction::Symbol`: indicial function of the circulatory loads, which can be `:Wagner`, `:Beddoes` (default) or `:Jose`
+- `inertialIndicialFunction::Symbol`: indicial function of the inertial (non-circulatory) loads (`:Leishman`)
+- `incompressibleInertialLoads::Bool`: flag to compute the inertial loads with the incompressible (closed-form) expressions, which has no inertial states (default: `true`)
+- `finiteWingLag::Bool`: whether to include finite wing lag effects (default: `true`)
+- `qTransition::Real`: non-dimensional pitch rate for smoothing the transition between upstroke and downstroke. The transition between the upstroke and downstroke phases is smoothed over the non-dimensional pitch rate `qTransition`. A hard switch is recovered with `qTransition=0` (default: `1e-3`).
 """
 struct BLo{Nc,Ni}
 
@@ -322,6 +360,7 @@ struct BLo{Nc,Ni}
     circulatoryIndicialFunction::Symbol
     inertialIndicialFunction::Symbol
     incompressibleInertialLoads::Bool
+    finiteWingLag::Bool
     nCirculatoryStates::Int
     nInertialStates::Int
     nNonlinearStates::Int
@@ -336,6 +375,7 @@ struct BLo{Nc,Ni}
         circulatoryIndicialFunction::Symbol=:Beddoes,
         inertialIndicialFunction::Symbol=:Leishman,
         incompressibleInertialLoads::Bool=false,
+        finiteWingLag::Bool=true,
         qTransition::Real=1e-3
         )
 
@@ -370,6 +410,7 @@ struct BLo{Nc,Ni}
             circulatoryIndicialFunction,
             inertialIndicialFunction,
             incompressibleInertialLoads,
+            finiteWingLag,
             nCirculatoryStates,
             nInertialStates,
             nNonlinearStates,
@@ -390,6 +431,8 @@ export BLo
 """
 
     TableLookup FlapAeroSolver composite type
+
+Flap-induced aerodynamic loads solver using table lookup.
 
 """
 struct TableLookup
@@ -413,6 +456,10 @@ export TableLookup
 
     ThinAirfoilTheory FlapAeroSolver composite type
 
+Flap-induced aerodynamic loads solver using thin airfoil theory.
+
+# Keyword arguments
+- `circulatoryIndicialFunction::Symbol`: indicial function of the circulatory loads, which can be `:Wagner` (default), `:Beddoes` or `:Jose`
 """
 struct ThinAirfoilTheory{N}
 
@@ -446,6 +493,10 @@ export ThinAirfoilTheory
 
     IndicialGust GustAeroSolver composite type
 
+Gust-induced aerodynamic loads solver based on indicial theory.
+
+# Keyword arguments
+- `indicialFunction::Symbol`: indicial function of the gust circulatory loads, which can be `:QuasiSteady`, `:Kussner` (default) or `:BerciRighi`.
 """
 struct IndicialGust{N}
 
@@ -455,7 +506,7 @@ struct IndicialGust{N}
     bG::SVector{N,Float64}
     AGbG::SVector{N,Float64}
 
-    function IndicialGust(indicialFunction::Symbol)
+    function IndicialGust(indicialFunction::Symbol=:Kussner)
 
         # Validate
         @assert indicialFunction in [:QuasiSteady,:Kussner,:BerciRighi] "indicialFunction must be one of: `:QuasiSteady`, `:Kussner`, `:BerciRighi`"

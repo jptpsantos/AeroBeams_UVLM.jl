@@ -1602,7 +1602,7 @@ function wrapper_aero_loads_and_matrices_from_states_rates!(rates,model,element,
     Ωdot = @view rates[4:6]
 
     # Set state cache for derivatives calculations
-    stateCacheDiff = get_diff_state_cache!(element.aero,eltype(rates))
+    stateCacheDiff = get_diff_state_cache!(element.aero,eltype(rates),:rates)
 
     # Unpack resultants and arrays
     @unpack f1χ,f2χ,m1χ,m2χ = stateCacheDiff.loadsResultants
