@@ -35,7 +35,7 @@ rodShapesNastran = readdlm(joinpath(referenceDir,"S0_modal_shapes_flextip_rod.cs
 nNastranModes = length(modalFreqsNastran)
 
 # Chord of the wing and normalized position of the reference axis
-_,_,chord,normSparPos,_ = geometrical_properties_Pazy()
+_,_,chord,referenceAxis,_ = geometrical_properties_Pazy()
 
 # Linear interpolation of the data `ys` at the increasing points `xs`, evaluated at `x` (constant beyond the ends)
 function interpolate_data(x,xs,ys)
@@ -80,7 +80,7 @@ function paired_modes(mesh,rod)
     wingElements = 1:nElemWing
     rodElements = (nElemWing + 2):(model.assemblyData.nElementsTotal)
     # Translations (in basis A) of the leading and trailing edge points of the wing and of the rod at the sampling points, for the beam and for the Nastran modes
-    beam_vector(m) = vcat([vcat([m.state[e].midpoint.u + cross(m.state[e].midpoint.p,[0,η,0]) for η in (normSparPos*chord, (normSparPos-1)*chord)]...) for e in wingElements]..., [m.state[e].midpoint.u for e in rodElements]...)
+    beam_vector(m) = vcat([vcat([m.state[e].midpoint.u + cross(m.state[e].midpoint.p,[0,η,0]) for η in (referenceAxis*chord, (referenceAxis-1)*chord)]...) for e in wingElements]..., [m.state[e].midpoint.u for e in rodElements]...)
     function nastran_vector(mode)
         wing = wingShapesNastran[wingShapesNastran[:,1] .== mode, :]
         rodShape = rodShapesNastran[rodShapesNastran[:,1] .== mode, :]
@@ -90,7 +90,7 @@ function paired_modes(mesh,rod)
             append!(v, toBasisA([interpolate_data(midpoints[e][1],wing[:,2],wing[:,c]) for c in columns]))
         end
         for e in rodElements
-            x = normSparPos*chord - midpoints[e][2]
+            x = referenceAxis*chord - midpoints[e][2]
             append!(v, toBasisA([interpolate_data(x,rodShape[:,2],rodShape[:,c]) for c in 3:5]))
         end
         return v

@@ -39,12 +39,6 @@ U = t -> Ubase(t) + noise[clamp(round(Int, t/Δt) + 1, 1, length(noise))]
 # Airspeed range for flutter problem [m/s]
 URange = collect(0.5:0.5:90)
 
-# Flag for tip correction
-hasTipCorrection = true
-
-# Tip correction function type
-tipLossType = "Exponential"
-
 # Flag to update tip correction with airspeed
 tipLossFunctionIsAirspeedDependent = true
 
@@ -57,14 +51,8 @@ useAePW3Matrices = false
 # Aerodynamic solver
 aeroSolver = Indicial()
 
-# Airfoil section
-airfoil = deepcopy(NACA0018)
-
-# Flag for upright position
-upright = true
-
 # Geometric properties
-nElem,L,chord,normSparPos,nodalPositions = geometrical_properties_Pazy(mesh=mesh,useAePW3Matrices=useAePW3Matrices)
+nElem,L,chord,referenceAxis,nodalPositions = geometrical_properties_Pazy(mesh=mesh,useAePW3Matrices=useAePW3Matrices)
 
 # Set tip mass configuration variables
 m = match(r"^(LE|TE)_m(\d+(?:\.\d+)?)_o(\d+(?:\.\d+)?)$", tipMassConfig)
@@ -72,7 +60,7 @@ m = match(r"^(LE|TE)_m(\d+(?:\.\d+)?)_o(\d+(?:\.\d+)?)$", tipMassConfig)
 pos = m.captures[1]
 tipMass = 1e-3*parse(Float64, m.captures[2])
 tipMassPosOffset = 1e-2*parse(Float64, m.captures[3])
-tipMassPos = pos == "LE" ? chord*normSparPos + tipMassPosOffset : -(chord*(1-normSparPos) + tipMassPosOffset)
+tipMassPos = pos == "LE" ? chord*referenceAxis + tipMassPosOffset : -(chord*(1-referenceAxis) + tipMassPosOffset)
 
 # Number of modes for flutter computation
 nModes = 3
@@ -99,7 +87,7 @@ x1_elem5 = average(nodalPositions[5],nodalPositions[6])*L
 wSG = (xSG-x1_elem3)/(x1_elem4-x1_elem3)
 
 # Case ID
-idString = string(tipMassConfig, "_Theta", round(rad2deg(θ),digits=1), "_Umin", Umin, "_Umax", Umax, "_tauUp", τUp, "_tauDown", τDown, "_", tipLossType, "_", aeroSolver.name)
+idString = string(tipMassConfig, "_Theta", round(rad2deg(θ),digits=1), "_Umin", Umin, "_Umax", Umax, "_tauUp", τUp, "_tauDown", τDown, "_", aeroSolver.name)
 
 # Flutter onset and offset speeds and frequencies (NaN if not found or not solved)
 flutterOnsetSpeed = NaN
@@ -126,7 +114,7 @@ if solveFlutter
     # Sweep airspeed
     for (j,U) in enumerate(URange)
         # Model
-        flutterModel = first(create_Pazy(aeroSolver=aeroSolver,mesh=mesh,airfoil=airfoil,upright=upright,hasTipCorrection=hasTipCorrection,tipLossType=tipLossType,pitchAngle=θ,airspeed=U,tipMasses=[tipMass],ηtipMasses=[[0;tipMassPos;0]],tipMassesInertias=[zeros(3,3)],useAePW3Matrices=useAePW3Matrices))
+        flutterModel = first(create_Pazy(aeroSolver=aeroSolver,mesh=mesh,pitchAngle=θ,airspeed=U,tipMasses=[tipMass],ηtipMasses=[[0;tipMassPos;0]],tipMassesInertias=[zeros(3,3)],useAePW3Matrices=useAePW3Matrices))
         # Set initial guess solution as previously available one
         x0 = j == 1 ? zeros(0) : flutterProblem[j-1].systemArrays.x
         # Create and solve problem
@@ -195,7 +183,7 @@ end
 println("Solving dynamic problem")
 
 # Model
-dynModel = first(create_Pazy(aeroSolver=aeroSolver,mesh=mesh,airfoil=airfoil,upright=upright,pitchAngle=θ,airspeed=U,hasTipCorrection=hasTipCorrection,tipLossType=tipLossType,tipMasses=[tipMass],ηtipMasses=[[0;tipMassPos;0]],tipMassesInertias=[zeros(3,3)],tipLossFunctionIsAirspeedDependent=tipLossFunctionIsAirspeedDependent,useAePW3Matrices=useAePW3Matrices))
+dynModel = first(create_Pazy(aeroSolver=aeroSolver,mesh=mesh,pitchAngle=θ,airspeed=U,tipMasses=[tipMass],ηtipMasses=[[0;tipMassPos;0]],tipMassesInertias=[zeros(3,3)],tipLossFunctionIsAirspeedDependent=tipLossFunctionIsAirspeedDependent,useAePW3Matrices=useAePW3Matrices))
 
 # Create and solve steady problem for initial airspeed
 steadyProblem = create_SteadyProblem(model=dynModel)

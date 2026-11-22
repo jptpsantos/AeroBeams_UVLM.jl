@@ -46,17 +46,11 @@ mesh = :nominal
 # Number of elements in the wingtip rod
 nElementsWingtipRod = 12
 
-# Tip correction function type
-tipLossType = "Exponential"
-
 # Aerodynamic solver
 aeroSolver = Indicial()
 
-# Airfoil section
-airfoil = deepcopy(NACA0018)
-
 # Geometric properties
-nElem,L,chord,normSparPos,_ = geometrical_properties_Pazy()
+nElem,L,chord,referenceAxis,_ = geometrical_properties_Pazy()
 
 # Airspeed range for flutter problem [m/s]
 URange = collect(0.5:0.5:90)
@@ -79,7 +73,7 @@ x2SG = 50e-3/2      # chordwise position: close to LE
 x3SG = 2.25e-3/2    # height: on top
 
 # Case ID
-idString = string("Theta", round(rad2deg(θ),digits=1), "_Ui", Ui, "_Uf", Uf, "_", tipLossType, "_", aeroSolver.name)
+idString = string("Theta", round(rad2deg(θ),digits=1), "_Ui", Ui, "_Uf", Uf, "_", aeroSolver.name)
 
 # Set paths
 relPath = "/dev/Pazy/S0/BeamRod/outputs/PazyWingBeamRodAirspeedSweep"
@@ -99,7 +93,7 @@ epsSG_f = Array{Float64}(undef,length(URange))
 # Sweep airspeed
 for (j,U) in enumerate(URange)
     # Model
-    flutterModel = first(create_Pazy(aeroSolver=aeroSolver,airfoil=airfoil,upright=true,hasTipCorrection=true,tipLossType=tipLossType,pitchAngle=θ,airspeed=U,mesh=mesh,beamWingtipRod=true,nElementsWingtipRod=nElementsWingtipRod))
+    flutterModel = first(create_Pazy(aeroSolver=aeroSolver,pitchAngle=θ,airspeed=U,mesh=mesh,beamWingtipRod=true,nElementsWingtipRod=nElementsWingtipRod))
     # Set initial guess solution as previously available one
     x0 = j == 1 ? zeros(0) : flutterProblem[j-1].systemArrays.x
     # Create and solve problem
@@ -167,7 +161,7 @@ savefig(plt_Vgf,string(absPath,"/PazyWingBeamRodAirspeedSweep_",idString,"_Vgf.p
 println("Solving dynamic problem")
 
 # Model
-dynModel = first(create_Pazy(aeroSolver=aeroSolver,airfoil=airfoil,upright=true,pitchAngle=θ,airspeed=U,hasTipCorrection=true,tipLossType=tipLossType,tipLossFunctionIsAirspeedDependent=true,mesh=mesh,beamWingtipRod=true,nElementsWingtipRod=nElementsWingtipRod))
+dynModel = first(create_Pazy(aeroSolver=aeroSolver,pitchAngle=θ,airspeed=U,tipLossFunctionIsAirspeedDependent=true,mesh=mesh,beamWingtipRod=true,nElementsWingtipRod=nElementsWingtipRod))
 
 # Create and solve steady problem for initial airspeed
 steadyProblem = create_SteadyProblem(model=dynModel)

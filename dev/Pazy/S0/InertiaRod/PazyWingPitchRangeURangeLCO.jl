@@ -1,8 +1,5 @@
 using AeroBeams, JLD2
 
-# Select tip mass configuration (set as XX_mY_oZ, where XX is either LE or TE, Y is the mass in grams and Z is the offset in cm)
-tipMassConfig = "LE_m0_o0"
-
 # Airspeed sweep type (choose between "upsweep" and "downsweep")
 UsweepType = "upsweep"
 @assert UsweepType in ["upsweep","downsweep"]
@@ -21,20 +18,8 @@ trackingFrequency = round(Int,5e-4/Δt)
 # Airspeed range for flutter problems [m/s]
 URangeFlutter = collect(20:0.25:90)
 
-# Flag for tip correction
-hasTipCorrection = true
-
-# Tip correction function type
-tipLossType = "Exponential"
-
 # Aerodynamic solver
 aeroSolver = Indicial()
-
-# Airfoil section
-airfoil = deepcopy(NACA0018)
-
-# Flag for upright position
-upright = true
 
 # Tip impulse configuration to induce LCO
 F₀ = 1
@@ -59,15 +44,7 @@ x2SG = 50e-3/2      # chordwise position: close to LE
 x3SG = 2.25e-3/2    # height: on top
 
 # Geometric properties
-nElem,L,chord,normSparPos = geometrical_properties_Pazy()
-
-# Set tip mass configuration variables
-m = match(r"^(LE|TE)_m(\d+(?:\.\d+)?)_o(\d+(?:\.\d+)?)$", tipMassConfig)
-@assert m !== nothing "Invalid tipMassConfig string"
-pos = m.captures[1]
-tipMass = 1e-3*parse(Float64, m.captures[2])
-tipMassPosOffset = 1e-2*parse(Float64, m.captures[3])
-tipMassPos = pos == "LE" ? chord*normSparPos + tipMassPosOffset : -(chord*(1-normSparPos) + tipMassPosOffset)
+nElem,L,chord,referenceAxis = geometrical_properties_Pazy()
 
 # Initialize flutter outputs
 flutterProblem = Array{EigenProblem}(undef,length(θRange),length(URangeFlutter))
@@ -102,13 +79,13 @@ gr()
 # Sweep root pitch angle
 for (i,θ) in enumerate(θRange)
     # Case ID
-    idStringFlutter = string(tipMassConfig, "_Theta", round(rad2deg(θ),digits=1), "_", tipLossType, "_", aeroSolver.name)
+    idStringFlutter = string("Theta", round(rad2deg(θ),digits=1), "_", aeroSolver.name)
     # --- Solve flutter problem ---
     println("Solving flutter problem for θ = $(round(rad2deg(θ),digits=1)) deg")
     # Sweep airspeed
     for (j,U) in enumerate(URangeFlutter)
         # Model
-        flutterModel = first(create_Pazy(aeroSolver=aeroSolver,airfoil=airfoil,upright=upright,hasTipCorrection=hasTipCorrection,tipLossType=tipLossType,pitchAngle=θ,airspeed=U,tipMasses=[tipMass],ηtipMasses=[[0;tipMassPos;0]],tipMassesInertias=[zeros(3,3)]))
+        flutterModel = first(create_Pazy(aeroSolver=aeroSolver,pitchAngle=θ,airspeed=U))
         # Set initial guess solution as previously available one
         x0 = j == 1 ? zeros(0) : flutterProblem[i,j-1].systemArrays.x
         # Create and solve problem
@@ -176,7 +153,7 @@ for (i,θ) in enumerate(θRange)
         # Case ID
         idStringDyn = string(idStringFlutter, "_", UsweepType, "_U", round(U,digits=3))
         # Model
-        dynModel = first(create_Pazy(aeroSolver=aeroSolver,airfoil=airfoil,upright=upright,hasTipCorrection=hasTipCorrection,tipLossType=tipLossType,pitchAngle=θ,airspeed=U,tipMasses=[tipMass],ηtipMasses=[[0;tipMassPos;0]],tipMassesInertias=[zeros(3,3)],additionalBCs=[impulse]))
+        dynModel = first(create_Pazy(aeroSolver=aeroSolver,pitchAngle=θ,airspeed=U,additionalBCs=[impulse]))
         # Create and solve steady problem for initial solution
         steadyProblem = create_SteadyProblem(model=dynModel)
         solve!(steadyProblem)

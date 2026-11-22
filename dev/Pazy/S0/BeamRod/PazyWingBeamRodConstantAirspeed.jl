@@ -22,9 +22,6 @@ U = t -> Unom + noise[clamp(round(Int, t/Δt) + 1, 1, length(noise))]
 # Time integration method for the dynamic solver
 integrationMethod = GeneralizedAlpha(ρ∞=0.8)
 
-# Tip correction function type
-tipLossType = "Exponential"
-
 # Mesh (defines number of elements): :nominal or :refined
 mesh = :nominal
 
@@ -34,11 +31,8 @@ nElementsWingtipRod = 12
 # Aerodynamic solver
 aeroSolver = Indicial()
 
-# Airfoil section
-airfoil = deepcopy(NACA0018)
-
 # Geometric properties
-nElem,L,chord,normSparPos,nodalPositions = geometrical_properties_Pazy(mesh=mesh)
+nElem,L,chord,referenceAxis,nodalPositions = geometrical_properties_Pazy(mesh=mesh)
 
 # Airspeed range for flutter problem [m/s]
 URange = collect(0.5:0.5:90)
@@ -61,7 +55,7 @@ x2SG = 50e-3/2      # chordwise position: close to LE
 x3SG = 2.25e-3/2    # height: on top
 
 # Case ID
-idString = string("Theta", round(rad2deg(θ),digits=1), "_U", Unom, "_tf", tf, "_", tipLossType, "_", aeroSolver.name)
+idString = string("Theta", round(rad2deg(θ),digits=1), "_U", Unom, "_tf", tf, "_", aeroSolver.name)
 
 # Set paths
 relPath = "/dev/Pazy/S0/BeamRod/outputs/PazyWingBeamRodConstantAirspeed"
@@ -81,7 +75,7 @@ epsSG_f = Array{Float64}(undef,length(URange))
 # Sweep airspeed
 for (j,U) in enumerate(URange)
     # Model
-    flutterModel = first(create_Pazy(aeroSolver=aeroSolver,mesh=mesh,beamWingtipRod=true,nElementsWingtipRod=nElementsWingtipRod,airfoil=airfoil,upright=true,hasTipCorrection=true,tipLossType=tipLossType,pitchAngle=θ,airspeed=U))
+    flutterModel = first(create_Pazy(aeroSolver=aeroSolver,mesh=mesh,beamWingtipRod=true,nElementsWingtipRod=nElementsWingtipRod,pitchAngle=θ,airspeed=U))
     # Set initial guess solution as previously available one
     x0 = j == 1 ? zeros(0) : flutterProblem[j-1].systemArrays.x
     # Create and solve problem
@@ -157,7 +151,7 @@ savefig(plt_Vgf,string(absPath,"/PazyWingBeamRodConstantAirspeed_",idString,"_Vg
 println("Solving dynamic problem")
 
 # Model
-dynModel,_ = create_Pazy(aeroSolver=aeroSolver,mesh=mesh,beamWingtipRod=true,nElementsWingtipRod=nElementsWingtipRod,airfoil=airfoil,upright=true,pitchAngle=θ,airspeed=U,hasTipCorrection=true,tipLossType=tipLossType,tipLossFunctionIsAirspeedDependent=true)
+dynModel,_ = create_Pazy(aeroSolver=aeroSolver,mesh=mesh,beamWingtipRod=true,nElementsWingtipRod=nElementsWingtipRod,pitchAngle=θ,airspeed=U,tipLossFunctionIsAirspeedDependent=true)
 
 # Create and solve steady problem for initial airspeed
 steadyProblem = create_SteadyProblem(model=dynModel)

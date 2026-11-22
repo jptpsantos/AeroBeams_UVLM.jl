@@ -41,17 +41,11 @@ U = t -> ifelse(t<=τ, Ui + (Uf-Ui)*t/τ, Uf) + noise[clamp(round(Int, t/Δt) + 
 # Flag to use AePW3 matrices
 useAePW3Matrices = false
 
-# Tip correction function type
-tipLossType = "Exponential"
-
 # Aerodynamic solver
 aeroSolver = Indicial()
 
-# Airfoil section
-airfoil = deepcopy(NACA0018)
-
 # Geometric properties
-nElem,L,chord,normSparPos,_ = geometrical_properties_Pazy()
+nElem,L,chord,referenceAxis,_ = geometrical_properties_Pazy()
 
 # Airspeed range for flutter problem [m/s]
 URange = collect(0.5:0.5:90)
@@ -74,7 +68,7 @@ x2SG = 50e-3/2      # chordwise position: close to LE
 x3SG = 2.25e-3/2    # height: on top
 
 # Case ID
-idString = string("Theta", round(rad2deg(θ),digits=1), "_Ui", Ui, "_Uf", Uf, "_", tipLossType, "_", aeroSolver.name)
+idString = string("Theta", round(rad2deg(θ),digits=1), "_Ui", Ui, "_Uf", Uf, "_", aeroSolver.name)
 
 # Set paths
 relPath = "/dev/Pazy/S0/InertiaRod/outputs/PazyWingAirspeedSweep"
@@ -94,7 +88,7 @@ epsSG_f = Array{Float64}(undef,length(URange))
 # Sweep airspeed
 for (j,U) in enumerate(URange)
     # Model
-    flutterModel = first(create_Pazy(aeroSolver=aeroSolver,airfoil=airfoil,upright=true,hasTipCorrection=true,tipLossType=tipLossType,pitchAngle=θ,airspeed=U,useAePW3Matrices=useAePW3Matrices))
+    flutterModel = first(create_Pazy(aeroSolver=aeroSolver,pitchAngle=θ,airspeed=U,useAePW3Matrices=useAePW3Matrices))
     # Set initial guess solution as previously available one
     x0 = j == 1 ? zeros(0) : flutterProblem[j-1].systemArrays.x
     # Create and solve problem
@@ -162,7 +156,7 @@ savefig(plt_Vgf,string(absPath,"/PazyWingAirspeedSweep_",idString,"_Vgf.pdf"))
 println("Solving dynamic problem")
 
 # Model
-dynModel = first(create_Pazy(aeroSolver=aeroSolver,airfoil=airfoil,upright=true,pitchAngle=θ,airspeed=U,hasTipCorrection=true,tipLossType=tipLossType,tipLossFunctionIsAirspeedDependent=true,useAePW3Matrices=useAePW3Matrices))
+dynModel = first(create_Pazy(aeroSolver=aeroSolver,pitchAngle=θ,airspeed=U,tipLossFunctionIsAirspeedDependent=true,useAePW3Matrices=useAePW3Matrices))
 
 # Create and solve steady problem for initial airspeed
 steadyProblem = create_SteadyProblem(model=dynModel)

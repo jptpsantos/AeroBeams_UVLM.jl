@@ -15,26 +15,14 @@ tipMassConfig = "LE_m0_o0"
 # Airspeed range for flutter problem [m/s]
 URangeFlutter = collect(0.5:0.5:90)
 
-# Flag for tip correction
-hasTipCorrection = true
-
-# Tip correction function type
-tipLossType = "Exponential"
-
 # Flag to update tip correction with airspeed
 tipLossFunctionIsAirspeedDependent = true
 
 # Aerodynamic solver
 aeroSolver = Indicial()
 
-# Airfoil section
-airfoil = deepcopy(NACA0018)
-
-# Flag for upright position
-upright = true
-
 # Geometric properties
-nElem,L,chord,normSparPos = geometrical_properties_Pazy()
+nElem,L,chord,referenceAxis = geometrical_properties_Pazy()
 
 # Set tip mass configuration variables
 m = match(r"^(LE|TE)_m(\d+(?:\.\d+)?)_o(\d+(?:\.\d+)?)$", tipMassConfig)
@@ -42,7 +30,7 @@ m = match(r"^(LE|TE)_m(\d+(?:\.\d+)?)_o(\d+(?:\.\d+)?)$", tipMassConfig)
 pos = m.captures[1]
 tipMass = 1e-3*parse(Float64, m.captures[2])
 tipMassPosOffset = 1e-2*parse(Float64, m.captures[3])
-tipMassPos = pos == "LE" ? chord*normSparPos + tipMassPosOffset : -(chord*(1-normSparPos) + tipMassPosOffset)
+tipMassPos = pos == "LE" ? chord*referenceAxis + tipMassPosOffset : -(chord*(1-referenceAxis) + tipMassPosOffset)
 
 # Number of modes for flutter computation
 nModes = 3
@@ -57,7 +45,7 @@ x2SG = 50e-3/2      # chordwise position: close to LE
 x3SG = 2.25e-3/2    # height: on top
 
 # Case ID
-idString = string(tipMassConfig, "_Theta", round(rad2deg(θ),digits=1), "_", tipLossType, "_", aeroSolver.name)
+idString = string(tipMassConfig, "_Theta", round(rad2deg(θ),digits=1), "_", aeroSolver.name)
 
 # Set paths
 relPath = "/dev/Pazy/S0/InertiaRod/outputs/PazyWingAirspeedSteps"
@@ -78,7 +66,7 @@ if solveFlutter
     # Sweep airspeed
     for (j,U) in enumerate(URangeFlutter)
         # Model
-        flutterModel = first(create_Pazy(aeroSolver=aeroSolver,airfoil=airfoil,upright=upright,hasTipCorrection=hasTipCorrection,tipLossType=tipLossType,pitchAngle=θ,airspeed=U,tipMasses=[tipMass],ηtipMasses=[[0;tipMassPos;0]],tipMassesInertias=[zeros(3,3)]))
+        flutterModel = first(create_Pazy(aeroSolver=aeroSolver,pitchAngle=θ,airspeed=U,tipMasses=[tipMass],ηtipMasses=[[0;tipMassPos;0]],tipMassesInertias=[zeros(3,3)]))
         # Set initial guess solution as previously available one
         x0 = j == 1 ? zeros(0) : flutterProblem[j-1].systemArrays.x
         # Create and solve problem
@@ -154,7 +142,7 @@ N = length(URangeDyn)
 τ₁Range = 1*ones(N-1)  # Linear transition time
 τ₂Range = 2*ones(N-1)  # Steady upper value time
 τ₂Range[findfirst(x->x>=flutterOnsetSpeed, URangeDyn)+1] = 10
-τ₂Range[findfirst(x->x>=flutterOffsetSpeed, URangeDyn)+1] = 10
+τ₂Range[min(findfirst(x->x>=flutterOffsetSpeed, URangeDyn)+1,N-1)] = 10
 
 # Time variables
 Δt = 1e-4
@@ -169,7 +157,7 @@ systemSolver = aeroSolver isa DynamicStallSolver ?
 println("Solving initial steady problem")
 
 # Create and solve steady problem for initial airspeed
-steadyProblem = create_SteadyProblem(model=first(create_Pazy(aeroSolver=aeroSolver,airfoil=airfoil,upright=upright,pitchAngle=θ,airspeed=URangeDyn[1],hasTipCorrection=hasTipCorrection,tipLossType=tipLossType,tipMasses=[tipMass],ηtipMasses=[[0;tipMassPos;0]],tipMassesInertias=[zeros(3,3)],tipLossFunctionIsAirspeedDependent=tipLossFunctionIsAirspeedDependent)))
+steadyProblem = create_SteadyProblem(model=first(create_Pazy(aeroSolver=aeroSolver,pitchAngle=θ,airspeed=URangeDyn[1],tipMasses=[tipMass],ηtipMasses=[[0;tipMassPos;0]],tipMassesInertias=[zeros(3,3)],tipLossFunctionIsAirspeedDependent=tipLossFunctionIsAirspeedDependent)))
 solve!(steadyProblem)
 
 # --- Solve dynamic problems ---
@@ -199,7 +187,7 @@ for (j,U) in enumerate(URangeDyn[1:end-1])
     # Set airspeed profile
     airspeed = t -> ifelse(t<=initialTime[j]+τ₀Range[j], U, ifelse(t>=initialTime[j]+τ₀Range[j]+τ₁Range[j], URangeDyn[j+1], U + (URangeDyn[j+1]-U)*(t-τ₀Range[j]-initialTime[j])/τ₁Range[j]))
     # Model
-    dynModel = first(create_Pazy(aeroSolver=aeroSolver,airfoil=airfoil,upright=upright,hasTipCorrection=hasTipCorrection,tipLossType=tipLossType,pitchAngle=θ,airspeed=airspeed,tipMasses=[tipMass],ηtipMasses=[[0;tipMassPos;0]],tipMassesInertias=[zeros(3,3)],tipLossFunctionIsAirspeedDependent=tipLossFunctionIsAirspeedDependent))
+    dynModel = first(create_Pazy(aeroSolver=aeroSolver,pitchAngle=θ,airspeed=airspeed,tipMasses=[tipMass],ηtipMasses=[[0;tipMassPos;0]],tipMassesInertias=[zeros(3,3)],tipLossFunctionIsAirspeedDependent=tipLossFunctionIsAirspeedDependent))
     # Reference dynamic problem
     refDynamicProblem = j==1 ? nothing : dynamicProblem[j-1]
     # Create and solve dynamic problem
@@ -227,7 +215,7 @@ tipOOPAll = vcat(tipOOP...)
 epsSGAll = vcat(epsSG...)
 
 # Set case ID for dynamic plots
-idString = URangeDyn[end] > URangeDyn[1] ? string(tipMassConfig, "_Theta", round(rad2deg(θ),digits=1), "_", tipLossType, "_", aeroSolver.name, "_upsteps") : string(tipMassConfig, "_Theta", round(rad2deg(θ),digits=1), "_", tipLossType, "_", aeroSolver.name, "_downsteps")
+idString = URangeDyn[end] > URangeDyn[1] ? string(tipMassConfig, "_Theta", round(rad2deg(θ),digits=1), "_", aeroSolver.name, "_upsteps") : string(tipMassConfig, "_Theta", round(rad2deg(θ),digits=1), "_", aeroSolver.name, "_downsteps")
 
 ## Plots
 # Plot configurations

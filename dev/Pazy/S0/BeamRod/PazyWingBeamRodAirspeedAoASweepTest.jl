@@ -100,9 +100,6 @@ U = t -> Ubase(t) + noise[clamp(round(Int, t/Δt) + 1, 1, length(noise))]
 # Time integration method for the dynamic solver
 integrationMethod = GeneralizedAlpha(ρ∞=0.8)
 
-# Tip correction function type
-tipLossType = "Exponential"
-
 # Mesh (defines number of elements): :nominal or :refined
 mesh = :nominal
 
@@ -112,11 +109,8 @@ nElementsWingtipRod = 12
 # Aerodynamic solver
 aeroSolver = Indicial()
 
-# Airfoil section
-airfoil = deepcopy(NACA0018)
-
 # Geometric properties
-nElem,L,chord,normSparPos,nodalPositions = geometrical_properties_Pazy(mesh=mesh)
+nElem,L,chord,referenceAxis,nodalPositions = geometrical_properties_Pazy(mesh=mesh)
 
 # Airspeed range for flutter problem [m/s]
 URange = collect(0.5:0.5:70)
@@ -139,7 +133,7 @@ x2SG = 50e-3/2      # chordwise position: close to LE
 x3SG = 2.25e-3/2    # height: on top
 
 # Case ID
-idString = string("Test", test, "_", tipLossType, "_", aeroSolver.name)
+idString = string("Test", test, "_", aeroSolver.name)
 
 # Set paths
 relPath = "/dev/Pazy/S0/BeamRod/outputs/PazyWingBeamRodAirspeedAoASweepTest"
@@ -172,7 +166,7 @@ for (k,θ) in enumerate(θs)
     # Sweep airspeed
     for (j,Uj) in enumerate(URange)
         # Model
-        flutterModel = first(create_Pazy(aeroSolver=aeroSolver,mesh=mesh,beamWingtipRod=true,nElementsWingtipRod=nElementsWingtipRod,airfoil=airfoil,upright=true,hasTipCorrection=true,tipLossType=tipLossType,pitchAngle=θ,airspeed=Uj))
+        flutterModel = first(create_Pazy(aeroSolver=aeroSolver,mesh=mesh,beamWingtipRod=true,nElementsWingtipRod=nElementsWingtipRod,pitchAngle=θ,airspeed=Uj))
         # Set initial guess solution as previously available one
         x0 = j == 1 ? zeros(0) : flutterProblem[k,j-1].systemArrays.x
         # Create and solve problem
@@ -238,7 +232,7 @@ savefig(plt_Vgf,string(absPath,"/PazyWingBeamRodAirspeedAoASweepTest_",idString,
 println("Solving dynamic problems")
 
 # Function to create the dynamic model for a given AoA. The root pitch angle is kept null and the AoA is set through the flight direction. The tip loss is evaluated at the AoA
-create_dynamic_model(θ) = first(create_Pazy(aeroSolver=aeroSolver,mesh=mesh,beamWingtipRod=true,nElementsWingtipRod=nElementsWingtipRod,airfoil=airfoil,upright=true,pitchAngle=0,flightDirection=[sin(θ),cos(θ),0],tipLossPitchAngle=θ,airspeed=U,hasTipCorrection=true,tipLossType=tipLossType,tipLossFunctionIsAirspeedDependent=true))
+create_dynamic_model(θ) = first(create_Pazy(aeroSolver=aeroSolver,mesh=mesh,beamWingtipRod=true,nElementsWingtipRod=nElementsWingtipRod,pitchAngle=0,flightDirection=[sin(θ),cos(θ),0],tipLossPitchAngle=θ,airspeed=U,tipLossFunctionIsAirspeedDependent=true))
 
 # Create and solve steady problem for initial airspeed and first AoA
 steadyProblem = create_SteadyProblem(model=create_dynamic_model(θs[1]))
