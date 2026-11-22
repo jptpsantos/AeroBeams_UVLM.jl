@@ -334,7 +334,7 @@ function section_code()
     s = "2.5-C"
     rng = MersenneTwister(2506)
     Λ, φ, sb, c = deg2rad(23.0), deg2rad(3.5), 0.37, 0.21
-    surf = create_AeroSurface(ppSolver=Indicial(), airfoil=deepcopy(FlatPlate), c=c, Λ=Λ, φ=φ, normSparPos=sb, updateAirfoilParameters=false)
+    surf = create_AeroSurface(ppSolver=Indicial(), airfoil=deepcopy(FlatPlate), c=c, Λ=Λ, φ=φ, referenceAxis=sb, updateAirfoilParameters=false)
     p0 = [0.3, -0.5, 0.7]
     pA0 = [0.4, -0.2, 0.6]
     beam = create_Beam(name="b", length=1.0, nElements=2, S=[isotropic_stiffness_matrix(∞=1e9, EIy=10)], I=[inertia_matrix(ρA=1)], surface=surf, p0=p0)

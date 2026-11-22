@@ -182,7 +182,7 @@ function sec_indicial()
     # sums of A_i: Φ(0)
     C("Φ_p(0) Wagner", "Σ A_i^C = 0.5 => Φ_p^C(0) = 0.5 (Wagner's value at t=0)", 1 - sum(WAGNER[1]), 0.5)
     B("Beddoes/Jose: ΣA=1", "for the compressible sets Σ A_i^C = 1, i.e. Φ_p^C(0)=0 (the initial response is purely non-circulatory)", abs(sum(BEDDOES[1]) - 1) < 1e-12 && abs(sum(JOSE[1]) - 1) < 1e-12)
-    B("[codigo] parametros", "src/AeroSolver.jl has Wagner (0.165,0.335;0.0455,0.3) [text: l. 1943] and Küssner (0.5,0.5;0.13,1.0) [l. 2166]",
+    B("[code] parametros", "src/AeroSolver.jl has Wagner (0.165,0.335;0.0455,0.3) [text: l. 1943] and Küssner (0.5,0.5;0.13,1.0) [l. 2166]",
         code_has(CODE_SOLV, ":Wagner  => (SVector(0.165, 0.335), SVector(0.0455, 0.3))") && code_has(CODE_SOLV, ":Kussner       => (SVector(0.5, 0.5), SVector(0.13, 1.0))"))
     B("l. 1906 'rate of change'", "text: 'Φ defines the RATE OF CHANGE of an output in response to a step change in an input'. Φ is the step RESPONSE itself (Φ' is the impulse response)", false; kind=:note)
 end
@@ -283,12 +283,12 @@ function sec_inertial()
     C("eq:cmI_comp_conv termo θ̈", "-∫(-2b(a²+1/3)/(UM)) θ̈ Φ_mθ̇ [AS PRINTED, = +…] vs recast -(2b(a²+1/3)/(UM))(θ̇ - X8/T_mθ̇): OPPOSITE sign", cm_conv_θ, cm_rec_θ; kind=:typo)
     C("eq:cmI_comp_conv corrigida", "with the integral term written  -∫ (2b(a²+1/3)/(UM)) θ̈ Φ_mθ̇  (same sign as the c_n term and as the piston-theory value) conv = recast", -(2b * (a^2 + 1 / 3) / (Ut(t) * Mt(t))) * conv(θdt, Tmθ̇), cm_rec_θ; tol=1e-9)
     # code consistency
-    B("[codigo] cnI compressivel", "src: cnI = 4/Ma*(α-χ1/Tnα) + -4aₕ b/(Uᵢ Ma)*(Ωₐ-χ2/Tnθ̇) + 4α/Ma²*(Ma-χ6/TnM)", code_has(CODE_AERO, "4/Ma * (α - χ1/Tnα) + -4*aₕ*b/(Uᵢ*Ma) * (Ωₐ - χ2/Tnθ̇) + 4*α/Ma^2 * (Ma - χ6/TnM)"))
-    B("[codigo] cmI compressivel", "src: cmI = 2aₕ/Ma(α-…) + -2b(aₕ²+1/3)/(Uᵢ Ma)(Ωₐ-χ5/Tmθ̇) + 2aₕα/Ma²(Ma-…) - πbΩₐ/(4Uᵢβₚ)  (negative sign of the θ̇ term)", code_has(CODE_AERO, "+ -2*b*(aₕ^2+1/3)/(Uᵢ*Ma) * (Ωₐ - χ5/Tmθ̇)") && code_has(CODE_AERO, "- π*b*Ωₐ/(4*Uᵢ*βₚ)"))
-    B("[codigo] cnI/cmI incompressivel", "src: cnI = πbUₙdotMid/Uᵢ² ; cmI = -πb/(2Uᵢ²)(-aₕ UₙdotMid + bΩₐdot/8 + UᵢΩₐ/2)", code_has(CODE_AERO, "π*b*UₙdotMid/Uᵢ^2") && code_has(CODE_AERO, "-π*b/(2*Uᵢ^2) * (-aₕ * UₙdotMid + b * Ωₐdot / 8 + Uᵢ * Ωₐ / 2)"))
+    B("[code] cnI compressivel", "src: cnI = 4/Ma*(α-χ1/Tnα) + -4aₕ b/(Uᵢ Ma)*(Ωₐ-χ2/Tnθ̇) + 4α/Ma²*(Ma-χ6/TnM)", code_has(CODE_AERO, "4/Ma * (α - χ1/Tnα) + -4*aₕ*b/(Uᵢ*Ma) * (Ωₐ - χ2/Tnθ̇) + 4*α/Ma^2 * (Ma - χ6/TnM)"))
+    B("[code] cmI compressivel", "src: cmI = 2aₕ/Ma(α-…) + -2b(aₕ²+1/3)/(Uᵢ Ma)(Ωₐ-χ5/Tmθ̇) + 2aₕα/Ma²(Ma-…) - πbΩₐ/(4Uᵢβₚ)  (negative sign of the θ̇ term)", code_has(CODE_AERO, "+ -2*b*(aₕ^2+1/3)/(Uᵢ*Ma) * (Ωₐ - χ5/Tmθ̇)") && code_has(CODE_AERO, "- π*b*Ωₐ/(4*Uᵢ*βₚ)"))
+    B("[code] cnI/cmI incompressivel", "src: cnI = πbUₙdotMid/Uᵢ² ; cmI = -πb/(2Uᵢ²)(-aₕ UₙdotMid + bΩₐdot/8 + UᵢΩₐ/2)", code_has(CODE_AERO, "π*b*UₙdotMid/Uᵢ^2") && code_has(CODE_AERO, "-π*b/(2*Uᵢ^2) * (-aₕ * UₙdotMid + b * Ωₐdot / 8 + Uᵢ * Ωₐ / 2)"))
     # state equations and their numbering
     B("eq:xdot5_cmI_comp", "text: Ẋ_8^I = -X_8^I/T_{nθ̇} + θ̇ ; but X_8 enters c_m through (θ̇ - X_8/T_{mθ̇}) (eq:cmI_comp) and the code uses 1/Tmθ̇", false; kind=:typo)
-    B("[codigo] ordem dos estados", "src: B[inertial] = (α, Ωₐ, α, α, Ωₐ, Ma, Ma, Ma): ORDER (nα, nθ̇, mα, mα, mθ̇, nM, mM, mM) differs from the text X1..X8 (nα, nM, nθ̇, mα, mα, mM, mM, mθ̇)", !(code_has(CODE_AERO, "SVector(α, Ωₐ, α, α, Ωₐ, Ma, Ma, Ma)")); kind=:note)
+    B("[code] ordem dos estados", "src: B[inertial] = (α, Ωₐ, α, α, Ωₐ, Ma, Ma, Ma): ORDER (nα, nθ̇, mα, mα, mθ̇, nM, mM, mM) differs from the text X1..X8 (nα, nM, nθ̇, mα, mα, mM, mM, mθ̇)", !(code_has(CODE_AERO, "SVector(α, Ωₐ, α, α, Ωₐ, Ma, Ma, Ma)")); kind=:note)
 
     # ---- time scales eqs. (T_n_alpha ... T_m_thetadot)
     c = 0.6; āa = 340.0
@@ -299,14 +299,14 @@ function sec_inertial()
         T_code = (c / āa) / ((1 - M) + π * β * M^2 * Σ)                             # src/Aerodynamics.jl (β), = Leishman K_α
         slope(T) = -(4 / M) / T + (2π / β) * Σ * β^2 * U / bsc                      # total initial slope: non-circulatory + circulatory
         target = -(4 / M) * (1 - M) * āa / c
-        C("T_nα ($nm) impresso", "initial slope of c_n^I+c_n^C with T_nα AS PRINTED (πM²β²ΣAb) vs piston-theory slope -(4/M)(1-M)ā/c", slope(T_print), target; kind=:typo, tol=1e-6)
+        C("T_nα ($nm) printed", "initial slope of c_n^I+c_n^C with T_nα AS PRINTED (πM²β²ΣAb) vs piston-theory slope -(4/M)(1-M)ā/c", slope(T_print), target; kind=:typo, tol=1e-6)
         C("T_nα ($nm) código", "idem with πβM²ΣAb (code, Leishman & Beddoes K_α): matches", slope(T_code), target; tol=1e-12)
     end
-    B("[codigo] T_nα", "src: Tnα = Tᵢ / (1 - Ma + π * βₚ * Ma^2 * ΣγACbC)  (β, not β²)", code_has(CODE_AERO, "Tnα = Tᵢ / (1 - Ma + π * βₚ * Ma^2 * ΣγACbC)"))
-    B("[codigo] T_nθ̇, T_mα, T_mθ̇", "src formulas = eq:T_n_thetadot (2πM²β), eq:T_m_alpha, eq:T_m_thetadot (7/[15(1-M)+3πM²β A3 b3]); k=0.75 (l. 2037)",
+    B("[code] T_nα", "src: Tnα = Tᵢ / (1 - Ma + π * βₚ * Ma^2 * ΣγACbC)  (β, not β²)", code_has(CODE_AERO, "Tnα = Tᵢ / (1 - Ma + π * βₚ * Ma^2 * ΣγACbC)"))
+    B("[code] T_nθ̇, T_mα, T_mθ̇", "src formulas = eq:T_n_thetadot (2πM²β), eq:T_m_alpha, eq:T_m_thetadot (7/[15(1-M)+3πM²β A3 b3]); k=0.75 (l. 2037)",
         code_has(CODE_AERO, "Tnθ̇ = Tᵢ / (1 - Ma + 2π * βₚ * Ma^2 * ΣγACbC)") && code_has(CODE_AERO, "Tmα = Tᵢ * (AI[1]*bI[2] + AI[2]*bI[1]) / (bI[1] * bI[2] * (1-Ma))") &&
         code_has(CODE_AERO, "Tmθ̇ = 7*Tᵢ / (15*(1-Ma) + 3π * βₚ * Ma^2 * AI[3]*bI[3])") && code_has(CODE_AERO, "λ = 0.75"))
-    B("[codigo] T_nM", "src: TnM = Tᵢ / (1 - Ma + π / βₚ * Ma^2 * ΣγACbC) = eq:T_n_M (β^{-1}); TmM = Tmα", code_has(CODE_AERO, "TnM = Tᵢ / (1 - Ma + π / βₚ * Ma^2 * ΣγACbC)") && code_has(CODE_AERO, "TmM = Tmα"))
+    B("[code] T_nM", "src: TnM = Tᵢ / (1 - Ma + π / βₚ * Ma^2 * ΣγACbC) = eq:T_n_M (β^{-1}); TmM = Tmα", code_has(CODE_AERO, "TnM = Tᵢ / (1 - Ma + π / βₚ * Ma^2 * ΣγACbC)") && code_has(CODE_AERO, "TmM = Tmα"))
     # T_mα: initial relative slope of Φ_mα
     M = 0.4; Tmα_ = (c / āa) * (AI[1] * bI[2] + AI[2] * bI[1]) / (bI[1] * bI[2] * (1 - M))
     C("T_mα", "Φ_mα'(0)/Φ_mα(0) = -(A1/b1+A2/b2)/T_mα = -(1-M)ā/c (same piston-theory relative decay rate as for c_n)", -(AI[1] / bI[1] + AI[2] / bI[2]) / Tmα_, -(1 - M) * āa / c; tol=1e-12)
@@ -341,15 +341,15 @@ function sec_inflow()
         N == 6 && C("Peters N=6 limites", "C_P(0)=1 and C_P(∞)=1/2 (lift deficiency limits)", [real(CP(1e-6)), real(CP(1e4))], [1.0, 0.5]; tol=5e-3)
     end
     A6, A6inv, b6, c6 = inflow_arrays(6)
-    C("[codigo] inflow_arrays", "copy of inflow_arrays equals AeroBeams.inflow_arrays (N=6)", HAVE_AB ? vcat(vec(A6), b6, c6) : zeros(1), HAVE_AB ? vcat(vec(AeroBeams.inflow_arrays(6)[1]), AeroBeams.inflow_arrays(6)[3], AeroBeams.inflow_arrays(6)[4]) : zeros(1); tol=1e-12)
+    C("[code] inflow_arrays", "copy of inflow_arrays equals AeroBeams.inflow_arrays (N=6)", HAVE_AB ? vcat(vec(A6), b6, c6) : zeros(1), HAVE_AB ? vcat(vec(AeroBeams.inflow_arrays(6)[1]), AeroBeams.inflow_arrays(6)[3], AeroBeams.inflow_arrays(6)[4]) : zeros(1); tol=1e-12)
     # Wagner/Jones exponential approximation vs Theodorsen in the frequency domain: C_J(ik) = 1 - ΣA_i ik/(ik+b_i)
     CJ(k) = 1 - sum(WAGNER[1][i] * im * k / (im * k + WAGNER[2][i]) for i in 1:2)
     errJ = maximum(abs(CJ(k) - Cex[i]) for (i, k) in enumerate(ks))
     C("Jones vs Theodorsen", "Wagner approx (0.165,0.335;0.0455,0.3) vs exact C(k): max|ΔC| = $(round(errJ, sigdigits=2)) [tol 0.02]", errJ, 0.0; tol=0.02)
     diag(@sprintf("Jones (2-term Wagner) max|C_J - C_Theodorsen| = %.4f", errJ))
     # text vs code on the time scale of the inflow equation
-    B("[codigo] Θ no Peters", "src: Ac .= -Θ*AₚInvVec, A[...] = -Θ*AₚInv with Θ = Uᵢ βₚ²/b ; text eq:lambda_statespace has (U/b)λ (no β²)", !(code_has(CODE_AERO, "A[circulatoryPitchPlungeStatesRange,circulatoryPitchPlungeStatesRange] .= -Θ * AₚInv") && code_has(CODE_AERO, "Θ = Uᵢ/b*βₚ²")); kind=:note)
-    B("[codigo] w^E Peters", "src: wₑ = UₙTQC - 1/2 dot(bₚ, λ); B = UₙdotTQC * AₚInv cₚ  (λ̇ = -ΘA⁻¹λ + ẇ A⁻¹ c): consistent with eq:w_34_eff_peters, eq:lambda_0, eq:lambda_statespace", code_has(CODE_AERO, "return UₙTQC - 1/2*dot(ppSolver.bₚ, view(χ,circulatoryPitchPlungeStatesRange))") && code_has(CODE_AERO, "B[circulatoryPitchPlungeStatesRange] .= UₙdotTQC * AₚInvcₚ"))
+    B("[code] Θ no Peters", "src: Ac .= -Θ*AₚInvVec, A[...] = -Θ*AₚInv with Θ = Uᵢ βₚ²/b ; text eq:lambda_statespace has (U/b)λ (no β²)", !(code_has(CODE_AERO, "A[circulatoryPitchPlungeStatesRange,circulatoryPitchPlungeStatesRange] .= -Θ * AₚInv") && code_has(CODE_AERO, "Θ = Uᵢ/b*βₚ²")); kind=:note)
+    B("[code] w^E Peters", "src: wₑ = UₙTQC - 1/2 dot(bₚ, λ); B = UₙdotTQC * AₚInv cₚ  (λ̇ = -ΘA⁻¹λ + ẇ A⁻¹ c): consistent with eq:w_34_eff_peters, eq:lambda_0, eq:lambda_statespace", code_has(CODE_AERO, "return UₙTQC - 1/2*dot(ppSolver.bₚ, view(χ,circulatoryPitchPlungeStatesRange))") && code_has(CODE_AERO, "B[circulatoryPitchPlungeStatesRange] .= UₙdotTQC * AₚInvcₚ"))
 end
 
 # =============================================================================
@@ -373,8 +373,8 @@ function sec_flap()
         C("T11 (d=$dh)", "T11/2 = ∫_d^1 (x-d)√((1+x)/(1-x))dx: w_{3/4,f} ∋ (b T11/2π) δ̇ (eq:w_34f_QS, 2nd term)", I1, T11 / 2; tol=1e-12)
         if HAVE_AB && dh == 0.4
             Th = AeroBeams.theodorsen_flap_constants(0.3, 0.7)
-            C("[codigo] Th[10],Th[11]", "AeroBeams.theodorsen_flap_constants: T10, T11 equal Theodorsen's closed forms", [Th[10], Th[11]], [T10, T11]; tol=1e-12)
-            C("[codigo] w_f", "src: wf = Th[17] Uᵢ δ + b Th[18] δ̇ with Th[17]=T10/π, Th[18]=T11/(2π) = eq:w_34f_QS", [Th[17], Th[18]], [T10 / π, T11 / (2π)]; tol=1e-12)
+            C("[code] Th[10],Th[11]", "AeroBeams.theodorsen_flap_constants: T10, T11 equal Theodorsen's closed forms", [Th[10], Th[11]], [T10, T11]; tol=1e-12)
+            C("[code] w_f", "src: wf = Th[17] Uᵢ δ + b Th[18] δ̇ with Th[17]=T10/π, Th[18]=T11/(2π) = eq:w_34f_QS", [Th[17], Th[18]], [T10 / π, T11 / (2π)]; tol=1e-12)
         end
     end
     # quasi-steady flap lift slope: c_n = c_nα T10 δ/π = 2 T10 δ = 2(π - θ_h + sinθ_h) δ (classical thin-airfoil flap effectiveness)
@@ -389,15 +389,15 @@ function sec_flap()
     λ = 3.0
     C("eq:cmI_f (dimensões)", "printed c_m^f (prefactor b/2U²): NOT invariant under a change of length unit (b→λb, U→λU): factor λ", cm_f(0.4λ, 20λ, true), cm_f(0.4, 20.0, true); kind=:typo)
     C("eq:cmI_f corrigida", "c_m^f = -ε_{f_m}/(2U²)[…] (no b in front, as in src/Aerodynamics.jl) is dimensionless", cm_f(0.4λ, 20λ, false), cm_f(0.4, 20.0, false); tol=1e-12)
-    B("[codigo] cmI flap", "src: cmI -= ϵₘ/(2*Uᵢ^2) * (Uᵢ^2*Th[14]*δ + Uᵢ*b*Th[15]*δdot + b^2*Th[16]*δddot)  (no b in front)", code_has(CODE_AERO, "cmI -= ϵₘ/(2*Uᵢ^2) * (Uᵢ^2*Th[14]*δ + Uᵢ*b*Th[15]*δdot + b^2*Th[16]*δddot)"))
-    B("[codigo] cnI flap", "src: cnI -= ϵₙ*b/Uᵢ^2 * (Uᵢ*Th[4]*δdot + b*Th[1]*δddot) = eq:cnI_f", code_has(CODE_AERO, "cnI -= ϵₙ*b/Uᵢ^2 * (Uᵢ*Th[4]*δdot + b*Th[1]*δddot)"))
+    B("[code] cmI flap", "src: cmI -= ϵₘ/(2*Uᵢ^2) * (Uᵢ^2*Th[14]*δ + Uᵢ*b*Th[15]*δdot + b^2*Th[16]*δddot)  (no b in front)", code_has(CODE_AERO, "cmI -= ϵₘ/(2*Uᵢ^2) * (Uᵢ^2*Th[14]*δ + Uᵢ*b*Th[15]*δdot + b^2*Th[16]*δddot)"))
+    B("[code] cnI flap", "src: cnI -= ϵₙ*b/Uᵢ^2 * (Uᵢ*Th[4]*δdot + b*Th[1]*δddot) = eq:cnI_f", code_has(CODE_AERO, "cnI -= ϵₙ*b/Uᵢ^2 * (Uᵢ*Th[4]*δdot + b*Th[1]*δddot)"))
     # efficiency also multiplies the circulatory flap normalwash in the code
-    B("[codigo] ε_n na parte circulatória", "src: wₑ = wₑp + ϵₙ*wₑf + wₑg: ε_{f_n} also scales the CIRCULATORY flap normalwash; eq:alpha_E (l. 2191) and the text of l. 2152 ('ad hoc efficiency factors') present it only in the inertial coefficients", !(code_has(CODE_AERO, "wₑ = wₑp + ϵₙ*wₑf + wₑg")); kind=:note)
+    B("[code] ε_n na parte circulatória", "src: wₑ = wₑp + ϵₙ*wₑf + wₑg: ε_{f_n} also scales the CIRCULATORY flap normalwash; eq:alpha_E (l. 2191) and the text of l. 2152 ('ad hoc efficiency factors') present it only in the inertial coefficients", !(code_has(CODE_AERO, "wₑ = wₑp + ϵₙ*wₑf + wₑg")); kind=:note)
     # eq:w_34f_E and state equations vs code
-    B("[codigo] flap states", "src: wₑf = wf - Σχ_f/cnα ; Ẋ = -bΘX + A ċ_nαw_f (B = cnαwfdot*ACf) = eq:w_34f_E, eq:state_space_indicial_flap", code_has(CODE_AERO, "wₑf = wf - sum(view(χ, flapStatesRange)) / cnα") && code_has(CODE_AERO, "B[flapStatesRange] .= cnαwfdot * ACf"))
+    B("[code] flap states", "src: wₑf = wf - Σχ_f/cnα ; Ẋ = -bΘX + A ċ_nαw_f (B = cnαwfdot*ACf) = eq:w_34f_E, eq:state_space_indicial_flap", code_has(CODE_AERO, "wₑf = wf - sum(view(χ, flapStatesRange)) / cnα") && code_has(CODE_AERO, "B[flapStatesRange] .= cnαwfdot * ACf"))
     # ad hoc / TableLookup version (2.1.6)
-    B("[codigo] TableLookup: c_t", "src: ctC -= cdδ*abs(δ)/cos(α): flap drag increment ∝ |δ| (even), whereas eq:ctfC_adhoc is linear, c_{t_f}^C = c_{tδ}δ_f", !(code_has(CODE_AERO, "ctC -= cdδ * abs(δ) / cos(α)")); kind=:note)
-    B("[codigo] TableLookup: c_n→c_m,c_t", "src adds cnδ δ INSIDE cnC (cnC += cnδ*δ) BEFORE cmC = cnC*(normSparPos-x_ac) and ctC = η cnC tan(…): the flap normal force also produces moment about the axis (arm s-x_ac) and tangential force; eq:cm_attached_alternative/eq:ct_attached_alternative show c_m^C (from the flapless c_n^C) + c_{m_f}^C and c_t^C + c_{t_f}^C", !(code_has(CODE_AERO, "cnC += cnδ * δ")); kind=:note)
+    B("[code] TableLookup: c_t", "src: ctC -= cdδ*abs(δ)/cos(α): flap drag increment ∝ |δ| (even), whereas eq:ctfC_adhoc is linear, c_{t_f}^C = c_{tδ}δ_f", !(code_has(CODE_AERO, "ctC -= cdδ * abs(δ) / cos(α)")); kind=:note)
+    B("[code] TableLookup: c_n→c_m,c_t", "src adds cnδ δ INSIDE cnC (cnC += cnδ*δ) BEFORE cmC = cnC*(referenceAxis-x_ac) and ctC = η cnC tan(…): the flap normal force also produces moment about the axis (arm s-x_ac) and tangential force; eq:cm_attached_alternative/eq:ct_attached_alternative show c_m^C (from the flapless c_n^C) + c_{m_f}^C and c_t^C + c_{t_f}^C", !(code_has(CODE_AERO, "cnC += cnδ * δ")); kind=:note)
     push!(UNVERIFIED, "Theodorsen flap constants T1..T9, T12, T13 and the non-circulatory flap loads (eq:cnI_f, eq:cmI_f): the closed forms in src/AeroProperties.jl coincide with Theodorsen's (1935) as remembered, and T10, T11 were verified by thin-airfoil integrals; the apparent-mass flap loads were not re-derived.")
 end
 
@@ -420,7 +420,7 @@ function sec_gust()
     conv_fixed = wqs(t) * Φg(0) + quadgk(σ -> dΦg(t - σ) * wqs(σ), 0, t)[1]
     X = [quadgk(σ -> exp(-bg[i] * Θ * (t - σ)) * wqs(σ), 0, t)[1] for i in 1:2]             # eq:gust_states
     wE_states = Θ * sum(Ag .* bg .* X)                                                     # eq:w_34g_E
-    C("eq:w_34g_conv impresso", "w^E = w^QS Φ_g(0) - ∫ ∂Φ_g(t-σ)/∂t w^QS dσ AS PRINTED vs eq:w_34g_E (states): opposite sign", conv_printed, wE_states; kind=:typo)
+    C("eq:w_34g_conv printed", "w^E = w^QS Φ_g(0) - ∫ ∂Φ_g(t-σ)/∂t w^QS dσ AS PRINTED vs eq:w_34g_E (states): opposite sign", conv_printed, wE_states; kind=:typo)
     C("eq:w_34g_conv corrigida", "w^E = w^QS Φ_g(0) + ∫ Φ_g'(t-σ) w^QS dσ = βU/b... = Θ ΣA_i b_i X_i (eq:w_34g_E): agree", conv_fixed, wE_states; tol=1e-10)
     # state equation (eq:state_space_gust)
     Xode = rk4((τ, x) -> -bg .* Θ .* x .+ wqs(τ), zeros(2), 0.0, t, 6000)
@@ -429,8 +429,8 @@ function sec_gust()
     Xstep(t) = (1 .- exp.(-bg .* Θ .* t)) ./ (bg .* Θ)
     C("rampa do gust (degrau)", "unit step gust: w^E(0)=0, w^E(∞)=1 (Küssner-type response)", [Θ * sum(Ag .* bg .* Xstep(0.0)), Θ * sum(Ag .* bg .* Xstep(1e4))], [0.0, 1.0]; tol=1e-9)
     # code
-    B("[codigo] gust", "src: wₑg = Θ*dot(AGbG, χ_g) [AGbG = A∘b] and B_g = UₙGust, Ag = -Θ*bG = eq:w_34g_E, eq:state_space_gust", code_has(CODE_AERO, "Θ * dot(AGbG, view(χ, gustStatesRange))") && code_has(CODE_AERO, "B[gustStatesRange] .= UₙGust") && code_has(CODE_AERO, "Ag .= - Θ * bG"))
-    B("[codigo] velocidade relativa com gust", "src: α_E = atan(-wₑ/(Uₜ+UₜGust)) with Uₜ = U_2, v_g^QS ≡ -U_g2, v^QS ≡ -U_2: = eq:alpha_E; but U_i (dynamic pressure, Mach, Re, Θ) uses only -V (gust excluded: 'quasi-stationary gust' assumption, l. 2184)", code_has(CODE_AERO, "αₑ = atan( - wₑ / (Uₜ + UₜGust) )"))
+    B("[code] gust", "src: wₑg = Θ*dot(AGbG, χ_g) [AGbG = A∘b] and B_g = UₙGust, Ag = -Θ*bG = eq:w_34g_E, eq:state_space_gust", code_has(CODE_AERO, "Θ * dot(AGbG, view(χ, gustStatesRange))") && code_has(CODE_AERO, "B[gustStatesRange] .= UₙGust") && code_has(CODE_AERO, "Ag .= - Θ * bG"))
+    B("[code] velocidade relativa com gust", "src: α_E = atan(-wₑ/(Uₜ+UₜGust)) with Uₜ = U_2, v_g^QS ≡ -U_g2, v^QS ≡ -U_2: = eq:alpha_E; but U_i (dynamic pressure, Mach, Re, Θ) uses only -V (gust excluded: 'quasi-stationary gust' assumption, l. 2184)", code_has(CODE_AERO, "αₑ = atan( - wₑ / (Uₜ + UₜGust) )"))
     push!(UNVERIFIED, "The Küssner function approximation (0.5,0.5;0.13,1.0) and the Berci-Righi coefficients are taken from the literature; only ΣA=1 and the algebra of the state-space form were verified.")
 end
 
@@ -473,9 +473,9 @@ function sec_composition()
             C("eq:cmC_attached corrigida", "c_m^C = c_n^C (a/2 + 1/2 - x_ac)", aₕ / 2 + 1 / 2 - x_ac, m; tol=1e-12)
         end
     end
-    B("[codigo] cmC", "src: cmC = cnC * (normSparPos - x_ac), x_ac = fraction of the chord from the LE (Airfoil.jl)", code_has(CODE_AERO, "cmC = cnC * (normSparPos - x_ac)"))
-    B("[codigo] ct", "src: ctC = η*cnC*tan(αₑ+b*Ωₐ/(2Uᵢ)) ; ct₀ = -cd₀/cos(α) ; induced: ctC -= cnC²/(π AR)/cos(α)", code_has(CODE_AERO, "η * cnC * tan(αₑ+b*Ωₐ/(2*Uᵢ))") && code_has(CODE_AERO, "-cd₀/cos(α)") && code_has(CODE_AERO, "ctC -= cnC^2 / (π*AR) / cos(α)"))
-    B("[codigo] cn circulatório", "src: cnC = cnα sin(αₑ)cos(αₑ) (smallAngles=false) = eq:cnC_attached", code_has(CODE_AERO, "cnα * sin(αₑ) * cos(αₑ)"))
+    B("[code] cmC", "src: cmC = cnC * (referenceAxis - x_ac), x_ac = fraction of the chord from the LE (Airfoil.jl)", code_has(CODE_AERO, "cmC = cnC * (referenceAxis - x_ac)"))
+    B("[code] ct", "src: ctC = η*cnC*tan(αₑ+b*Ωₐ/(2Uᵢ)) ; ct₀ = -cd₀/cos(α) ; induced: ctC -= cnC²/(π AR)/cos(α)", code_has(CODE_AERO, "η * cnC * tan(αₑ+b*Ωₐ/(2*Uᵢ))") && code_has(CODE_AERO, "-cd₀/cos(α)") && code_has(CODE_AERO, "ctC -= cnC^2 / (π*AR) / cos(α)"))
+    B("[code] cn circulatório", "src: cnC = cnα sin(αₑ)cos(αₑ) (smallAngles=false) = eq:cnC_attached", code_has(CODE_AERO, "cnα * sin(αₑ) * cos(αₑ)"))
     push!(UNVERIFIED, "eq:ctC_attached: c_t^C = η c_n^C tan(α^E + bθ̇/(2U)) (Peters 2007 eq. 41 / Leishman eq. 8.173): the argument α^E + bθ̇/2U (leading-edge suction angle) could not be re-derived independently here.")
     push!(UNVERIFIED, "The use of α^QS (not α^E) to resolve c_n, c_t into c_l, c_d and in c_t0, c_t^{LI} is conceptually right (geometric angle between chord and wind) and agrees with the code.")
 end
@@ -498,7 +498,7 @@ function sec_cnalpha()
     code_rate = - cn(Ma) * βpdot / βp                                                      # src (corrected): cnαdot = - cnα * βₚdot / βₚ
     C("ċ_nα (código antigo)", "BEFORE the audit src cnα_rate had cnαdot = cnα βₚdot/βₚ² vs d/dt[c_nα0/β(M(t))] = -c_nα β̇/β: opposite sign and an extra 1/β", code_old, true_rate; kind=:note)
     C("ċ_nα corrigida (código)", "src cnα_rate (corrected) = -cnα βₚdot/βₚ = d/dt[c_nα0/β(M(t))]", code_rate, true_rate; tol=1e-12)
-    B("[codigo] cnα_rate", "src: cnαdot = - cnα * βₚdot / βₚ (corrected)", code_has(CODE_AERO, "cnαdot = - cnα * βₚdot / βₚ"))
+    B("[code] cnα_rate", "src: cnαdot = - cnα * βₚdot / βₚ (corrected)", code_has(CODE_AERO, "cnαdot = - cnα * βₚdot / βₚ"))
     diag(@sprintf("cnα rate: true=%.5f  old code=%.5f (ratio %.4f = -1/β = %.4f)  corrected code=%.5f", true_rate, code_old, code_old / true_rate, -1 / βp, code_rate))
 end
 
@@ -520,7 +520,7 @@ let lastsec = ""
     for r in RESULTS
         mark = r.kind == :pass ? (r.ok ? "ok" : "FALHOU") :
                r.kind == :typo ? (r.ok ? "ERRO NO TEXTO CONFIRMADO" : "!! esperava-se discrepancia e nao houve") :
-                                 (r.ok ? "NOTA (afirmacao imprecisa/nao geral/inconsistente com o codigo, ver relatorio)" : "!! esperava-se diferenca e nao houve")
+                                 (r.ok ? "NOTA (afirmacao imprecisa/nao geral/inconsistente com o code, ver relatorio)" : "!! esperava-se diferenca e nao houve")
         if r.sec != lastsec
             println("\n------------------------- ", r.sec, " -------------------------")
             lastsec = r.sec
