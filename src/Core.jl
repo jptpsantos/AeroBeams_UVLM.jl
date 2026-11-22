@@ -10,6 +10,36 @@ show_debug() = true
     foreach_element(f, Base.tail(elementGroups))
 end
 
+# Calls f on the element with (flat) index i, finding its group
+@inline element_at(f::F, ::Tuple{}, i) where {F} = nothing
+@inline function element_at(f::F, elementGroups::Tuple, i) where {F}
+    group = first(elementGroups)
+    n = length(group)
+    i <= n ? f(group[i]) : element_at(f, Base.tail(elementGroups), i - n)
+    return nothing
+end
+
+# Calls f on every element, serially or, if parallel is true, with the available threads. The elements are taken one at a time by the workers (the cost per element varies, e.g., elements with aerodynamic surfaces are costlier), so f must only write to data owned by the element it is called on
+function foreach_element(f::F, elementGroups::Tuple, parallel::Bool) where {F}
+    nElements = sum(length, elementGroups)
+    nWorkers = min(Threads.nthreads(), nElements)
+    if !parallel || nWorkers < 2
+        foreach_element(f, elementGroups)
+        return nothing
+    end
+    nextElement = Threads.Atomic{Int}(1)
+    Threads.@sync for _ in 1:nWorkers
+        Threads.@spawn begin
+            i = Threads.atomic_add!(nextElement, 1)
+            while i <= nElements
+                element_at(f, elementGroups, i)
+                i = Threads.atomic_add!(nextElement, 1)
+            end
+        end
+    end
+    return nothing
+end
+
 # Assembles the residual vector of the system of equations
 function f!(problem)
 
@@ -23,8 +53,9 @@ function f!(problem)
     timeNow = time_now(problem)
     Δt = time_step(problem)
     isDynamicProblem = problem isa DynamicProblem
+    parallel = get_parallel(problem.systemSolver)
 
-    residual!(residual,model,beams,elementGroups,specialNodes,hingeAxisConstraints,x,σ,timeIndex,stepFraction,timeNow,Δt,isDynamicProblem)
+    residual!(residual,model,beams,elementGroups,specialNodes,hingeAxisConstraints,x,σ,timeIndex,stepFraction,timeNow,Δt,isDynamicProblem,parallel)
 
     return residual
 
@@ -42,8 +73,9 @@ function j!(problem)
     timeNow = time_now(problem)
     Δt = time_step(problem)
     isDynamicProblem = problem isa DynamicProblem
+    parallel = get_parallel(problem.systemSolver)
 
-    jacobian!(jacobian,model,elementGroups,specialNodes,hingeAxisConstraints,x,σ,skipAeroJacobianUpdate,timeNow,Δt,isDynamicProblem)
+    jacobian!(jacobian,model,elementGroups,specialNodes,hingeAxisConstraints,x,σ,skipAeroJacobianUpdate,timeNow,Δt,isDynamicProblem,parallel)
 
     return jacobian
 
@@ -58,10 +90,22 @@ function i!(problem)
     timeNow = time_now(problem)
     Δt = time_step(problem)
     isDynamicProblem = problem isa DynamicProblem
+    parallel = get_parallel(problem.systemSolver)
 
     # Loop over elements and set their contributions to the inertia matrix
-    foreach_element(elementGroups) do element
-        element_inertia!(inertia,model,element,timeNow,Δt,isDynamicProblem)
+    if parallel
+        # Compute the elements' contributions in parallel, and insert them (they share equations) serially
+        foreach_element(elementGroups, true) do element
+            element_inertia_resultants!(model,element,timeNow,Δt,isDynamicProblem)
+        end
+        foreach_element(elementGroups) do element
+            insert_element_inertias!(inertia,model,element)
+        end
+    else
+        foreach_element(elementGroups) do element
+            element_inertia_resultants!(model,element,timeNow,Δt,isDynamicProblem)
+            insert_element_inertias!(inertia,model,element)
+        end
     end
 
 end
@@ -81,19 +125,20 @@ function fj!(problem)
     timeNow = time_now(problem)
     Δt = time_step(problem)
     isDynamicProblem = problem isa DynamicProblem
+    parallel = get_parallel(problem.systemSolver)
 
     # Set residual vector
-    residual!(residual,model,beams,elementGroups,specialNodes,hingeAxisConstraints,x,σ,timeIndex,stepFraction,timeNow,Δt,isDynamicProblem)
+    residual!(residual,model,beams,elementGroups,specialNodes,hingeAxisConstraints,x,σ,timeIndex,stepFraction,timeNow,Δt,isDynamicProblem,parallel)
 
     # Set Jacobian matrix, if applicable
-    skipJacobianUpdate || jacobian!(jacobian,model,elementGroups,specialNodes,hingeAxisConstraints,x,σ,skipAeroJacobianUpdate,timeNow,Δt,isDynamicProblem)
+    skipJacobianUpdate || jacobian!(jacobian,model,elementGroups,specialNodes,hingeAxisConstraints,x,σ,skipAeroJacobianUpdate,timeNow,Δt,isDynamicProblem,parallel)
 
     return residual,jacobian
 
 end
 
 # Updates the residual vector of the system of equations
-function residual!(residual,model,beams,elementGroups,specialNodes,hingeAxisConstraints,x,σ,timeIndex,stepFraction,timeNow,Δt,isDynamicProblem)
+function residual!(residual,model,beams,elementGroups,specialNodes,hingeAxisConstraints,x,σ,timeIndex,stepFraction,timeNow,Δt,isDynamicProblem,parallel)
 
     # Set flap deflections and their rates
     for beam in beams
@@ -101,8 +146,19 @@ function residual!(residual,model,beams,elementGroups,specialNodes,hingeAxisCons
     end
 
     # Set contributions from the elements
-    foreach_element(elementGroups) do element
-        element_residual!(residual,model,element,x,σ,timeIndex,stepFraction,timeNow,Δt,isDynamicProblem)
+    if parallel
+        # Compute the elements' contributions in parallel, and insert them (they share equations) serially
+        foreach_element(elementGroups, true) do element
+            element_residual_resultants!(model,element,x,σ,timeIndex,stepFraction,timeNow,Δt,isDynamicProblem)
+        end
+        foreach_element(elementGroups) do element
+            insert_element_residual!(residual,model,element)
+        end
+    else
+        foreach_element(elementGroups) do element
+            element_residual_resultants!(model,element,x,σ,timeIndex,stepFraction,timeNow,Δt,isDynamicProblem)
+            insert_element_residual!(residual,model,element)
+        end
     end
 
     # Update states of all special nodes first (necessary for convergence with doubly-attached springs)
@@ -123,14 +179,25 @@ function residual!(residual,model,beams,elementGroups,specialNodes,hingeAxisCons
 end
 
 # Updates the Jacobian matrix of the system of equations
-function jacobian!(jacobian,model,elementGroups,specialNodes,hingeAxisConstraints,x,σ,skipAeroJacobianUpdate,timeNow,Δt,isDynamicProblem)
+function jacobian!(jacobian,model,elementGroups,specialNodes,hingeAxisConstraints,x,σ,skipAeroJacobianUpdate,timeNow,Δt,isDynamicProblem,parallel)
 
     # Reset Jacobians associated with spring loads and hinge axis constraints, and the trim flap deflections' columns
     reset_jacobians!(jacobian,model,specialNodes,hingeAxisConstraints)
 
     # Set contributions from the elements
-    foreach_element(elementGroups) do element
-        element_jacobian!(jacobian,model,element,timeNow,Δt,isDynamicProblem,skipAeroJacobianUpdate)
+    if parallel
+        # Compute the elements' contributions in parallel, and insert them serially (some entries are shared)
+        foreach_element(elementGroups, true) do element
+            element_jacobians!(model,element,timeNow,Δt,isDynamicProblem,skipAeroJacobianUpdate)
+        end
+        foreach_element(elementGroups) do element
+            insert_element_jacobians!(jacobian,model,element)
+        end
+    else
+        foreach_element(elementGroups) do element
+            element_jacobians!(model,element,timeNow,Δt,isDynamicProblem,skipAeroJacobianUpdate)
+            insert_element_jacobians!(jacobian,model,element)
+        end
     end
 
     # Set contributions from the special nodes
@@ -173,12 +240,10 @@ function flap_deflection!(beam,x,timeIndex,stepFraction)
 
 end
 
-# Computes the contributions from the current element to the residual array
-function element_residual!(residual,model,element,x,σ,timeIndex,stepFraction,timeNow,Δt,isDynamicProblem)
+# Computes the current element's resultants for the residual array (writes only to the element's own state, so it can be called in parallel for different elements)
+function element_residual_resultants!(model,element,x,σ,timeIndex,stepFraction,timeNow,Δt,isDynamicProblem)
 
-    @unpack invForceScaling = model.assemblyData
-    @unpack Δℓ,R0,hingedNode1Mat,notHingedNode1Mat,notHingedNode2Mat = element.geometry
-    @unpack eqs_Fu1,eqs_Fu2,eqs_Fp1,eqs_Fp2,eqs_FF1,eqs_FF2,eqs_FM1,eqs_FM2,eqs_FV,eqs_FΩ,eqs_Fχ,isSpecialNode1,isSpecialNode2,eqsNode1Set,eqsNode2Set = element.assemblyIndices
+    @unpack Δℓ,R0 = element.geometry
     @unpack u,p,F,M,V,Ω,γ,κ,P,H,χ = element.state.midpoint
     @unpack udot,pdot,Pdot,Hdot,χdot = element.state.rates
     @unpack v,ω = element.stateCache.kinematicsBasisb
@@ -211,9 +276,6 @@ function element_residual!(residual,model,element,x,σ,timeIndex,stepFraction,ti
     # Transient dynamic terms
     isDynamicProblem && element_transient_residual!(F_u1,F_u2,F_p1,F_p2,F_V,F_Ω,F_χ,Δℓ,P,H,udot,pdot,Pdot,Hdot,χdot,RR0,RdotR0,HT)
 
-    # Insert resultants into the residual array
-    insert_element_residual!(residual,F_u1,F_u2,F_p1,F_p2,F_F1,F_F2,F_M1,F_M2,F_V,F_Ω,F_χ,invForceScaling,eqs_Fu1,eqs_Fu2,eqs_Fp1,eqs_Fp2,eqs_FF1,eqs_FF2,eqs_FM1,eqs_FM2,eqs_FV,eqs_FΩ,eqs_Fχ,isSpecialNode1,isSpecialNode2,eqsNode1Set,eqsNode2Set,hingedNode1Mat,notHingedNode1Mat,notHingedNode2Mat)
-
     # @logmsg LogLevel(show_debug() ? 0 : -1) "ELEMENT $(element.assemblyData.globalID) RESIDUALS"
     # @logmsg LogLevel(show_debug() ? 0 : -1) "F_u1: $F_u1"
     # @logmsg LogLevel(show_debug() ? 0 : -1) "F_p1: $F_p1"
@@ -226,6 +288,20 @@ function element_residual!(residual,model,element,x,σ,timeIndex,stepFraction,ti
 
     return nothing
     
+end
+
+# Inserts the element's resultants into the residual array (serial, since elements share equations)
+function insert_element_residual!(residual,model,element)
+
+    @unpack invForceScaling = model.assemblyData
+    @unpack hingedNode1Mat,notHingedNode1Mat,notHingedNode2Mat = element.geometry
+    @unpack eqs_Fu1,eqs_Fu2,eqs_Fp1,eqs_Fp2,eqs_FF1,eqs_FF2,eqs_FM1,eqs_FM2,eqs_FV,eqs_FΩ,eqs_Fχ,isSpecialNode1,isSpecialNode2,eqsNode1Set,eqsNode2Set = element.assemblyIndices
+    @unpack F_u1,F_u2,F_p1,F_p2,F_F1,F_F2,F_M1,F_M2,F_V,F_Ω,F_χ = element.stateCache.residuals
+
+    insert_element_residual!(residual,F_u1,F_u2,F_p1,F_p2,F_F1,F_F2,F_M1,F_M2,F_V,F_Ω,F_χ,invForceScaling,eqs_Fu1,eqs_Fu2,eqs_Fp1,eqs_Fp2,eqs_FF1,eqs_FF2,eqs_FM1,eqs_FM2,eqs_FV,eqs_FΩ,eqs_Fχ,isSpecialNode1,isSpecialNode2,eqsNode1Set,eqsNode2Set,hingedNode1Mat,notHingedNode1Mat,notHingedNode2Mat)
+
+    return nothing
+
 end
 
 # Computes the generalized velocities of basis b at the element's midpoint, resolved in basis A
@@ -679,12 +755,10 @@ function reset_trim_flap_deflections_jacobians!(jacobian,model)
 
 end
 
-# Computes the contributions from the current element to the Jacobian matrix
-function element_jacobian!(jacobian,model,element,timeNow,Δt,isDynamicProblem,skipAeroJacobianUpdate)
+# Computes the current element's contributions to the Jacobian matrix, and keeps them in its state cache (writes only to the element's own state, so it can be called in parallel for different elements)
+function element_jacobians!(model,element,timeNow,Δt,isDynamicProblem,skipAeroJacobianUpdate)
 
-    @unpack forceScaling,invForceScaling = model.assemblyData
-    @unpack jacobianMaps = element
-    @unpack Δℓ,R0,hingedNode1Mat,notHingedNode1Mat,notHingedNode2Mat = element.geometry
+    @unpack Δℓ,R0 = element.geometry
     @unpack C11,C12,C21,C22,I11,I12,I21,I22,μd11,μd12,μd21,μd22,hasDamping = element.sectional
     @unpack F,M,V,Ω,γ,κ,P,H,χ = element.state.midpoint
     @unpack pdot,Vdot,Ωdot,Pdot,Hdot,χdot = element.state.rates
@@ -724,9 +798,6 @@ function element_jacobian!(jacobian,model,element,timeNow,Δt,isDynamicProblem,s
 
     # Transient dynamic terms
     isDynamicProblem && element_transient_jacobians!(F_u1_p,F_u2_p,F_u1_V,F_u2_V,F_u1_Ω,F_u2_Ω,F_p1_p,F_p2_p,F_p1_V,F_p2_V,F_p1_Ω,F_p2_Ω,F_V_u,F_Ω_p,F_χ_V,F_χ_Ω,F_χ_χ,F_χ_Vdot,F_χ_Ωdot,f1χ_Vdot,f2χ_Vdot,f1χ_Ωdot,f2χ_Ωdot,m1χ_Vdot,m2χ_Vdot,m1χ_Ωdot,m2χ_Ωdot,element.stateCache.equivStatesRates.c,Δℓ,I11,I12,I21,I22,R0,P,H,pdot,Pdot,Hdot,RR0,RdotR0,HT,R_p1,R_p2,R_p3,HT_p1,HT_p2,HT_p3,Rdot_p1,Rdot_p2,Rdot_p3)
-
-    # Insert element resultants into the Jacobian matrix
-    insert_element_jacobians!(jacobian,hasDamping,F_u1_p,F_u2_p,F_u1_F,F_u2_F,F_u1_M,F_u2_M,F_u1_V,F_u2_V,F_u1_Ω,F_u2_Ω,F_u1_χ,F_u2_χ,F_u1_δ,F_u2_δ,F_p1_p,F_p2_p,F_p1_F,F_p2_F,F_p1_M,F_p2_M,F_p1_V,F_p2_V,F_p1_Ω,F_p2_Ω,F_p1_χ,F_p2_χ,F_p1_δ,F_p2_δ,F_F1_u,F_F2_u,F_F1_p,F_F2_p,F_F1_F,F_F2_F,F_F1_M,F_F2_M,F_M1_p,F_M2_p,F_M1_F,F_M2_F,F_M1_M,F_M2_M,F_V_u,F_V_p,F_V_V,F_Ω_p,F_Ω_Ω,F_χ_p,F_χ_V,F_χ_Ω,F_χ_χ,forceScaling,invForceScaling,hingedNode1Mat,notHingedNode1Mat,notHingedNode2Mat,jacobianMaps)
 
     # @logmsg LogLevel(show_debug() ? 0 : -1) "ELEMENT $(element.assemblyData.globalID) JACOBIANS"
     # @logmsg LogLevel(show_debug() ? 0 : -1) "F_u1_p: $F_u1_p"
@@ -1328,6 +1399,21 @@ function element_transient_jacobians!(F_u1_p,F_u2_p,F_u1_V,F_u2_V,F_u1_Ω,F_u2_�
 
 end
 
+# Inserts the element's contributions into the Jacobian matrix (serial, since entries of the trim flap deflections' columns are shared by the elements of a surface)
+function insert_element_jacobians!(jacobian,model,element)
+
+    @unpack forceScaling,invForceScaling = model.assemblyData
+    @unpack jacobianMaps = element
+    @unpack hingedNode1Mat,notHingedNode1Mat,notHingedNode2Mat = element.geometry
+    @unpack hasDamping = element.sectional
+    @unpack F_u1_p,F_u2_p,F_u1_F,F_u2_F,F_u1_M,F_u2_M,F_u1_V,F_u2_V,F_u1_Ω,F_u2_Ω,F_u1_χ,F_u2_χ,F_u1_δ,F_u2_δ,F_p1_p,F_p2_p,F_p1_F,F_p2_F,F_p1_M,F_p2_M,F_p1_V,F_p2_V,F_p1_Ω,F_p2_Ω,F_p1_χ,F_p2_χ,F_p1_δ,F_p2_δ,F_F1_u,F_F2_u,F_F1_p,F_F2_p,F_F1_F,F_F2_F,F_F1_M,F_F2_M,F_M1_p,F_M2_p,F_M1_F,F_M2_F,F_M1_M,F_M2_M,F_V_u,F_V_p,F_V_V,F_Ω_p,F_Ω_Ω,F_χ_p,F_χ_V,F_χ_Ω,F_χ_χ = element.stateCache.jacobians
+
+    insert_element_jacobians!(jacobian,hasDamping,F_u1_p,F_u2_p,F_u1_F,F_u2_F,F_u1_M,F_u2_M,F_u1_V,F_u2_V,F_u1_Ω,F_u2_Ω,F_u1_χ,F_u2_χ,F_u1_δ,F_u2_δ,F_p1_p,F_p2_p,F_p1_F,F_p2_F,F_p1_M,F_p2_M,F_p1_V,F_p2_V,F_p1_Ω,F_p2_Ω,F_p1_χ,F_p2_χ,F_p1_δ,F_p2_δ,F_F1_u,F_F2_u,F_F1_p,F_F2_p,F_F1_F,F_F2_F,F_F1_M,F_F2_M,F_M1_p,F_M2_p,F_M1_F,F_M2_F,F_M1_M,F_M2_M,F_V_u,F_V_p,F_V_V,F_Ω_p,F_Ω_Ω,F_χ_p,F_χ_V,F_χ_Ω,F_χ_χ,forceScaling,invForceScaling,hingedNode1Mat,notHingedNode1Mat,notHingedNode2Mat,jacobianMaps)
+
+    return nothing
+
+end
+
 # Inserts the element's Jacobian contributions into the global Jacobian matrix using precomputed maps for the indices
 function insert_element_jacobians!(jacobian,hasDamping,F_u1_p,F_u2_p,F_u1_F,F_u2_F,F_u1_M,F_u2_M,F_u1_V,F_u2_V,F_u1_Ω,F_u2_Ω,F_u1_χ,F_u2_χ,F_u1_δ,F_u2_δ,F_p1_p,F_p2_p,F_p1_F,F_p2_F,F_p1_M,F_p2_M,F_p1_V,F_p2_V,F_p1_Ω,F_p2_Ω,F_p1_χ,F_p2_χ,F_p1_δ,F_p2_δ,F_F1_u,F_F2_u,F_F1_p,F_F2_p,F_F1_F,F_F2_F,F_F1_M,F_F2_M,F_M1_p,F_M2_p,F_M1_F,F_M2_F,F_M1_M,F_M2_M,F_V_u,F_V_p,F_V_V,F_Ω_p,F_Ω_Ω,F_χ_p,F_χ_V,F_χ_Ω,F_χ_χ,forceScaling,invForceScaling,hingedNode1Mat,notHingedNode1Mat,notHingedNode2Mat,jacobianMaps)
 
@@ -1421,12 +1507,10 @@ function insert_element_jacobians!(jacobian,hasDamping,F_u1_p,F_u2_p,F_u1_F,F_u2
 
 end
 
-# Computes the contributions from the current element to the inertia matrix
-function element_inertia!(inertia,model,element,timeNow,Δt,isDynamicProblem)
+# Computes the current element's contributions to the inertia matrix, and keeps them in its state cache (writes only to the element's own state, so it can be called in parallel for different elements)
+function element_inertia_resultants!(model,element,timeNow,Δt,isDynamicProblem)
 
-    @unpack invForceScaling = model.assemblyData
-    @unpack inertiaMaps = element
-    @unpack Δℓ,R0,hingedNode1Mat,notHingedNode1Mat = element.geometry
+    @unpack Δℓ,R0 = element.geometry
     @unpack I11,I12,I21,I22,μd11,μd12,μd21,μd22,hasDamping = element.sectional
     @unpack P,H,γ = element.state.midpoint
     @unpack RR0,HT,R_p1,R_p2,R_p3 = element.stateCache.rotationMatrices
@@ -1444,9 +1528,6 @@ function element_inertia!(inertia,model,element,timeNow,Δt,isDynamicProblem)
 
     # Compute structural damping resultants, if applicable
     hasDamping && element_damping_inertia_resultants!(F_u1_Fdot,F_u2_Fdot,F_u1_Mdot,F_u2_Mdot,F_p1_Fdot,F_p2_Fdot,F_p1_Mdot,F_p2_Mdot,Δℓ,μd11,μd12,μd21,μd22,γ,RR0)
-
-    # Insert resultants into the inertia matrix
-    insert_element_inertias!(inertia,hasDamping,F_u1_Fdot,F_u2_Fdot,F_u1_Mdot,F_u2_Mdot,F_p1_Fdot,F_p2_Fdot,F_p1_Mdot,F_p2_Mdot,F_u1_pdot,F_u2_pdot,F_u1_Vdot,F_u2_Vdot,F_u1_Ωdot,F_u2_Ωdot,F_p1_pdot,F_p2_pdot,F_p1_Vdot,F_p2_Vdot,F_p1_Ωdot,F_p2_Ωdot,F_V_udot,F_Ω_pdot,F_χ_Vdot,F_χ_Ωdot,F_χ_χdot,hingedNode1Mat,notHingedNode1Mat,invForceScaling,inertiaMaps)
 
     # @logmsg LogLevel(show_debug() ? 0 : -1) "ELEMENT $(element.assemblyData.globalID) INERTIAS"
     # @logmsg LogLevel(show_debug() ? 0 : -1) "F_u1_pdot: $F_u1_pdot"
@@ -1700,6 +1781,21 @@ function element_damping_inertia_resultants!(F_u1_Fdot,F_u2_Fdot,F_u1_Mdot,F_u2_
 
 end
 
+
+# Inserts the element's contributions into the inertia matrix (serial, since elements share equations)
+function insert_element_inertias!(inertia,model,element)
+
+    @unpack invForceScaling = model.assemblyData
+    @unpack inertiaMaps = element
+    @unpack hingedNode1Mat,notHingedNode1Mat = element.geometry
+    @unpack hasDamping = element.sectional
+    @unpack F_u1_pdot,F_u2_pdot,F_u1_Vdot,F_u2_Vdot,F_u1_Ωdot,F_u2_Ωdot,F_u1_Fdot,F_u2_Fdot,F_u1_Mdot,F_u2_Mdot,F_p1_pdot,F_p2_pdot,F_p1_Vdot,F_p2_Vdot,F_p1_Ωdot,F_p2_Ωdot,F_p1_Fdot,F_p2_Fdot,F_p1_Mdot,F_p2_Mdot,F_V_udot,F_Ω_pdot,F_χ_Vdot,F_χ_Ωdot,F_χ_χdot = element.stateCache.jacobians
+
+    insert_element_inertias!(inertia,hasDamping,F_u1_Fdot,F_u2_Fdot,F_u1_Mdot,F_u2_Mdot,F_p1_Fdot,F_p2_Fdot,F_p1_Mdot,F_p2_Mdot,F_u1_pdot,F_u2_pdot,F_u1_Vdot,F_u2_Vdot,F_u1_Ωdot,F_u2_Ωdot,F_p1_pdot,F_p2_pdot,F_p1_Vdot,F_p2_Vdot,F_p1_Ωdot,F_p2_Ωdot,F_V_udot,F_Ω_pdot,F_χ_Vdot,F_χ_Ωdot,F_χ_χdot,hingedNode1Mat,notHingedNode1Mat,invForceScaling,inertiaMaps)
+
+    return nothing
+
+end
 
 # Inserts the element's contributions to the inertia matrix into the global inertia matrix
 function insert_element_inertias!(inertia,hasDamping,F_u1_Fdot,F_u2_Fdot,F_u1_Mdot,F_u2_Mdot,F_p1_Fdot,F_p2_Fdot,F_p1_Mdot,F_p2_Mdot,F_u1_pdot,F_u2_pdot,F_u1_Vdot,F_u2_Vdot,F_u1_Ωdot,F_u2_Ωdot,F_p1_pdot,F_p2_pdot,F_p1_Vdot,F_p2_Vdot,F_p1_Ωdot,F_p2_Ωdot,F_V_udot,F_Ω_pdot,F_χ_Vdot,F_χ_Ωdot,F_χ_χdot,hingedNode1Mat,notHingedNode1Mat,invForceScaling,inertiaMaps)

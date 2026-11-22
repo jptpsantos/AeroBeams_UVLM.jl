@@ -86,12 +86,15 @@ LinearSolverState() = LinearSolverState(false)
 # Fields
 # - `loadStepState::LoadSteppingState`: state of the load stepping procedure
 # - `state::LinearSolverState`: state of the linear solver
+# - `parallel::Bool`: flag to compute the elements' contributions to the system arrays in parallel (with the available threads)
 #
 @with_kw mutable struct LinearSolver
 
     loadStepState::LoadSteppingState = LoadSteppingState()
 
     state::LinearSolverState = LinearSolverState()
+
+    parallel::Bool = false
 
 end
 export LinearSolver
@@ -174,6 +177,7 @@ NRState() = NRState(0, 0.0, 0.0, 0.0, 0.0, false, false, false)
 # - `loadStepProps::LoadSteppingProperties`: properties of the load stepping procedure
 # - `loadStepState::LoadSteppingState`: state of the load stepping procedure
 # - `state::NRState`: state of the Newton-Raphson solver
+# - `parallel::Bool`: flag to compute the elements' contributions to the system arrays in parallel (with the available threads)
 #
 @with_kw mutable struct NewtonRaphson
 
@@ -185,6 +189,8 @@ NRState() = NRState(0, 0.0, 0.0, 0.0, 0.0, false, false, false)
     loadStepState::LoadSteppingState  = LoadSteppingState(loadStepProps)
 
     state::NRState = NRState()
+
+    parallel::Bool = false
 
 end
 
@@ -243,6 +249,7 @@ NLsolverState() = NLsolverState(0, 0.0, 0.0, false)
 # - `loadStepProps::LoadSteppingProperties`: properties of the load stepping procedure
 # - `loadStepState::LoadSteppingState`: state of the load stepping procedure
 # - `state::NLsolverState`: state of the nonlinear solver
+# - `parallel::Bool`: flag to compute the elements' contributions to the system arrays in parallel (with the available threads)
 #
 @with_kw mutable struct NLsolver
 
@@ -254,6 +261,8 @@ NLsolverState() = NLsolverState(0, 0.0, 0.0, false)
     loadStepState::LoadSteppingState = LoadSteppingState(loadStepProps)
 
     state::NLsolverState = NLsolverState()
+
+    parallel::Bool = false
 
 end
 export NLsolver
@@ -316,6 +325,7 @@ ArclengthSolverState(arcLength=0.0) = ArclengthSolverState(0, 0.0, arcLength, fa
 # - `loadStepProps::LoadSteppingProperties`: properties of the load stepping procedure (only initLoadFac, minLoadFac and trackLoadSteps are used)
 # - `loadStepState::LoadSteppingState`: state of the load stepping procedure (σ is the load factor, which is an unknown of the problem)
 # - `state::ArclengthSolverState`: state of the arclength solver
+# - `parallel::Bool`: flag to compute the elements' contributions to the system arrays in parallel (with the available threads)
 #
 @with_kw mutable struct ArclengthSolver
 
@@ -325,6 +335,8 @@ ArclengthSolverState(arcLength=0.0) = ArclengthSolverState(0, 0.0, arcLength, fa
     loadStepState::LoadSteppingState = LoadSteppingState(loadStepProps)
 
     state::ArclengthSolverState = ArclengthSolverState(props.initArcLength)
+
+    parallel::Bool = false
 
 end
 export ArclengthSolver
@@ -367,14 +379,16 @@ export create_TrimSolver
 
 
 """
-    create_LinearSolver()
+    create_LinearSolver(; kwargs...)
 
 Linear system solver constructor
 
+# Keyword arguments
+- `parallel::Bool`: flag to compute the elements' contributions to the system arrays in parallel (requires Julia to be started with multiple threads)
 """
-function create_LinearSolver()
+function create_LinearSolver(; parallel::Bool=false)
 
-    return LinearSolver()
+    return LinearSolver(parallel=parallel)
 
 end
 export create_LinearSolver
@@ -407,6 +421,7 @@ Newton-Raphson nonlinear system solver constructor
 - `aeroΔxErrorThreshold::Float64`: threshold ratio of aerodynamic/total Δx in order to allow the above flag
 - `trimSolverMethod::Symbol`: method for linear system solution in trim problems
 - `dampingTrim::Float64`: damping term for method = :LM
+- `parallel::Bool`: flag to compute the elements' contributions to the system arrays in parallel (requires Julia to be started with multiple threads)
 """
 function create_NewtonRaphson(;
     method::Symbol=:Newton, 
@@ -429,7 +444,8 @@ function create_NewtonRaphson(;
     aeroResRatioThreshold::Float64=0.0,
     aeroΔxErrorThreshold::Float64=0.0,
     trimSolverMethod::Symbol=:LM,
-    dampingTrim::Float64=1e-14
+    dampingTrim::Float64=1e-14,
+    parallel::Bool=false
     )
 
     # Validate inputs
@@ -491,6 +507,7 @@ function create_NewtonRaphson(;
         props=props,
         linearTrimSolver=linearTrimSolver,
         loadStepProps=loadStepProps,
+        parallel=parallel,
         )
 
 end
@@ -519,6 +536,7 @@ NLSolve.jl nonlinear system solver constructor.
 - `displayStatus::Bool`: flag to display convergence status
 - `trimSolverMethod::Symbol`: method for linear system solution in trim problems
 - `dampingTrim::Float64`: damping term for method = :LM
+- `parallel::Bool`: flag to compute the elements' contributions to the system arrays in parallel (requires Julia to be started with multiple threads)
 """
 function create_NLsolver(;
     method::Symbol=:newton,
@@ -536,7 +554,8 @@ function create_NLsolver(;
     trackLoadSteps::Bool=true,
     displayStatus::Bool=false,
     trimSolverMethod::Symbol=:LM,
-    dampingTrim::Float64=1e-14
+    dampingTrim::Float64=1e-14,
+    parallel::Bool=false
     )
 
     # Validate inputs
@@ -582,6 +601,7 @@ function create_NLsolver(;
         props=props,
         linearTrimSolver=linearTrimSolver,
         loadStepProps=loadStepProps,
+        parallel=parallel,
     )
 
 end
@@ -606,6 +626,7 @@ Arclength (Riks/Crisfield spherical) continuation solver constructor. Traces the
 - `minLoadFac::Float64`: minimum load factor (only used to size the load step history)
 - `trackLoadSteps::Bool`: flag to track the solution at each step
 - `displayStatus::Bool`: flag to display status
+- `parallel::Bool`: flag to compute the elements' contributions to the system arrays in parallel (requires Julia to be started with multiple threads)
 """
 function create_ArclengthSolver(;
     absTol::Float64=1e-8,
@@ -619,7 +640,8 @@ function create_ArclengthSolver(;
     initLoadFac::Real=0.0,
     minLoadFac::Float64=0.01,
     trackLoadSteps::Bool=true,
-    displayStatus::Bool=false
+    displayStatus::Bool=false,
+    parallel::Bool=false
     )
 
     # Validate inputs
@@ -657,6 +679,7 @@ function create_ArclengthSolver(;
     return ArclengthSolver(
         props=props,
         loadStepProps=loadStepProps,
+        parallel=parallel,
     )
 
 end
@@ -1363,6 +1386,9 @@ get_skipJacobianUpdate(systemSolver::NewtonRaphson) = systemSolver.state.skipJac
 get_skipAeroJacobianUpdate(systemSolver::NewtonRaphson) = systemSolver.state.skipAeroJacobianUpdate
 get_skipJacobianUpdate(systemSolver) = false
 get_skipAeroJacobianUpdate(systemSolver) = false
+
+# Accessor function for the flag to compute the elements' contributions in parallel
+get_parallel(systemSolver) = systemSolver.parallel
 
 function build_jacobian_labels(problem)
     n = length(problem.systemArrays.x)
