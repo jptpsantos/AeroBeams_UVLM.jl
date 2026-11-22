@@ -12,26 +12,14 @@ using AeroBeams, JLD2
 # Airspeed range [m/s]
 URange = vcat(1e-3,1:1:70)
 
-# Flag for tip correction
-hasTipCorrection = true
-
-# Tip correction function type
-tipLossType = "VLM-def"
-
 # Aerodynamic solver
 aeroSolver = Indicial()
-
-# Airfoil section
-airfoil = deepcopy(FlatPlate)
-
-# Flag for upright position
-upright = true
 
 # Mesh
 mesh = :refined
 
 # Geometric properties
-nElem,L,chord,normSparPos,nodalPositions = geometrical_properties_Pazy(Λ=Λ, mesh=mesh)
+nElem,L,chord,referenceAxis,nodalPositions = geometrical_properties_Pazy(Λ=Λ, mesh=mesh)
 
 # Tip mass configuration
 tipMassConfig = :TE
@@ -54,7 +42,7 @@ epsSG = Array{Float64}(undef,length(θRange),length(URange))
 # Sweep pitch angle
 for (i,θ) in enumerate(θRange)
     # Model
-    model,_ = create_Pazy(aeroSolver=aeroSolver,airfoil=airfoil,upright=upright,sweepAngle=Λ,pitchAngle=θ+θoffset,hasTipCorrection=hasTipCorrection,tipLossType=tipLossType,sweptTipMassConfig=tipMassConfig,mesh=mesh)
+    model,_ = create_Pazy(aeroSolver=aeroSolver,sweepAngle=Λ,pitchAngle=θ+θoffset,tipMassConfig=tipMassConfig,mesh=mesh)
     # Initialize guess solution
     x0 = zeros(0)
     # Sweep airspeed
@@ -137,17 +125,17 @@ plot!([NaN], [NaN], lw=lw, c=:black, label="AeroBeams")
 scatter!([NaN], [NaN], ms=ms, msw=msw, c=:black, label="Exp.")
 for (i,θ) in enumerate(θRange)
     plot!(URange, tipOOP[i,:]/L*100, c=colors[i], lw=lw, ls=:solid, label="\$\\theta = $(round(Int,rad2deg(θ))) ^\\circ\$")
-    if θ ≈ 0 + θoffset
+    if θ ≈ 0
         scatter!(tipdisp_aoa0_ref[1,:], tipdisp_aoa0_ref[2,:]*1e-3*100/L, xerror=tipdisp_aoa0_ref[4,:], yerror=tipdisp_aoa0_ref[3,:]*1e-3*100/L, ms=ms, msw=msw, c=colors[i], label=false)
-    elseif θ ≈ deg2rad(1) + θoffset
+    elseif θ ≈ deg2rad(1)
         scatter!(tipdisp_aoa1_ref[1,:], tipdisp_aoa1_ref[2,:]*1e-3*100/L, xerror=tipdisp_aoa1_ref[4,:], yerror=tipdisp_aoa1_ref[3,:]*1e-3*100/L, ms=ms, msw=msw, c=colors[i], label=false)
-    elseif θ ≈ deg2rad(3) + θoffset
+    elseif θ ≈ deg2rad(3)
         scatter!(tipdisp_aoa3_ref[1,:], tipdisp_aoa3_ref[2,:]*1e-3*100/L, xerror=tipdisp_aoa3_ref[4,:], yerror=tipdisp_aoa3_ref[3,:]*1e-3*100/L, ms=ms, msw=msw, c=colors[i], label=false)
-    elseif θ ≈ deg2rad(5) + θoffset
+    elseif θ ≈ deg2rad(5)
         scatter!(tipdisp_aoa5_ref[1,:], tipdisp_aoa5_ref[2,:]*1e-3*100/L, xerror=tipdisp_aoa5_ref[4,:], yerror=tipdisp_aoa5_ref[3,:]*1e-3*100/L, ms=ms, msw=msw, c=colors[i], label=false)
-    elseif θ ≈ deg2rad(7) + θoffset
+    elseif θ ≈ deg2rad(7)
         scatter!(tipdisp_aoa7_ref[1,:], tipdisp_aoa7_ref[2,:]*1e-3*100/L, xerror=tipdisp_aoa7_ref[4,:], yerror=tipdisp_aoa7_ref[3,:]*1e-3*100/L, ms=ms, msw=msw, c=colors[i], label=false)
-    elseif θ ≈ deg2rad(10) + θoffset
+    elseif θ ≈ deg2rad(10)
         scatter!(tipdisp_aoa10_ref[1,:], tipdisp_aoa10_ref[2,:]*1e-3*100/L, xerror=tipdisp_aoa10_ref[4,:], yerror=tipdisp_aoa10_ref[3,:]*1e-3*100/L, ms=ms, msw=msw, c=colors[i], label=false)
     end
 end
@@ -158,17 +146,17 @@ savefig(string(absPath,"/S20PazySteadyPitchRange_tipOOP.pdf"))
 plt_tipAOA = plot(xlabel="Airspeed [m/s]", ylabel="Tip angle of attack [deg]", xlims=[0,71], xticks=0:10:70, ylims=[-1,10], yticks=0:2:10, tickfont=font(ts), guidefont=font(fs))
 for (i,θ) in enumerate(θRange)
     plot!(URange, tipAoA[i,:], c=colors[i], lw=lw, label=false)
-    if θ ≈ 0 + θoffset
+    if θ ≈ 0
         scatter!(steady_tipaoa_aoa0_ref[1,:], steady_tipaoa_aoa0_ref[2,:], ms=ms, msw=msw, c=colors[i], label=false)
-    elseif θ ≈ deg2rad(1) + θoffset
+    elseif θ ≈ deg2rad(1)
         scatter!(steady_tipaoa_aoa1_ref[1,:], steady_tipaoa_aoa1_ref[2,:], ms=ms, msw=msw, c=colors[i], label=false)
-    elseif θ ≈ deg2rad(3) + θoffset
+    elseif θ ≈ deg2rad(3)
         scatter!(steady_tipaoa_aoa3_ref[1,:], steady_tipaoa_aoa3_ref[2,:], ms=ms, msw=msw, c=colors[i], label=false)
-    elseif θ ≈ deg2rad(5) + θoffset
+    elseif θ ≈ deg2rad(5)
         scatter!(steady_tipaoa_aoa5_ref[1,:], steady_tipaoa_aoa5_ref[2,:], ms=ms, msw=msw, c=colors[i], label=false)
-    elseif θ ≈ deg2rad(7) + θoffset
+    elseif θ ≈ deg2rad(7)
         scatter!(steady_tipaoa_aoa7_ref[1,:], steady_tipaoa_aoa7_ref[2,:], ms=ms, msw=msw, c=colors[i], label=false)
-    elseif θ ≈ deg2rad(10) + θoffset
+    elseif θ ≈ deg2rad(10)
         scatter!(steady_tipaoa_aoa10_ref[1,:], steady_tipaoa_aoa10_ref[2,:], ms=ms, msw=msw, c=colors[i], label=false)
     end
 end
@@ -179,17 +167,17 @@ savefig(string(absPath,"/S20PazySteadyPitchRange_tipAoA.pdf"))
 plt_eps = plot(xlabel="Airspeed [m/s]", ylabel="Strains @ $gaugeSpanPct% span (\$\\mu\\varepsilon\$)", xlims=[0,71], xticks=0:10:70, tickfont=font(ts), guidefont=font(fs), legend=:topleft, legendfontsize=lfs)
 for (i,θ) in enumerate(θRange)
     plot!(URange, epsSG[i,:]*1e6, c=colors[i], lw=lw, ls=:solid, label=false)
-    if θ ≈ deg2rad(0) + θoffset
+    if θ ≈ deg2rad(0)
         scatter!(epsSG_aoa0_ref[1,:], epsSG_aoa0_ref[2,:], xerror=epsSG_aoa0_ref[4,:], yerror=epsSG_aoa0_ref[3,:], ms=ms, msw=msw, c=colors[i], label=false)
-    elseif θ ≈ deg2rad(1) + θoffset
+    elseif θ ≈ deg2rad(1)
         scatter!(epsSG_aoa1_ref[1,:], epsSG_aoa1_ref[2,:], xerror=epsSG_aoa1_ref[4,:], yerror=epsSG_aoa1_ref[3,:], ms=ms, msw=msw, c=colors[i], label=false)
-    elseif θ ≈ deg2rad(3) + θoffset
+    elseif θ ≈ deg2rad(3)
         scatter!(epsSG_aoa3_ref[1,:], epsSG_aoa3_ref[2,:], xerror=epsSG_aoa3_ref[4,:], yerror=epsSG_aoa3_ref[3,:], ms=ms, msw=msw, c=colors[i], label=false)
-    elseif θ ≈ deg2rad(5) + θoffset
+    elseif θ ≈ deg2rad(5)
         scatter!(epsSG_aoa5_ref[1,:], epsSG_aoa5_ref[2,:], xerror=epsSG_aoa5_ref[4,:], yerror=epsSG_aoa5_ref[3,:], ms=ms, msw=msw, c=colors[i], label=false)
-    elseif θ ≈ deg2rad(7) + θoffset
+    elseif θ ≈ deg2rad(7)
         scatter!(epsSG_aoa7_ref[1,:], epsSG_aoa7_ref[2,:], xerror=epsSG_aoa7_ref[4,:], yerror=epsSG_aoa7_ref[3,:], ms=ms, msw=msw, c=colors[i], label=false)
-    elseif θ ≈ deg2rad(10) + θoffset
+    elseif θ ≈ deg2rad(10)
         scatter!(epsSG_aoa10_ref[1,:], epsSG_aoa10_ref[2,:], xerror=epsSG_aoa10_ref[4,:], yerror=epsSG_aoa10_ref[3,:], ms=ms, msw=msw, c=colors[i], label=false)
     end
 end

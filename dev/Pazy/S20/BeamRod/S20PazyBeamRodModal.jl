@@ -1,16 +1,16 @@
 using AeroBeams
 
-# Tip mass configurations of the wing with 20 degrees of sweep (the wingtip rod, modeled as a beam, has the masses of the adapter and of the FPS weights at one end, and the calibration mass; in the TE configuration the weights are connected to the rod by the hinge of the breaking beam, and in the LE one they are rigidly attached to it)
-configs = [:LE, :TE]
+# Sweep angle [rad]
+Λ = deg2rad(20)
+
+# Tip mass configurations
+configs = [:baseline, :LE, :TE]
 
 # Meshes: :nominal and/or :refined
 meshes = [:nominal, :refined]
 
-# Sweep angle [rad]
-Λ = deg2rad(20)
-
 # Number of elements of the wingtip rod beam
-nElementsWingtipRod = 16
+nElementsWingtipRod = 12
 
 # Number of modes to track
 nModes = 15
@@ -30,7 +30,7 @@ nElemWing = Vector{Int}(undef,length(cases))
 for (i,(config,mesh)) in enumerate(cases)
     display("Solving for configuration $config, mesh $mesh")
     # Model
-    models[i],nElemWing[i],_ = create_Pazy(aeroSolver=QuasiSteady(),sweepAngle=Λ,sweptTipMassConfig=config,mesh=mesh,beamWingtipRod=true,nElementsWingtipRod=nElementsWingtipRod,gravityVector=zeros(3))
+    models[i],nElemWing[i],_ = create_Pazy(aeroSolver=QuasiSteady(),sweepAngle=Λ,tipMassConfig=config,mesh=mesh,beamWingtipRod=true,nElementsWingtipRod=nElementsWingtipRod,gravityVector=zeros(3))
     # Create and solve problem
     problem[i] = create_EigenProblem(model=models[i],eigenmethod=eigenmethod,nev=nev)
     solve!(problem[i])
@@ -42,7 +42,7 @@ end
 freqs = [[rads2Hz.(imag(λ)) for λ in eigensols[i].λ if imag(λ) > 0][1:nModes] for i in eachindex(eigensols)]
 
 # Chord of the wing (along the chordwise direction of the Nastran frame) and normalized position of the reference axis
-_,_,chord,normSparPos,_ = geometrical_properties_Pazy(Λ=Λ)
+_,_,chord,referenceAxis,_ = geometrical_properties_Pazy(Λ=Λ)
 
 # Classify the modes by their dominant displacement component, in the order of frequency. Wing modes: axial (A), in-plane bending (IP), out-of-plane bending (OOP) or torsion (T), the latter with the rotation weighted by half of the chord. Rod modes (R): those in which the energy of the wing (the same displacement components, summed over its elements) is less than a fraction `rodModeRatio` of that of the rod (summed over its elements, including that of the FPS weights), as the rod follows the motion of the tip of the wing in the wing modes, but with a larger energy
 rodModeRatio = 0.07
@@ -78,42 +78,42 @@ function interpolate_data(x,xs,ys)
     return ys[k] + (x-xs[k])/(xs[k+1]-xs[k]) * (ys[k+1]-ys[k])
 end
 
-# Sampling points of the beam model, at the midpoints of the elements (relative to the clamp, in basis A: a1 along the span, unswept, a2 towards the leading edge and a3 vertical): those of the wing and of the rod (the element after those of the wing is the rigid link). The elements of the extension of the rod at the side of the FPS weights (two with a breaking beam, one without it), with the FPS weights, are beyond the end of the rod of the Nastran data, so they are not sampled
+# Sampling points of the beam model, at the midpoints of the elements (relative to the clamp, in basis A: a3 along the span, unswept, a2 towards the leading edge and a1 vertical): those of the wing and of the rod (the element after those of the wing is the rigid link). The two elements at the hinge side, with the adapter and the FPS weights, are beyond the end of the rod of the Nastran data, so they are not sampled
 function sampling_elements(model,nElemWing,config)
     midpoints = [(model.assemblyData.r_n[n[1]] + model.assemblyData.r_n[n[2]])/2 for n in model.assemblyData.elementNodes]
-    nExtensionElements = AeroBeams.wingtip_rod_Pazy(Λ,config).hinge.bbLength > 0 ? 2 : 1
-    firstRodElement = nElemWing + 2 + (config == :LE ? nExtensionElements : 0)
-    lastRodElement = model.assemblyData.nElementsTotal - (config == :TE ? nExtensionElements : 0)
+    firstRodElement = nElemWing + 2 + (config == :LE ? 2 : 0)
+    lastRodElement = model.assemblyData.nElementsTotal - (config == :TE ? 2 : 0)
     return midpoints, 1:nElemWing, firstRodElement:lastRodElement
 end
 
-# Translations (in basis A) of the leading and trailing edge points of the sections of the wing and of the rod, at the sampling points, for a mode of the beam model
+# Translations of the leading and trailing edge points of the sections of the wing and of the rod, at the sampling points, for a mode of the beam model, converted from basis A to the frame of `nastran_mode_vector` (span, leading edge, vertical)
 function beam_mode_vector(modeShape,wingElements,rodElements)
+    toNastranBasis(w) = [w[3], w[2], -w[1]]
     v = Float64[]
     for e in wingElements
         u = modeShape.state[e].midpoint.u
         p = modeShape.state[e].midpoint.p
-        for η in (normSparPos*chord, (normSparPos-1)*chord) # position of the leading and trailing edges along a2, from the reference axis (in the section of the Nastran frame, at constant y)
-            append!(v, u + cross(p,[0,η,0]))
+        for η in (referenceAxis*chord, (referenceAxis-1)*chord) # position of the leading and trailing edges along a2, from the reference axis (in the section of the Nastran frame, at constant y)
+            append!(v, toNastranBasis(u + cross(p,[0,η,0])))
         end
     end
     for e in rodElements
-        append!(v, modeShape.state[e].midpoint.u)
+        append!(v, toNastranBasis(modeShape.state[e].midpoint.u))
     end
     return v
 end
 
-# The same for a mode of the Nastran model of the configuration, interpolated at the sampling points and converted to basis A (u1 = u_y, u2 = -u_x, u3 = u_z)
+# The same for a mode of the Nastran model of the configuration, interpolated at the sampling points and converted to the frame of `beam_mode_vector` (span, leading edge, vertical: u1 = u_y, u2 = -u_x, u3 = u_z)
 function nastran_mode_vector(config,mode,midpoints,wingElements,rodElements)
     wing = wingShapesNastran[config][wingShapesNastran[config][:,1] .== mode, :]
     rod = rodShapesNastran[config][rodShapesNastran[config][:,1] .== mode, :]
     toBasisA(u) = [u[2], -u[1], u[3]]
     v = Float64[]
     for e in wingElements, columns in (3:5, 6:8)
-        append!(v, toBasisA([interpolate_data(midpoints[e][1],wing[:,2],wing[:,c]) for c in columns]))
+        append!(v, toBasisA([interpolate_data(midpoints[e][3],wing[:,2],wing[:,c]) for c in columns]))
     end
     for e in rodElements
-        x = normSparPos*chord - midpoints[e][2] - tan(Λ)*midpoints[e][1] # chordwise position of the element, from the leading edge of the section at its span position (shifted by the sweep)
+        x = referenceAxis*chord - midpoints[e][2] - tan(Λ)*midpoints[e][3] # chordwise position of the element, from the leading edge of the section at its span position (shifted by the sweep)
         append!(v, toBasisA([interpolate_data(x,rod[:,2],rod[:,c]) for c in 3:5]))
     end
     return v
@@ -163,7 +163,7 @@ table = pretty_table(
     column_labels    = ["Mode", "Nastran mode", "AeroBeams [Hz]", "Nastran [Hz]", "Δ Nastran [%]", "MAC"],
     row_group_labels = [(i-1)*nModes + 1 => "Configuration :$(cases[i][1]), mesh :$(cases[i][2])" for i in eachindex(cases)],
     title            = "Modal Frequency Comparison",
-    subtitle         = "Pazy wing with 20° of sweep and the wingtip rod modeled as a beam: AeroBeams vs. Nastran (modes paired by their shapes, with the modal assurance criterion)",
+    subtitle         = "Pazy wing with 10° of sweep and the wingtip rod modeled as a beam: AeroBeams vs. Nastran (modes paired by their shapes, with the modal assurance criterion)",
     formatters       = [
         (v, i, j) -> (j in (3, 4) && v isa Number) ? round(v, digits=2) : v,
         (v, i, j) -> (j == 5 && v isa Number) ? string(round(v, digits=2), " %") : v,

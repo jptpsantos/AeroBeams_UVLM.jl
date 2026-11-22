@@ -6,33 +6,21 @@ refIDs = [3023]
 # Angle of sweep [rad]
 Λ = deg2rad(20)
 
-# Flag for ad hoc correction of torsional inertia of wingtip rod
-sweptTipMassInertiaCorrection = true
-
-# Flag for tip correction
-hasTipCorrection = true
-
-# Tip correction function type
-tipLossType = "VLM-def"
-
-# Flag to update tip correction with airspeed
-tipLossFunctionIsAirspeedDependent = true
-
 # Flag to smooth airspeed signal and corresponding moving average window
 smoothAirspeedSignal = true
 smoothingWindow = Int(2e3)
+
+# Time integration method
+integrationMethod = GeneralizedAlpha(ρ∞=0.9)
 
 # Mesh: :nominal or :refined
 mesh = :refined
 
 # Aerodynamic solver
-aeroSolver = BLi()
+aeroSolver = Indicial()
 
-# Airfoil section
-airfoil = deepcopy(NACA0018)
-
-# Flag for upright position
-upright = true
+# Structural damping coefficients for the wing
+μWing = 0
 
 # Time variables [s]
 Δt = 1e-4
@@ -49,7 +37,9 @@ x2SG_TE = -50e-3/2   # x2-position: on TE
 x3SG = 2.25e-3/2     # x3-position: on top
 
 # Strain gauge used in the comparisons, and the element whose midpoint (where strains are computed) is closest to it: g7 (≈40% of the semispan) for the :refined mesh, g10 (≈60%) for the :nominal mesh
-gaugeName,SGelem,gaugeSpanPct = mesh == :refined ? ("g7",12,40) : ("g10",9,60)
+gaugeName,SGelem,gaugeSpanPct = mesh == :refined ? 
+                                ("g7",12,40) : 
+                                ("g10",9,60)
 
 # Initialize outputs
 dynamicProblem = Array{DynamicProblem}(undef,length(refIDs))
@@ -75,7 +65,7 @@ for (i,refID) in enumerate(refIDs)
     println("ID $refID configuration: Λ=$(round(Int, rad2deg(Λ))) deg, θ=$(θ) deg, $(data["tip_weight_config"]),")
     println("Runtime of $(round(t_exp[end]-t_exp[1],digits=1)) s, airspeed ranging from $(round(minimum(U_exp),digits=1)) to $(round(maximum(U_exp),digits=1)) m/s")
     # Geometric properties
-    nElem,L,chord,normSparPos,nodalPositions = geometrical_properties_Pazy(Λ=Λ,mesh=mesh)
+    nElem,L,chord,referenceAxis,nodalPositions = geometrical_properties_Pazy(Λ=Λ,mesh=mesh)
     # Smooth airspeed signal, if applicable
     U_exp = smoothAirspeedSignal ? moving_average(U_exp,smoothingWindow) : U_exp
     # Airspeed profile (interpolate linearly between experimental time steps, constant outside)
@@ -83,7 +73,7 @@ for (i,refID) in enumerate(refIDs)
     # Find flutter speed of configuration
     URangeFlutter = collect(0.5:0.5:100)
     nModes = 3
-    eigenModel,_ = create_Pazy(aeroSolver=aeroSolver,mesh=mesh,airfoil=airfoil,upright=upright,sweepAngle=Λ,pitchAngle=deg2rad(θ),hasTipCorrection=hasTipCorrection,tipLossType=tipLossType,sweptTipMassConfig=tipMassConfig,sweptTipMassInertiaCorrection=sweptTipMassInertiaCorrection)
+    eigenModel,_ = create_Pazy(aeroSolver=aeroSolver,mesh=mesh,sweepAngle=Λ,pitchAngle=deg2rad(θ),tipMassConfig=tipMassConfig,tipRodInertiaCorrection=true,μWing=μWing)
     eigensols = Array{EigenSolution}(undef,length(URangeFlutter))
     x0 = zeros(0)
     for (j,U) in enumerate(URangeFlutter)
@@ -128,14 +118,14 @@ for (i,refID) in enumerate(refIDs)
     plt_Vgf = plot(plt_Vf,plt_Vg, layout=(2,1))
     display(plt_Vgf)
     # Model for steady problem
-    steadyModel,_ = create_Pazy(aeroSolver=aeroSolver,mesh=mesh,airfoil=airfoil,upright=upright,sweepAngle=Λ,pitchAngle=deg2rad(θ),airspeed=U_exp[1],hasTipCorrection=hasTipCorrection,tipLossType=tipLossType,sweptTipMassConfig=tipMassConfig,sweptTipMassInertiaCorrection=sweptTipMassInertiaCorrection)
+    steadyModel,_ = create_Pazy(aeroSolver=aeroSolver,mesh=mesh,sweepAngle=Λ,pitchAngle=deg2rad(θ),airspeed=U_exp[1],tipMassConfig=tipMassConfig,tipRodInertiaCorrection=true,μWing=μWing)
     # Create and solve steady problem for initial airspeed
     steadyProblem = create_SteadyProblem(model=steadyModel)
     solve!(steadyProblem)
     # Model for dynamic problem
-    dynamicModel,_ = create_Pazy(aeroSolver=aeroSolver,mesh=mesh,airfoil=airfoil,upright=upright,sweepAngle=Λ,pitchAngle=deg2rad(θ),airspeed=Uprofile[i],hasTipCorrection=hasTipCorrection,tipLossType=tipLossType,tipLossFunctionIsAirspeedDependent=tipLossFunctionIsAirspeedDependent,sweptTipMassConfig=tipMassConfig,sweptTipMassInertiaCorrection=sweptTipMassInertiaCorrection)
+    dynamicModel,_ = create_Pazy(aeroSolver=aeroSolver,mesh=mesh,sweepAngle=Λ,pitchAngle=deg2rad(θ),airspeed=Uprofile[i],tipLossFunctionIsAirspeedDependent=true,tipMassConfig=tipMassConfig,tipRodInertiaCorrection=true,μWing=μWing)
     # Create and solve dynamic problem
-    dynamicProblem[i] = create_DynamicProblem(model=dynamicModel,initialTime=t_exp[1],finalTime=t_exp[end],Δt=Δt,systemSolver=systemSolver,x0=steadyProblem.systemArrays.x,trackingFrequency=trackingFrequency)
+    dynamicProblem[i] = create_DynamicProblem(model=dynamicModel,integrationMethod=integrationMethod,initialTime=t_exp[1],finalTime=t_exp[end],Δt=Δt,systemSolver=systemSolver,x0=steadyProblem.systemArrays.x,trackingFrequency=trackingFrequency)
     solve!(dynamicProblem[i])
     # Unpack numerical solution
     sol = dynamicProblem[i].solutionHistory
@@ -163,8 +153,10 @@ mkpath(absPath)
 
 # Plot configurations
 showTitle = true
-showAirspeedInPlots = true
+showAirspeedInPlots = false
 interactivePlots = false
+PSDplot = true
+savePlots = true
 colors = cgrad(:rainbow, 2, categorical=true)
 epsColors = cgrad(:rainbow, 3, categorical=true)
 ts = 10
@@ -174,6 +166,7 @@ lw = 2
 ms = 6
 msw = 1
 α = 0.5
+windowFFT = 2^14
 lsExp = :solid
 if interactivePlots
     plotlyjs()
@@ -184,10 +177,10 @@ end
 # Sweep IDs
 for (i,refID) in enumerate(refIDs)
     # Case ID
-    idString = string("ID", refID, "_", tipLossType, "_", aeroSolver.name)
+    idString = "ID_" * string(refID) * "_" * string(mesh) * "mesh_" * aeroSolver.name * "_μWing" * string(μWing) * "_ρGenα" * string(ρGenα)
     # Load reference data (https://zenodo.org/communities/technion_ae_lab/records?q=&l=list&p=1&s=10)
     data = load(pkgdir(AeroBeams)*"/test/referenceData/sweptPazyS20/ID_"*string(refID)*".jld2")
-    Λ = deg2rad(20)
+    Λ = deg2rad(10)
     θ = data["aoa"]
     tipMassConfig = contains(data["tip_weight_config"], "LE") ? :LE : :TE
     t_exp = data["t"]
@@ -212,7 +205,7 @@ for (i,refID) in enumerate(refIDs)
     end
     plot!(t[i], Uprofile[i].(t[i]), lw=lw, c=:black, label=false)
     display(plt_U)
-    savefig(string(absPath,"/S20PazyMatchingAirspeedSweep_",idString,"_U.pdf"))
+    savePlots && savefig(string(absPath,"/S20PazyMatchingAirspeedSweep_",idString,"_U.pdf"))
     # Tip OOP displacement
     plt_tipOOP = plot(xlabel="Time [s]", ylabel="Tip OOP disp. [% semispan]", title=title, xlims=extrema(t_exp), tickfont=font(ts), guidefont=font(fs), legend=:best, legendfontsize=lfs)
     plot!(t[i], tipOOP[i]/L*100, lw=lw, c=epsColors[1], alpha=α, label="AeroBeams")
@@ -223,7 +216,7 @@ for (i,refID) in enumerate(refIDs)
         plot!(plt_tipOOP_twin, t[i], Uprofile[i].(t[i]), lw=lw, c=:black, label=false)
     end
     display(plt_tipOOP)
-    savefig(string(absPath,"/S20PazyMatchingAirspeedSweep_",idString,"_tipOOP.pdf"))
+    savePlots && savefig(string(absPath,"/S20PazyMatchingAirspeedSweep_",idString,"_tipOOP.pdf"))
     # Tip twist
     plt_tipTwist = plot(xlabel="Time [s]", ylabel="Tip twist [deg]", title=title, xlims=extrema(t_exp), tickfont=font(ts), guidefont=font(fs))
     plot!(t[i], tipTwist[i], lw=lw, c=epsColors[1], alpha=α, label="AeroBeams")
@@ -234,7 +227,7 @@ for (i,refID) in enumerate(refIDs)
         plot!(plt_tipTwist_twin, t[i], Uprofile[i].(t[i]), lw=lw, c=:black, label=false)
     end
     display(plt_tipTwist)
-    savefig(string(absPath,"/S20PazyMatchingAirspeedSweep_",idString,"_tipTwist.pdf"))
+    savePlots && savefig(string(absPath,"/S20PazyMatchingAirspeedSweep_",idString,"_tipTwist.pdf"))
     # Tip AoA
     plt_tipAOA = plot(xlabel="Time [s]", ylabel="Tip angle of attack [deg]", title=title, xlims=extrema(t_exp), tickfont=font(ts), guidefont=font(fs))
     plot!(t[i], rad2deg.(tipAoA[i]), lw=lw, c=colors[1], label=false)
@@ -245,9 +238,9 @@ for (i,refID) in enumerate(refIDs)
         plot!(plt_tipAOA_twin, t[i], Uprofile[i].(t[i]), lw=lw, c=:black, label=false)
     end
     display(plt_tipAOA)
-    savefig(string(absPath,"/S20PazyMatchingAirspeedSweep_",idString,"_tipAoA.pdf"))
+    savePlots && savefig(string(absPath,"/S20PazyMatchingAirspeedSweep_",idString,"_tipAoA.pdf"))
     # Root LE strains
-    plt_rootEpsLE = plot(xlabel="Time [s]", ylabel="Root LE strains (\$\\mu\$)", title=title, xlims=extrema(t_exp), tickfont=font(ts), guidefont=font(fs), legend=:best, legendfontsize=lfs)
+    plt_rootEpsLE = plot(xlabel="Time [s]", ylabel="Near root LE strains (\$\\mu\$)", title=title, xlims=extrema(t_exp), tickfont=font(ts), guidefont=font(fs), legend=:best, legendfontsize=lfs)
     plot!(t[i], rootEpsLE[i]*1e6, lw=lw, c=epsColors[1], alpha=α, label="AeroBeams")
     plot!(t_exp, root_eps_LE_exp, lw=lw, ls=lsExp, c=epsColors[2], alpha=α, label="Revivo & Raveh (2025)")
     if showAirspeedInPlots
@@ -256,9 +249,9 @@ for (i,refID) in enumerate(refIDs)
         plot!(plt_rootEpsLE_twin, t[i], Uprofile[i].(t[i]), lw=lw, c=:black, label=false)
     end
     display(plt_rootEpsLE)
-    savefig(string(absPath,"/S20PazyMatchingAirspeedSweep_",idString,"_rootEpsLE.pdf"))
+    savePlots && savefig(string(absPath,"/S20PazyMatchingAirspeedSweep_",idString,"_rootEpsLE.pdf"))
     # Root TE strains
-    plt_rootEpsTE = plot(xlabel="Time [s]", ylabel="Root TE strains (\$\\mu\$)", title=title, xlims=extrema(t_exp), tickfont=font(ts), guidefont=font(fs), legend=:best, legendfontsize=lfs)
+    plt_rootEpsTE = plot(xlabel="Time [s]", ylabel="Near root TE strains (\$\\mu\$)", title=title, xlims=extrema(t_exp), tickfont=font(ts), guidefont=font(fs), legend=:best, legendfontsize=lfs)
     plot!(t[i], rootEpsTE[i]*1e6, lw=lw, c=epsColors[1], alpha=α, label=false)
     plot!(t_exp, root_eps_TE_exp, lw=lw, ls=lsExp, c=epsColors[2], alpha=α, label=false)
     if showAirspeedInPlots
@@ -267,7 +260,7 @@ for (i,refID) in enumerate(refIDs)
         plot!(plt_rootEpsTE_twin, t[i], Uprofile[i].(t[i]), lw=lw, c=:black, label=false)
     end
     display(plt_rootEpsTE)
-    savefig(string(absPath,"/S20PazyMatchingAirspeedSweep_",idString,"_rootEpsTE.pdf"))
+    savePlots && savefig(string(absPath,"/S20PazyMatchingAirspeedSweep_",idString,"_rootEpsTE.pdf"))
     # Selected strain gauge LE strains
     plt_SGEpsLE = plot(xlabel="Time [s]", ylabel="$(uppercasefirst(gaugeName)) LE strains (\$\\mu\$)", title=title, xlims=extrema(t_exp), tickfont=font(ts), guidefont=font(fs), legend=:best, legendfontsize=lfs)
     plot!(t[i], SGEpsLE[i]*1e6, lw=lw, c=epsColors[1], alpha=α, label="AeroBeams")
@@ -278,7 +271,7 @@ for (i,refID) in enumerate(refIDs)
         plot!(plt_SGEpsLE_twin, t[i], Uprofile[i].(t[i]), lw=lw, c=:black, label=false)
     end
     display(plt_SGEpsLE)
-    savefig(string(absPath,"/S20PazyMatchingAirspeedSweep_",idString,"_",gaugeName,"EpsLE.pdf"))
+    savePlots && savefig(string(absPath,"/S20PazyMatchingAirspeedSweep_",idString,"_",gaugeName,"EpsLE.pdf"))
     # Selected strain gauge TE strains
     plt_SGEpsTE = plot(xlabel="Time [s]", ylabel="$(uppercasefirst(gaugeName)) TE strains (\$\\mu\$)", title=title, xlims=extrema(t_exp), tickfont=font(ts), guidefont=font(fs), legend=:best, legendfontsize=lfs)
     plot!(t[i], SGEpsTE[i]*1e6, lw=lw, c=epsColors[1], alpha=α, label=false)
@@ -289,18 +282,45 @@ for (i,refID) in enumerate(refIDs)
         plot!(plt_SGEpsTE_twin, t[i], Uprofile[i].(t[i]), lw=lw, c=:black, label=false)
     end
     display(plt_SGEpsTE)
-    savefig(string(absPath,"/S20PazyMatchingAirspeedSweep_",idString,"_",gaugeName,"EpsTE.pdf"))
+    savePlots && savefig(string(absPath,"/S20PazyMatchingAirspeedSweep_",idString,"_",gaugeName,"EpsTE.pdf"))
+    # Root TE strains spectrogram
+    f_rootEps, t_rootEps, S_rootEps = spectrogram(t[i], rootEpsTE[i]*1e6, window=windowFFT)
+    tt = title * ", root TE"
+    plt_rootEps_spectrum = heatmap(t_rootEps, f_rootEps, S_rootEps; ylims=[0,100], title=tt, xlabel="Time [s]", ylabel="Frequency [Hz]", c=:rainbow, colorbar_title="Power [dB]", aspect_ratio=:auto, tickfont=font(ts), guidefont=font(fs))
+    display(plt_rootEps_spectrum)
+    savePlots && savefig(string(absPath,"/S20PazyMatchingAirspeedSweep_",idString,"_rootEpsTESpectrogram.pdf"))
     # Experimental root LE strains spectrogram
-    rootEps_exp = root_eps_LE_exp
-    f_eps, t_eps, S_eps = spectrogram(t_exp, rootEps_exp, window=2^12)
-    plt_eps_spectrum = heatmap(t_eps, f_eps, S_eps; ylims=[0,100], title=title, xlabel="Time [s]", ylabel="Frequency [Hz]", c=:rainbow, colorbar_title="Power [dB]", aspect_ratio=:auto, tickfont=font(ts), guidefont=font(fs))
-    display(plt_eps_spectrum)
-    savefig(string(absPath,"/S20PazyMatchingAirspeedSweep_",idString,"_rootEpsSpectrogram_exp.pdf"))
-    # Experimental gauge LE strains spectrogram
-    f_gEps, t_gEps, S_gEps = spectrogram(t_exp, gauge_eps_LE_exp, window=2^12)
-    plt_gEps_spectrum = heatmap(t_gEps, f_gEps, S_gEps; ylims=[0,100], title=title, xlabel="Time [s]", ylabel="Frequency [Hz]", c=:rainbow, colorbar_title="Power [dB]", aspect_ratio=:auto, tickfont=font(ts), guidefont=font(fs))
+    f_eps, t_eps, S_eps = spectrogram(t_exp, root_eps_TE_exp, window=2^12)
+    tt = title * ", root TE Exp."
+    plt_rootEps_spectrum_exp = heatmap(t_eps, f_eps, S_eps; ylims=[0,100], title=tt, xlabel="Time [s]", ylabel="Frequency [Hz]", c=:rainbow, colorbar_title="Power [dB]", aspect_ratio=:auto, tickfont=font(ts), guidefont=font(fs))
+    display(plt_rootEps_spectrum_exp)
+    savePlots && savefig(string(absPath,"/S20PazyMatchingAirspeedSweep_",idString,"_rootEpsTESpectrogram_exp.pdf"))
+    # Selected gauge TE strains spectrogram
+    f_gEps, t_gEps, S_gEps = spectrogram(t[i], SGEpsTE[i]*1e6, window=windowFFT)
+    tt = title * ", " * gaugeName
+    plt_gEps_spectrum = heatmap(t_gEps, f_gEps, S_gEps; ylims=[0,100], title=tt, xlabel="Time [s]", ylabel="Frequency [Hz]", c=:rainbow, colorbar_title="Power [dB]", aspect_ratio=:auto, tickfont=font(ts), guidefont=font(fs))
     display(plt_gEps_spectrum)
-    savefig(string(absPath,"/S20PazyMatchingAirspeedSweep_",idString,"_",gaugeName,"EpsSpectrogram_exp.pdf"))
+    savePlots && savefig(string(absPath,"/S20PazyMatchingAirspeedSweep_",idString,"_",gaugeName,"EpsTESpectrogram.pdf"))
+    # Experimental gauge TE strains spectrogram
+    f_gEps, t_gEps, S_gEps = spectrogram(t_exp, gauge_eps_TE_exp, window=2^12)
+    tt = title * ", " * gaugeName * " Exp."
+    plt_gEps_spectrum_exp = heatmap(t_gEps, f_gEps, S_gEps; ylims=[0,100], title=tt, xlabel="Time [s]", ylabel="Frequency [Hz]", c=:rainbow, colorbar_title="Power [dB]", aspect_ratio=:auto, tickfont=font(ts), guidefont=font(fs))
+    display(plt_gEps_spectrum_exp)
+    savePlots && savefig(string(absPath,"/S20PazyMatchingAirspeedSweep_",idString,"_",gaugeName,"EpsTESpectrogram_exp.pdf"))
+    # PSD of the selected gauge TE strains
+    if PSDplot
+        minTime = 50
+        maxTime = t[i][end]
+        timeRangeInd = findfirst(t[i] .>= minTime) : findlast(t[i] .<= maxTime)
+        timeRangeIndExp = findfirst(t_exp .>= minTime) : findlast(t_exp .<= maxTime)
+        f_sim, _, psd_sim = get_FFT_and_PSD(t[i][timeRangeInd], SGEpsTE[i][timeRangeInd]*1e6)
+        f_exp, _, psd_exp = get_FFT_and_PSD(t_exp[timeRangeIndExp], gauge_eps_TE_exp[timeRangeIndExp])
+        plt_gEps_psd = plot(title=tt, xlabel="Frequency [Hz]", ylabel="Strain PSD [µε^2/Hz] in dB", xlims=[0,100], ylims=[-40,80], tickfont=font(ts), guidefont=font(fs))
+        plot!(f_sim, 10*log10.(psd_sim); lw=lw, c=epsColors[1], label="AeroBeams")
+        plot!(f_exp, 10*log10.(psd_exp); lw=lw, c=epsColors[2], label="Exp.")
+        display(plt_gEps_psd)
+        savePlots && savefig(string(absPath,"/S20PazyMatchingAirspeedSweep_",idString,"_",gaugeName,"EpsTEPSD.pdf"))
+    end
 end
 
 println("Finished S20PazyMatchingAirspeedSweep.jl")

@@ -13,22 +13,16 @@ URange = vcat(0:1:100)
 tipMassConfig = :TE
 
 # Flag for ad hoc correction of torsional inertia of wingtip rod
-sweptTipMassInertiaCorrection = true
+tipRodInertiaCorrection = true
 
 # Mesh
 mesh = :nominal
 
-# Tip correction function type
-tipLossType = "VLM-def"
-
 # Aerodynamic solver
 aeroSolver = Indicial()
 
-# Airfoil section
-airfoil = deepcopy(NACA0018)
-
 # Geometric properties
-nElem,L,chord,normSparPos,nodalPositions = geometrical_properties_Pazy(Λ=Λ,mesh=mesh)
+nElem,L,chord,referenceAxis,nodalPositions = geometrical_properties_Pazy(Λ=Λ,mesh=mesh)
 
 # Number of modes to track
 nModes = 5
@@ -52,7 +46,7 @@ for (i,θ) in enumerate(θRange)
         # Display progress
         println("Solving for θ = $(round(Int,rad2deg(θ))) deg, U = $U m/s")
         # Model
-        model,_ = create_Pazy(aeroSolver=aeroSolver,airfoil=airfoil,upright=true,hasTipCorrection=true,tipLossType=tipLossType,sweepAngle=Λ,pitchAngle=θ,airspeed=U,sweptTipMassConfig=tipMassConfig,sweptTipMassInertiaCorrection=sweptTipMassInertiaCorrection)
+        model,_ = create_Pazy(aeroSolver=aeroSolver,sweepAngle=Λ,pitchAngle=θ,airspeed=U,tipMassConfig=tipMassConfig,tipRodInertiaCorrection=tipRodInertiaCorrection)
         # Create and solve problem
         problem = create_EigenProblem(model=model,eigenmethod=eigenmethod,nev=nev,x0=x0)
         solve!(problem)
