@@ -29,7 +29,7 @@ nElemWing = Vector{Int}(undef,length(cases))
 for (i,(config,mesh)) in enumerate(cases)
     display("Solving for configuration $config, mesh $mesh")
     # Model
-    model,nElemWing[i],_ = create_Pazy(aeroSolver=QuasiSteady(),sweepAngle=Λ,sweptTipMassConfig=config,mesh=mesh,beamWingtipRod=true,nElementsWingtipRod=nElementsWingtipRod,gravityVector=zeros(3))
+    model,nElemWing[i],_ = create_Pazy(aeroSolver=QuasiSteady(),sweepAngle=Λ,tipMassConfig=config,mesh=mesh,beamWingtipRod=true,nElementsWingtipRod=nElementsWingtipRod,gravityVector=zeros(3))
     # Create and solve problem
     problem[i] = create_EigenProblem(model=model,eigenmethod=eigenmethod,nev=nev)
     solve!(problem[i])

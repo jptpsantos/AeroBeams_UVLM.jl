@@ -26,7 +26,7 @@ gust = create_OneMinusCosineGust(initialTime=τ,duration=2τ,verticalVelocity=Ug
 tf = 3
 
 # Model
-PazyFFWTOMCGustFloating,nElem,L,_ = create_Pazy(hinged=true,hingeNode=hingeNode,flareAngle=Λ,airspeed=U,pitchAngle=θ,gust=gust)
+PazyFFWTOMCGustFloating,nElem,L,_ = create_Pazy(upright=false,hinged=true,hingeNode=hingeNode,flareAngle=Λ,airspeed=U,pitchAngle=θ,gust=gust)
 
 # Solve steady problem for initial conditions
 steadyProblem = create_SteadyProblem(model=PazyFFWTOMCGustFloating,systemSolver=systemSolver)

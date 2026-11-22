@@ -6,7 +6,7 @@ using AeroBeams, Random, LinearAlgebra
 function hinged_beam_problem(; hingedNodes, hingedNodesDoF, μ, method, ppSolver=nothing)
     S = isotropic_stiffness_matrix(∞=1e4,EIy=10.0,EIz=20.0,GJ=5.0)
     Ii = inertia_matrix(ρA=1.0,ρIy=1e-2,ρIz=1e-2,ρIyz=1e-3,e2=0.01,e3=-0.02)
-    surfaceKwargs = isnothing(ppSolver) ? (;) : (; surface=create_AeroSurface(ppSolver=ppSolver,airfoil=create_Airfoil(name="FlatPlate"),c=0.2,normSparPos=0.3))
+    surfaceKwargs = isnothing(ppSolver) ? (;) : (; surface=create_AeroSurface(ppSolver=ppSolver,airfoil=create_Airfoil(name="FlatPlate"),c=0.2,referenceAxis=0.3))
     beam = create_Beam(name="beam",length=1.0,nElements=4,S=[S],I=[Ii],μ=μ,k=[0.3,0.2,0.4],p0=[0.1,-0.2,0.05],hingedNodes=hingedNodes,hingedNodesDoF=hingedNodesDoF;surfaceKwargs...)
     clamp = create_BC(name="clamp",beam=beam,node=1,conditions=Dict(:u1A=>0,:u2A=>0,:u3A=>0,:p1A=>0,:p2A=>0,:p3A=>0))
     tip = create_BC(name="tip",beam=beam,node=5,conditions=Dict(:F3A=>t->0.5*sin(20t),:M2A=>t->0.2*cos(15t)))

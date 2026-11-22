@@ -16,7 +16,7 @@ URange = vcat(1e-3,1:1:80)
 systemSolver = create_NLsolver(method=:newton,linesearch=true)
 
 # Initialize model
-model,nElem,L,_ = create_Pazy(hinged=true,hingeNode=hingeNode,flareAngle=flareAngle,pitchAngle=θ)
+model,nElem,L,_ = create_Pazy(upright=false,hinged=true,hingeNode=hingeNode,flareAngle=flareAngle,pitchAngle=θ)
 
 # Undeformed positions and coordinates
 beam = model.beams[1]

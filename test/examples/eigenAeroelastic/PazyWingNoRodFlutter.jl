@@ -9,9 +9,6 @@ aeroSolver = Indicial()
 # Airfoil section
 airfoil = deepcopy(FlatPlate)
 
-# Flag for upright position
-upright = true
-
 # Root pitch angle [rad]
 θ = deg2rad(7)
 
@@ -19,7 +16,7 @@ upright = true
 mesh = :refined
 
 # Initialize model
-PazyWingNoRodFlutter,nElem,L,chord,normSparPos = create_Pazy(aeroSolver=aeroSolver,withWingtipRod=false,airfoil=airfoil,upright=upright,pitchAngle=θ,mesh=mesh)
+PazyWingNoRodFlutter,nElem,L,chord,referenceAxis = create_Pazy(aeroSolver=aeroSolver,withWingtipRod=false,airfoil=airfoil,pitchAngle=θ,mesh=mesh)
 
 # Number of modes to track
 nModes = 5

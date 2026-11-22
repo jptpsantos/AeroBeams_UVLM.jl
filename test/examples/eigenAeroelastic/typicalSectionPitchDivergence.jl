@@ -17,12 +17,12 @@ atmosphere = standard_atmosphere(altitude)
 # Aerodynamic surface
 airfoil = deepcopy(FlatPlate)
 c = 0.2
-normSparPos = 1/2
+referenceAxis = 1/2
 normCGPos = 1/2
-a = 2*normSparPos - 1
+a = 2*referenceAxis - 1
 e = 2*normCGPos - 1
 e2 = -(e-a)*c/2
-surf = create_AeroSurface(ppSolver=aeroSolver,airfoil=airfoil,c=c,normSparPos=normSparPos,updateAirfoilParameters=false,smallAngles=true)
+surf = create_AeroSurface(ppSolver=aeroSolver,airfoil=airfoil,c=c,referenceAxis=referenceAxis,updateAirfoilParameters=false,smallAngles=true)
 
 # Rigid wing
 L = 1
@@ -81,7 +81,7 @@ divergenceSpeeds,_ = find_divergence(URange,freqsNonOsc,dampsNonOsc)
 UD = minimum(divergenceSpeeds)
 
 # Analytical divergence speed - Eq. 4.8 of Hodges and Pierce
-UDRef = sqrt(kα/(1/2*ρ*c*L*2π*c*(normSparPos-1/4)))
+UDRef = sqrt(kα/(1/2*ρ*c*L*2π*c*(referenceAxis-1/4)))
 
 # Relative error in divergence speed
 ϵrel = UD/UDRef - 1

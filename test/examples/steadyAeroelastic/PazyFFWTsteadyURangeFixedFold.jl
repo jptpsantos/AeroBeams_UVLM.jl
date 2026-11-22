@@ -15,7 +15,7 @@ URange = vcat(1e-3,1:1:80)
 systemSolver = create_NLsolver(method=:newton,linesearch=true)
 
 # Initialize model
-PazyFFWTsteadyURangeFixedFold,nElem,L,_ = create_Pazy(hinged=true,hingeNode=hingeNode,foldAngle=foldAngle,flareAngle=flareAngle,pitchAngle=θ)
+PazyFFWTsteadyURangeFixedFold,nElem,L,_ = create_Pazy(upright=false,hinged=true,hingeNode=hingeNode,foldAngle=foldAngle,flareAngle=flareAngle,pitchAngle=θ)
 
 # Undeformed positions and coordinates
 beam = PazyFFWTsteadyURangeFixedFold.beams[1]

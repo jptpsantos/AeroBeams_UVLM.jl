@@ -7,7 +7,7 @@ using AeroBeams
 α = deg2rad(0)
 
 # Aerodynamic surface (for better visualization only, no aerodynamics involved)
-surf = create_AeroSurface(airfoil=deepcopy(NACA0018),c=0.1,normSparPos=0.5)
+surf = create_AeroSurface(airfoil=deepcopy(NACA0018),c=0.1,referenceAxis=0.5)
 
 # Gravity
 g = standard_atmosphere(0).g

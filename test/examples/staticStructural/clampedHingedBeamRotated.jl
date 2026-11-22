@@ -10,7 +10,7 @@ using AeroBeams
 θ = deg2rad(-45)
 
 # Aerodynamic surface (for better visualization only, no aerodynamics involved)
-surf = create_AeroSurface(airfoil=deepcopy(NACA0018),c=0.1,normSparPos=0.25)
+surf = create_AeroSurface(airfoil=deepcopy(NACA0018),c=0.1,referenceAxis=0.25)
 
 # Beam 
 L = 1

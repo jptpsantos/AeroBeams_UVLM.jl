@@ -31,7 +31,7 @@ aeroSolver = BLo()
 updateAirfoilParameters = true
 
 # Aerodynamic surface
-surf = create_AeroSurface(ppSolver=aeroSolver,airfoil=airfoil,c=2*b,normSparPos=0.25,updateAirfoilParameters=updateAirfoilParameters)
+surf = create_AeroSurface(ppSolver=aeroSolver,airfoil=airfoil,c=2*b,referenceAxis=0.25,updateAirfoilParameters=updateAirfoilParameters)
 
 # Wing
 L = 10*2b

@@ -2,9 +2,7 @@ using AeroBeams
 
 # --- Configurations ---
 # Flag for tip correction
-hasTipCorrectionConfig = [false,true,true]
-# Tip correction function type
-tipLossTypeConfig = ["None","Exponential","VLM-def"]
+hasTipCorrectionConfig = [false,true]
 
 # Sweep angle range [rad]
 ΛRange = deg2rad.(vcat(0,10,20))
@@ -18,17 +16,11 @@ URange = collect(30:1:70)
 # Aerodynamic solver
 aeroSolver = Indicial()
 
-# Airfoil section
-airfoil = deepcopy(FlatPlate)
-
-# Flag for upright position
-upright = false
-
-# Gravity
-g = 0
+# Mesh
+mesh = :nominal
 
 # Geometric properties
-nElem,L,_ = geometrical_properties_Pazy()
+nElem,L,_ = geometrical_properties_Pazy(mesh=mesh)
 
 # Undeformed nodal positions (vary only with sweep angle and upright position)
 x1_0 = Array{Vector{Float64}}(undef,length(ΛRange))
@@ -43,17 +35,17 @@ for (i,Λ) in enumerate(ΛRange)
 end
 
 # Initialize outputs
-tipOOP = Array{Float64}(undef,length(tipLossTypeConfig),length(ΛRange),length(θRange),length(URange))
-tipTwist = Array{Float64}(undef,length(tipLossTypeConfig),length(ΛRange),length(θRange),length(URange))
-tipAoA = Array{Float64}(undef,length(tipLossTypeConfig),length(ΛRange),length(θRange),length(URange))
-AoA = Array{Vector{Float64}}(undef,length(tipLossTypeConfig),length(ΛRange),length(θRange),length(URange))
-cn = Array{Vector{Float64}}(undef,length(tipLossTypeConfig),length(ΛRange),length(θRange),length(URange))
-x1_def = Array{Vector{Float64}}(undef,length(tipLossTypeConfig),length(ΛRange),length(θRange),length(URange))
-x2_def = Array{Vector{Float64}}(undef,length(tipLossTypeConfig),length(ΛRange),length(θRange),length(URange))
-x3_def = Array{Vector{Float64}}(undef,length(tipLossTypeConfig),length(ΛRange),length(θRange),length(URange))
+tipOOP = Array{Float64}(undef,length(hasTipCorrectionConfig),length(ΛRange),length(θRange),length(URange))
+tipTwist = Array{Float64}(undef,length(hasTipCorrectionConfig),length(ΛRange),length(θRange),length(URange))
+tipAoA = Array{Float64}(undef,length(hasTipCorrectionConfig),length(ΛRange),length(θRange),length(URange))
+AoA = Array{Vector{Float64}}(undef,length(hasTipCorrectionConfig),length(ΛRange),length(θRange),length(URange))
+cn = Array{Vector{Float64}}(undef,length(hasTipCorrectionConfig),length(ΛRange),length(θRange),length(URange))
+x1_def = Array{Vector{Float64}}(undef,length(hasTipCorrectionConfig),length(ΛRange),length(θRange),length(URange))
+x2_def = Array{Vector{Float64}}(undef,length(hasTipCorrectionConfig),length(ΛRange),length(θRange),length(URange))
+x3_def = Array{Vector{Float64}}(undef,length(hasTipCorrectionConfig),length(ΛRange),length(θRange),length(URange))
 
 # Sweep configurations
-for (c,hasTipCorrection,tipLossType) in zip(1:length(tipLossTypeConfig),hasTipCorrectionConfig,tipLossTypeConfig)
+for (c,hasTipCorrection) in enumerate(hasTipCorrectionConfig)
     # Sweep angle of sweep
     for (i,Λ) in enumerate(ΛRange)
         # Sweep pitch angle
@@ -65,7 +57,7 @@ for (c,hasTipCorrection,tipLossType) in zip(1:length(tipLossTypeConfig),hasTipCo
                 # Display progress
                 println("Solving for configuration $c, Λ = $(round(Int,rad2deg(Λ))) deg, θ = $(round(Int,rad2deg(θ))) deg, U = $U m/s")
                 # Model
-                model,_ = create_Pazy(aeroSolver=aeroSolver,airfoil=airfoil,upright=upright,sweepAngle=Λ,pitchAngle=θ,airspeed=U,gravityVector=[0,0,-g],hasTipCorrection=hasTipCorrection,tipLossType=tipLossType)
+                model,_ = create_Pazy(aeroSolver=aeroSolver,mesh=mesh,sweepAngle=Λ,pitchAngle=θ,airspeed=U,hasTipCorrection=hasTipCorrection)
                 # Create and solve problem
                 problem = create_SteadyProblem(model=model,x0=x0)
                 solve!(problem)
@@ -109,7 +101,7 @@ mkpath(absPath)
 xΛ = [ 0.85, 0.95, 0.95, 0.95]
 yΛ = [0.65,  0.43, 0.27, 0.15]
 colors = cgrad(:rainbow, length(ΛRange), categorical=true)
-ls = [:solid, :dash, :dashdot]
+ls = [:solid, :dash]
 ts = 10
 fs = 16
 lfs = 9
@@ -121,10 +113,9 @@ gr()
 # Deformed position at θ=7 deg, U=70 m/s
 plt_defPos = plot(xlabel="Normalized horizontal position", ylabel="Normalized vertical position", title=string("\$\\alpha_r=7^\\circ\$",", \$U=70\$ m/s"), xlims=[0,1], ylims=[0,0.8], tickfont=font(ts), guidefont=font(fs), legendfontsize=lfs, legend=:topleft)
 plot!([NaN], [NaN], c=:black, lw=lw, ls=ls[1], label="No loss")
-plot!([NaN], [NaN], c=:black, lw=lw, ls=ls[2], label="Exponential loss")
-plot!([NaN], [NaN], c=:black, lw=lw, ls=ls[3], label="VLM - deformed")
+plot!([NaN], [NaN], c=:black, lw=lw, ls=ls[2], label="VLM - deformed")
 scatter!([NaN], [NaN], c=:black, ms=ms, msw=msw, label="Sharpy (VLM)")
-for c in 1:length(tipLossTypeConfig)
+for c in 1:length(hasTipCorrectionConfig)
     for i in eachindex(ΛRange)
         plot!(x1_def[c,i,end,end]/L, x3_def[c,i,end,end]/L, c=colors[i], lw=lw, ls=ls[c], label=false)
         annotate!([xΛ[i]],[yΛ[i]], text("\$\\Lambda=$(round(Int,ΛRange[i]*180/π)) ^\\circ\$", 12, colors[i]))

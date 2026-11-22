@@ -33,7 +33,7 @@ cn = Array{Vector{Float64}}(undef,length(ΛRange))
 # Loop over sweep angles
 for (i,Λ,θ) in zip(1:length(ΛRange),ΛRange,θRange)
     # Wing surface
-    wingSurf = create_AeroSurface(ppSolver=Indicial(),airfoil=deepcopy(FlatPlate),c=chord,normSparPos=1/4,Λ=Λ,hasTipCorrection=hasTipCorrection,tipLossDecayFactor=tipLossDecayFactor)
+    wingSurf = create_AeroSurface(ppSolver=Indicial(),airfoil=deepcopy(FlatPlate),c=chord,referenceAxis=1/4,Λ=Λ,hasTipCorrection=hasTipCorrection,tipLossDecayFactor=tipLossDecayFactor)
     # Wing beam
     beam = create_Beam(name="beam",length=L,nElements=nElem,S=[S],surface=wingSurf,p0=transform_to_WM([-Λ,0,θ],from=:E321))
     # BCs

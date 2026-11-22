@@ -82,7 +82,7 @@ function OMCgustTestsCore(aeroSolver,gustSolver,testCase)
     airfoil = deepcopy(NACA0012)
     update_all_airfoil_parameters!(airfoil,Ma)
     derivationMethod = AD()
-    surf = create_AeroSurface(ppSolver=aeroSolver,gustSolver=gustSolver,derivationMethod=derivationMethod,airfoil=airfoil,c=2*b,normSparPos=1/4,updateAirfoilParameters=true)
+    surf = create_AeroSurface(ppSolver=aeroSolver,gustSolver=gustSolver,derivationMethod=derivationMethod,airfoil=airfoil,c=2*b,referenceAxis=1/4,updateAirfoilParameters=true)
 
     ## Wing beam
     L = 1

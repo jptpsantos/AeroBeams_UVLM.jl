@@ -1,5 +1,5 @@
 # # Flutter analysis of the Pazy wing
-# This example illustrates how to set up a flutter (eigen) analysis, using the Technion's Pazy wing benchmark. The sectional properties of the wing's spar and the aerodynamic tip loss function were defined by [Riso and Cesnik](https://doi.org/10.2514/6.2022-2313). The data is publicly available at [https://github.com/UM-A2SRL/AePW3-LDWG](https://github.com/UM-A2SRL/AePW3-LDWG).
+# This example illustrates how to set up a flutter (eigen) analysis, using the Technion's Pazy wing benchmark. The sectional properties of the wing are obtained from the condensed beam models given by [BeamROM](https://github.com/luizpancini/BeamROM) and the aerodynamic tip loss function is interpolated from the VLM solutions of [AeroBeams_UVLM](https://github.com/jptpsantos/AeroBeams_UVLM.jl).
 
 #md # ![](../assets/pazyWT.png)
 
@@ -24,20 +24,11 @@ aeroSolver = Indicial()
 ## Airfoil section
 airfoil = deepcopy(FlatPlate)
 
-## Flag for tip correction
-hasTipCorrection = true
-
-## Tip correction function type
-tipLossType = "Exponential"
-
-## Flag for upright position
-upright = true
-
 ## Mesh: :nominal or :refined
 mesh = :refined
 
 ## Fixed geometrical and discretization properties
-nElem,L,chord,normSparPos,_ = geometrical_properties_Pazy(; mesh=mesh)
+nElem,L,chord,referenceAxis,_ = geometrical_properties_Pazy(; mesh=mesh)
 
 ## Number of modes to track
 nModes = 5
@@ -72,14 +63,14 @@ for (i,θ) in enumerate(θRange)
         ## Display progress #src
         println("Solving for θ = $(round(θ, digits=2)) deg, U = $U m/s") #src
         ## Model
-        PazyWingFlutterPitchRange,_ = create_Pazy(aeroSolver=aeroSolver,airfoil=airfoil,hasTipCorrection=hasTipCorrection,tipLossType=tipLossType,upright=upright,pitchAngle=deg2rad(θ),airspeed=U,mesh=mesh)
+        PazyWingFlutterPitchRange,_ = create_Pazy(aeroSolver=aeroSolver,airfoil=airfoil,pitchAngle=deg2rad(θ),airspeed=U,mesh=mesh)
         ## Create and solve problem
         problem = create_EigenProblem(model=PazyWingFlutterPitchRange,eigenmethod=eigenmethod,nev=nev,x0=x0)
         solve!(problem)
         ## Tip OOP displacement at midchord
         states = problem.loadstepHistory.states
         tipTwist = twist_angle(states[end][nElem].nodal.p2_b, outputUnit=:deg)
-        tip_OOP[i,j] = -(states[end][nElem].nodal.u2[1] - chord*(1/2-normSparPos)*sind(tipTwist))/L*100
+        tip_OOP[i,j] = -(states[end][nElem].nodal.u2[1] - chord*(1/2-referenceAxis)*sind(tipTwist))/L*100
         ## Eigensolution
         eigensols[i,j] = problem.eigensolution
         ## Set initial guess solution for next iteration
@@ -127,22 +118,22 @@ flutterBoundary_dispVsU_Lambda0_Sharpy = readdlm(pkgdir(AeroBeams)*"/test/refere
 ## Flutter onset and offset speeds vs root pitch angle
 ## Extract flutter onset and offset data for the hump mode
 #md humpMode = 3
-#md UfOn = Float64[]
-#md UfOff = Float64[]
-#md ufOn = Float64[]
-#md ufOff = Float64[]
+#md UfOn = fill(NaN,length(θRange))
+#md UfOff = fill(NaN,length(θRange))
+#md ufOn = fill(NaN,length(θRange))
+#md ufOff = fill(NaN,length(θRange))
 #md for i in eachindex(θRange)
 #md     for m in eachindex(flutterOnsetModes[i])
 #md         if flutterOnsetModes[i][m] == humpMode
-#md             push!(UfOn, flutterOnsetSpeeds[i][m])
-#md             push!(ufOn, flutterOnsetDisp[i][m])
+#md             UfOn[i] = flutterOnsetSpeeds[i][m]
+#md             ufOn[i] = flutterOnsetDisp[i][m]
 #md             break
 #md         end
 #md     end
 #md     for m in eachindex(flutterOffsetModes[i])
 #md         if flutterOffsetModes[i][m] == humpMode
-#md             push!(UfOff, flutterOffsetSpeeds[i][m])
-#md             push!(ufOff, flutterOffsetDisp[i][m])
+#md             UfOff[i] = flutterOffsetSpeeds[i][m]
+#md             ufOff[i] = flutterOffsetDisp[i][m]
 #md             break
 #md         end
 #md     end
@@ -150,8 +141,9 @@ flutterBoundary_dispVsU_Lambda0_Sharpy = readdlm(pkgdir(AeroBeams)*"/test/refere
 #md nothing #hide
 
 ## Flutter onset and offset speeds vs root pitch angle
+#md valid = .!isnan.(UfOn) .& .!isnan.(UfOff)
 #md plt1 = plot(xlabel="Airspeed [m/s]", ylabel="Root pitch angle [deg]", xlims=[30,90], ylims=[0,7.25], xticks=collect(30:10:90), yticks=collect(0:1:7), legend=:topright, tickfont=font(ts), guidefont=font(fs), legendfontsize=lfs)
-#md plot!(Shape(vcat(UfOn,reverse(UfOff)),vcat(θRange,reverse(θRange))), fillcolor = plot_color(:red, 0.25), lw=lw, label="AeroBeams hump flutter region")
+#md plot!(Shape(vcat(UfOn[valid],reverse(UfOff[valid])),vcat(θRange[valid],reverse(θRange[valid]))), fillcolor = plot_color(:red, 0.25), lw=lw, label="AeroBeams hump flutter region")
 #md scatter!(flutterOnsetVelUp, rootPitchVelUp, shape=:rtriangle, mc=:red, ms=ms, msw=msw, label="Test onset up")
 #md scatter!(flutterOffsetVelUp, rootPitchVelUp, shape=:rtriangle, mc=:green, ms=ms, msw=msw, label="Test offset up")
 #md scatter!(flutterOnsetVelDown, rootPitchVelDown, shape=:ltriangle, mc=:red, ms=ms, msw=msw, label="Test onset down")
@@ -169,7 +161,7 @@ flutterBoundary_dispVsU_Lambda0_Sharpy = readdlm(pkgdir(AeroBeams)*"/test/refere
 #md xθ = [ 5,  9, 12, 14, 16, 17.5]
 #md yθ = [59, 55, 48, 44, 38, 34]
 #md plt2 = plot(xlabel="Tip OOP displacement [% semispan]", ylabel="Airspeed [m/s]", xlims=[0,32], ylims=[30,90], xticks=collect(0:5:30), yticks=collect(30:10:90), legend=:bottomleft, tickfont=font(ts), guidefont=font(fs), legendfontsize=lfs)
-#md plot!(Shape(vcat(ufOn,reverse(ufOff)),vcat(UfOn,reverse(UfOff))), fillcolor = plot_color(:red, 0.25), lw=lw, label=false)
+#md plot!(Shape(vcat(ufOn[valid],reverse(ufOff[valid])),vcat(UfOn[valid],reverse(UfOff[valid]))), fillcolor = plot_color(:red, 0.25), lw=lw, label=false)
 #md for (n,ind) in enumerate(indθ2plot)
 #md     θ = θ2plot[n]
 #md     plot!(tip_OOP[ind,:], URange, c=θcolors[n], ls=:dash, lw=2, label=false)
@@ -204,30 +196,31 @@ gr()
 
 # Extract flutter onset and offset data for the hump mode
 humpMode = 3
-UfOn = Float64[]
-UfOff = Float64[]
-ufOn = Float64[]
-ufOff = Float64[]
+UfOn = fill(NaN,length(θRange))
+UfOff = fill(NaN,length(θRange))
+ufOn = fill(NaN,length(θRange))
+ufOff = fill(NaN,length(θRange))
 for i in eachindex(θRange)
     for m in eachindex(flutterOnsetModes[i])
         if flutterOnsetModes[i][m] == humpMode
-            push!(UfOn, flutterOnsetSpeeds[i][m])
-            push!(ufOn, flutterOnsetDisp[i][m])
+            UfOn[i] = flutterOnsetSpeeds[i][m]
+            ufOn[i] = flutterOnsetDisp[i][m]
             break
         end
     end
     for m in eachindex(flutterOffsetModes[i])
         if flutterOffsetModes[i][m] == humpMode
-            push!(UfOff, flutterOffsetSpeeds[i][m])
-            push!(ufOff, flutterOffsetDisp[i][m])
+            UfOff[i] = flutterOffsetSpeeds[i][m]
+            ufOff[i] = flutterOffsetDisp[i][m]
             break
         end
     end
 end
 
 # Flutter onset and offset speeds vs root pitch angle
+valid = .!isnan.(UfOn) .& .!isnan.(UfOff)
 plt1 = plot(xlabel="Airspeed [m/s]", ylabel="Root pitch angle [deg]", xlims=[30,90], ylims=[0,7.25], xticks=collect(30:10:90), yticks=collect(0:1:7), legend=:topright, tickfont=font(ts), guidefont=font(fs), legendfontsize=lfs)
-plot!(Shape(vcat(UfOn,reverse(UfOff)),vcat(θRange,reverse(θRange))), fillcolor = plot_color(:red, 0.25), lw=lw, label="AeroBeams hump flutter region")
+plot!(Shape(vcat(UfOn[valid],reverse(UfOff[valid])),vcat(θRange[valid],reverse(θRange[valid]))), fillcolor = plot_color(:red, 0.25), lw=lw, label="AeroBeams hump flutter region")
 scatter!(flutterOnsetVelUp, rootPitchVelUp, shape=:rtriangle, mc=:red, ms=ms, msw=msw, label="Test onset up")
 scatter!(flutterOffsetVelUp, rootPitchVelUp, shape=:rtriangle, mc=:green, ms=ms, msw=msw, label="Test offset up")
 scatter!(flutterOnsetVelDown, rootPitchVelDown, shape=:ltriangle, mc=:red, ms=ms, msw=msw, label="Test onset down")
@@ -245,7 +238,7 @@ indθ2plot = findall(x -> any(isapprox(x, θ; atol=1e-10) for θ in θ2plot), θ
 xθ = [ 5,  9, 12, 14, 16, 17.5]
 yθ = [59, 55, 48, 44, 38, 34]
 plt2 = plot(xlabel="Tip OOP displacement [% semispan]", ylabel="Airspeed [m/s]", xlims=[0,32], ylims=[30,90], xticks=collect(0:5:30), yticks=collect(30:10:90), legend=:bottomleft, tickfont=font(ts), guidefont=font(fs), legendfontsize=10)
-plot!(Shape(vcat(ufOn,reverse(ufOff)),vcat(UfOn,reverse(UfOff))), fillcolor = plot_color(:red, 0.25), lw=lw, label=false)
+plot!(Shape(vcat(ufOn[valid],reverse(ufOff[valid])),vcat(UfOn[valid],reverse(UfOff[valid]))), fillcolor = plot_color(:red, 0.25), lw=lw, label=false)
 for (n,ind) in enumerate(indθ2plot)
     θ = θ2plot[n]
     plot!(tip_OOP[ind,:], URange, c=θcolors[n], ls=:dash, lw=lw, label=false)

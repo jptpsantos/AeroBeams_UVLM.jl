@@ -10,15 +10,12 @@ U = 50
 aeroSolver = Indicial()
 gustSolver = IndicialGust(:Kussner)
 
-# Flag for upright position
-upright = true
-
 # Gust (defined such that it begins at time t0 and lasts for τ seconds)
 t0, τ = 0.5, 1.0
 gust = create_Continuous1DSpaceGust(spectrum=:vK,gustLength=τ*U,N=1001,σ=U/10,c0=[0, t0*U, 0],p=[0, -π/2, 0])
 
 # Model
-PazyWingContinuous1DSpaceGust,nElem,L,_ = create_Pazy(aeroSolver=aeroSolver,gustSolver=gustSolver,upright=upright,pitchAngle=θ,airspeed=U,gust=gust)
+PazyWingContinuous1DSpaceGust,nElem,L,_ = create_Pazy(aeroSolver=aeroSolver,gustSolver=gustSolver,pitchAngle=θ,airspeed=U,gust=gust)
 
 # Time variables
 Δt = τ/500

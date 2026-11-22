@@ -38,7 +38,7 @@ nElem = 2
 
 # We now create the aerodynamic surface to be attached to the wing's beam, the attachment springs, and the rigid beam of the wing. Two sliding journals (allowing only pitch and plunge motion) are added at the wingtips, further removing any elastic effects of the beam.
 ## Aerodynamic surface
-surf = create_AeroSurface(ppSolver=aeroSolver,airfoil=airfoil,c=c,normSparPos=(a+1)/2,updateAirfoilParameters=false)
+surf = create_AeroSurface(ppSolver=aeroSolver,airfoil=airfoil,c=c,referenceAxis=(a+1)/2,updateAirfoilParameters=false)
 #md nothing #hide
 
 ## Rigid wing

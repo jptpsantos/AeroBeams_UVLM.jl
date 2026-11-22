@@ -27,11 +27,11 @@ atmosphere = standard_atmosphere(altitude)
 # Aerodynamic surface properties
 airfoil = deepcopy(FlatPlate)
 c = 0.2
-normSparPos = 1/2
+referenceAxis = 1/2
 normCGPos = 1/2
-a = 2*normSparPos - 1
+a = 2*referenceAxis - 1
 d = 2*normCGPos - 1
-e = c * (normSparPos - 1/4)
+e = c * (referenceAxis - 1/4)
 e2 = -(d-a)*c/2
 
 # Sweep angle for infinite divergence speed according to the Ritz solution of Hodges and Pierce (Eq. 4.113) [deg]. In the exact solution (see below) the divergence speed is never infinite: the two lowest real roots (divergence speeds) coalesce at Λ ≈ 9.08 deg, and the divergence speed jumps from about 38 to 94 m/s
@@ -82,7 +82,7 @@ UD = Array{Float64}(undef,length(ΛRange))
 # Sweep angle of sweep
 for (i,Λ) in enumerate(ΛRange)
     # Aero surface
-    surf = create_AeroSurface(ppSolver=aeroSolver,airfoil=airfoil,c=c,normSparPos=normSparPos,Λ=Λ,updateAirfoilParameters=false,smallAngles=true)
+    surf = create_AeroSurface(ppSolver=aeroSolver,airfoil=airfoil,c=c,referenceAxis=referenceAxis,Λ=Λ,updateAirfoilParameters=false,smallAngles=true)
     # Wing
     wing = create_Beam(name="wing",length=L,nElements=nElem,S=[isotropic_stiffness_matrix(∞=∞,GJ=GJ,EIy=EIy)],I=[inertia_matrix(ρA=ρA,e2=e2)],surface=surf,p0=transform_to_WM([-Λ,0,θ],from=:E321))
     # BCs

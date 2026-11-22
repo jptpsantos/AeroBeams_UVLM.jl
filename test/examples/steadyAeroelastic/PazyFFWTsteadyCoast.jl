@@ -16,7 +16,7 @@ U = 40
 systemSolver = create_NLsolver(method=:newton,linesearch=true,displayStatus=true)
 
 # Model
-PazyFFWTsteadyCoast,nElem,L,_ = create_Pazy(hinged=true,hingeNode=hingeNode,flareAngle=flareAngle,airspeed=U,pitchAngle=θ)
+PazyFFWTsteadyCoast,nElem,L,_ = create_Pazy(upright=false,hinged=true,hingeNode=hingeNode,flareAngle=flareAngle,airspeed=U,pitchAngle=θ)
 
 # Create and solve problem
 problem = create_SteadyProblem(model=PazyFFWTsteadyCoast,systemSolver=systemSolver)

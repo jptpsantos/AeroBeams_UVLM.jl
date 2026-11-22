@@ -9,15 +9,6 @@ aeroSolver = Indicial()
 # Airfoil section
 airfoil = deepcopy(FlatPlate)
 
-# Flag for tip correction
-hasTipCorrection = true
-
-# Tip correction function type
-tipLossType = "Exponential"
-
-# Flag for upright position
-upright = true
-
 # Pitch angle [rad]
 θ = deg2rad(7)
 
@@ -28,7 +19,7 @@ g = 0
 smallAngles = true
 
 # Fixed geometrical and discretization properties
-nElem,L,chord,normSparPos = geometrical_properties_Pazy()
+nElem,L,chord,referenceAxis = geometrical_properties_Pazy()
 
 # Number of modes to track
 nModes = 5
@@ -49,7 +40,7 @@ for (i,U) in enumerate(URange)
     # Display progress
     println("Solving for U = $U m/s")
     # Model
-    PazyWingFreqsEvolution,_ = create_Pazy(aeroSolver=aeroSolver,airfoil=airfoil,hasTipCorrection=hasTipCorrection,tipLossType=tipLossType,upright=upright,pitchAngle=θ,airspeed=U,gravityVector=[0,0,-g],smallAngles=smallAngles)
+    PazyWingFreqsEvolution,_ = create_Pazy(aeroSolver=aeroSolver,airfoil=airfoil,pitchAngle=θ,airspeed=U,gravityVector=[0,0,-g],smallAngles=smallAngles)
     # Create and solve problem
     problem = create_EigenProblem(model=PazyWingFreqsEvolution,eigenmethod=eigenmethod,nev=nev,x0=x0)
     solve!(problem)
@@ -58,7 +49,7 @@ for (i,U) in enumerate(URange)
     # Get OOP displacement at midchord
     tipNodeFinalState = problem.loadstepHistory.states[end][nElem].nodal
     tipTwist = twist_angle(tipNodeFinalState.p2_b, outputUnit=:deg)
-    tipOOP[i] = -(tipNodeFinalState.u2[1] - chord*(1/2-normSparPos)*sind(tipTwist))
+    tipOOP[i] = -(tipNodeFinalState.u2[1] - chord*(1/2-referenceAxis)*sind(tipTwist))
     # Set initial guess solution for next iteration
     global x0 = problem.systemArrays.x
 end

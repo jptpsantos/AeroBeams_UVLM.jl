@@ -13,7 +13,7 @@ aeroSolver = BLi()
 flapSolver = ThinAirfoilTheory()
 airfoil = deepcopy(FlatPlate)
 chord = 0.18
-normSparPos = 0.25
+referenceAxis = 0.25
 normFlapPos = 0.75
 normFlapSpan = [0; 1]
 
@@ -27,7 +27,7 @@ A = deg2rad(2.5)
 update_all_airfoil_parameters!(airfoil,Ma)
 
 # Create wing surface
-surf = create_AeroSurface(ppSolver=aeroSolver,flapSolver=flapSolver,airfoil=airfoil,c=chord,normSparPos=normSparPos,normFlapPos=normFlapPos,normFlapSpan=normFlapSpan,δ=δ)
+surf = create_AeroSurface(ppSolver=aeroSolver,flapSolver=flapSolver,airfoil=airfoil,c=chord,referenceAxis=referenceAxis,normFlapPos=normFlapPos,normFlapSpan=normFlapSpan,δ=δ)
 
 # Wing beam
 L = 1

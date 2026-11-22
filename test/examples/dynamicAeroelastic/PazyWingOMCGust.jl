@@ -10,9 +10,6 @@ U = 55
 aeroSolver = Indicial()
 gustSolver = IndicialGust(:Kussner)
 
-# Flag for upright position
-upright = true
-
 # Gust
 σ = -1/10
 ω = Hz2rads(10)
@@ -20,7 +17,7 @@ upright = true
 gust = create_OneMinusCosineGust(initialTime=τ,duration=2τ,verticalVelocity=σ*U,p=[0,-π/2,0])
 
 # Model
-PazyWingOMCGust,nElem,L,_ = create_Pazy(aeroSolver=aeroSolver,gustSolver=gustSolver,upright=upright,pitchAngle=θ,airspeed=U,gust=gust)
+PazyWingOMCGust,nElem,L,_ = create_Pazy(aeroSolver=aeroSolver,gustSolver=gustSolver,pitchAngle=θ,airspeed=U,gust=gust)
 
 # System solver
 # systemSolver = create_NewtonRaphson()

@@ -44,7 +44,7 @@ p = t -> 4*tan(θ(t)/4)
 pdot = t -> ForwardDiff.derivative(p,t)
 
 # Aerodynamic surface
-surf = create_AeroSurface(ppSolver=aeroSolver,airfoil=airfoil,c=2*b,normSparPos=0.25,updateAirfoilParameters=false)
+surf = create_AeroSurface(ppSolver=aeroSolver,airfoil=airfoil,c=2*b,referenceAxis=0.25,updateAirfoilParameters=false)
 
 # Wing (rigid)
 L = 1

@@ -54,7 +54,7 @@ for (i,aeroSolver) in enumerate(aeroSolvers)
     # Display progress
     println("Solving for $(aeroSolvers[i].name)")
     # Aerodynamic surface
-    surf = create_AeroSurface(ppSolver=aeroSolver,airfoil=airfoil,c=2*b,normSparPos=0.25,updateAirfoilParameters=true)
+    surf = create_AeroSurface(ppSolver=aeroSolver,airfoil=airfoil,c=2*b,referenceAxis=0.25,updateAirfoilParameters=true)
     # Wing
     wing = create_Beam(name="wing",length=L,nElements=nElem,S=[isotropic_stiffness_matrix(∞=∞,GJ=GJ,EIy=EIy,EIz=10*EIy)],I=[inertia_matrix(ρA=ρA,ρIy=ρIy,ρIz=ρIz)],p0=transform_to_WM([0,0,a₀-a₁],from=:E321),surface=surf)
     # Set initial conditions

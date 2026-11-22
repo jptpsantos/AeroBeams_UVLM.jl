@@ -12,7 +12,7 @@ flareAngle = deg2rad(20)
 U = 40
 
 # Pazy wing with flared folding tip
-PazyFFWTsteadyFixedFold,nElem,L,_ = create_Pazy(hinged=true,hingeNode=hingeNode,foldAngle=foldAngle,flareAngle=flareAngle,airspeed=U,pitchAngle=θ)
+PazyFFWTsteadyFixedFold,nElem,L,_ = create_Pazy(upright=false,hinged=true,hingeNode=hingeNode,foldAngle=foldAngle,flareAngle=flareAngle,airspeed=U,pitchAngle=θ)
 
 # System solver
 systemSolver = create_NLsolver(method=:newton,linesearch=true,displayStatus=true)
