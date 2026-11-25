@@ -4,6 +4,7 @@ using ColorSchemes
 using DelimitedFiles
 using ForwardDiff
 using LinearAlgebra
+using Measures
 using Parameters
 using Plots
 using PrettyTables
@@ -64,6 +65,9 @@ export cross, Diagonal, diagm, dot, I, norm, tr
 
 # LinearInterpolations exports
 export interpolate, Interpolate
+
+# Measures exports
+export mm
 
 # Plots exports
 export @animate, @layout, annotate!, font, gif, gr, heatmap, plot, plot!, plot_color, plotlyjs, quiver, quiver!, savefig, scatter, scatter!, Shape, surface, surface!, text, twinx, xlabel!, ylabel!
