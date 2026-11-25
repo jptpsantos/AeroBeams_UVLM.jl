@@ -22,6 +22,6 @@ Flutter of the undeformed Pazy wing (zero root pitch angle, no gravity) with the
 | S20 LE | 50.5 (32.1) | 52.3 (31.8) | 56.8 (31.6) | 54.6 (31.9) |
 | S20 TE | 75.1 (16.6) | 76.7 (16.3), at 3° | 75.8 (14.2) | 72.7 (17.2) |
 
-(Strip theory: flat plate, `"VLM"` tip loss of the undeformed wing, plain structure of the straight wing, rod modeled as in `dev/Pazy/S10/InertiaRod` and `dev/Pazy/S20/InertiaRod`, i.e., lumped with the ad hoc inertia correction for the S10 and as a beam for the S20.)
+(Strip theory: flat plate, `"VLM"` tip loss of the undeformed wing, plain structure of the straight wing, rod modeled as in the former `dev/Pazy/S10/InertiaRod` and `dev/Pazy/S20/InertiaRod` scripts (now those of `dev/Pazy/S10` and `dev/Pazy/S20` with `beamWingtipRod = false`), i.e., lumped with the ad hoc inertia correction for the S10 and as a beam for the S20.)
 
 The strip theory scales the whole circulatory response with the tip loss factor ϖ, which models the steady loss of lift, so that the initial (impulsive) circulatory load of the Wagner function, which is that of the two-dimensional wing, becomes ϖ times its value. `Indicial(finiteWingLag=true)` scales the amplitudes of the exponentials of the lag by `κ = (1 - (1-ΣA)/ϖ)/ΣA`, which keeps the initial load, with no parameters to calibrate.

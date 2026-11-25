@@ -56,7 +56,7 @@ if haskey(ENV, "FWL")
     push!(OVERRIDES, "aeroSolver = Indicial()" => "aeroSolver = Indicial(finiteWingLag=$(ENV["FWL"] == "1"))")
 end
 if get(ENV, "TLTH0", "0") == "1"
-    push!(OVERRIDES, "beamWingtipRod=true," => "beamWingtipRod=true,tipLossPitchAngle=0.0,")
+    push!(OVERRIDES, "beamWingtipRod=beamWingtipRod," => "beamWingtipRod=beamWingtipRod,tipLossPitchAngle=0.0,")
 end
 
 ## Tip loss function: a single replacement of AeroBeams.tip_loss_vlm
