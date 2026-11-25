@@ -1,12 +1,13 @@
 using AeroBeams
 
-# Modal analysis of the TU Delft Pazy wing, which is straight, with the wingtip rod modeled as a beam (create_PazyDelft with beamWingtipRod=true), in vacuo, compared with the Nastran model with the flexible tip rod. The wing has no tip mass configurations, so the meshes are the only cases
-
 # Meshes: :nominal and/or :refined
 meshes = [:nominal, :refined]
 
-# Number of elements of the wingtip rod beam
-nElementsWingtipRod = 12
+# Flag to model the wingtip rod as a beam (true) or with its inertia only (false)
+beamWingtipRod = true
+
+# Number of elements of the wingtip rod beam (used only if beamWingtipRod is true)
+nElementsWingtipRod = 16
 
 # Number of modes to track
 nModes = 15
@@ -25,7 +26,7 @@ nElemWing = Vector{Int}(undef,length(meshes))
 for (i,mesh) in enumerate(meshes)
     display("Solving for $mesh mesh")
     # Model
-    models[i],nElemWing[i],_ = create_PazyDelft(aeroSolver=QuasiSteady(),mesh=mesh,beamWingtipRod=true,nElementsWingtipRod=nElementsWingtipRod,gravityVector=zeros(3))
+    models[i],nElemWing[i],_ = create_PazyDelft(aeroSolver=QuasiSteady(),mesh=mesh,beamWingtipRod=beamWingtipRod,nElementsWingtipRod=nElementsWingtipRod,gravityVector=zeros(3))
     # Create and solve problem
     problem[i] = create_EigenProblem(model=models[i],eigenmethod=eigenmethod,nev=nev)
     solve!(problem[i])
@@ -74,36 +75,37 @@ function interpolate_data(x,xs,ys)
     return ys[k] + (x-xs[k])/(xs[k+1]-xs[k]) * (ys[k+1]-ys[k])
 end
 
-# Sampling points of the beam model, at the midpoints of the elements (relative to the clamp, in basis A: a1 along the span, unswept, a2 towards the leading edge and a3 vertical): those of the wing and of the rod (the element after those of the wing is the rigid link)
+# Sampling points of the beam model, at the midpoints of the elements (relative to the clamp, in basis A: a3 along the span, unswept, a2 towards the leading edge and a1 vertical): those of the wing and of the rod (the element after those of the wing is the rigid link)
 function sampling_elements(model,nElemWing)
     midpoints = [(model.assemblyData.r_n[n[1]] + model.assemblyData.r_n[n[2]])/2 for n in model.assemblyData.elementNodes]
     return midpoints, 1:nElemWing, (nElemWing+2):model.assemblyData.nElementsTotal
 end
 
-# Translations (in basis A) of the leading and trailing edge points of the sections of the wing and of the rod, at the sampling points, for a mode of the beam model
+# Translations of the leading and trailing edge points of the sections of the wing and of the rod, at the sampling points, for a mode of the beam model, converted from basis A to the frame of `nastran_mode_vector` (span, leading edge, vertical)
 function beam_mode_vector(modeShape,wingElements,rodElements)
+    toNastranBasis(w) = [w[3], w[2], -w[1]]
     v = Float64[]
     for e in wingElements
         u = modeShape.state[e].midpoint.u
         p = modeShape.state[e].midpoint.p
         for η in (referenceAxis*chord, (referenceAxis-1)*chord) # position of the leading and trailing edges along a2, from the reference axis (in the section of the Nastran frame, at constant y)
-            append!(v, u + cross(p,[0,η,0]))
+            append!(v, toNastranBasis(u + cross(p,[0,η,0])))
         end
     end
     for e in rodElements
-        append!(v, modeShape.state[e].midpoint.u)
+        append!(v, toNastranBasis(modeShape.state[e].midpoint.u))
     end
     return v
 end
 
-# The same for a mode of the Nastran model, interpolated at the sampling points and converted to basis A (u1 = u_y, u2 = -u_x, u3 = u_z)
+# The same for a mode of the Nastran model, interpolated at the sampling points and converted to the frame of `beam_mode_vector` (span, leading edge, vertical: u1 = u_y, u2 = -u_x, u3 = u_z)
 function nastran_mode_vector(mode,midpoints,wingElements,rodElements)
     wing = wingShapesNastran[wingShapesNastran[:,1] .== mode, :]
     rod = rodShapesNastran[rodShapesNastran[:,1] .== mode, :]
     toBasisA(u) = [u[2], -u[1], u[3]]
     v = Float64[]
     for e in wingElements, columns in (3:5, 6:8)
-        append!(v, toBasisA([interpolate_data(midpoints[e][1],wing[:,2],wing[:,c]) for c in columns]))
+        append!(v, toBasisA([interpolate_data(midpoints[e][3],wing[:,2],wing[:,c]) for c in columns]))
     end
     for e in rodElements
         x = referenceAxis*chord - midpoints[e][2] # chordwise position of the element, from the leading edge of the section at its span position
@@ -167,15 +169,18 @@ print(table)
 
 ## Plots
 # Set paths
-relPath = "/dev/PazyDelft/BeamRod/outputs/PazyDelftBeamRodModal"
+relPath = "/dev/PazyDelft/outputs/PazyDelftModal"
 absPath = string(pwd(),relPath)
 mkpath(absPath)
+
+# Name of the wingtip rod model, for the outputs
+rodModel = beamWingtipRod ? "BeamRod" : "InertiaRod"
 
 # Plot static mode shapes
 colors = cgrad(:rainbow, nModes, categorical=true)
 for (i,mesh) in enumerate(meshes)
-    modesPlot = plot_mode_shapes(problem[i],scale=1,nModes=nModes,modeLabels=modeTypes[i],modalColorScheme=colors,view=(45,15),plotAxes=false,legendPos=(0.7,0.95),save=true,savePath=string(relPath,"/PazyDelftBeamRodModal_",mesh,".pdf"))
+    modesPlot = plot_mode_shapes(problem[i],scale=1,nModes=nModes,modeLabels=modeTypes[i],modalColorScheme=colors,view=(45,15),plotAxes=false,legendPos=(0.7,0.95),save=true,savePath=string(relPath,"/PazyDelft$(rodModel)Modal_",mesh,".pdf"))
     display(modesPlot)
 end
 
-println("Finished PazyDelftBeamRodModal.jl")
+println("Finished PazyDelftModal.jl")

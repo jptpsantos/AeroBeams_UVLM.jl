@@ -69,23 +69,24 @@ end
 
 # Modes of the beam model with the rod `rod` and the mesh `mesh`, paired with those of Nastran: frequency [Hz] and MAC of the beam mode paired with each Nastran mode (NaN and zero when it is not paired)
 function paired_modes(mesh,rod)
-    model,nElemWing,_ = create_PazyDelft(aeroSolver=QuasiSteady(),mesh=mesh,beamWingtipRod=true,nElementsWingtipRod=nElementsWingtipRod,wingtipRodData=rod,gravityVector=zeros(3))
+    model,nElemWing,_ = create_PazyDelft(aeroSolver=QuasiSteady(),upright=true,mesh=mesh,beamWingtipRod=true,nElementsWingtipRod=nElementsWingtipRod,wingtipRodData=rod,gravityVector=zeros(3))
     problem = create_EigenProblem(model=model,eigenmethod=:krylovkit,nev=nev)
     solve!(problem)
     modeShapes = sort(filter(m -> m.frequency > 0, problem.eigensolution.modeShapes), by=m -> m.frequency)[1:nModes]
-    # Sampling points: midpoints of the elements of the wing and of the rod (relative to the clamp, in basis A), beyond the rigid link
+    # Sampling points: midpoints of the elements of the wing and of the rod (relative to the clamp, in basis A: a3 along the span), beyond the rigid link
     midpoints = [(model.assemblyData.r_n[n[1]] + model.assemblyData.r_n[n[2]])/2 for n in model.assemblyData.elementNodes]
     wingElements = 1:nElemWing
     rodElements = (nElemWing+2):model.assemblyData.nElementsTotal
-    # Translations (in basis A) of the leading and trailing edge points of the wing and of the rod at the sampling points, for the beam and for the Nastran modes
-    beam_vector(m) = vcat([vcat([m.state[e].midpoint.u + cross(m.state[e].midpoint.p,[0,η,0]) for η in (referenceAxis*chord, (referenceAxis-1)*chord)]...) for e in wingElements]..., [m.state[e].midpoint.u for e in rodElements]...)
+    # Translations of the leading and trailing edge points of the wing and of the rod at the sampling points, for the beam and for the Nastran modes, in the frame of the Nastran data (span, leading edge, vertical: basis A converted with a3 along the span and a1 vertical)
+    toNastranBasis(w) = [w[3], w[2], -w[1]]
+    beam_vector(m) = vcat([vcat([toNastranBasis(m.state[e].midpoint.u + cross(m.state[e].midpoint.p,[0,η,0])) for η in (referenceAxis*chord, (referenceAxis-1)*chord)]...) for e in wingElements]..., [toNastranBasis(m.state[e].midpoint.u) for e in rodElements]...)
     function nastran_vector(mode)
         wing = wingShapesNastran[wingShapesNastran[:,1] .== mode, :]
         rodShape = rodShapesNastran[rodShapesNastran[:,1] .== mode, :]
         toBasisA(u) = [u[2], -u[1], u[3]]
         v = Float64[]
         for e in wingElements, columns in (3:5, 6:8)
-            append!(v, toBasisA([interpolate_data(midpoints[e][1],wing[:,2],wing[:,c]) for c in columns]))
+            append!(v, toBasisA([interpolate_data(midpoints[e][3],wing[:,2],wing[:,c]) for c in columns]))
         end
         for e in rodElements
             x = referenceAxis*chord - midpoints[e][2] # chordwise position of the element, from the leading edge of the section at its span position
@@ -173,4 +174,4 @@ print(table)
 # Calibrated data, in the format of `wingtip_rod_PazyDelft` (the limits are x-coordinates of the Nastran frame [m])
 println("tied = (inPlane = (", round(pOpt[1]/1000,digits=4), " - xSpar, ", round(pOpt[2]/1000,digits=4), " - xSpar), outOfPlane = (", round(pOpt[3]/1000,digits=4), " - xSpar, ", round(pOpt[4]/1000,digits=4), " - xSpar))")
 
-println("Finished PazyDelftBeamRodCalibration.jl")
+println("Finished PazyDelftRodCalibration.jl")
