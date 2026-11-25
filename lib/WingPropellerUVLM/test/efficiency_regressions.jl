@@ -26,6 +26,9 @@ end
             wake_shedding_locations=shedding,trailing_vortices=fill(trailing,2),
             interaction_id=[1,2],interaction)
         EU.influence_coefficients!(A,panels; kwargs...)
+        serial = similar(A)
+        EU.influence_coefficients!(serial,panels; kwargs...,threaded=false)
+        @test A == serial
         updated = copy(A)
         EU.update_trailing_edge_coefficients!(updated,panels; kwargs...)
         @test updated ≈ A atol = 1e-12 rtol = 0

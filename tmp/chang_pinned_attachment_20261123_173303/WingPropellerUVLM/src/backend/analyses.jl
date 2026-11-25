@@ -1,0 +1,692 @@
+"""
+    steady_analysis(surfaces, reference, freestream; kwargs...)
+
+Perform a steady vortex lattice method analysis.  Return an object of type
+[`System`](@ref) containing the system state.
+
+# Arguments
+ - `surfaces`:
+   - Vector of grids of shape (3, nc+1, ns+1) which represent lifting surfaces
+   or
+   - Vector of matrices of shape (nc, ns) containing surface panels (see
+   [`SurfacePanel`](@ref))
+   where `nc` is the number of chordwise panels and `ns` is the number of
+   spanwise panels
+ - `reference`: Reference parameters (see [`Reference`](@ref))
+ - `freestream`: Freestream parameters (see [`Freestream`](@ref))
+
+# Keyword Arguments
+ - `symmetric`: Flag for each surface indicating whether a mirror image across
+    the X-Z plane should be used when calculating induced velocities. Defaults to
+    `false` for each surface
+ - `wakes`: Matrix of wake panels (see [`WakePanel`](@ref)) for each surface.  Each
+    matrix has shape (nw, ns) where `nw` is the number of chordwise wake panels
+    and `ns` is the number of spanwise panels for each surface, defaults to no
+    wake panels for each surface
+ - `nwake`: Number of chordwise wake panels to use from each wake in `wakes`,
+    defaults to all wake panels for each surface
+ - `surface_id`: Surface ID for each surface.  The finite core model is disabled
+    when calculating the influence of surfaces/wakes that share the same ID.
+    By default, all surfaces are assigned their own IDs
+ - `wake_finite_core`: Flag for each wake indicating whether the finite core
+    model should be enabled when calculating a wake's influence on itself and
+    surfaces/wakes with the same surface ID.  Defaults to `true` for each surface.
+ - `trailing_vortices`: Flags to enable/disable trailing vortices for each surface,
+    defaults to `true` for each surface
+ - `xhat`: Direction in which to shed trailing vortices, defaults to `[1, 0, 0]`
+ - `additional_velocity`: Function which defines additional velocity as a
+    function of location.
+ - `fcore`: function which sets the finite core size for each surface based on
+    the chord length and/or the panel width. Defaults to `(c, Δs) -> 1e-3`.
+    Only used for grid inputs.
+ - `calculate_influence_matrix`: Flag indicating whether the aerodynamic influence
+    coefficient matrix has already been calculated.  Re-using the same AIC matrix
+    will reduce calculation times when the underlying geometry has not changed.
+    Defaults to `true`.  Note that this argument is only valid for the pre-allocated
+    version of this function.
+ - `near_field_analysis`: Flag indicating whether a near field analysis should be
+    performed to obtain panel velocities, circulation, and forces. Defaults to `true`.
+ - `derivatives`: Flag indicating whether circulation derivatives with respect
+    to the freestream variables should be calculated. Defaults to `false`.
+    Imperial near-field force derivatives are not implemented yet, so this
+    option cannot be combined with `near_field_analysis=true`.
+"""
+function steady_analysis(grids,reference,freestream; kwargs...)
+
+    # pre-allocate system storage
+    system = System(grids)
+
+    return steady_analysis!(system,reference,freestream; kwargs...,
+        calculate_influence_matrix=true)
+end
+
+"""
+    steady_analysis!(system, surfaces, reference, freestream; kwargs...)
+
+Pre-allocated version of `steady_analysis`.
+"""
+function steady_analysis!(system,ref,fs;
+    symmetric=fill(false,length(system.surfaces)),
+    wakes=[Matrix{WakePanel{Float64}}(undef,0,size(system.surfaces[i],2)) for i = 1:length(system.surfaces)],
+    nwake=size.(wakes,1),
+    surface_id=1:length(system.surfaces),
+    wake_finite_core=fill(true,length(system.surfaces)),
+    trailing_vortices=fill(true,length(system.surfaces)),
+    xhat=SVector(1,0,0),
+    additional_velocity=nothing,
+    fcore=(c,Δs) -> 1e-3,
+    calculate_influence_matrix=true,
+    near_field_analysis=true,
+    derivatives=false)
+
+    if near_field_analysis && derivatives
+        throw(ArgumentError("Selected near-field force derivatives are not implemented; use derivatives=false"))
+    end
+
+    # number of surfaces
+    nsurf = length(system.surfaces)
+
+    # if only one value is provided, use it for all surfaces
+    symmetric = isa(symmetric,Number) ? fill(symmetric,nsurf) : symmetric
+    nwake = isa(nwake,Number) ? fill(nwake,nsurf) : nwake
+    surface_id = isa(surface_id,Number) ? fill(surface_id,nsurf) : surface_id
+    wake_finite_core = isa(wake_finite_core,Number) ? fill(wake_finite_core,nsurf) : wake_finite_core
+    trailing_vortices = isa(trailing_vortices,Number) ? fill(trailing_vortices,nsurf) : trailing_vortices
+
+    for isurf = 1:nsurf
+        update_surface_panels!(system.surfaces[isurf],system.grids[isurf]; ratios=system.ratios[isurf],fcore)
+    end
+
+    # update other parameters stored in `system`
+    system.reference[] = ref
+    system.freestream[] = fs
+    system.symmetric .= symmetric
+    system.wakes .= wakes
+    system.nwake .= nwake
+    system.surface_id .= surface_id
+    system.wake_finite_core .= wake_finite_core
+    system.trailing_vortices .= trailing_vortices
+    system.xhat[] = xhat
+
+    # unpack variables stored in `system`
+    surfaces = system.surfaces
+    AIC = system.AIC
+    w = system.w
+    Γ = system.Γ
+    dw = system.dw
+    dΓ = system.dΓ
+    properties = system.properties
+    dproperties = system.dproperties
+
+    # see if wake panels are being used
+    wakePanels = nwake .> 0
+
+    # calculate/re-calculate AIC matrix (if necessary)
+    if calculate_influence_matrix
+        influence_coefficients!(AIC,surfaces;
+            symmetric=symmetric,
+            surface_id=surface_id,
+            trailing_vortices=trailing_vortices .& .!wakePanels,
+            xhat=xhat)
+    end
+
+    # calculate RHS
+    if derivatives
+        normal_velocity_derivatives!(w,dw,surfaces,wakes,ref,fs;
+            additional_velocity=additional_velocity,
+            Vcp=nothing,# no velocity at control points due to surface motion
+            symmetric=symmetric,
+            surface_id=surface_id,
+            nwake=nwake,
+            wake_finite_core=wake_finite_core,
+            trailing_vortices=trailing_vortices,
+            xhat=xhat)
+    else
+        normal_velocity!(w,surfaces,wakes,ref,fs;
+            additional_velocity=additional_velocity,
+            Vcp=nothing,# no velocity at control points due to surface motion
+            symmetric=symmetric,
+            surface_id=surface_id,
+            nwake=nwake,
+            wake_finite_core=wake_finite_core,
+            trailing_vortices=trailing_vortices,
+            xhat=xhat)
+    end
+
+    # solve for the circulation distribution
+    if derivatives
+        circulation_derivatives!(Γ,dΓ,AIC,w,dw)
+    else
+        circulation!(Γ,AIC,w,system.AICfactor,system.ipiv)
+    end
+
+    if near_field_analysis
+        # Perform the Imperial near-field analysis and retain dimensional loads.
+        properties,chordSeg,spanSeg,unsteady = near_field_forces!(
+            properties,surfaces,wakes,ref,fs,Γ;
+            dΓdt=nothing,# no unsteady forces
+            additional_velocity=additional_velocity,
+            Vh=nothing,# no velocity due to surface motion
+            Vv=nothing,# no velocity due to surface motion
+            symmetric=symmetric,
+            nwake=nwake,
+            surface_id=surface_id,
+            wake_finite_core=wake_finite_core,
+            wake_shedding_locations=nothing,# shedding location at trailing edge
+            trailing_vortices=trailing_vortices,
+            xhat=xhat,
+            chord_force_buffers=system.chord_seg_forces,
+            span_force_buffers=system.span_seg_forces,
+            unsteady_force_buffers=system.unsteady_forces,
+            span_velocity_buffers=system.span_force_velocities)
+        system.chord_seg_forces .= chordSeg
+        system.span_seg_forces .= spanSeg
+        system.unsteady_forces .= unsteady
+    end
+
+    # save flags indicating whether certain analyses have been performed
+    system.near_field_analysis[] = near_field_analysis
+    system.derivatives[] = derivatives
+
+    # return the modified system
+    return system
+end
+
+"""
+    unsteady_analysis(surfaces, reference, freestream, dt; kwargs...)
+
+Perform a unsteady vortex lattice method analysis.  Return an object of type
+[`System`](@ref) containing the final system state, a matrix of surface panels
+(see [`SurfacePanel`](@ref) for each surface at each time step, a matrix of surface
+panel properties (see [`PanelProperties`](@ref)) for each surface at each time step,
+and a matrix of wake panels (see [`WakePanel`](@ref)) for each surface at each time
+step.
+
+# Arguments
+ - `surfaces`:
+   - Grids of shape (3, nc+1, ns+1) which represent lifting surfaces
+     or
+   - Matrices of surface panels (see [`SurfacePanel`](@ref)) of shape
+    (nc, ns)
+    where `nc` is the number of chordwise panels and `ns` is the number of
+    spanwise panels. Alternatively, a vector containing surface shapes/positions
+    at each time step (including at `t=0`) may be provided to model
+    moving/deforming lifting surfaces.
+ - `reference`: Reference parameters (see [`Reference`](@ref))
+ - `freestream`: Freestream parameters for each time step (see [`Freestream`](@ref))
+ - `dt`: Time step vector
+
+# Keyword Arguments
+ - `symmetric`: Flags indicating whether a mirror image (across the X-Z plane) should
+    be used when calculating induced velocities, defaults to `false` for each surface
+ - `initial_wakes`: Vector of initial wakes corresponding to each surface, represented
+    by matrices of wake panels (see [`WakePanel`](@ref)) of shape (nw, ns) where
+    `nw` is the number of chordwise wake panels and `ns` is the number of
+    spanwise panels. Defaults to no wake panels for each surface
+ - `initial_circulation`: Vector containing the initial circulation of all surface
+    panels in the system.  Defaults to `zeros(N)` where `N` is the total number
+    of surface panels in `surfaces`.
+ - `nwake`: Maximum number of wake panels in the chordwise direction for each
+    surface.  Defaults to `length(dx)` for all surfaces.
+ - `surface_id`: Surface ID for each surface.  The finite core model is disabled
+    when calculating the influence of surfaces/wakes that share the same ID.
+ - `wake_finite_core`: Flag for each wake indicating whether the finite core
+    model should be enabled when calculating the wake's influence on itself and
+    surfaces/wakes with the same surface ID.  Defaults to `true` for each surface.
+ - `save`: Time indices at which to save the time history, defaults to `1:length(dx)`
+ - `calculate_influence_matrix`: Flag indicating whether the aerodynamic influence
+    coefficient matrix needs to be calculated.  Re-using the same AIC matrix
+    will (slightly) reduce calculation times when the underlying geometry has not changed.
+    Defaults to `true`.  Note that this argument only affects the pre-allocated
+    version of this function.
+ - `near_field_analysis`: Flag indicating whether a near field analysis should be
+    performed to obtain panel velocities, circulation, and forces for the final
+    time step. Defaults to `true`.
+ - `derivatives`: Flag indicating whether the derivatives with respect to the
+    freestream variables should be calculated for the final time step. Defaults
+    to `true`.
+"""
+unsteady_analysis
+
+# same grids/surfaces at each time step
+function unsteady_analysis(surfaces::AbstractVector{<:AbstractArray},ref,fs,dt;
+    nwake=fill(length(dt),length(surfaces)),kwargs...)
+
+    # pre-allocate system storage
+    system = System(surfaces; nw=nwake)
+
+    return unsteady_analysis!(system,surfaces,ref,fs,dt;
+        kwargs...,nwake,calculate_influence_matrix=true)
+end
+
+# different grids/surfaces at each time step
+function unsteady_analysis(surfaces::AbstractVector{<:AbstractVector{<:AbstractArray}},
+    ref,fs,dt; nwake=fill(length(dt),length(surfaces[1])),kwargs...)
+
+    # pre-allocate system storage
+    system = System(surfaces[1]; nw=nwake)
+
+    return unsteady_analysis!(system,surfaces,ref,fs,dt;
+        kwargs...,nwake,calculate_influence_matrix=true)
+end
+
+"""
+    unsteady_analysis!(system, surfaces, reference, freestream, dt; kwargs...)
+
+Pre-allocated version of `unsteady_analysis`.
+"""
+function unsteady_analysis!(system,surfaces,ref,fs,dt;
+    symmetric=fill(false,length(system.surfaces)),
+    initial_circulation=zero(system.Γ),
+    initial_wakes=[Matrix{WakePanel{Float64}}(undef,0,size(surfaces[i],2)) for i = 1:length(system.surfaces)],
+    nwake=fill(length(dt),length(system.surfaces)),
+    surface_id=1:length(system.surfaces),
+    wake_finite_core=fill(true,length(system.surfaces)),
+    additional_velocity=nothing,
+    fcore=(c,Δs) -> 1e-3,
+    save=1:length(dt),
+    calculate_influence_matrix=true,
+    near_field_analysis=true,
+    derivatives=false)
+
+    if near_field_analysis && derivatives
+        throw(ArgumentError("Imperial near-field force derivatives are not implemented; use derivatives=false"))
+    end
+
+    # float number type
+    TF = eltype(system)
+
+    # number of surfaces
+    nsurf = length(system.surfaces)
+
+    # surface motion?
+    surface_motion = eltype(surfaces) <: AbstractVector
+
+    # --- Input Pre-Processing --- #
+
+    # convert scalar inputs to appropriately sized vectors
+    symmetric = isa(symmetric,Number) ? fill(symmetric,nsurf) : symmetric
+    nwake = isa(nwake,Number) ? fill(nwake,nsurf) : nwake
+    surface_id = isa(surface_id,Number) ? fill(surface_id,nsurf) : surface_id
+    wake_finite_core = isa(wake_finite_core,Number) ? fill(wake_finite_core,nsurf) : wake_finite_core
+    fs = isa(fs,Freestream) ? fill(fs,length(dt)) : fs
+
+    # extract initial surface panels from input
+    #if surface_motion
+    # surface moves, store initial surface panel locations
+    initialSurfaces = surfaces[1]
+    #else
+    # surface doesn't move
+    initialSurfaces = surfaces
+    #end
+
+    # --- Update System Parameters --- #
+
+    system.reference[] = ref
+    system.symmetric .= symmetric
+    system.surface_id .= surface_id
+    system.wake_finite_core .= wake_finite_core
+    system.trailing_vortices .= false
+
+    # check if existing wake panel storage is sufficient, replace if necessary
+    for isurf = 1:nsurf
+        if size(system.wakes[isurf],1) < nwake[isurf]
+            # get surface/wake dimensions
+            nc,ns = size(surfaces[isurf])
+            nw = nwake[isurf]
+
+            # update wake panel storage
+            system.wakes[isurf] = Matrix{WakePanel{TF}}(undef,nwake[isurf],size(surfaces[isurf],2))
+        end
+    end
+
+    # find intersecting surfaces
+    repeated_points = repeated_trailing_edge_points(initialSurfaces)
+
+    # --- Set Initial Simulation Variables --- #
+
+    # store initial surface panels in `system`
+    if eltype(initialSurfaces) <: AbstractArray{<:Any,3}
+        # initial surfaces are input as a grid, convert to surface panels
+        for isurf = 1:nsurf
+            update_surface_panels!(system.surfaces[isurf],initialSurfaces[isurf]; fcore,ratios=system.ratios[isurf])
+        end
+    else
+        # initial surfaces are input as matrices of surface panels
+        for isurf = 1:nsurf
+            system.surfaces[isurf] .= initialSurfaces[isurf]
+        end
+    end
+
+    # store initial wake panels in `system`
+    for isurf = 1:nsurf
+        for I in CartesianIndices(initial_wakes[isurf])
+            system.wakes[isurf][I] = initial_wakes[isurf][I]
+        end
+    end
+
+
+    # store initial freestream parameters in `system`
+    system.freestream[] = fs[1]
+
+    # store initial circulation parameters in `system`
+    system.Γ .= initial_circulation
+
+    # set the initial number of wake panels for each surface
+    iwake = [min(size(initial_wakes[isurf],1),nwake[isurf]) for isurf = 1:nsurf] # can be zero
+
+    # --- Begin Simulation --- #
+
+    # initialize solution history for each time step
+    surface_history = Vector{Vector{Matrix{SurfacePanel{TF}}}}(undef,length(save))
+    property_history = Vector{Vector{Matrix{PanelProperties{TF}}}}(undef,length(save))
+    wake_history = Vector{Vector{Matrix{WakePanel{TF}}}}(undef,length(save))
+    isave = 1
+
+    # # loop through all time steps
+    for it = 1:length(dt)
+
+        firstStep = it == 1
+        last_step = it == length(dt)
+
+        if surface_motion
+            propagate_system!(system,surfaces[1+it],fs[it],dt[it];
+                additional_velocity,
+                repeated_points,
+                nwake=iwake,
+                eta=0.25,
+                calculate_influence_matrix=firstStep && calculate_influence_matrix,
+                near_field_analysis=it in save || (last_step && near_field_analysis),
+                derivatives=last_step && derivatives)
+        else
+            propagate_system!(system,fs[it],dt[it];
+                additional_velocity,
+                repeated_points,
+                nwake=iwake,
+                eta=0.25,
+                calculate_influence_matrix=firstStep && calculate_influence_matrix,
+                near_field_analysis=it in save || (last_step && near_field_analysis),
+                derivatives=last_step && derivatives)
+        end
+
+        # increment wake panel counter for each surface
+        for isurf = 1:nsurf
+            if iwake[isurf] < nwake[isurf]
+                iwake[isurf] += 1
+            end
+        end
+
+        # save the surface shape, properties, and resulting shed wake
+        if it in save
+            surface_history[isave] = [copy(system.surfaces[isurf]) for isurf = 1:nsurf]
+            property_history[isave] = [copy(system.properties[isurf]) for isurf = 1:nsurf]
+            wake_history[isave] = [system.wakes[isurf][1:iwake[isurf],:] for isurf = 1:nsurf]
+            isave += 1
+        end
+
+    end
+
+    # return the modified system and time history
+    return system,surface_history,property_history,wake_history
+end
+
+"""
+    propagate_system!(system, [surfaces, ] freestream, dt; kwargs...)
+
+Propagate the state variables in `system` forward one time step using the
+unsteady vortex lattice method system of equations.
+
+# Arguments
+ - `system`: Object of type `system` which contains the current system state
+ - `surfaces`: Surface locations at the end of this time step. If omitted,
+   surfaces are assumed to be stationary.
+ - `freestream`: Freestream parameters corresponding to this time step.
+ - `dt`: Time increment
+
+# Keyword Arguments
+ - `additional_velocity`: Function which defines additional velocity as a
+    function of location.
+ - `repeated_points`: Dictionary of the form `Dict((isurf, i) => [(jsurf1, j1),
+    (jsurf2, j2)...]` which defines repeated trailing edge points.  Trailing edge
+    point `i` on surface `isurf` is repeated on surface `jsurf1` at point `j1`,
+    `jsurf2` at point `j2`, and so forth. See [`repeated_trailing_edge_points`](@ref)
+ - `nwake`: Number of wake panels in the chordwise direction for each surface.
+ - `eta`: Time step fraction used to define separation between trailing
+    edge and wake shedding location.  Typical values range from 0.2-0.3.
+ - `calculate_influence_matrix`: Flag indicating whether the aerodynamic influence
+    coefficient matrix needs to be calculated. If argument `surfaces` is provided
+    the influence matrix will always be recalculated.
+ - `near_field_analysis`: Flag indicating whether a near field analysis should be
+    performed to obtain panel velocities, circulation, and forces.
+ - `derivatives`: Flag indicating whether the derivatives with respect to the
+    freestream variables should be calculated.
+"""
+propagate_system!
+
+"""
+    advance_wake!(system, fs, dt; ...)
+
+Convect the currently active wake panels and shed one new row using the
+circulation, trailing-edge velocities, and shedding locations already stored
+in `system`.
+
+This is the wake-commit portion of [`propagate_system!`](@ref). It may be
+called separately after a propagation with `advance_wake=false`, which is
+useful when several partitioned aeroelastic trials share one physical time
+step. The aerodynamic trial determines circulation and loads; this function is
+then called exactly once for the accepted trial.
+"""
+function advance_wake!(system,fs,dt;
+    additional_velocity=nothing,
+    repeated_points=repeated_trailing_edge_points(system.surfaces),
+    nwake=system.nwake,
+    interaction_id=system.surface_id,
+    interaction::Bool=true)
+
+    dt > 0 || throw(ArgumentError("dt must be positive"))
+    length(nwake) == length(system.surfaces) || throw(DimensionMismatch(
+        "nwake must contain one active-row count per surface"
+    ))
+    all((0 .<= nwake) .& (nwake .<= size.(system.wakes,1))) || throw(ArgumentError(
+        "each active wake-row count must lie within the allocated wake size"
+    ))
+
+    # Keep the public System state consistent when this commit operation is
+    # called separately from propagate_system!.
+    system.freestream[] = fs
+    system.nwake .= nwake
+
+    get_wake_velocities!(system.V,system.surfaces,
+        system.wakes,system.reference[],fs,system.Γ,additional_velocity,
+        system.Vte,system.symmetric,repeated_points,nwake,
+        system.surface_id,system.wake_finite_core,
+        system.wake_shedding_locations,system.trailing_vortices,
+        system.xhat[];
+        interaction_id=interaction_id,
+        interaction=interaction)
+
+    shed_wake!(system.wakes,system.wake_shedding_locations,system.V,
+        dt,system.surfaces,system.Γ,nwake)
+
+    return system
+end
+
+"""
+    propagate_system!(system, fs, dt; ..., advance_wake=true)
+
+Solve circulation and aerodynamic loads for one time step. By default the
+wake is also convected and a new row is shed, preserving the original API.
+Set `advance_wake=false` for repeated partitioned-coupling trials and call
+[`advance_wake!`](@ref) once after the trial is accepted.
+
+[MODIFIED] Accepts and passes `interaction` flag.
+"""
+function propagate_system!(system,fs,dt;
+    additional_velocity,repeated_points,nwake,eta,
+    calculate_influence_matrix,near_field_analysis,derivatives,
+    near_field_force_function=near_field_forces!,
+    interaction_id=system.surface_id,
+    interaction::Bool=true,
+    advance_wake::Bool=true) # <--- [NEW] Arguments
+
+    if near_field_analysis && derivatives
+        throw(ArgumentError("Imperial near-field force derivatives are not implemented; use derivatives=false"))
+    end
+
+    nsurf = length(system.surfaces)
+
+    # unpack constant system parameters
+    ref = system.reference[]
+    symmetric = system.symmetric
+    surface_id = system.surface_id
+    wake_finite_core = system.wake_finite_core
+    trailing_vortices = system.trailing_vortices
+    xhat = system.xhat[]
+
+    # unpack system storage (including state variables)
+    previous_surfaces = system.previous_surfaces
+    currentSurfaces = system.surfaces
+    wakes = system.wakes
+    wake_shedding_locations = system.wake_shedding_locations
+    AIC = system.AIC
+    w = system.w
+    dw = system.dw
+    Γ = system.Γ
+    dΓ = system.dΓ
+    dΓdt = system.dΓdt
+    Vcp = system.Vcp
+    Vh = system.Vh
+    Vv = system.Vv
+    Vte = system.Vte
+
+    # check if the surfaces are moving
+    surface_motion = any(currentSurfaces[i] != previous_surfaces[i] for i in eachindex(currentSurfaces))
+
+    # move geometry and calculate velocities for this time step
+    if surface_motion
+        for isurf = 1:nsurf
+            # calculate surface velocities
+            get_surface_velocities!(Vcp[isurf],Vh[isurf],Vv[isurf],Vte[isurf],
+                currentSurfaces[isurf],previous_surfaces[isurf],dt)
+        end
+    else
+        # zero out surface motion
+        for isurf = 1:nsurf
+            system.Vcp[isurf] .= Ref(SVector(0.0,0.0,0.0))
+            system.Vh[isurf] .= Ref(SVector(0.0,0.0,0.0))
+            system.Vv[isurf] .= Ref(SVector(0.0,0.0,0.0))
+            system.Vte[isurf] .= Ref(SVector(0.0,0.0,0.0))
+        end
+    end
+
+    # update stored freestream parameters for this time step
+    system.freestream[] = fs
+
+    # update number of wake panels for each surface for this time step
+    system.nwake .= nwake
+
+    # update the wake shedding location for this time step
+    update_wake_shedding_locations!(wakes,wake_shedding_locations,
+        currentSurfaces,ref,fs,dt,additional_velocity,Vte,
+        nwake,eta)
+
+    # calculate/re-calculate AIC matrix (if necessary)
+    if surface_motion || calculate_influence_matrix
+        influence_coefficients!(AIC,currentSurfaces;
+            symmetric=symmetric,
+            wake_shedding_locations=wake_shedding_locations,
+            surface_id=surface_id,
+            trailing_vortices=trailing_vortices,
+            xhat=xhat,
+            interaction_id=interaction_id,
+            interaction=interaction) # <--- [NEW] Pass flag
+    else
+        # Full assembly already includes these coefficients; update them only
+        # when the caller reuses a fixed-geometry bound-surface matrix.
+        update_trailing_edge_coefficients!(AIC,currentSurfaces;
+            symmetric,wake_shedding_locations,surface_id,trailing_vortices,
+            xhat,interaction_id,interaction)
+    end
+
+    # calculate RHS
+    if derivatives
+        # Derivative RHS follows the same interaction mask as the non-derivative path.
+        normal_velocity_derivatives!(w,dw,currentSurfaces,wakes,
+            ref,fs; additional_velocity,Vcp,symmetric,nwake,
+            surface_id,wake_finite_core,trailing_vortices,xhat,
+            interaction_id=interaction_id,
+            interaction=interaction)
+    else
+        normal_velocity!(w,currentSurfaces,wakes,ref,fs;
+            additional_velocity,Vcp,symmetric,nwake,surface_id,
+            wake_finite_core,trailing_vortices,xhat,
+            interaction_id=interaction_id,
+            interaction=interaction) # <--- [NEW] Pass flag
+    end
+
+    # save (negative) previous circulation in dΓdt
+    dΓdt .= .-Γ
+
+    # solve for the new circulation
+    if derivatives
+        circulation_derivatives!(Γ,dΓ,AIC,w,dw)
+    else
+        circulation!(Γ,AIC,w,system.AICfactor,system.ipiv)
+    end
+
+    # solve for dΓdt using finite difference `dΓdt = (Γ - Γp)/dt`
+    dΓdt .+= Γ # add newly computed circulation
+    dΓdt ./= dt # divide by corresponding time step
+
+    # compute transient forces on each panel (if necessary)
+    if near_field_analysis
+        force_buffer_keywords =
+            near_field_force_function === near_field_forces! ?
+            (
+                chord_force_buffers=system.chord_seg_forces,
+                span_force_buffers=system.span_seg_forces,
+                unsteady_force_buffers=system.unsteady_forces,
+                span_velocity_buffers=system.span_force_velocities
+            ) :
+            near_field_force_function === legacy_imperial_segment_forces! ||
+            near_field_force_function === legacy_near_field_forces! ?
+            (
+                chord_force_buffers=system.chord_seg_forces,
+                span_force_buffers=system.span_seg_forces,
+                unsteady_force_buffers=system.unsteady_forces
+            ) : NamedTuple()
+        properties,chordSeg,spanSeg,unsteady = near_field_force_function(
+            system.properties,currentSurfaces,wakes,ref,fs,Γ;
+            dΓdt,additional_velocity,Vh,Vv,symmetric,nwake,
+            surface_id,wake_finite_core,wake_shedding_locations,
+            trailing_vortices,xhat,interaction_id,interaction,
+            force_buffer_keywords...)
+
+        system.chord_seg_forces .= chordSeg
+        system.span_seg_forces .= spanSeg
+        system.unsteady_forces .= unsteady
+
+        # save flag indicating that a near-field analysis has been performed
+        system.near_field_analysis[] = near_field_analysis
+    end
+
+    # save flag indicating that derivatives wrt freestream variables have been obtained
+    system.derivatives[] = derivatives
+
+    # Wake convection is optional so repeated fixed-point trials can solve
+    # circulation and loads without repeating this expensive physical update.
+    if advance_wake
+        advance_wake!(
+            system,
+            fs,
+            dt;
+            additional_velocity=additional_velocity,
+            repeated_points=repeated_points,
+            nwake=nwake,
+            interaction_id=interaction_id,
+            interaction=interaction
+        )
+    end
+
+    return system
+end

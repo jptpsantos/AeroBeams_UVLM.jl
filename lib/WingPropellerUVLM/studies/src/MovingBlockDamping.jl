@@ -159,13 +159,16 @@ function moving_block_damping(t::AbstractVector,x::AbstractVector;
     size_ratio_lb::Float64=0.25,
     size_ratio_ub::Float64=0.50,
     peak_from_start::Int=1,
-    peak_from_end::Int=0)
+    peak_from_end::Int=0,
+    peak_threshold_fraction::Real=0.01)
 
     if length(t) != length(x)
         error("Time vector and signal vector must have the same length.")
     end
 
-    peakMin = maximum(abs.(x)) / 100.0
+    0 < peak_threshold_fraction < 1 || throw(ArgumentError(
+        "peak_threshold_fraction must be between 0 and 1"))
+    peakMin = maximum(abs.(x)) * peak_threshold_fraction
 
     # Local maxima equivalent to Peaks.argmaxima, without an extra dependency.
     locsAll = [i for i = 2:length(x)-1 if x[i] > x[i-1] && x[i] >= x[i+1]]

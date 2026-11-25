@@ -14,10 +14,10 @@ end
 
 function validate_run_mode(s)
     mode = get(s,:run_mode,:full)
-    mode in (:preview,:full) || throw(ArgumentError("runMode must be :preview or :full"))
-    mode == :preview && !isnothing(s.selection_file) &&
+    mode in (:preview,:full,:staged) || throw(ArgumentError("runMode must be :preview, :full or :staged"))
+    mode != :full && !isnothing(s.selection_file) &&
         throw(ArgumentError(
-            "Preview uses explicit coarse inputs; use runMode=:full with a verified selection"))
+            "Use runMode=:full with a verified selection"))
     return nothing
 end
 
@@ -132,6 +132,9 @@ function run_explicit_aeroelastic(s)
     explicit_driver_fingerprint() == LOADED_EXPLICIT_DRIVER_SHA256 ||
         error("Explicit aeroelastic driver changed after loading; reload the entry file")
     selection = explicit_selection(s)
+    if get(s,:run_mode,:full) == :staged
+        return run_staged_aeroelastic(s,selection)
+    end
     println("Explicit aeroelastic inputs: aerodynamic convergence is unverified")
     println("Aeroelastic operating point: $(selection.physical.speed_mps) m/s, $(selection.physical.rpm) RPM")
     println("Aeroelastic coupling: $(s.coupling.scheme); structural integrator: $(s.integration.time_integrator)")

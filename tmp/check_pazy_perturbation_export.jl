@@ -17,6 +17,7 @@ result = (; cases=[oldCase],slope_modes=(:fixed_shape,),static_options=(;),
     minimum_aerodynamic_chords=20.0,aerodynamic_window_chords=4.0)
 mktempdir(@__DIR__) do directory
     path = joinpath(directory,"aoa0deg","spanwise_cn_alpha_perturbations.csv")
+    compactPath = joinpath(directory,"aoa0deg","spanwise_cn_alpha_clean.csv")
     save_pazy_static_sweep(result; output_directory=directory,save_plots=false)
     table = readdlm(path,',',Any)
     @assert size(table) == (2,13) && all(isnan,table[2,10:12]) && string(table[2,13]) == "false"
@@ -25,8 +26,18 @@ mktempdir(@__DIR__) do directory
     save_pazy_static_sweep(merge(result,(; cases=[current])); output_directory=directory,save_plots=false)
     table = readdlm(path,',',Any)
     @assert table[2,12] == 4.0 && string(table[2,13]) == "true"
+    compact = readdlm(compactPath,',',Any)
+    @assert size(compact) == (2,12)
+    @assert compact[1,8:12] == ["cn_alpha_secant_per_rad","cn_alpha_fixed_shape_local_per_rad",
+        "fixed_shape_delta_alpha_local_rad","cm_quarter_chord","cm_spar"]
+    @assert compact[2,8:12] == ["",4.0,0.005,0.0,0.0]
     save_pazy_static_sweep(merge(result,(; slope_modes=(:local_ratio,)));
         output_directory=directory,save_plots=false)
     @assert size(readdlm(path,',',Any)) == (1,13)
+    @assert readdlm(compactPath,',',Any)[2,[5,8,9,10]] == fill("",4)
+    failed = merge(oldCase,(; central_converged=false))
+    save_pazy_static_sweep(merge(result,(; cases=[failed],slope_modes=(:local_ratio,)));
+        output_directory=directory,save_plots=false)
+    @assert readdlm(compactPath,',',Any)[2,5:12] == fill("",8)
 end
-println("Legacy results, current perturbation results, and local-only overwrite verified")
+println("Compact export verified for legacy, fixed-shape, local-only and unconverged cases")

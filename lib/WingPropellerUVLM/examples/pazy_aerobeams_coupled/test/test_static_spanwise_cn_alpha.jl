@@ -181,6 +181,11 @@ end
         @test moments[2:end,9] == case.section.cm_quarter_chord
         @test moments[2:end,10] == case.section.cm_spar
         @test all(isnan,moments[2:end,11:14])
+        compact = readdlm(joinpath(angleDirectory,"spanwise_cn_alpha_clean.csv"),',',Any)
+        @test size(compact) == (5,12)
+        @test compact[2:end,8] == case.cn_alpha_local
+        @test all(isempty,compact[2:end,[5,9,10]])
+        @test compact[2:end,11:12] == moments[2:end,9:10]
         @test size(readdlm(joinpath(angleDirectory,"spanwise_cn_alpha_perturbations.csv"),',',Any),1) == 1
         @test size(readdlm(joinpath(angleDirectory,"status.csv"),',',Any),1) == 2
         println("Local-incidence equilibrium test output: ",directory)
@@ -215,8 +220,9 @@ end
         end
         @test !isapprox(result.cases[1].cn_alpha_equilibrium,result.cases[2].cn_alpha_equilibrium; rtol=1e-3)
         finer = run_pazy_wing_uvlm_static_sweep(; airspeeds=[10.0],angles_of_attack=[0.0],
-            static_options=options,slope_modes=(:fixed_shape,),alpha_step=deg2rad(0.125),
+            static_options=options,slope_modes=:fixed_shape,alpha_step=deg2rad(0.125),
             maximum_aerodynamic_chords=80.0)
+        @test finer.slope_modes == (:fixed_shape,)
         @test finer.cases[1].fixed_shape_slope_converged
         @test finer.cases[1].cn_alpha_fixed_shape ≈ result.cases[1].cn_alpha_fixed_shape rtol=0.01
         @test finer.cases[1].cm_spar_alpha_fixed_shape ≈ result.cases[1].cm_spar_alpha_fixed_shape rtol=0.01
@@ -241,6 +247,11 @@ end
         @test Float64.(perturbations[2:3,12]) ≈ [
             result.cases[1].cn_alpha_local_perturbations.equilibrium.cn_alpha[1],
             result.cases[1].cn_alpha_fixed_shape[1]]
+        compact = readdlm(joinpath(angleDirectory,"spanwise_cn_alpha_clean.csv"),',',Any)
+        @test size(compact) == (17,12)
+        @test all(isempty,compact[2:end,8])
+        @test compact[2:5,9] == result.cases[1].cn_alpha_local_perturbations.fixed_shape.cn_alpha
+        @test compact[2:5,10] == result.cases[1].cn_alpha_local_perturbations.fixed_shape.delta_alpha_rad
         if "--plots" in ARGS
             @test count(file -> startswith(file,"spanwise_cm_") && endswith(file,".png"),readdir(angleDirectory)) == 2
         end
@@ -274,6 +285,8 @@ end
         @test !any(failed.cases[1].cn_alpha_local_valid)
         moments = readdlm(joinpath(directory,"aoa0deg","spanwise_cm.csv"),',',Any)
         @test all(isnan,moments[2:end,9:14])
+        compact = readdlm(joinpath(directory,"aoa0deg","spanwise_cn_alpha_clean.csv"),',',Any)
+        @test all(isempty,compact[2:end,5:12])
         # Zero-incidence wakes settle exactly; nonzero-incidence
         # perturbations fail an impossible tolerance.
         failedPerturbation = @test_logs (:warn,r"Unconverged static/wake solves") run_pazy_wing_uvlm_static_sweep(;

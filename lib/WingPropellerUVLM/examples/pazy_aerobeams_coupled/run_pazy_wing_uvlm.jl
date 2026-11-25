@@ -2,23 +2,22 @@
 include(joinpath(@__DIR__,"PazyWingUVLMCoupling.jl"))
 include(joinpath(@__DIR__,"PazyWingUVLMVisualization.jl"))
 include(joinpath(@__DIR__,"..","..","studies","src","MovingBlockDamping.jl"))
-using .MovingBlockDamping: moving_block_damping
 
 # Native AeroBeams Pazy options (same keyword names as create_Pazy).
-mesh = :nominal                      # :nominal or :refined structural mesh
+mesh = :refined                      # :nominal or :refined structural mesh
 sweepAngle = deg2rad(0.0)             # available data: 0, 10 or 20 degrees
-useAePW3Matrices = false              # original AePW3 data: straight, nominal only
+useAePW3Matrices = false               # original AePW3 data: straight, nominal only
 withWingtipRod = true                 # false: straight wing without the rod
-rootTorsionCorr = true                # corrected root stiffness: straight with rod
+rootTorsionCorr = false                # corrected root stiffness: straight with rod
 beamWingtipRod = false                # explicit flexible rod: straight or 10 degrees
 nElementsWingtipRod = 12              # explicit rod mesh (S0 >= 6, S10 >= 4)
 sweptTipMassConfig = :baseline        # swept wing: :baseline, :LE or :TE
 sweptTipMassInertiaCorrection = false # lumped rod correction; disable for beam rod
 
 # Flight conditions
-airspeed = 64                       # m/s
+airspeed = 65                       # m/s
 density = 1.225                       # kg/m^3
-angle_of_attack = deg2rad(0.0)
+angle_of_attack = deg2rad(2.0)
 sideslip = deg2rad(0.0)               # use symmetric_wing=false for nonzero sideslip
 
 # Smooth startup: ramp from 5% to 100% airspeed, then hold before the tip pulse.
@@ -50,7 +49,7 @@ maximum_wake_rows = ceil(Int,wake_length_chords / time_step_chords)
 # The wake starts empty and grows to this limit. Induced velocities deform it.
 
 # UVLM solver controls
-core_radius = 1e-3                    # vortex core radius [m], strictly positive
+core_radius = 1e-6                    # vortex core radius [m], strictly positive
 wake_shedding_fraction = 0.1          # trailing-edge offset = fraction * V_relative * dt
 # allowed range: 0 to 1; this does not set wake length
 aerodynamic_interaction = true       # influence between different surface groups
@@ -61,23 +60,23 @@ save_uvlm_history = true
 uvlm_save_frequency = 1               # save every N accepted steps (final step always saved)
 
 # AeroBeams Newton-Raphson controls
-newton_maximum_iterations = 20
-newton_absolute_tolerance = 1e-5
-newton_relative_tolerance = 1e-5
+newton_maximum_iterations = 100
+newton_absolute_tolerance = 1e-4
+newton_relative_tolerance = 1e-4
 newton_display_iterations = true       # print i, load factor and convergence errors
 newton_always_update_jacobian = true
 
 # Coupling scheme: :strong iterates geometry and loads to convergence;
 # :loose performs one explicit UVLM -> AeroBeams pass per physical timestep.
-coupling_scheme = :strong              # choose :strong or :loose
-coupling_maximum_iterations = 20        # used only by :strong
+coupling_scheme = :strong            # choose :strong or :loose
+coupling_maximum_iterations = 100        # used only by :strong
 coupling_relaxation = 0.5              # :strong geometry relaxation
-coupling_geometry_tolerance = 1e-4     # max interface-coordinate change / chord
-coupling_load_tolerance = 1e-4         # relative nodal force/moment change
+coupling_geometry_tolerance = 1e-6     # max interface-coordinate change / chord
+coupling_load_tolerance = 1e-6         # relative nodal force/moment change
 coupling_display_iterations = false    # true: print every inner FSI iteration
 
-duration = 2.0                        # total simulated time, approximately [s]
-settling_time = 1.0                   # time at which the tip pulse starts [s]
+duration = 3.0                        # total simulated time, approximately [s]
+settling_time = 0.2                   # time at which the tip pulse starts [s]
 perturbation_amplitude = 0.0         # tip-force multiplier [N]
 perturbation_duration = 0.1          # pulse duration [s]
 progress_frequency = 1                # 1: print every step; 100: every 100 steps
@@ -86,6 +85,8 @@ progress_frequency = 1                # 1: print every step; 100: every 100 step
 generate_animations = false
 generate_time_history_plot = true
 analyze_tip_twist = true
+tip_twist_analysis_end_time = 4.0  # analyze the response through this time [s]
+tip_twist_analysis_peak_threshold_fraction = 1e-6
 animation_time_step = 0.01              # simulated seconds between frames, as in Pazy gust
 animation_frames = 150                  # fallback maximum if animation_time_step=nothing
 animation_fps = 30                      # same requested FPS as the AeroBeams example
@@ -98,7 +99,6 @@ wake_camera = (45,30)                  # high oblique view: (azimuth, elevation)
 show_force_vectors = false              # F1A lift arrows (wake GIF keeps full force vectors)
 show_moment_vectors = false              # M3A torsional arrows about the elastic axis
 force_vector_scale = 1.0                # AeroBeams size multiplier for both load symbols
-output_directory = joinpath(@__DIR__,"output")
 
 # Identify the flight condition in all output filenames (e.g. aoa3_V50).
 # Decimal/negative values use "p"/"m": aoa2p5_V50, aoam3_V50.
@@ -106,6 +106,10 @@ function filename_number(value)
     text = replace(string(round(value; digits=3)),r"\.0$" => "")
     return replace(text,"." => "p","-" => "m")
 end
+output_directory = joinpath(@__DIR__,"pazy_wing_boundary",
+    "aoa$(filename_number(rad2deg(angle_of_attack)))",
+    "V$(filename_number(airspeed))")
+mkpath(output_directory)
 case_suffix = "aoa$(filename_number(rad2deg(angle_of_attack)))_V$(filename_number(airspeed))"
 
 # Solve, then generate the AeroBeams deformation and UVLM wake GIFs.
@@ -156,8 +160,11 @@ if generate_time_history_plot
     )
 end
 if analyze_tip_twist
+    analysis_end_index = searchsortedlast(result.time,tip_twist_analysis_end_time)
     tip_twist_growth_rate,tip_twist_frequency,tip_twist_omega =
-        moving_block_damping(result.time,result.tip_twist_degrees)
+        MovingBlockDamping.moving_block_damping(result.time[1:analysis_end_index],
+            result.tip_twist_degrees[1:analysis_end_index];
+            peak_threshold_fraction=tip_twist_analysis_peak_threshold_fraction)
     println("Wingtip twist moving-block growth rate [1/s]: ",tip_twist_growth_rate)
     println("Wingtip twist dominant frequency [Hz]: ",tip_twist_frequency)
     println("Wingtip twist angular frequency [rad/s]: ",tip_twist_omega)

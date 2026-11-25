@@ -145,7 +145,8 @@ incidence. :equilibrium re-solves the flexible structure at alpha +/- step;
 Both modes develop fresh free wakes. Neither is a 2D airfoil slope with
 respect to local effective incidence. The same perturbations also give
 delta cn / delta alpha_local for each station, measured along the imposed
-global incidence change. static_options supplies the existing
+global incidence change. Pass a single Symbol or a collection as slope_modes.
+static_options supplies the existing
 run_pazy_wing_uvlm_static controls, except speed/incidence/sweep and wake times.
 Wake times are specified here in convective units U*t/c, consistently at all
 speeds. Unconverged cases retain diagnostics but export NaN slopes.
@@ -172,6 +173,7 @@ function run_pazy_wing_uvlm_static_sweep(; airspeeds,angles_of_attack,
     all(>(0),airspeeds) || throw(ArgumentError("UVLM requires strictly positive airspeeds"))
     all(angle -> abs(angle) < π / 2,angles_of_attack) ||
         throw(ArgumentError("Prescribed incidence must be between -π/2 and π/2 radians for forward flow"))
+    slope_modes = slope_modes isa Symbol ? (slope_modes,) : slope_modes
     !isempty(slope_modes) && all(mode -> mode in (:local_ratio,:equilibrium,:fixed_shape),slope_modes) ||
         throw(ArgumentError("Choose :local_ratio, :equilibrium and/or :fixed_shape"))
     derivativeRequested = any(mode -> mode in (:equilibrium,:fixed_shape),slope_modes)
@@ -346,11 +348,14 @@ function save_pazy_static_sweep_cases(result; output_directory,save_plots=true)
     rows = Vector{Any}[]
     momentRows = Vector{Any}[]
     perturbationRows = Vector{Any}[]
+    compactRows = Vector{Any}[]
     statusRows = Vector{Any}[]
     derivativeModes = filter(mode -> mode in result.slope_modes,(:equilibrium,:fixed_shape))
     for (index,case) in enumerate(result.cases)
         section = case.section
         perturbations = get(case,:cn_alpha_local_perturbations,(;))
+        fixedShape = get(perturbations,:fixed_shape,nothing)
+        fixedShapeStep = :fixed_shape in derivativeModes ? rad2deg(case.alpha_step) : NaN
         for j in eachindex(section.cn)
             push!(rows,Any[index,case.airspeed,rad2deg(case.angle_of_attack),rad2deg(case.sweepAngle),
                 rad2deg(case.alpha_step),section.eta[j],section.s_m[j],section.y_reference_m[j],
@@ -375,6 +380,15 @@ function save_pazy_static_sweep_cases(result; output_directory,save_plots=true)
                     rad2deg(case.alpha_step),section.eta[j],section.s_m[j],section.y_reference_m[j],
                     mode,values...])
             end
+            fixedShapeValid = !isnothing(fixedShape) && fixedShape.valid[j]
+            push!(compactRows,Any[case.airspeed,rad2deg(case.angle_of_attack),rad2deg(case.sweepAngle),
+                section.eta[j],fixedShapeStep,case.central_converged ? rad2deg(section.alpha_local[j]) : NaN,
+                case.central_converged ? section.cn[j] : NaN,
+                case.cn_alpha_local_valid[j] ? case.cn_alpha_local[j] : NaN,
+                fixedShapeValid ? fixedShape.cn_alpha[j] : NaN,
+                isnothing(fixedShape) ? NaN : fixedShape.delta_alpha_rad[j],
+                case.central_converged ? section.cm_quarter_chord[j] : NaN,
+                case.central_converged ? section.cm_spar[j] : NaN])
         end
         for diagnostic in case.diagnostics
             push!(statusRows,Any[index,case.airspeed,rad2deg(case.angle_of_attack),rad2deg(case.sweepAngle),
@@ -407,6 +421,12 @@ function save_pazy_static_sweep_cases(result; output_directory,save_plots=true)
         perturbationTable = vcat(perturbationTable,permutedims(hcat(perturbationRows...)))
     end
     writedlm(joinpath(output_directory,"spanwise_cn_alpha_perturbations.csv"),perturbationTable,',')
+    compactColumns = ["U_m_s","alpha_deg","sweep_deg","eta","alpha_step_deg","alpha_local_deg","cn",
+        "cn_alpha_secant_per_rad","cn_alpha_fixed_shape_local_per_rad","fixed_shape_delta_alpha_local_rad",
+        "cm_quarter_chord","cm_spar"]
+    compactTable = vcat(permutedims(compactColumns),permutedims(hcat(compactRows...)))
+    replace!(value -> value isa AbstractFloat && !isfinite(value) ? "" : value,compactTable)
+    writedlm(joinpath(output_directory,"spanwise_cn_alpha_clean.csv"),compactTable,',')
     statusColumns = ["case","U_m_s","alpha_deg","sweep_deg","solve","converged","reason",
         "wake_time_s","wake_force_residual","wake_circulation_residual"]
     writedlm(joinpath(output_directory,"status.csv"),

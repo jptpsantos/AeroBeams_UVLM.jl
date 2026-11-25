@@ -1,0 +1,2 @@
+angle_deg,speed_mps,variant,dt_s,wake_rows,wake_chords,status,reason,growth_per_s,frequency_hz,mode_ratio_real,mode_ratio_imag,trim_bending_m,trim_twist_deg,trim_strain_ue,background_bending_m,background_twist_deg
+5.0,45.0,coarse,0.0004,36,6.555360423427725,unresolved,frequency or bending/twist mode signature changed,0.2054251319518976,31.168915794802807,0.0005309867652551402,-0.0002419058576310085,0.11642704415217923,1.5564194134629326,-1308.3199508497996,7.929641565834206e-10,1.3092096013165422e-6

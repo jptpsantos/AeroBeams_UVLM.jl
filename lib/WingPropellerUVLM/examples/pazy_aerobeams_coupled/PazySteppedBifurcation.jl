@@ -27,6 +27,15 @@ const STATIC_DEFAULTS = (; maximum_aerodynamic_time=0.20,minimum_aerodynamic_tim
     consecutive_equilibrium_iterations=2,newton_maximum_iterations=50,
     newton_absolute_tolerance=1e-8,newton_relative_tolerance=1e-8,
     newton_display_iterations=false,progress_frequency=1000)
+const MODEL_KEYS = (:mesh,:sweepAngle,:useAePW3Matrices,:withWingtipRod,:rootTorsionCorr,
+    :beamWingtipRod,:nElementsWingtipRod,:sweptTipMassConfig,:sweptTipMassInertiaCorrection)
+
+function pazy_span_and_chord(backend,modelOptions)
+    _,span,chord,_ = backend.AeroBeams.geometrical_properties_Pazy(;
+        mesh=get(modelOptions,:mesh,:nominal),Λ=get(modelOptions,:sweepAngle,0.0),
+        useAePW3Matrices=get(modelOptions,:useAePW3Matrices,false))
+    return span,chord
+end
 
 """Plan two sequences of fixed-speed plateaus. The reversal speed is held twice,
 once in each direction, matching the supplied propeller procedure. `chord` is
@@ -34,8 +43,10 @@ supplied by the physical model; no Pazy dimensions are hard-coded here.
 """
 function stepped_plan(; U_min=40.0,U_max=50.0,dU=1.0,plateau_time=10.0,
     transient_time=8.0,sweep_order=:up_down,chord,time_step_chords=0.25,
-    fixed_time_step=nothing)
-    grid = TD.bifurcation_speeds(U_min,U_max,dU)
+    fixed_time_step=nothing,airspeeds=nothing)
+    grid = isnothing(airspeeds) ? TD.bifurcation_speeds(U_min,U_max,dU) : Float64[airspeeds...]
+    !isempty(grid) && all(u -> isfinite(u) && u > 0,grid) && all(>(0),diff(grid)) ||
+        throw(ArgumentError("Explicit plateau speeds must be positive and strictly increasing"))
     sweep_order in (:up_down,:down_up,:upsweep,:downsweep) ||
         throw(ArgumentError("sweep_order must be :up_down, :down_up, :upsweep or :downsweep"))
     all(isfinite,(plateau_time,transient_time,chord,time_step_chords)) &&
@@ -183,6 +194,10 @@ One static initialization followed by ONE coupled integration with fixed-speed
 plateaus, preserving beam motion, circulation and wake through all speed changes.
 Default :up_down includes a separate hold at the reversal speed in each direction.
 A single initial tip pulse seeds the response; later plateaus have no new pulse.
+`airspeeds` optionally supplies a strictly increasing grid in place of U_min,
+U_max and dU. `model_options` applies the same structural keywords to both
+trim and dynamics. `plateau_callback(plateau,time,responses)` observes a completed
+plateau after it is saved. Response views are valid during that call.
 `plateau_time=10`, `transient_time=8` selects the final two seconds of each hold.
 These are observation settings, not a guarantee of settled LCOs. Increase them
 when convergence remains unverified; `on_unconverged=:error` stops AFTER saving
@@ -200,6 +215,7 @@ integration. Use `keep_solver_result=true` only for diagnostics.
 """
 function run_pazy_stepped_bifurcation(; enabled=true,dry_run=false,
     U_min=40.0,U_max=50.0,dU=1.0,plateau_time=10.0,transient_time=8.0,sweep_order=:up_down,
+    airspeeds=nothing,
     angle_of_attack=deg2rad(5.0),density=1.225,chordwise_panels=10,spanwise_panels=20,
     time_step_chords=0.25,fixed_time_step=nothing,wake_length_chords=5.0,maximum_wake_rows=nothing,
     core_radius=1e-3,wake_shedding_fraction=0.1,aerodynamic_interaction=true,
@@ -209,7 +225,7 @@ function run_pazy_stepped_bifurcation(; enabled=true,dry_run=false,
     response_definitions=DEFINITIONS,on_unconverged=:warn,
     save_time_histories=false,save_boundary_states=false,keep_solver_result=false,
     plot_results=true,plot_options=(;),dynamic_options=(;),equilibrium_options=(;),
-    output_directory=nothing)
+    model_options=(;),plateau_callback=nothing,output_directory=nothing)
     enabled || return nothing
     all(
             isfinite,
@@ -244,6 +260,8 @@ function run_pazy_stepped_bifurcation(; enabled=true,dry_run=false,
         all(k -> k in keys(defaults),keys(given)) ||
             throw(ArgumentError("Only numerical solver controls may be overridden"))
     end
+    all(k -> k in MODEL_KEYS,keys(model_options)) ||
+        throw(ArgumentError("model_options accepts only structural Pazy settings"))
     pulse_start >= 0 && pulse_duration > 0 || throw(ArgumentError("Invalid pulse timing"))
     iszero(pulse_amplitude) || pulse_start + pulse_duration <= transient_time ||
         throw(ArgumentError("The initial pulse must finish before the first observation window"))
@@ -253,31 +271,32 @@ function run_pazy_stepped_bifurcation(; enabled=true,dry_run=false,
             throw(ArgumentError("Output directory must be new or empty: $path"))
     end
     load_backend()
-    return Base.invokelatest(run_loaded; U_min,U_max,dU,plateau_time,transient_time,sweep_order,
+    return Base.invokelatest(run_loaded; U_min,U_max,dU,airspeeds,plateau_time,transient_time,sweep_order,
         angle_of_attack,density,chordwise_panels,spanwise_panels,time_step_chords,fixed_time_step,
         wake_length_chords,maximum_wake_rows,core_radius,wake_shedding_fraction,aerodynamic_interaction,
         symmetric_wing,pulse_amplitude,pulse_start,pulse_duration,gauge_y,gauge_z,responses=selected,
         extrema_method,check_convergence,rtol,convergence_cycles,response_definitions,on_unconverged,
         save_time_histories,save_boundary_states,keep_solver_result,plot_results,plot_options,
         dynamic_options=merge(DYNAMIC_DEFAULTS,dynamic_options),
-        equilibrium_options=merge(STATIC_DEFAULTS,equilibrium_options),output_directory,dry_run)
+        equilibrium_options=merge(STATIC_DEFAULTS,equilibrium_options),
+        model_options,plateau_callback,output_directory,dry_run)
 end
 
-function run_loaded(; U_min,U_max,dU,plateau_time,transient_time,sweep_order,
+function run_loaded(; U_min,U_max,dU,airspeeds,plateau_time,transient_time,sweep_order,
     angle_of_attack,density,chordwise_panels,spanwise_panels,time_step_chords,fixed_time_step,
     wake_length_chords,maximum_wake_rows,core_radius,wake_shedding_fraction,aerodynamic_interaction,
     symmetric_wing,pulse_amplitude,pulse_start,pulse_duration,gauge_y,gauge_z,responses,
     extrema_method,check_convergence,rtol,convergence_cycles,response_definitions,on_unconverged,
     save_time_histories,save_boundary_states,keep_solver_result,plot_results,plot_options,
-    dynamic_options,equilibrium_options,output_directory,dry_run)
+    dynamic_options,equilibrium_options,model_options,plateau_callback,output_directory,dry_run)
     B = PazyBifurcation
-    _,span,chord,_ = B.AeroBeams.geometrical_properties_Pazy()
+    span,chord = pazy_span_and_chord(B,model_options)
     plan = stepped_plan(; U_min,U_max,dU,plateau_time,transient_time,sweep_order,
-        chord,time_step_chords,fixed_time_step)
+        chord,time_step_chords,fixed_time_step,airspeeds)
     !iszero(pulse_amplitude) && pulse_duration < 8plan.dt * (1 - 1e-12) &&
         throw(ArgumentError("Resolve the initial pulse with at least eight timesteps"))
     wake_rows =
-        isnothing(maximum_wake_rows) ? ceil(Int,wake_length_chords * chord / (U_min * plan.dt)) : maximum_wake_rows
+        isnothing(maximum_wake_rows) ? ceil(Int,wake_length_chords * chord / (first(plan.grid) * plan.dt)) : maximum_wake_rows
     B.UVLM.create_UVLMSolver(; coreRadius=core_radius,wakeSheddingFraction=wake_shedding_fraction,
         interaction=aerodynamic_interaction)
     dry_run && return (; plan,maximum_wake_rows=wake_rows)
@@ -292,7 +311,7 @@ function run_loaded(; U_min,U_max,dU,plateau_time,transient_time,sweep_order,
     options = (; angle_of_attack,density,chordwise_panels,spanwise_panels,symmetric_wing,
         core_radius,wake_shedding_fraction,aerodynamic_interaction,pulse_amplitude,pulse_start,pulse_duration,
         gauge_y,gauge_z,responses,extrema_method,check_convergence,rtol,convergence_cycles,
-        response_definitions,on_unconverged,save_time_histories,dynamic_options,equilibrium_options)
+        response_definitions,on_unconverged,save_time_histories,model_options,dynamic_options,equilibrium_options)
     for direction in unique(p.direction for p in plan.plateaus)
         mkpath(joinpath(directory,String(direction)))
     end
@@ -331,7 +350,7 @@ function run_loaded(; U_min,U_max,dU,plateau_time,transient_time,sweep_order,
     save_completed()
     try
         start_speed = first(plan.plateaus).airspeed_mps
-        common = (; density,angle_of_attack,chordwise_panels,spanwise_panels,symmetric_wing,
+        common = (; model_options...,density,angle_of_attack,chordwise_panels,spanwise_panels,symmetric_wing,
             maximum_wake_rows=wake_rows,core_radius,wake_shedding_fraction,aerodynamic_interaction)
         equilibrium = B.run_pazy_wing_uvlm_static(; equilibrium_options...,common...,
             airspeed=start_speed,time_step_chords=plan.dt * start_speed / chord)
@@ -394,6 +413,10 @@ function run_loaded(; U_min,U_max,dU,plateau_time,transient_time,sweep_order,
                     end
                 end
                 save_completed()
+                if !isnothing(plateau_callback)
+                    plateau_callback(plateau,plan.local_time[2:end],
+                        (; (r => view(values[r],2:length(values[r])) for r in responses)...))
+                end
                 bad = filter(r -> !r.converged,analyzed.rows)
                 println("Saved plateau $k/$(length(plan.plateaus)): $(plateau.direction), U=$speed m/s; ",
                     join([r.response * "=" * r.convergence_status for r in analyzed.rows],", "))
@@ -413,9 +436,10 @@ function run_loaded(; U_min,U_max,dU,plateau_time,transient_time,sweep_order,
             end
         end
         profile(t) = plan.plateaus[plateau_at_step(plan,round(Int,t / plan.dt))].airspeed_mps
+        referenceSpeed = last(plan.grid)
         result = B.run_pazy_wing_uvlm(; dynamic_options...,common...,
-            airspeed=U_max,airspeed_profile=profile,initial_equilibrium=equilibrium,
-            time_step_chords=plan.dt * U_max / chord,duration=plan.total_time,sideslip=0.0,
+            airspeed=referenceSpeed,airspeed_profile=profile,initial_equilibrium=equilibrium,
+            time_step_chords=plan.dt * referenceSpeed / chord,duration=plan.total_time,sideslip=0.0,
             initial_airspeed_fraction=1.0,airspeed_ramp_duration=0.0,
             settling_time=pulse_start,perturbation_amplitude=pulse_amplitude,perturbation_duration=pulse_duration,
             accepted_step_callback=observe,save_uvlm_history=false,uvlm_save_frequency=1,

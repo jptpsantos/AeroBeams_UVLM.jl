@@ -14,6 +14,7 @@ const MovingBlockStudy = WingPropellerUVLMStudies.MovingBlockStudy
 const MovingBlockDamping = WingPropellerUVLMStudies.MovingBlockDamping
 operating_selection(selection,s) = WingPropellerUVLMStudies.operating_selection(selection,s)
 include(joinpath(@__DIR__,"src","ExplicitAeroelasticStudy.jl"))
+include(joinpath(@__DIR__,"src","StagedAeroelasticStudy.jl"))
 function run_aeroelastic(s=aeroelastic_study())
     validate_run_mode(s)
     return isnothing(s.selection_file) ?
@@ -21,12 +22,12 @@ function run_aeroelastic(s=aeroelastic_study())
 end
 
 # Select :wing for tip bending/twist, or :propeller for propeller pitch/yaw.
-function create_study(; runMode=:full,dryRun=false,dampingTarget=:wing)
+function create_study(; runMode=:full,dryRun=false,dampingTarget=:wing,wallHours=36.0)
     # :preview checks the coupled solver on a tiny mesh and time interval.
     # :full uses the convergence controls below and estimates damping.
-    runMode in (:preview,:full) || throw(ArgumentError("runMode must be :preview or :full"))
+    runMode in (:preview,:full,:staged) || throw(ArgumentError("runMode must be :preview, :full or :staged"))
     Convergence.Damping.response_channels(dampingTarget)
-    airspeed = 75.0
+    airspeed = 65.0
     trimSpeed = 65.0
     trimRpm = 1232.63301527
     physical = (
@@ -58,9 +59,9 @@ function create_study(; runMode=:full,dryRun=false,dampingTarget=:wing)
         wingSpanPanels=20,
         wingChordPanels=10,
         propellerRadialPanels=10,
-        propellerChordPanels=5,
+        propellerChordPanels=10,
         wakeRevolutions=1.0,
-        core=0.014 * 0.197,
+        core=0.01 * 0.197,
         azimuthStepDeg=10.0
     )
 
@@ -70,13 +71,13 @@ function create_study(; runMode=:full,dryRun=false,dampingTarget=:wing)
     # nothing generates three refinement levels from the resolved nominal.
     # wingSpanPanels also refines the structural mesh in explicit mode.
     sweeps = (
-        wingSpanPanels = [5, 10, 20, 30, 40, 50],
-        wingChordPanels = [5, 10, 20, 30, 40],
-        #propellerRadialPanels = [2, 5, 7],
-        #propellerChordPanels = [2, 5, 7],
-        #        wakeRevolutions = [2.0, 4.0, 6.0],
+        #wingSpanPanels = [5, 10, 15, 20, 25, 30,35, 40, 50, 60, 70, 80],
+        #wingChordPanels = [5, 10, 20, 30, 40, 50, 60, 70, 80],
+        #propellerRadialPanels = [1, 2, 5, 10, 15, 20, 30, 40, 50, 60, 70, 80],
+        #propellerChordPanels = [1, 2, 5, 10, 15, 20, 30, 40, 50, 60, 70, 80],
+        #wakeRevolutions = [1.0, 2.0, 4.0, 6.0],
         # Explicit coupling also needs a time-step convergence check.
-        #azimuthStepDeg=[5.0,2.5,1.25],
+        azimuthStepDeg=[30.0, 20.0, 1.25],
     )
 
     settings = (;
@@ -95,7 +96,7 @@ function create_study(; runMode=:full,dryRun=false,dampingTarget=:wing)
         airspeed=airspeed,nominal,sweeps,
         families=collect(keys(sweeps)),
         response=(
-            finalTime=2.0,# Eight peaks need more than the previous 2 s record.
+            finalTime=3.0,# Eight peaks need more than the previous 2 s record.
             baselineRevolutions=5.0,
             baselineAverageRevolutions=1.0,
             impulseStartS=0.1,# nothing: after baselineRevolutions
@@ -145,7 +146,24 @@ function create_study(; runMode=:full,dryRun=false,dampingTarget=:wing)
             coupledEquilibriumTolerance=1e-4,relaxation=1.0,verbose=false),
         propellerMomentProjection=:exact_virtual_work
     )
-    if runMode == :preview
+    if runMode == :staged
+        stagedSweeps = (
+            azimuthStepDeg=[10.0,5.0,2.5,1.25],
+            wakeRevolutions=[1.0,2.0,3.0],
+            propellerChordPanels=[5,10,15],
+            propellerRadialPanels=[10,20,25],
+            wingSpanPanels=[20,30,40],
+            wingChordPanels=[10,15,20]
+        )
+        settings = merge(settings,(;
+            airspeed=85.0,
+            outputDirectory=normpath(joinpath(@__DIR__,"..","..","output","convergence_aeroelastic_staged")),
+            makePlots=false,wallHours,
+            nominal=merge(nominal,(; azimuthStepDeg=5.0,core=0.0125 * 0.197)),
+            sweeps=stagedSweeps,families=collect(keys(stagedSweeps)),
+            response=merge(settings.response,(; finalTime=4.0,impulseStartS=nothing))
+        ))
+    elseif runMode == :preview
         previewSweeps = (propellerRadialPanels=[2,3,4],)
         settings = merge(
             settings,
@@ -180,27 +198,35 @@ aeroelastic_study(; kwargs...) = WingPropellerUVLMStudies.legacy_settings(create
 main(; kwargs...) = WingPropellerUVLMStudies.solve!(create_study(; kwargs...)).results
 
 function cli_main(args=ARGS)
-    runMode = :full
+    runMode = nothing
     dryRun = false
+    wallHours = 36.0
     dampingTarget = nothing # Without a flag, use the editable create_study() default.
     for arg in args
         if arg == "--full"
             runMode = :full
         elseif arg == "--preview"
             runMode = :preview
+        elseif arg == "--staged"
+            runMode = :staged
         elseif arg == "--dry-run"
             dryRun = true
+        elseif startswith(arg,"--wall-hours=")
+            wallHours = parse(Float64,last(split(arg,'='; limit=2)))
         elseif startswith(arg,"--damping-target=")
             dampingTarget = Symbol(last(split(arg,'='; limit=2)))
         else
-            throw(ArgumentError("Unknown argument $arg; use --preview, --full, --dry-run or --damping-target=wing|propeller"))
+            throw(ArgumentError("Unknown argument $arg; use --staged, --preview, --full, --dry-run, --wall-hours=H or --damping-target=wing|propeller"))
         end
     end
-    return isnothing(dampingTarget) ? main(; runMode,dryRun) : main(; runMode,dryRun,dampingTarget)
+    mode = something(runMode,isnothing(dampingTarget) ? :staged : :full)
+    mode == :staged && !isnothing(dampingTarget) &&
+        throw(ArgumentError("Staged mode jointly fits wing-tip twist and pylon pitch. Use --full to select a moving-block damping target."))
+    return isnothing(dampingTarget) ? main(; runMode=mode,dryRun,wallHours) :
+           main(; runMode=mode,dryRun,dampingTarget,wallHours)
 end
 end
 
-if abspath(PROGRAM_FILE) == (@__FILE__)
-    ChangConvergenceAeroelastic.cli_main()
+if abspath(PROGRAM_FILE) == @__FILE__
+    Base.invokelatest(ChangConvergenceAeroelastic.cli_main)
 end
-

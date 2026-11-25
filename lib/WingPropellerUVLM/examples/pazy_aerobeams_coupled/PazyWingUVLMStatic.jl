@@ -177,6 +177,8 @@ end
 #    the structural solve converges. Avoids huge jumps at high loads, from which the
 #    wake of a very deformed wing may never settle (recommended: 2).
 #  - wake_reuse: keep wake and circulation between static iterations (see above).
+#  - pazy_structure: prepared upright, unpitched Pazy structure for the first
+#    solve. Its mesh and sweep must match the supplied structural options.
 #  - warm_start: `warm_start` field of a previous result (same structural options
 #    and spanwise/chordwise discretization); the structure is reused and moved to
 #    `warm_start_target_loads` (default its own loads, e.g. scaled by the dynamic
@@ -197,7 +199,7 @@ function run_pazy_wing_uvlm_static(; airspeed,density,angle_of_attack,
     sweptTipMassInertiaCorrection=false,
     time_step_chords=1 / chordwise_panels,load_residual_force_floor=1.0,
     relaxation_mode=:anderson,anderson_depth=4,geometry_cap_chords=2,
-    wake_reuse=true,warm_start=nothing,warm_start_target_loads=nothing)
+    wake_reuse=true,warm_start=nothing,warm_start_target_loads=nothing,pazy_structure=nothing)
 
     @assert airspeed > 0 && density > 0
     @assert chordwise_panels >= 1 && spanwise_panels >= 1 && maximum_wake_rows >= 1
@@ -212,9 +214,17 @@ function run_pazy_wing_uvlm_static(; airspeed,density,angle_of_attack,
     @assert relaxation_mode in (:fixed,:anderson) "relaxation_mode must be :fixed or :anderson"
     @assert anderson_depth >= 1 && geometry_cap_chords > 0
 
-    # Share the native Pazy structure with the dynamic solver. Incidence is
-    # applied once through UVLM's freestream; gravity and root pitch are zero.
-    pazy = isnothing(warm_start) ? create_pazy_uvlm_structure(; mesh,sweepAngle,useAePW3Matrices, withWingtipRod,rootTorsionCorr,beamWingtipRod,nElementsWingtipRod, sweptTipMassConfig,sweptTipMassInertiaCorrection) : warm_start.pazy
+    # Incidence is applied once through UVLM's freestream. The default model
+    # shares the dynamic solver's zero-gravity, unpitched structure.
+    pazy = if !isnothing(warm_start)
+        warm_start.pazy
+    elseif !isnothing(pazy_structure)
+        pazy_structure
+    else
+        create_pazy_uvlm_structure(; mesh,sweepAngle,useAePW3Matrices,withWingtipRod,
+            rootTorsionCorr,beamWingtipRod,nElementsWingtipRod,sweptTipMassConfig,
+            sweptTipMassInertiaCorrection)
+    end
     (; model,span,chord,beamNodes) = pazy
     ne,spar = pazy.n_elements,pazy.sparFraction
     projectedSpan = span * cos(sweepAngle)

@@ -77,7 +77,7 @@ end
 function _imperial_induced_velocity(rc,receivingIndex,segment_kind,
     surfaces,wakes,Γ,isurf; symmetric,nwake,surface_id,
     wake_finite_core,wake_shedding_locations,trailing_vortices,xhat,
-    interaction_id,interaction)
+    interaction_id,interaction,wakeProperties)
 
     induced = zero(rc)
     jΓ = 0
@@ -120,10 +120,12 @@ function _imperial_induced_velocity(rc,receivingIndex,segment_kind,
             trailing_vortices=trailing_vortices[jsurf] && !wakePanels,
             xhat,skip_top,skip_bottom,skip_left,skip_right)
 
-        if wakePanels
+        wake = wakeProperties[jsurf]
+        if wake.active
             induced += induced_velocity(rc,wakes[jsurf];
                 finite_core=wake_finite_core[jsurf] ||
                             (surface_id[isurf] != surface_id[jsurf]),
+                uniform_cores=wake.uniform,
                 symmetric=symmetric[jsurf],nc=nwake[jsurf],
                 trailing_vortices=trailing_vortices[jsurf],xhat)
         end
@@ -182,6 +184,8 @@ function near_field_forces!(props,surfaces,wakes,ref,fs,Γ;
     threaded::Bool=true)
 
     nsurf = length(surfaces)
+    wakeProperties = active_wake_properties(wakes,nwake)
+    hasInduction = any(!iszero,Γ) || any(wake -> wake.active,wakeProperties)
     TF = eltype(Γ)
     chord_seg_forces =
         isnothing(chord_force_buffers) ? Vector{Matrix{SVector{3,TF}}}(undef,nsurf) : chord_force_buffers
@@ -220,10 +224,12 @@ function near_field_forces!(props,surfaces,wakes,ref,fs,Γ;
             rc = (r1 + r2) / 2
             motion = isnothing(Vh) ? nothing : Vh[isurf][i,j]
             velocity = _imperial_base_velocity(rc,ref,fs,additional_velocity,motion)
-            velocity += _imperial_induced_velocity(rc,CartesianIndex(i,j),:span,
-                surfaces,wakes,Γ,isurf; symmetric,nwake,surface_id,
-                wake_finite_core,wake_shedding_locations,trailing_vortices,xhat,
-                interaction_id,interaction)
+            if hasInduction
+                velocity += _imperial_induced_velocity(rc,CartesianIndex(i,j),:span,
+                    surfaces,wakes,Γ,isurf; symmetric,nwake,surface_id,
+                    wake_finite_core,wake_shedding_locations,trailing_vortices,xhat,
+                    interaction_id,interaction,wakeProperties)
+            end
 
             delta_gamma = -_imperial_spanwise_circulation_jump(Γjulia,i,j)
             span_forces[i,j] = imperial_segment_force(
@@ -247,10 +253,12 @@ function near_field_forces!(props,surfaces,wakes,ref,fs,Γ;
             rc = (r1 + r2) / 2
             motion = isnothing(Vv) ? nothing : Vv[isurf][i,j]
             velocity = _imperial_base_velocity(rc,ref,fs,additional_velocity,motion)
-            velocity += _imperial_induced_velocity(rc,CartesianIndex(i,j),:chord,
-                surfaces,wakes,Γ,isurf; symmetric,nwake,surface_id,
-                wake_finite_core,wake_shedding_locations,trailing_vortices,xhat,
-                interaction_id,interaction)
+            if hasInduction
+                velocity += _imperial_induced_velocity(rc,CartesianIndex(i,j),:chord,
+                    surfaces,wakes,Γ,isurf; symmetric,nwake,surface_id,
+                    wake_finite_core,wake_shedding_locations,trailing_vortices,xhat,
+                    interaction_id,interaction,wakeProperties)
+            end
 
             delta_gamma = -_imperial_chordwise_circulation_jump(Γjulia,i,j)
             chord_forces[i,j] = imperial_segment_force(

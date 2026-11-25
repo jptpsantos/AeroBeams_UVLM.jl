@@ -3,9 +3,11 @@
 # The common exponentially growing/decaying sinusoid is estimated by variable
 # projection. Amplitudes refer to the middle of the chosen window.
 using DelimitedFiles, LinearAlgebra, Statistics, Printf
-get!(ENV,"GKSwstype","100")
-using Plots
-using ColorSchemes
+
+function load_pitch_plots()
+    get!(ENV,"GKSwstype","100")
+    @eval using Plots, ColorSchemes
+end
 
 function read_pitch_history(path)
     lines = readlines(path)
@@ -77,6 +79,11 @@ function fit_mode(t, wing, pylon)
 end
 
 function analyze(path, start_time, end_time)
+    load_pitch_plots()
+    return Base.invokelatest(plot_pitch_analysis,path,start_time,end_time)
+end
+
+function plot_pitch_analysis(path,start_time,end_time)
     t, wing, pylon = read_history(path)
     first(t) <= start_time < end_time <= last(t) || error("Window must lie within $(first(t))–$(last(t)) s")
     selected = findall(x -> start_time <= x <= end_time,t)
@@ -211,6 +218,11 @@ function identify_pitch_mode(time,wing,propeller;
 end
 
 function run_pitch_reviewer_analysis(; output_directory=joinpath(@__DIR__,"output","multi_prop","pitch_phase_analysis","reviewer_response"))
+    load_pitch_plots()
+    return Base.invokelatest(write_pitch_reviewer_analysis,output_directory)
+end
+
+function write_pitch_reviewer_analysis(output_directory)
     cases = [
         # Airspeed supplied by the author; the original TXT has no speed metadata.
         (label="V = 83 m/s",path=joinpath(@__DIR__,"output","multi_prop","single_propeller_history.txt"),summary=nothing)

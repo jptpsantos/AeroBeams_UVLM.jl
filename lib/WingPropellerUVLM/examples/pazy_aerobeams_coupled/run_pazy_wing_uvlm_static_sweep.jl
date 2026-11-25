@@ -15,7 +15,7 @@ sweep_angles_deg = [0.0, 10.0, 20.0] # native Pazy data: [0.0,10.0,20.0]
 # This is a secant approximation [1/rad], not a perturbation derivative.
 # Outputs use spanwise_panels + 1 nodal sections, including root and tip;
 # endpoint cn values use half-width tributary areas.
-slope_modes = (:local_ratio,:fixed_shape,)
+slope_modes = (:fixed_shape,)  # :local_ratio, :fixed_shape, :equilibrium
 # Add :fixed_shape and/or :equilibrium to compare with central differences.
 # The perturbation CSV also divides delta cn by delta alpha_local at each station.
 alpha_step_deg = 0.1
@@ -35,9 +35,13 @@ density = 1.225                         # kg/m^3
 
 # UVLM mesh and free wake. Refine these for quantitative convergence studies.
 chordwise_panels = 5
-spanwise_panels = 15
+spanwise_panels = 20
 symmetric_wing = true                   # false: isolated cantilever
-time_step_chords = 1 / chordwise_panels  # dt = time_step_chords * chord / U
+match_wake_panel_chord = true           # nominal wake-row length equals one wing chordwise panel
+time_step_chords = 0.25
+if match_wake_panel_chord
+    time_step_chords = 1 / chordwise_panels
+end
 wake_length_chords = 10.0
 maximum_wake_rows = ceil(Int,wake_length_chords / time_step_chords)
 core_radius = 1e-6                      # m
@@ -67,11 +71,11 @@ wake_reuse = true
 warm_start = true
 geometry_tolerance = 1e-4
 load_tolerance = 1e-4
-load_residual_force_floor = 1e-9  # N; resolve the tiny loads in the zero-incidence proxy
+load_residual_force_floor = 1e-6        # N; resolve the tiny loads in the zero-incidence proxy
 consecutive_equilibrium_iterations = 2
 newton_maximum_iterations = 50
-newton_absolute_tolerance = 1e-12
-newton_relative_tolerance = 1e-8
+newton_absolute_tolerance = 1e-6
+newton_relative_tolerance = 1e-6
 newton_display_iterations = false
 progress_frequency = 1000
 

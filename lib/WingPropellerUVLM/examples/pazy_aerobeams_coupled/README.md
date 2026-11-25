@@ -26,6 +26,34 @@ spanwise CSV data, plots and convergence diagnostics in
 `aoa3deg/` for each prescribed incidence. See [STATIC_SPANWISE.md](STATIC_SPANWISE.md)
 for coefficient definitions, units, controls and validation.
 
+## S0 steady pitch-range comparison
+
+```powershell
+julia +1.13 -t 8 --project=lib/WingPropellerUVLM/examples lib/WingPropellerUVLM/examples/pazy_aerobeams_coupled/run_pazy_s0_steady_pitch_range.jl
+```
+
+The runner solves the upright S0 beam-rod model at 3°, 5°, and 7°, at
+0.001 m/s and at integer speeds from 1 to 60 m/s. Both methods use
+the nominal structure, a 12-element tip rod, gravity, and the Test 1 balance
+mass of 10 g at 40 mm aft of the trailing edge. AeroBeams uses its indicial
+strip model with exponential tip loss. The UVLM solution uses a symmetric
+4 × 15 panel grid and a 40-row free wake, with incidence imposed through
+the freestream. Each airspeed starts with a fresh wake and can continue the
+structural equilibrium from the preceding airspeed.
+
+`output/s0_steady_pitch_range/steady_pitch_range.csv` records both solvers'
+wingtip response, UVLM convergence residuals, and elapsed time for each case.
+The two-panel PNG and PDF use solid lines for native AeroBeams, dashed lines
+for AeroBeams + UVLM, and diamonds for the [wind-tunnel reference data][s0-data].
+[Avin et al. (2022)][s0-avin] provide displacement data at all three pitches.
+[Riso and Cesnik (2023)][s0-riso] estimated twist from the measured leading-
+and trailing-edge displacement. The library includes those estimates at 5°
+and 7°. Add `--plot-only` to regenerate the figure from the CSV.
+
+[s0-data]: ../../../../test/referenceData/Pazy
+[s0-avin]: https://doi.org/10.2514/1.J060621
+[s0-riso]: https://doi.org/10.2514/6.2023-0759
+
 The static iteration (`run_pazy_wing_uvlm_static`) accepts options that change only the path to the
 equilibrium, not the acceptance tests (wake window, unrelaxed load residual, geometry change):
 
@@ -105,6 +133,11 @@ requested nominal wake length in either mode. To use a fixed row count, assign
 that integer directly to
 `maximum_wake_rows` in the runner. The wake starts empty, grows until this
 capacity is reached, and then discards its oldest rows.
+
+The static sweep script exposes the same `match_wake_panel_chord` option and
+defaults it to `true`, preserving its existing `time_step_chords=1/chordwise_panels`
+setting. Set it to `false` to use `time_step_chords=0.25`; its maximum wake-row
+count is then recalculated from the selected step.
 
 `core_radius` is in metres. `wake_shedding_fraction` controls the separation
 between the trailing edge and the wake-shedding location, not the retained wake

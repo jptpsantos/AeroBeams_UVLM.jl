@@ -9,6 +9,7 @@ testFiles = [
     "verify_pazy_coupling.jl",
     "test_visualization.jl",
     "test_pazy_stability_sweep.jl",
+    "test_pazy_flutter_sweep.jl",
     "test_pazy_LCO_spectrogram.jl",
     "test_pazy_LCO_output.jl",
     "test_pazy_bifurcation.jl",

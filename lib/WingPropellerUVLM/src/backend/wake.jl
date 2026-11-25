@@ -142,6 +142,12 @@ function get_wake_velocities!(wake_velocities,surfaces,wakes,ref,fs,Γ,
     # number of surfaces
     nsurf = length(surfaces)
 
+    # Circulation and panel cores are immutable while these velocities are computed.
+    # Scan each sending surface/wake once instead of checking it at every vertex.
+    boundOffsets = cumsum(vcat(0,length.(surfaces)))
+    boundActive = [any(!iszero,view(Γ,boundOffsets[j]+1:boundOffsets[j+1])) for j in 1:nsurf]
+    wakeProperties = active_wake_properties(wakes,nwake)
+
     # loop through all surfaces
     for isurf = 1:nsurf
 
@@ -205,17 +211,21 @@ function get_wake_velocities!(wake_velocities,surfaces,wakes,ref,fs,Γ,
             end
 
             # induced velocity from each surface and wake
-            jΓ = 0 # index for accessing Γ
             for jsurf = 1:nsurf
-
-                # number of panels on sending surface
-                Ns = length(surfaces[jsurf])
-
                 # Skip cross-surface wake convection only for non-interaction runs.
                 if !interaction && (interaction_id[isurf] != interaction_id[jsurf])
-                    jΓ += Ns # Important: Skip calculation but advance Γ index
                     continue
                 end
+
+                if boundActive[jsurf]
+                    vΓ = view(Γ,boundOffsets[jsurf]+1:boundOffsets[jsurf+1])
+                    wake_velocities[isurf][I] += induced_velocity(rc,surfaces[jsurf],vΓ;
+                        finite_core=surface_id[isurf] != surface_id[jsurf],
+                        wake_shedding_locations=wake_shedding_locations[jsurf],
+                        symmetric=symmetric[jsurf],trailing_vortices=false,xhat)
+                end
+                wake = wakeProperties[jsurf]
+                wake.active || continue
 
                 # check if receiving point is repeated on the sending surface
                 if isurf == jsurf
@@ -246,17 +256,6 @@ function get_wake_velocities!(wake_velocities,surfaces,wakes,ref,fs,Γ,
                     end
                 end
 
-                # extract circulation values corresponding to the sending surface
-                vΓ = view(Γ,jΓ+1:jΓ+Ns)
-
-                # induced velocity from this surface
-                wake_velocities[isurf][I] += induced_velocity(rc,surfaces[jsurf],vΓ;
-                    finite_core=surface_id[isurf] != surface_id[jsurf],
-                    wake_shedding_locations=wake_shedding_locations[jsurf],
-                    symmetric=symmetric[jsurf],
-                    trailing_vortices=false,
-                    xhat=xhat)
-
                 # add induced velocity from the wake
                 if sameSurface && I[1] <= nwake[jsurf] + 1
                     # vertex location on wake
@@ -265,6 +264,7 @@ function get_wake_velocities!(wake_velocities,surfaces,wakes,ref,fs,Γ,
                     # induced velocity from wake on its own vertex
                     wake_velocities[isurf][I] += induced_velocity(J,wakes[jsurf];
                         finite_core=wake_finite_core[jsurf] || surface_id[isurf] != surface_id[jsurf],
+                        uniform_cores=wake.uniform,
                         symmetric=symmetric[jsurf],
                         nc=nwake[jsurf],
                         trailing_vortices=trailing_vortices[jsurf],
@@ -274,13 +274,13 @@ function get_wake_velocities!(wake_velocities,surfaces,wakes,ref,fs,Γ,
                     # shared edges downstream of a shorter sending wake.
                     wake_velocities[isurf][I] += induced_velocity(rc,wakes[jsurf];
                         finite_core=wake_finite_core[jsurf] || surface_id[isurf] != surface_id[jsurf],
+                        uniform_cores=wake.uniform,
                         symmetric=symmetric[jsurf],
                         nc=nwake[jsurf],
                         trailing_vortices=trailing_vortices[jsurf],
                         xhat=xhat)
                 end
 
-                jΓ += Ns # increment Γ index
             end
             return nothing
         end

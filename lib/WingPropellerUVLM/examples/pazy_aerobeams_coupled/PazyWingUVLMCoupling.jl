@@ -33,13 +33,24 @@ function create_pazy_uvlm_structure(; mesh=:nominal,sweepAngle=0.0,
     model,n_elements,span,chord,sparFraction = AeroBeams.create_Pazy(;
         parameters...,upright=true,pitchAngle=0.0,airspeed=0.0,
         gravityVector=zeros(3),hasTipCorrection=false)
+    return create_pazy_uvlm_structure(model,n_elements,span,chord,sparFraction; parameters)
+end
+
+# Use an upright, unpitched Pazy model with the standard root clamp when a
+# benchmark prescribes gravity or attached masses. The load interface consumes it.
+function create_pazy_uvlm_structure(model,n_elements,span,chord,sparFraction; parameters)
     beam = model.beams[1]
     # Element's aerodynamic field is concrete in AeroBeams v1. Rebuild the
     # main wing's elements without a surface instead of assigning `nothing`
     # to an Element{AeroProperties}. Keep the beam identity for connections.
     beam.attachments.surface = nothing
-    beam.elements = AeroBeams.create_beam_elements(beam.geometry,beam.sectional,
+    elements = AeroBeams.create_beam_elements(beam.geometry,beam.sectional,
         beam.discretization,beam.hinges,beam.attachments)
+    # Attached point masses are included in the element sectional matrices.
+    for (element,originalElement) in zip(elements,beam.elements)
+        element.sectional = originalElement.sectional
+    end
+    beam.elements = elements
     boundaryConditions = copy(model.BCs) # Native root clamp comes first.
     for node = 1:n_elements+1
         push!(boundaryConditions,AeroBeams.create_BC(name="UVLM loads $node",
@@ -381,8 +392,14 @@ function run_pazy_wing_uvlm(; airspeed,density,angle_of_attack,sideslip,
                 for couplingIteration = 1:coupling_maximum_iterations
                     coupling_iterations = couplingIteration
 
-                    # Aerodynamic trial at the current relaxed interface guess.
-                    loads = UVLM.evaluate_trial!(aerodynamic; surfaces=[gridGuess])
+                    # The accepted UVLM state and operating point stay fixed during
+                    # this step. Reuse an open trial only on its exact grid.
+                    trial = aerodynamic.workspace
+                    loads = if trial.trialReady && trial.system.grids[1] == gridGuess
+                        UVLM.dimensional_loads(trial.system)
+                    else
+                        UVLM.evaluate_trial!(aerodynamic; surfaces=[gridGuess])
+                    end
                     beam_loads!(aerodynamic_loads,loads,offsetsGuess,spanMap)
 
                     # Apply aerodynamic loads and the prescribed pulse, then solve
@@ -412,8 +429,8 @@ function run_pazy_wing_uvlm(; airspeed,density,angle_of_attack,sideslip,
                        load_residual <= coupling_load_tolerance
                         # Make the uncommitted UVLM trial exactly match the accepted
                         # structural geometry. This still does not advance the wake.
-                        finalLoads = UVLM.evaluate_trial!(
-                            aerodynamic; surfaces=[candidate_grid])
+                        finalLoads = candidate_grid == gridGuess ? loads :
+                            UVLM.evaluate_trial!(aerodynamic; surfaces=[candidate_grid])
                         beam_loads!(finalAerodynamicLoads,finalLoads,candidateOffsets,spanMap)
                         finalLoadResidual = interface_load_residual(
                             finalAerodynamicLoads,aerodynamic_loads,chord)

@@ -1,0 +1,2 @@
+angle_deg,speed_mps,dt_passed,wake_passed,status
+5.0,45.0,false,false,unverified

@@ -20,8 +20,9 @@ const RESPONSE_DEFINITIONS = (
     tip_geometric_incidence_deg=(unit="deg",label="Root incidence + elastic tip twist",atol=1e-3))
 
 function model_responses(model,angle,span,gauge_y,gauge_z)
-    tip = model.assemblyData.elements[end].state.nodal
-    root = model.assemblyData.elements[1].state.midpoint
+    wingElements = model.beams[1].elements
+    tip = wingElements[end].state.nodal
+    root = wingElements[1].state.midpoint
     twist = wingtip_twist_degrees(model)
     return (; tip_out_of_plane_m=-tip.u2[1],
         tip_out_of_plane_percent=-100tip.u2[1] / span,

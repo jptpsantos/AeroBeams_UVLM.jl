@@ -1,5 +1,9 @@
 # Pazy bifurcation with state-preserving speed steps
 
+For equilibrium flutter and direction-specific LCO boundaries, use the
+[flutter sweep runner](STABILITY_SWEEP.md). It uses this integration for its
+state-preserving LCO paths.
+
 This separate analysis follows the supplied propeller procedure: hold speed,
 discard the transient, record late extrema, move to the next speed with the
 accepted physical state, and reverse the speed sequence. It uses the existing

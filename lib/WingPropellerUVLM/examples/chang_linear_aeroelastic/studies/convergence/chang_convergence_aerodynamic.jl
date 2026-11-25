@@ -43,18 +43,18 @@ function create_study()
     # or :segment (fraction of the local 3D span/radial vortex edge).
     coreMode = :fixed
     nominal = (wingSpanPanels=20,wingChordPanels=10,propellerRadialPanels=10,propellerChordPanels=10,
-        wakeRevolutions=1.0,core=0.014 * 0.197,azimuthStepDeg=5)
+        wakeRevolutions=0.25,core=0.014 * 0.197,azimuthStepDeg=5)
 
     # Absolute panel counts per direction (propeller counts are per blade).
     # Each family varies one parameter; others retain the nominal values.
     # Use at least three ordered levels for every enabled family.
     sweeps = (
-        #wingSpanPanels = [10, 20, 30],
-        #wingChordPanels = [5, 10, 15],
+        wingSpanPanels = [10, 20, 30, 40],
+        wingChordPanels = [5, 10, 15],
         propellerRadialPanels=[10,20,30,40,60],
-        propellerChordPanels=[10,20,30,40,60]
-        #        wakeRevolutions = [2.0, 4.0, 6.0],
-        #        azimuthStepDeg = [10.0, 5.0, 2.5],
+        propellerChordPanels=[10,20,30,40,60],
+        wakeRevolutions = [2.0, 4.0, 6.0],
+        azimuthStepDeg = [10.0, 5.0, 2.5],
     )
     settings = (;
         physical,coreMode,nominal,sweeps,

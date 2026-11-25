@@ -37,7 +37,7 @@ function chang_case_defaults()
     # 3. Flow, time stepping, and coupling
     simulation = (
         air_density_kgpm3=1.225,
-        freestream_speed_mps=83.0,
+        freestream_speed_mps=85.0,
         angle_of_attack_deg=3.0,
         sideslip_deg=0.0,azimuth_step_deg=2.5,# Rotor angle advanced per time step.
         end_time_s=5,# Total requested simulation duration.
@@ -59,7 +59,7 @@ function chang_case_defaults()
         # Fixed radius in metres for wing, blades, and shed wakes.
         # Examples: 1e-3 = 1 mm; 1e-6 = 1 micrometre.
         # Set nothing to use the factor-based rule below.
-        core_radius_m=0.01 * 0.197, #0.014 * 0.197
+        core_radius_m=0.0125 * 0.197, #0.014 * 0.197
 
         # Used only when core_radius_m = nothing:
         # radius = max(segment_core_factor * Δs, chord_core_factor * c).

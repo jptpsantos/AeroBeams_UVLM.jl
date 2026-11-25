@@ -116,6 +116,43 @@ a physical vortex radius. RPM and collective remain fixed; no retrim is performe
 
 ## 2. Aeroelastic study
 
+### Staged damping campaign
+
+The command-line entry defaults to the staged whirl-mode study at 85 m/s.
+It starts with a four-second pilot at a 5° azimuth increment, one retained
+revolution for both wakes, a 20 × 10 wing and 10 radial × 5 chordwise panels per
+blade. It fits a common damping rate and frequency to wing-tip twist and pylon
+pitch over three free-response windows. A failed pilot fit stops the campaign
+before it launches the mesh and wake comparisons.
+
+From the repository root, inspect the queue or run it with four Julia threads.
+
+```powershell
+$study = 'lib/WingPropellerUVLM/examples/chang_linear_aeroelastic/studies/convergence/chang_convergence_aeroelastic.jl'
+julia --threads=4 --project=lib/WingPropellerUVLM/studies $study --dry-run
+julia --threads=4 --project=lib/WingPropellerUVLM/studies $study --wall-hours=36
+```
+
+The initial queue is the pilot, a coarser time step, one finer case per mesh
+and wake control, and then the more expensive finer time step. Additional
+refinements are conditional on damping sensitivity and the remaining wall
+budget. The driver tries a combined
+candidate and a crossed step/wake check after the initial screen completes.
+It uses threaded wake convection, one BLAS thread and scalar response output.
+The forecast uses measured case timings and panel counts. The time marcher
+checks the wall deadline before each aerodynamic load evaluation.
+
+Results go to `output/convergence_aeroelastic_staged/`. Check `progress.csv`
+after each case and `report.md` for screening status. Individual case logs
+show time-step progress while a solve runs. To resume, run the same command
+again with a new wall budget. The driver rechecks inputs, solver source and
+history hash before reusing each complete history. An interrupted case starts
+from the beginning. The minimum requested damping tolerances and the measured
+fit-window shifts are independent of the compute budget.
+
+Use `--full` for the original moving-block sweeps described below, or
+`create_study(; runMode=:staged)` when loading the entry in the REPL.
+
 The aeroelastic entry also activates the local studies project when loaded with
 `include` or from the IDE if `WingPropellerUVLMStudies` is unavailable in the
 current environment. This is a repository-local package; `Pkg.add` is unnecessary.
@@ -132,9 +169,9 @@ study = ChangConvergenceAeroelastic.create_study(; dampingTarget=:wing)
 study = ChangConvergenceAeroelastic.create_study(; dampingTarget=:propeller)
 ```
 
-The editable entry defaults to `:wing` for the wing mesh investigation. The
-corresponding nested setting is `damping=(target=:wing, ...)`; settings from
-older scripts without `target` retain `:propeller`. Both choices use the same
+Pass `--damping-target=wing` to fit the wing-tip response. The corresponding
+nested setting is `damping=(target=:wing, ...)`. Programmatic full-study calls
+without a target use `:propeller`. Both choices use the same
 coupled simulation and moving-block estimator. Only the measured responses
 change; selecting a component does not isolate an intrinsic component damping
 or decouple the structural model.
@@ -158,7 +195,7 @@ in the selected responses. The band checks the measured global dominant
 frequency; it does not filter out other modes. A signal dominated by a different
 mode can fail the band check. Inspect both fit quality and recorded frequencies.
 
-The default `runMode=:full` runs the editable nominal settings and sweeps with
+The `runMode=:full` profile runs the editable nominal settings and sweeps with
 `coupling.scheme=:loose_explicit`. Each physical step evaluates UVLM once at the
 target time and rotor azimuth, using the known structural displacement `U[n]`,
 then advances the structure and commits the wake once. The structural integrator
@@ -185,23 +222,31 @@ keeping the full-study directory separate. Preview damping validity is forced to
 `false`: this short interval checks the solver and its response output, and
 cannot establish convergence of damping at 3--6 Hz.
 
-From the repository root, run the default full analysis, select the preview,
+From the repository root, run the full analysis, select the preview,
 or inspect either plan without solving:
 
 ```powershell
-julia --startup-file=no --project=lib/WingPropellerUVLM/studies lib/WingPropellerUVLM/examples/chang_linear_aeroelastic/studies/convergence/chang_convergence_aeroelastic.jl
+julia --startup-file=no --project=lib/WingPropellerUVLM/studies lib/WingPropellerUVLM/examples/chang_linear_aeroelastic/studies/convergence/chang_convergence_aeroelastic.jl --full
 julia --startup-file=no --project=lib/WingPropellerUVLM/studies lib/WingPropellerUVLM/examples/chang_linear_aeroelastic/studies/convergence/chang_convergence_aeroelastic.jl --preview
-julia --startup-file=no --project=lib/WingPropellerUVLM/studies lib/WingPropellerUVLM/examples/chang_linear_aeroelastic/studies/convergence/chang_convergence_aeroelastic.jl --dry-run
+julia --startup-file=no --project=lib/WingPropellerUVLM/studies lib/WingPropellerUVLM/examples/chang_linear_aeroelastic/studies/convergence/chang_convergence_aeroelastic.jl --full --dry-run
 julia --startup-file=no --project=lib/WingPropellerUVLM/studies lib/WingPropellerUVLM/examples/chang_linear_aeroelastic/studies/convergence/chang_convergence_aeroelastic.jl --preview --dry-run
 julia --startup-file=no --project=lib/WingPropellerUVLM/studies lib/WingPropellerUVLM/examples/chang_linear_aeroelastic/studies/convergence/chang_convergence_aeroelastic.jl --damping-target=wing --dry-run
 julia --startup-file=no --project=lib/WingPropellerUVLM/studies lib/WingPropellerUVLM/examples/chang_linear_aeroelastic/studies/convergence/chang_convergence_aeroelastic.jl --damping-target=propeller
 ```
 
-`--full` explicitly selects the default full profile. `--dry-run` writes
+`--full` explicitly selects the original full profile. `--dry-run` writes
 `runtime_plan.csv` with time steps, step counts, panel counts and wake capacities.
 These are workload indicators, not predictions of elapsed wall time.
 Use a fresh Julia process after changing the convergence implementation; its
 source fingerprints deliberately prevent continuing with stale loaded methods.
+
+To save a fresh wing-damping campaign with live progress and 10 Julia threads,
+run the monitored entry from the repository root. Add `--dry-run` for the plan.
+
+```powershell
+$monitor = 'lib/WingPropellerUVLM/examples/chang_linear_aeroelastic/studies/convergence/run_chang_convergence_monitored.jl'
+julia --startup-file=no --compiled-modules=existing --threads=10 --project=lib/WingPropellerUVLM/studies $monitor --damping-target=wing
+```
 
 For REPL planning, including the entry does not run it:
 

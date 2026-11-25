@@ -51,6 +51,7 @@ function normal_velocity!(w,surfaces,wakes,ref,fs; additional_velocity,
     threaded::Bool=true) # <--- [NEW] Argument
 
     nsurf = length(surfaces)
+    wakeProperties = active_wake_properties(wakes,nwake)
 
     # index for keeping track of where we are in the w vector
     iw = 0
@@ -97,9 +98,11 @@ function normal_velocity!(w,surfaces,wakes,ref,fs; additional_velocity,
                 end
                 # --------------------------------------
 
-                if nwake[jsurf] > 0
+                wake = wakeProperties[jsurf]
+                if wake.active
                     V += induced_velocity(rcp,wakes[jsurf];
                         finite_core=wake_finite_core[jsurf] || (surface_id[isurf] != surface_id[jsurf]),
+                        uniform_cores=wake.uniform,
                         symmetric=symmetric[jsurf],
                         nc=nwake[jsurf],
                         trailing_vortices=trailing_vortices[jsurf],

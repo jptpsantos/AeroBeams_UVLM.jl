@@ -1,0 +1,761 @@
+\documentclass[11pt,a4paper]{article}
+
+\usepackage[T1]{fontenc}
+\usepackage[utf8]{inputenc}
+\usepackage[margin=24mm]{geometry}
+\usepackage{amsmath,amssymb,bm}
+\usepackage{booktabs,longtable,array,tabularx}
+\usepackage{graphicx}
+\usepackage{xcolor}
+\usepackage{listings}
+\usepackage{hyperref}
+
+\definecolor{codeblue}{RGB}{32,74,135}
+\definecolor{codegreen}{RGB}{35,110,55}
+\definecolor{codegray}{RGB}{90,90,90}
+\definecolor{shade}{RGB}{247,247,247}
+
+\hypersetup{
+  colorlinks=true,
+  linkcolor=codeblue,
+  urlcolor=codeblue,
+  citecolor=codeblue,
+  pdftitle={Structural Remeshing and Modal Analysis of the Chang Wing--Propeller Model}
+}
+
+\lstdefinelanguage{Julia}{
+  morekeywords={function,end,for,in,if,else,elseif,return,begin,let,struct,
+    mutable,where,using,import,const,true,false,zeros,ones,eachindex},
+  sensitive=true,
+  morecomment=[l]{\#},
+  morestring=[b]"
+}
+
+\lstset{
+  language=Julia,
+  basicstyle=\ttfamily\small,
+  keywordstyle=\color{codeblue}\bfseries,
+  commentstyle=\color{codegreen},
+  stringstyle=\color{codegray},
+  backgroundcolor=\color{shade},
+  frame=single,
+  rulecolor=\color{black!20},
+  columns=fullflexible,
+  keepspaces=true,
+  breaklines=true,
+  showstringspaces=false,
+  tabsize=4
+}
+
+\newcommand{\mat}[1]{\bm{#1}}
+\newcommand{\vect}[1]{\bm{#1}}
+\newcommand{\Hz}{\,\mathrm{Hz}}
+
+\title{Structural Remeshing and Modal Analysis\\
+of the Chang Wing--Propeller Model}
+\author{Technical verification note}
+\date{2 September 2026}
+
+\begin{document}
+
+\maketitle
+
+\begin{abstract}
+This note documents the structural interpretation and remeshing procedure for
+the Chang wing--propeller model.  Particular attention is given to the
+different coordinate conventions, the distinction between distributed
+stiffness and lumped inertia, the parallel-axis contribution in the nodal
+spatial-inertia matrix, and the source of the failure observed with a
+20-element uniform mesh.  Modal results are presented for the isolated wing
+and for the coupled wing--rigid-pylon--propeller system.  The central result is
+that a 30-element structural mesh is adequate when stiffness is integrated as
+a distributed field and the complete spatial inertia is conservatively
+lumped at target nodal control volumes.  The first five isolated-wing modes
+and the first ten coupled modes are then within approximately \(0.30\%\) of a
+320-element numerical check.
+\end{abstract}
+
+\tableofcontents
+\newpage
+
+\section{Purpose and scope}
+
+The original model-property workbook uses \(X\) in the spanwise direction,
+\(Y\) in the chordwise direction, and \(Z\) in the vertical direction.  The
+present structural implementation uses the nodal degree-of-freedom order
+\begin{equation}
+\vect{q}_n =
+\begin{bmatrix}
+u_s & v_c & w_z & \theta_s & \theta_c & \theta_z
+\end{bmatrix}^{\mathsf T},
+\end{equation}
+where the subscripts denote spanwise, chordwise, and vertical quantities.
+The inertia components in the workbook must therefore first be retained in
+their literal physical axes; any structural-to-aerodynamic basis change must
+be applied only once at the coupling interface.
+
+The objectives of this note are to:
+\begin{enumerate}
+  \item distinguish the distributed stiffness data from the concentrated
+        mass and inertia data;
+  \item define a physically consistent nodal rigid-body mass matrix;
+  \item explain the limitations of direct componentwise interpolation;
+  \item identify why an intermediate remap converged very slowly;
+  \item quantify structural mesh convergence for the isolated and coupled
+        systems; and
+  \item recommend a practical discretization for the time-domain UVLM model.
+\end{enumerate}
+
+The numerical source is \texttt{Model Properties.xlsx}, in particular the
+worksheets \texttt{Wing Construction} and \texttt{Wing stiffness}.  The
+standalone numerical implementation used for the audit is
+\path{validation/conservative_lumped_modal/ConservativeLumpedModal.jl}.
+The same conservative formulation is now also active in the production Chang
+case files.
+
+\section{Interpretation of the workbook data}
+
+\subsection{Flexible beam and rigid inertia elements}
+
+The connectivity in \texttt{Wing Construction} is essential.  Flexible
+elements 20--35 form the spanwise beam.  In contrast, elements 52--67 connect
+each non-root flexible-wing station to an offset node at the same span
+coordinate.  These are rigid mass-attachment elements.  Consequently, the
+16 tabulated mass, center-of-gravity, and inertia records are concentrated
+nodal rigid-body properties in the reference finite-element model; they are
+not 16 distributed flexible-element densities.
+
+There are 17 flexible-wing stations including the fixed root.  The root has
+no independent inertia record, while the other 16 stations carry the
+tabulated inertias.  Their total mass after unit conversion is
+\begin{equation}
+M_{\mathrm{wing}} = 177.32851668\ \mathrm{kg}.
+\end{equation}
+The corresponding spanwise centroid of the 16 discrete source lumps is
+\begin{equation}
+\bar{x}_{\mathrm{source}} = 3.549179\ \mathrm{m}.
+\end{equation}
+
+The source grid is nonuniform.  A uniform 16-element mesh is therefore not
+the same discretization as the 16-element workbook mesh, even though the two
+meshes have the same number of elements.  This distinction is important when
+interpreting the modal tables.
+
+\subsection{Distributed stiffness}
+
+The stiffness entries define a spanwise constitutive field.  For the strain
+ordering used by the beam element, the sectional matrix is
+\begin{equation}
+\mat{C}(x)=
+\begin{bmatrix}
+EA & 0 & 0 & 0\\
+0 & EI_z & EI_{zy} & 0\\
+0 & EI_{zy} & EI_y & 0\\
+0 & 0 & 0 & GJ
+\end{bmatrix}.
+\end{equation}
+The \(EI_{zy}\) term is retained and provides bending cross-coupling.
+
+Several stiffness stations occur in near-equal pairs, for example
+\(\eta=0.04443\) and \(0.04444\).  These pairs represent sharp property
+changes rather than a broad smooth transition.  This makes a single
+element-center sample sensitive to the alignment between a uniform target
+mesh and the stiffness breakpoints.
+
+\section{Structural stiffness assembly}
+
+\subsection{Element-center approximation}
+
+The current production mapping evaluates the interpolated stiffness at the
+center of each target element,
+\begin{equation}
+\mat{C}_e \approx \mat{C}(x_{e,c}),
+\end{equation}
+and then treats it as constant over the element.  This is equivalent to
+approximating
+\begin{equation}
+\mat{K}_e = \int_{x_e}^{x_{e+1}}
+\mat{B}(x)^{\mathsf T}\mat{C}(x)\mat{B}(x)\,dx
+\end{equation}
+with a property value taken at one point.
+
+This approximation is appropriate when an element lies inside a constant or
+slowly varying stiffness region.  It is less reliable when an element spans a
+sharp property boundary.  As the number of uniform elements changes, a
+boundary can move from one side of an element center to the other.  The modal
+sequence can therefore oscillate with mesh count rather than converge
+monotonically.
+
+\subsection{Breakpoint-aware stiffness integration}
+
+The mesh-independent treatment used in this audit is:
+\begin{enumerate}
+  \item determine every workbook stiffness breakpoint lying inside the
+        target element;
+  \item split the element integration interval at those breakpoints;
+  \item evaluate the interpolated complete matrix \(\mat C(x)\) at Gauss
+        points within each smooth subinterval; and
+  \item accumulate \(\mat B^{\mathsf T}\mat C\mat B\) using the physical
+        subinterval Jacobian.
+\end{enumerate}
+
+Thus the structural mesh need not be aligned with the workbook stiffness
+stations.  At 30 elements, center sampling happens to agree almost exactly
+with breakpoint-aware integration.  At 20 and 32 elements, center sampling
+can change individual modes by approximately \(1\%\), showing that the
+apparent oscillation is a quadrature/alignment effect rather than a need for
+hundreds of beam elements.
+
+\section{Lumped inertia and spatial-inertia consistency}
+
+\subsection{Source tributary lengths}
+
+Let the source nodes be \(x_i\).  The nodal tributary lengths used in the
+original interpolation are
+\begin{align}
+L_1 &= \frac{x_2-x_1}{2},\\
+L_i &= \frac{(x_i-x_{i-1})+(x_{i+1}-x_i)}{2},
+       \qquad 2\le i\le N,\\
+L_{N+1} &= \frac{x_{N+1}-x_N}{2}.
+\end{align}
+For an integrated nodal quantity \(a_i\), the reconstructed nodal density is
+\begin{equation}
+\rho_{a,i}=\frac{a_i}{L_i}.
+\end{equation}
+
+The original code interpolated the density at each new node and multiplied it
+by the target tributary length:
+\begin{equation}
+a_j^{\mathrm{new}} =
+L_j^{\mathrm{new}}\,
+\mathcal{I}\!\left[\rho_a\right](x_j^{\mathrm{new}}),
+\end{equation}
+where \(\mathcal I\) denotes one-dimensional linear interpolation.
+
+\begin{lstlisting}[caption={Original density-interpolation pattern.}]
+rho_M_orig = M_orig_nodes ./ L_node_orig
+rho_M_new  = interpolate_1d(X_nodes_orig, rho_M_orig, X_nodes_new)
+m_node_vec = rho_M_new .* L_node_new
+\end{lstlisting}
+
+This is a reasonable lumped quadrature and exactly reproduces each source
+value when the target nodes equal the source nodes.  It is not, however,
+exactly conservative on a different grid.  At 30 uniform elements it gives
+\(175.41043878\ \mathrm{kg}\), which is \(1.91807790\ \mathrm{kg}\), or
+\(1.082\%\), below the source mass.
+
+\subsection{Why mass, CG, and inertia cannot be remapped independently}
+
+Let \(m\) be a nodal mass, \(\vect\eta\) the vector from the beam reference
+axis to the mass center, and \(\mat J_{CG}\) the inertia tensor about the
+center of mass.  The first moment is
+\begin{equation}
+\vect h = m\vect\eta.
+\end{equation}
+If \(m\), \(\vect\eta\), and \(\mat J_{CG}\) are interpolated separately, the
+interpolated product generally does not satisfy
+\begin{equation}
+\mathcal I[m\vect\eta]
+= \mathcal I[m]\,\mathcal I[\vect\eta].
+\end{equation}
+The same problem appears more strongly in the quadratic parallel-axis terms.
+Therefore, independently interpolated CG and inertia arrays do not generally
+describe the same integrated rigid body.
+
+The correct conserved quantities are the mass, the three first moments, and
+the complete inertia about a common reference point.  These are naturally
+combined in one spatial-inertia matrix.
+
+\subsection{Complete \(6\times6\) spatial inertia}
+
+Define the skew-symmetric cross-product matrix
+\begin{equation}
+\widetilde{\vect\eta}=
+\begin{bmatrix}
+0 & -\eta_z & \eta_y\\
+\eta_z & 0 & -\eta_x\\
+-\eta_y & \eta_x & 0
+\end{bmatrix}.
+\end{equation}
+For nodal generalized velocity
+
+\begin{equation}
+\vect v_n =
+\begin{bmatrix}
+\dot{\vect u}_n\\ \dot{\vect\theta}_n
+\end{bmatrix},
+\end{equation}
+the rigid-body kinetic energy is
+\begin{equation}
+T_n=\frac{1}{2}\vect v_n^{\mathsf T}\mat H_n\vect v_n,
+\end{equation}
+where
+\begin{equation}
+\boxed{
+\mat H_n=
+\begin{bmatrix}
+m\mat I_3 & -m\widetilde{\vect\eta}\\
+m\widetilde{\vect\eta} &
+\mat J_{CG}-m\widetilde{\vect\eta}^{2}
+\end{bmatrix}.}
+\label{eq:spatial-inertia}
+\end{equation}
+Because
+\begin{equation}
+-m\widetilde{\vect\eta}^{2}
+=m\left[(\vect\eta^{\mathsf T}\vect\eta)\mat I_3
+-\vect\eta\vect\eta^{\mathsf T}\right],
+\end{equation}
+the lower-right block in Equation~\eqref{eq:spatial-inertia} is exactly the
+parallel-axis shift from the CG to the beam node.
+
+The Schur complement of the translational block \(m\mat I_3\) is
+\(\mat J_{CG}\).  Thus, for \(m>0\), a physically positive-definite
+\(\mat J_{CG}\) produces a physically valid spatial-inertia block.
+
+All products of inertia, \(I_{xy}\), \(I_{xz}\), and \(I_{yz}\), are retained
+in \(\mat J_{CG}\).  No diagonal-only approximation is made.
+
+\subsection{Correction to the displayed Julia block}
+
+If the supplied inertia is about the CG, the following lower-right block is
+incomplete:
+
+\begin{lstlisting}
+ms_W = [m_val * I3              -m_val * chang_tilde(eta);
+        m_val * chang_tilde(eta)  inertia_matrix]
+\end{lstlisting}
+
+The consistent implementation is:
+
+\begin{lstlisting}[caption={Nodal spatial inertia when the input inertia is about the CG.}]
+S = chang_tilde(eta)
+J_at_node = inertia_matrix - m_val * S * S
+
+ms_W = [m_val * I3   -m_val * S;
+        m_val * S     J_at_node]
+\end{lstlisting}
+
+The current \texttt{chang\_point\_mass\_matrix} helper applies this
+parallel-axis term when
+\texttt{inertia\_reference = :center\_of\_mass}.
+
+The modal consequence is substantial.  On the source mesh, treating the
+spreadsheet inertia as CG inertia and applying the parallel-axis term gives a
+first torsional mode of \(42.87465\Hz\).  Inserting the same CG inertia
+directly into the lower-right block gives \(50.14898\Hz\).  The latter does
+not reproduce the reference torsional behavior.
+
+\section{Comparison of remapping strategies}
+
+\subsection{Point-sampled density interpolation}
+
+The original method samples each reconstructed density at the target nodes
+and applies target tributary weights.  Its advantages are simplicity, a
+positive mass matrix for the tested meshes, and exact reproduction when the
+source grid itself is requested.  Its disadvantages are quadrature error and
+the lack of exact conservation on an arbitrary target mesh.
+
+The method becomes more consistent if complete spatial blocks, rather than
+CG and inertia components independently, are interpolated.  Even then,
+point-sampled quadrature at 30 elements retains the \(1.082\%\) total-inertia
+error reported above.
+
+\subsection{Independent signed-total rescaling}
+
+An attempted correction rescales each interpolated scalar field independently:
+\begin{equation}
+a_j^{\mathrm{scaled}} = a_j^{\mathrm{raw}}
+\frac{\sum_i a_i^{\mathrm{source}}}
+     {\sum_j a_j^{\mathrm{raw}}}.
+\end{equation}
+This is unsafe for signed first moments and products of inertia.  Their sums
+can be small because positive and negative contributions cancel.  A modest
+quadrature error in the denominator can therefore create a very large scale
+factor.
+
+At 20 elements the observed consequences are:
+\begin{itemize}
+  \item maximum recovered CG offset: \(4.146195\ \mathrm{m}\);
+  \item minimum eigenvalue of a recovered CG inertia:
+        \(-55.46860\ \mathrm{kg\,m^2}\); and
+  \item minimum eigenvalue of the global free mass matrix:
+        \(-18.74893\).
+\end{itemize}
+The generalized eigenvalue solve consequently raises a
+\texttt{PosDefException}.  This failure occurs before Generalized-
+\(\alpha\) time integration and is not caused by the GA parameters or
+coupling relaxation.
+
+\subsection{Element-integrated density lumped at the outer node}
+
+An intermediate conservative method evaluated
+\begin{equation}
+\mat H_{j+1}=\int_{x_j}^{x_{j+1}}\mat\rho_H(x)\,dx
+\end{equation}
+and placed the entire integral at the outer node \(x_{j+1}\).  Although it
+conserves the sum of the spatial-inertia blocks and preserves positive
+definiteness, it shifts each element's inertia approximately one-half element
+toward the tip.
+
+The effect can be seen in the mass centroid:
+\begin{center}
+\begin{tabular}{lcc}
+\toprule
+Representation & Total mass (kg) & Spanwise centroid (m)\\
+\midrule
+Source 16 discrete lumps & 177.32852 & 3.54918\\
+Outer-node remap, 16 elements & 177.32852 & 3.78647\\
+Outer-node remap, 20 elements & 177.32852 & 3.73939\\
+Outer-node remap, 30 elements & 177.32852 & 3.67689\\
+Control-volume remap, 30 elements & 177.32852 & 3.55564\\
+\bottomrule
+\end{tabular}
+\end{center}
+
+This explains the slowly increasing frequency sequence
+\(6.22470, 6.30302, 6.35567, 6.40404,\ldots\).  That sequence is not produced
+by the original point-sampled method.  It is a first-order mass-location bias
+created by outer-node lumping.
+
+\subsection{Conservative control-volume spatial remap}
+
+The corrected experimental method first constructs the complete source
+spatial blocks and divides them by their source tributary lengths:
+\begin{equation}
+\mat\rho_{H,i}=\frac{\mat H_i}{L_i}.
+\end{equation}
+The complete matrix density is linearly interpolated between source stations.
+For target node \(j\), define its control-volume boundaries by adjacent
+element midpoints,
+\begin{equation}
+x_{j,-}=\frac{x_{j-1}+x_j}{2}, \qquad
+x_{j,+}=\frac{x_j+x_{j+1}}{2},
+\end{equation}
+with the physical root and tip used as the end boundaries.  The target lump
+is
+\begin{equation}
+\mat H_j^{\mathrm{new}} =
+\int_{x_{j,-}}^{x_{j,+}}\mat\rho_H(x)\,dx.
+\end{equation}
+The integral is evaluated exactly over each overlap with a source interpolation
+interval.  All weights are nonnegative, so a nonnegative combination of
+valid source blocks remains valid.  The complete spatial-inertia sum is
+conserved to machine precision.
+
+The small control-volume contribution associated with the fixed root is
+transferred to the first free node.  This retains the complete reconstructed
+mass in the free structural model and avoids a massless free node.  The fixed
+root itself has no dynamic degree of freedom.
+
+\subsection{An unavoidable modeling distinction}
+
+The direct \texttt{source\_16} model is a discrete set of point inertias.  A
+uniform refined model in which every free node has a positive lumped inertia
+is necessarily a distributed approximation.  These requirements cannot all
+be satisfied simultaneously without choosing a continuous reconstruction of
+the source data:
+\begin{itemize}
+  \item retaining only the exact 16 point inertias preserves the original
+        discrete model, but added target nodes can be massless;
+  \item spreading the inertias gives every free node a valid mass block, but
+        defines a continuous mass distribution that is not identical to the
+        original point-mass model at high spatial frequencies.
+\end{itemize}
+
+For this reason, the refined uniform-mesh frequencies should converge to the
+chosen reconstructed distribution, not exactly to every high-frequency mode
+of the coarse 16-lump model.  The low modes remain very close because their
+mode shapes vary slowly over the source station spacing.
+
+For transparency, if the control-volume remap is applied on the original
+nonuniform source grid instead of using the source blocks directly, the first
+frequency is \(6.61462\Hz\), versus \(6.62627\Hz\) for the direct source
+lumps.  The report therefore labels the direct discrete model and the
+continuous uniform remesh as distinct representations.
+
+\section{Modal analysis procedure}
+
+\subsection{Isolated wing}
+
+After assembly and elimination of the six fixed-root degrees of freedom, the
+undamped modes solve
+\begin{equation}
+\mat K\vect\phi_r = \omega_r^2\mat M\vect\phi_r,
+\qquad
+f_r=\frac{\omega_r}{2\pi}.
+\end{equation}
+Both \(\mat M\) and \(\mat K\) are symmetrized before the generalized
+eigenvalue solution.  The mass matrix must be positive definite after root
+elimination.  Modes are classified from the relative modal content in the
+out-of-plane, in-plane, torsional, and axial degree-of-freedom groups.
+
+\subsection{Coupled wing--pylon--propeller system}
+
+The structural comparison adds two rigid-pylon generalized coordinates,
+pitch and yaw.  Their uncoupled nominal frequency is \(7.97\Hz\), with
+\begin{equation}
+\mat K_p =
+\begin{bmatrix}
+19220 & 0\\ 0 & 18916
+\end{bmatrix},
+\qquad
+\mat M_p =
+\begin{bmatrix}
+I_{n\theta} & 0\\ 0 & I_{n\psi}
+\end{bmatrix},
+\end{equation}
+where \(I_{n\theta}\) and \(I_{n\psi}\) are selected to produce the nominal
+pitch and yaw frequencies.  The pylon and propeller translational mass,
+first moments, root rotational inertias, and pitch/yaw cross-inertias are
+included in the coupled mass matrix.
+
+The attachment is maintained at the exact span fraction
+\(\eta_p=0.83\) by work-conjugate interpolation between adjacent structural
+nodes.  This removes nearest-node snapping from the structural mesh study.
+The modal table is undamped and non-gyroscopic; aerodynamic and gyroscopic
+effects belong to the subsequent time-domain analysis.
+
+\section{Numerical results}
+
+\subsection{Thirty-element remap comparison}
+
+\begin{table}[htbp]
+\centering
+\caption{Comparison of three interpretations on a 30-element uniform mesh.}
+\resizebox{\textwidth}{!}{%
+\begin{tabular}{lrrrrrrrr}
+\toprule
+Method & Mass (kg) & Spatial error & min eig. \(M\) & OOP1 & IP1 & OOP2 & T1 & OOP3\\
+\midrule
+Point-sampled complete density
+ & 175.41044 & \(1.082\times10^{-2}\) & 0.042964
+ & 6.63808 & 20.81901 & 36.45316 & 42.89074 & 93.40783\\
+Control-volume complete density
+ & 177.32852 & \(1.60\times10^{-16}\) & 0.049233
+ & 6.63049 & 20.79605 & 36.47010 & 42.84774 & 93.52212\\
+Preceding-element interpretation
+ & 177.32852 & \(8.01\times10^{-17}\) & 0.042964
+ & 6.97171 & 21.85155 & 37.48588 & 44.24148 & 94.78981\\
+\bottomrule
+\end{tabular}}
+\end{table}
+
+The preceding-element interpretation treats each inertia record as the
+integral of the preceding flexible spanwise element.  It is included only as
+a sensitivity calculation and conflicts with the rigid-element connectivity
+in the workbook.
+
+\subsection{Isolated-wing natural frequencies}
+
+\begin{table}[htbp]
+\centering
+\caption{Selected isolated-wing natural frequencies in Hz.}
+\begin{tabular}{lrrrrr}
+\toprule
+Case & OOP1 & IP1 & OOP2 & T1 & OOP3\\
+\midrule
+Source 16, direct lumps & 6.62627 & 20.78295 & 36.38983 & 42.87465 & 92.42593\\
+Uniform 16 & 6.63403 & 20.80353 & 36.40711 & 42.87282 & 92.79187\\
+Uniform 20 & 6.63615 & 20.81031 & 36.46820 & 42.90134 & 93.25806\\
+Uniform 24 & 6.63614 & 20.81087 & 36.48578 & 42.89387 & 93.40853\\
+Uniform 30 & 6.63049 & 20.79605 & 36.47010 & 42.84774 & 93.52212\\
+Uniform 40 & 6.63621 & 20.81251 & 36.52306 & 42.90235 & 93.69693\\
+Uniform 80 & 6.63582 & 20.81170 & 36.52569 & 42.88710 & 93.78645\\
+Uniform 160 & 6.63476 & 20.80894 & 36.52376 & 42.87981 & 93.80210\\
+Uniform 320 & 6.63440 & 20.80793 & 36.52059 & 42.87411 & 93.80168\\
+Published reference & 6.63000 & 20.93000 & 36.66000 & 43.50000 & 93.31000\\
+\bottomrule
+\end{tabular}
+\end{table}
+
+For the 30-element model, the differences from the published values are
+\begin{center}
+\begin{tabular}{lrrrrr}
+\toprule
+Mode & OOP1 & IP1 & OOP2 & T1 & OOP3\\
+\midrule
+Difference (\%) & \(+0.007\) & \(-0.640\) & \(-0.518\) & \(-1.499\) & \(+0.227\)\\
+\bottomrule
+\end{tabular}
+\end{center}
+The torsional difference does not disappear with structural refinement: the
+320-element result remains \(1.439\%\) below the published value.  It is
+therefore associated with the adopted model data or modeling assumptions,
+not insufficient structural mesh resolution.
+
+\subsection{Coupled natural frequencies}
+
+\begin{table}[htbp]
+\centering
+\caption{First ten undamped coupled frequencies in Hz.}
+\resizebox{\textwidth}{!}{%
+\begin{tabular}{lrrrrrrrrrr}
+\toprule
+Case & $f_1$ & $f_2$ & $f_3$ & $f_4$ & $f_5$ & $f_6$ & $f_7$ & $f_8$ & $f_9$ & $f_{10}$\\
+\midrule
+Source 16
+& 5.90034 & 7.95783 & 8.52744 & 19.38857 & 35.10018
+& 39.27353 & 91.01576 & 108.18211 & 114.09417 & 155.65989\\
+Uniform 30
+& 5.90287 & 7.95783 & 8.52882 & 19.39934 & 35.15803
+& 39.27965 & 92.09443 & 108.36857 & 114.52226 & 156.74651\\
+Uniform 320
+& 5.90521 & 7.95779 & 8.52978 & 19.40920 & 35.18707
+& 39.31663 & 92.37101 & 108.49956 & 114.60404 & 156.85025\\
+\bottomrule
+\end{tabular}}
+\end{table}
+
+The \(7.96\Hz\) pair is dominated by the rigid-pylon pitch/yaw coordinates.
+The frequencies near the isolated-wing bending modes are shifted by the
+pylon and propeller generalized mass and their coupling with the wing.
+
+\subsection{Structural mesh convergence}
+
+Table~\ref{tab:convergence} reports, for each uniform mesh, the largest
+absolute relative difference among the first five isolated-wing frequencies
+and among the first ten coupled frequencies, using the 320-element model as a
+numerical check.
+
+\begin{table}[htbp]
+\centering
+\caption{Maximum modal differences relative to the 320-element uniform mesh.}
+\label{tab:convergence}
+\begin{tabular}{rrr}
+\toprule
+Elements & Wing modes (\%) & Coupled modes (\%)\\
+\midrule
+16  & 1.0765 & 0.9689\\
+20  & 0.5795 & 0.4805\\
+24  & 0.4191 & 0.4142\\
+30  & 0.2980 & 0.2994\\
+32  & 0.1976 & 0.1386\\
+36  & 0.1779 & 0.1670\\
+40  & 0.1117 & 0.0894\\
+48  & 0.0837 & 0.0660\\
+60  & 0.0752 & 0.0685\\
+80  & 0.0303 & 0.0409\\
+120 & 0.0226 & 0.0182\\
+160 & 0.0133 & 0.0174\\
+240 & 0.0127 & 0.0157\\
+320 & 0.0000 & 0.0000\\
+\bottomrule
+\end{tabular}
+\end{table}
+
+The convergence is not perfectly monotonic because the source distribution
+contains sharp changes and the target grids do not all place nodes at the
+same locations.  Nevertheless, the error envelope decreases rapidly.  A
+30-element mesh is already below \(0.30\%\) for both comparisons.
+
+\section{Recommended implementation}
+
+For the current UVLM aeroelastic calculations, the recommended structural
+procedure is:
+\begin{enumerate}
+  \item retain the workbook inertia axes and signs in their original physical
+        coordinate system;
+  \item convert every source mass, CG, and CG inertia tensor into the complete
+        spatial block in Equation~\eqref{eq:spatial-inertia};
+  \item divide complete blocks by the source tributary lengths and interpolate
+        the matrix density, rather than independently scaling signed scalar
+        components;
+  \item integrate the density over target nodal control volumes and lump it at
+        those nodes;
+  \item verify total mass and the sum of the complete spatial-inertia matrix;
+  \item require every free nodal block and the assembled free mass matrix to
+        be positive definite;
+  \item integrate \(\mat B^{\mathsf T}\mat C(x)\mat B\) across every target
+        element, splitting at all stiffness breakpoints; and
+  \item attach the pylon at its exact physical span location using
+        work-conjugate interpolation, rather than snapping it to the nearest
+        structural node.
+\end{enumerate}
+
+The following checks should be executed before any time-domain analysis:
+\begin{align}
+\epsilon_H &=
+\frac{\left\|\sum_j\mat H_j^{\mathrm{new}}
+-\sum_i\mat H_i^{\mathrm{source}}\right\|_\infty}
+{\left\|\sum_i\mat H_i^{\mathrm{source}}\right\|_\infty},\\
+\lambda_{\min}(\mat H_j) &> 0
+\quad\text{for every free node},\\
+\lambda_{\min}(\mat M_{\mathrm{free}}) &> 0.
+\end{align}
+For the 30-element conservative model,
+\(\epsilon_H=1.60\times10^{-16}\) and
+\(\lambda_{\min}(\mat M_{\mathrm{free}})=0.049233>0\).
+
+\subsection{Production-code integration}
+
+The interactive case defaults to 20 spanwise elements in
+\path{chang_case.jl}; the published-frequency validation explicitly uses 30.
+The production implementation is divided as follows:
+\begin{itemize}
+  \item \path{src/chang_model_parameters.jl} constructs and conservatively remaps
+        the complete nodal spatial-inertia blocks;
+  \item \path{src/chang_structural_matrices.jl} performs breakpoint-aware
+        stiffness integration and applies the exact attachment operator;
+  \item \path{src/chang_structural_model.jl} selects these corrected mass and
+        stiffness paths for the active center-of-mass interpretation;
+  \item \path{src/chang_uvlm_coupling.jl} uses the same interpolation weights for
+        propeller motion and for the transpose load map; and
+  \item \path{run_chang_linear_aeroelastic.jl} checks positive definiteness
+        and matrix symmetry before beginning UVLM time marching.
+\end{itemize}
+
+At \(\eta_p=0.83\), the 30-element mesh brackets the attachment with nodes 25
+and 26 and weights 0.1 and 0.9.  The resulting physical position is exactly
+\(6.225\ \mathrm{m}\), independent of nearest-node rounding.
+
+\section{Conclusions}
+
+\begin{enumerate}
+  \item The original idea of dividing nodal integrated properties by source
+        tributary lengths and reconstructing a spanwise density is physically
+        reasonable.
+  \item The old frequency sequence beginning at \(6.22470\Hz\) was caused by
+        lumping each target-element integral at its outer node.  It is not a
+        valid indication that 160 elements are required.
+  \item Mass, first moments, and rotational inertia must be remapped as one
+        complete spatial-inertia object.  Independent scaling of signed
+        components caused the indefinite 20-element mass matrix.
+  \item The parallel-axis contribution is mandatory when the tabulated
+        inertia is about the CG.  Omitting it raises the calculated first
+        torsional frequency from approximately \(42.87\Hz\) to
+        \(50.15\Hz\).
+  \item Breakpoint-aware stiffness integration avoids mesh-alignment
+        oscillations caused by the sharply stepped stiffness distribution.
+  \item With the corrected formulation, 30 structural elements provide a
+        practical and accurate mesh.  Using 160 elements is unnecessary for
+        the present structural modal accuracy target.
+  \item Exact preservation of the coarse 16-point-mass model and positive
+        inertia at every node of an arbitrarily refined mesh are different
+        modeling objectives.  The continuous reconstruction must be stated
+        explicitly when reporting refined-mesh results.
+\end{enumerate}
+
+\appendix
+
+\section{Reproduction files}
+
+The numerical results in this note can be regenerated from the repository
+root with:
+
+\begin{lstlisting}[language={},caption={PowerShell command for the modal audit.}]
+julia --project=lib/WingPropellerUVLM `
+  lib/WingPropellerUVLM/examples/chang_linear_aeroelastic/validation/conservative_lumped_modal/run_modal_comparison.jl
+\end{lstlisting}
+
+The principal files are:
+\begin{itemize}
+  \item \path{validation/conservative_lumped_modal/ConservativeLumpedModal.jl};
+  \item \path{validation/conservative_lumped_modal/run_modal_comparison.jl};
+  \item \path{validation/conservative_lumped_modal/output/modal_frequency_comparison.csv};
+  \item \path{validation/conservative_lumped_modal/output/structural_mesh_convergence.csv};
+  \item \path{validation/conservative_lumped_modal/output/mass_matrix_audit.csv}; and
+  \item \path{validation/conservative_lumped_modal/output/remap_method_comparison_30.csv}.
+\end{itemize}
+
+\end{document}

@@ -391,6 +391,7 @@ function save_tip_time_histories(result;
 
     figure = Plots.plot(bendingPlot,twistPlot; layout=(2,1),size=(1000,900))
     Plots.savefig(figure,output_path)
+    display(figure)
     println("Wingtip time histories written to $(abspath(output_path))")
     return abspath(output_path)
 end

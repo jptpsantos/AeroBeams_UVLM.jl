@@ -1,0 +1,5 @@
+angle_deg,speed_mps,variant,dt_s,wake_rows,wake_chords,status,reason,growth_per_s,frequency_hz,mode_ratio_real,mode_ratio_imag,trim_bending_m,trim_twist_deg,trim_strain_ue,background_bending_m,background_twist_deg
+5.0,45.0,coarse,0.0004,36,6.555360423427725,unresolved,frequency or bending/twist mode signature changed,0.2054251319518976,31.168915794802807,0.0005309867652551402,-0.0002419058576310085,0.11642704415217923,1.5564194134629326,-1308.3199508497996,7.929641565834206e-10,1.3092096013165422e-6
+5.0,45.0,medium,0.0002,72,6.555360423427725,unresolved,modal response below signal-to-noise threshold,-1.1417503382264391,32.250705549325595,0.00026848339970769297,-8.179707523729112e-5,0.10460024768388204,1.644622452339087,-1169.3299179335465,2.1387880385378385e-9,1.5840241139643291e-6
+5.0,45.0,fine,0.0001,143,6.5098370871539215,failed,see case failure.txt,NaN,NaN,NaN,NaN,NaN,NaN,NaN,NaN,NaN
+5.0,45.0,long_wake,0.0001,286,13.019674174307843,failed,see case failure.txt,NaN,NaN,NaN,NaN,NaN,NaN,NaN,NaN,NaN

@@ -296,7 +296,8 @@ function influence_coefficients!(AIC,surfaces::AbstractVector{<:AbstractMatrix};
     trailing_vortices=fill(true,length(surfaces)),
     xhat=SVector(1,0,0),
     interaction_id=surface_id,
-    interaction::Bool=true) # <--- [NEW] Argument
+    interaction::Bool=true,
+    threaded::Bool=true)
 
     # number of surfaces
     nsurf = length(surfaces)
@@ -338,7 +339,7 @@ function influence_coefficients!(AIC,surfaces::AbstractVector{<:AbstractMatrix};
                     symmetric=symmetric[j],
                     wake_shedding_locations=wake_shedding_locations[j],
                     trailing_vortices=trailing_vortices[j],
-                    xhat=xhat)
+                    xhat=xhat,threaded)
             end
             # --------------------------------------
 
@@ -372,7 +373,8 @@ function influence_coefficients!(AIC,receiving,sending;
     symmetric=false,
     wake_shedding_locations=nothing,
     trailing_vortices=true,
-    xhat=SVector(1,0,0))
+    xhat=SVector(1,0,0),
+    threaded::Bool=true)
 
     # get sending surface dimensions
     nc,ns = size(sending)
@@ -381,8 +383,8 @@ function influence_coefficients!(AIC,receiving,sending;
     # determine control flow parameters based on inputs
     reuseEdges = !finite_core
 
-    # loop over receiving panels
-    for i in eachindex(receiving)
+    # Each receiving panel writes a separate AIC row in the original order.
+    function assemble_row!(i)
 
         # control point location
         rcp = controlpoint(receiving[i])
@@ -640,8 +642,18 @@ function influence_coefficients!(AIC,receiving,sending;
                 end
             end
         end
+        return nothing
     end
 
+    if threaded && Threads.nthreads() > 1 && length(receiving) >= Threads.nthreads()
+        Threads.@threads :dynamic for i in eachindex(receiving)
+            assemble_row!(i)
+        end
+    else
+        for i in eachindex(receiving)
+            assemble_row!(i)
+        end
+    end
     return AIC
 end
 
@@ -1110,6 +1122,16 @@ function uniform_core_size(surface,nc,ns)
     return true
 end
 
+# These properties depend on the sending wake, not on the receiving point.
+function active_wake_properties(wakes,nwake)
+    return map(eachindex(nwake)) do j
+        rows = nwake[j]
+        active = rows > 0 && any(p -> !iszero(circulation_strength(p)),view(wakes[j],1:rows,:))
+        uniform = !active || uniform_core_size(wakes[j],rows,size(wakes[j],2))
+        (; active,uniform)
+    end
+end
+
 """
     induced_velocity(rcp, surface, Γ = nothing, dΓ = nothing; kwargs...)
 
@@ -1151,6 +1173,7 @@ the circulation strengths provided in Γ.
 function induced_velocity(rcp,surface,Γ=nothing,dΓ=nothing;
     nc=size(surface,1),ns=size(surface,2),
     symmetric=false,finite_core=true,
+    uniform_cores=nothing,
     wake_shedding_locations=nothing,
     trailing_vortices=true,xhat=SVector(1,0,0),
     skip_leading_edge=false,skip_inside_edges=false,skip_trailing_edge=false,
@@ -1195,7 +1218,8 @@ function induced_velocity(rcp,surface,Γ=nothing,dΓ=nothing;
 
     # we can reuse edges if the finite core model is disabled or if all panels have
     # the same core size (an edge shared by two panels is then identical for both)
-    reuseEdges = !finite_core || uniform_core_size(surface,nc,ns)
+    reuseEdges = !finite_core ||
+        (isnothing(uniform_cores) ? uniform_core_size(surface,nc,ns) : uniform_cores)
 
     # when skipping vortices, keep their reflections unless `rcp` lies on the symmetry plane
     keepReflected = not_on_symmetry_plane(rcp)

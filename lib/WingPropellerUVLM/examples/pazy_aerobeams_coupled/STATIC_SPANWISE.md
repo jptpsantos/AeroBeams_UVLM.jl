@@ -229,6 +229,7 @@ has a separate subfolder containing only that angle's cases. For example:
 ```text
 output/static_spanwise_cn_cm/
     aoa3deg/
+        spanwise_cn_alpha_clean.csv
         spanwise_cn_alpha.csv
         spanwise_cn_alpha_perturbations.csv
         spanwise_cm.csv
@@ -246,10 +247,18 @@ and -2.5 degrees gives `aoam2p5deg`. Velocity and sweep cases at the same
 incidence share that incidence's folder; case numbering starts at 1 within
 each folder and matches its CSV rows and convergence filenames.
 
+- `spanwise_cn_alpha_clean.csv` gives the flight condition and span station,
+  local incidence, cn, the secant and fixed-shape local slope, the perturbation
+  step and local incidence change, and cm about both references. Blank cells
+  indicate unavailable results. Use `:fixed_shape` to populate the perturbation
+  fields and `:local_ratio` to populate the secant.
 - `spanwise_cn_alpha.csv`: one row per case and spanwise node, including cn,
   `alpha_local_deg`, `alpha_local_rad`, `cn_alpha_local_per_rad` and
   `cn_alpha_local_valid`, velocity, prescribed incidence, sweep, reference
-  stations, deformed coordinates and wingtip displacement/twist. Earlier
+  stations, deformed coordinates and wingtip displacement/twist. The
+  `*_deformed_UVLM_m` coordinates locate the physical chord midpoint in the
+  UVLM frame. For undeformed S0 with the native spar at 46.53% chord, the
+  midpoint is 3.43 mm downstream of that axis. Earlier
   derivative columns are retained; they are NaN unless explicitly requested.
   `alpha_step_deg` is NaN when no derivative mode is requested.
 - `spanwise_cm.csv` has the same case and station keys, both moment

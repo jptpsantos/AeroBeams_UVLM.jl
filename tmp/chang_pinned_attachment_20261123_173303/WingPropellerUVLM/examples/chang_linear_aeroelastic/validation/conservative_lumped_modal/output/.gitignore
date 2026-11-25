@@ -1,0 +1,10 @@
+*
+!.gitignore
+!mass_matrix_audit.csv
+!modal_analysis_report.md
+!modal_frequency_comparison.csv
+!remap_method_comparison_30.csv
+!structural_mesh_convergence.csv
+!aeroelastic_20_trim_impulse/
+aeroelastic_20_trim_impulse/*
+!aeroelastic_20_trim_impulse/conservative_lumped_20_trim_impulse_summary.txt
