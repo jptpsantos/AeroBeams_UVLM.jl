@@ -1,0 +1,759 @@
+PWD /Users/luiz/.julia/dev/AeroBeams/papers/2027_Pazy
+INPUT /Users/luiz/Library/Application Support/MiKTeX/texmfs/data/miktex/data/le/pdftex/pdflatex.fmt
+INPUT /Users/luiz/.julia/dev/AeroBeams/papers/2027_Pazy/main.tex
+OUTPUT main.log
+INPUT ./new-aiaa.cls
+INPUT new-aiaa.cls
+INPUT /Library/Application Support/MiKTeX/texmfs/install/tex/latex/base/article.cls
+INPUT /Library/Application Support/MiKTeX/texmfs/install/tex/latex/base/article.cls
+INPUT /Library/Application Support/MiKTeX/texmfs/install/tex/latex/base/size10.clo
+INPUT /Library/Application Support/MiKTeX/texmfs/install/tex/latex/base/size10.clo
+INPUT /Library/Application Support/MiKTeX/texmfs/install/tex/latex/base/size10.clo
+INPUT /Library/Application Support/MiKTeX/texmfs/install/tex/latex/base/fontenc.sty
+INPUT /Library/Application Support/MiKTeX/texmfs/install/tex/latex/base/fontenc.sty
+INPUT /Library/Application Support/MiKTeX/texmfs/install/fonts/tfm/jknappen/ec/ecrm1000.tfm
+INPUT /Library/Application Support/MiKTeX/texmfs/install/tex/latex/base/inputenc.sty
+INPUT /Library/Application Support/MiKTeX/texmfs/install/tex/latex/base/inputenc.sty
+INPUT /Users/luiz/Library/Application Support/MiKTeX/texmfs/install/tex/latex/microtype/microtype.sty
+INPUT /Users/luiz/Library/Application Support/MiKTeX/texmfs/install/tex/latex/microtype/microtype.sty
+INPUT /Library/Application Support/MiKTeX/texmfs/install/tex/latex/graphics/keyval.sty
+INPUT /Library/Application Support/MiKTeX/texmfs/install/tex/latex/graphics/keyval.sty
+INPUT /Library/Application Support/MiKTeX/texmfs/install/tex/latex/etoolbox/etoolbox.sty
+INPUT /Library/Application Support/MiKTeX/texmfs/install/tex/latex/etoolbox/etoolbox.sty
+INPUT /Users/luiz/Library/Application Support/MiKTeX/texmfs/install/tex/latex/microtype/microtype-pdftex.def
+INPUT /Users/luiz/Library/Application Support/MiKTeX/texmfs/install/tex/latex/microtype/microtype-pdftex.def
+INPUT /Users/luiz/Library/Application Support/MiKTeX/texmfs/install/tex/latex/microtype/microtype-pdftex.def
+INPUT /Users/luiz/Library/Application Support/MiKTeX/texmfs/install/tex/latex/microtype/microtype.cfg
+INPUT /Users/luiz/Library/Application Support/MiKTeX/texmfs/install/tex/latex/microtype/microtype.cfg
+INPUT /Users/luiz/Library/Application Support/MiKTeX/texmfs/install/tex/latex/microtype/microtype.cfg
+INPUT /Users/luiz/Library/Application Support/MiKTeX/texmfs/install/tex/latex/newtx/newtxtext.sty
+INPUT /Users/luiz/Library/Application Support/MiKTeX/texmfs/install/tex/latex/newtx/newtxtext.sty
+INPUT /Users/luiz/Library/Application Support/MiKTeX/texmfs/install/tex/latex/xpatch/xpatch.sty
+INPUT /Users/luiz/Library/Application Support/MiKTeX/texmfs/install/tex/latex/xpatch/xpatch.sty
+INPUT /Library/Application Support/MiKTeX/texmfs/install/tex/latex/l3kernel/expl3.sty
+INPUT /Library/Application Support/MiKTeX/texmfs/install/tex/latex/l3kernel/expl3.sty
+INPUT /Library/Application Support/MiKTeX/texmfs/install/tex/latex/l3backend/l3backend-pdftex.def
+INPUT /Library/Application Support/MiKTeX/texmfs/install/tex/latex/l3backend/l3backend-pdftex.def
+INPUT /Library/Application Support/MiKTeX/texmfs/install/tex/latex/l3packages/xparse/xparse.sty
+INPUT /Library/Application Support/MiKTeX/texmfs/install/tex/latex/l3packages/xparse/xparse.sty
+INPUT /Library/Application Support/MiKTeX/texmfs/install/tex/latex/xcolor/xcolor.sty
+INPUT /Library/Application Support/MiKTeX/texmfs/install/tex/latex/xcolor/xcolor.sty
+INPUT /Library/Application Support/MiKTeX/texmfs/install/tex/latex/graphics-cfg/color.cfg
+INPUT /Library/Application Support/MiKTeX/texmfs/install/tex/latex/graphics-cfg/color.cfg
+INPUT /Library/Application Support/MiKTeX/texmfs/install/tex/latex/graphics-cfg/color.cfg
+INPUT /Library/Application Support/MiKTeX/texmfs/install/tex/latex/graphics-def/pdftex.def
+INPUT /Library/Application Support/MiKTeX/texmfs/install/tex/latex/graphics-def/pdftex.def
+INPUT /Library/Application Support/MiKTeX/texmfs/install/tex/latex/graphics-def/pdftex.def
+INPUT /Library/Application Support/MiKTeX/texmfs/install/tex/latex/graphics/mathcolor.ltx
+INPUT /Library/Application Support/MiKTeX/texmfs/install/tex/latex/graphics/mathcolor.ltx
+INPUT /Library/Application Support/MiKTeX/texmfs/install/tex/latex/graphics/mathcolor.ltx
+INPUT /Library/Application Support/MiKTeX/texmfs/install/tex/generic/iftex/iftex.sty
+INPUT /Library/Application Support/MiKTeX/texmfs/install/tex/generic/iftex/iftex.sty
+INPUT /Library/Application Support/MiKTeX/texmfs/install/tex/latex/xkeyval/xkeyval.sty
+INPUT /Library/Application Support/MiKTeX/texmfs/install/tex/latex/xkeyval/xkeyval.sty
+INPUT /Library/Application Support/MiKTeX/texmfs/install/tex/generic/xkeyval/xkeyval.tex
+INPUT /Library/Application Support/MiKTeX/texmfs/install/tex/generic/xkeyval/xkvutils.tex
+INPUT /Library/Application Support/MiKTeX/texmfs/install/tex/latex/base/textcomp.sty
+INPUT /Library/Application Support/MiKTeX/texmfs/install/tex/latex/base/textcomp.sty
+INPUT /Users/luiz/Library/Application Support/MiKTeX/texmfs/install/tex/latex/xstring/xstring.sty
+INPUT /Users/luiz/Library/Application Support/MiKTeX/texmfs/install/tex/latex/xstring/xstring.sty
+INPUT /Users/luiz/Library/Application Support/MiKTeX/texmfs/install/tex/generic/xstring/xstring.tex
+INPUT /Library/Application Support/MiKTeX/texmfs/install/tex/latex/base/ifthen.sty
+INPUT /Library/Application Support/MiKTeX/texmfs/install/tex/latex/base/ifthen.sty
+INPUT /Users/luiz/Library/Application Support/MiKTeX/texmfs/install/tex/latex/carlisle/scalefnt.sty
+INPUT /Users/luiz/Library/Application Support/MiKTeX/texmfs/install/tex/latex/carlisle/scalefnt.sty
+INPUT /Users/luiz/Library/Application Support/MiKTeX/texmfs/install/tex/latex/mweights/mweights.sty
+INPUT /Users/luiz/Library/Application Support/MiKTeX/texmfs/install/tex/generic/binhex/binhex.tex
+INPUT /Users/luiz/Library/Application Support/MiKTeX/texmfs/install/tex/generic/binhex/binhex.tex
+INPUT /Users/luiz/Library/Application Support/MiKTeX/texmfs/install/tex/generic/binhex/binhex.tex
+INPUT /Users/luiz/Library/Application Support/MiKTeX/texmfs/install/tex/generic/binhex/binhex.tex
+INPUT /Users/luiz/Library/Application Support/MiKTeX/texmfs/install/tex/generic/binhex/binhex.tex
+INPUT /Users/luiz/Library/Application Support/MiKTeX/texmfs/install/tex/latex/fontaxes/fontaxes.sty
+INPUT /Users/luiz/Library/Application Support/MiKTeX/texmfs/install/tex/latex/fontaxes/fontaxes.sty
+INPUT /Users/luiz/Library/Application Support/MiKTeX/texmfs/install/tex/latex/newtx/newtxmath.sty
+INPUT /Users/luiz/Library/Application Support/MiKTeX/texmfs/install/tex/latex/newtx/newtxmath.sty
+INPUT /Library/Application Support/MiKTeX/texmfs/install/tex/latex/amsmath/amsmath.sty
+INPUT /Library/Application Support/MiKTeX/texmfs/install/tex/latex/amsmath/amsmath.sty
+INPUT /Library/Application Support/MiKTeX/texmfs/install/tex/latex/amsmath/amsopn.sty
+INPUT /Library/Application Support/MiKTeX/texmfs/install/tex/latex/amsmath/amstext.sty
+INPUT /Library/Application Support/MiKTeX/texmfs/install/tex/latex/amsmath/amstext.sty
+INPUT /Library/Application Support/MiKTeX/texmfs/install/tex/latex/amsmath/amsgen.sty
+INPUT /Library/Application Support/MiKTeX/texmfs/install/tex/latex/amsmath/amsgen.sty
+INPUT /Library/Application Support/MiKTeX/texmfs/install/tex/latex/amsmath/amsbsy.sty
+INPUT /Library/Application Support/MiKTeX/texmfs/install/tex/latex/amsmath/amsbsy.sty
+INPUT /Library/Application Support/MiKTeX/texmfs/install/tex/latex/amsmath/amsopn.sty
+INPUT /Library/Application Support/MiKTeX/texmfs/install/tex/latex/oberdiek/centernot.sty
+INPUT /Library/Application Support/MiKTeX/texmfs/install/tex/latex/oberdiek/centernot.sty
+INPUT /Users/luiz/Library/Application Support/MiKTeX/texmfs/install/tex/generic/binhex/binhex.tex
+INPUT /Users/luiz/Library/Application Support/MiKTeX/texmfs/install/tex/latex/geometry/geometry.sty
+INPUT /Users/luiz/Library/Application Support/MiKTeX/texmfs/install/tex/latex/geometry/geometry.sty
+INPUT /Library/Application Support/MiKTeX/texmfs/install/tex/generic/iftex/ifvtex.sty
+INPUT /Library/Application Support/MiKTeX/texmfs/install/tex/generic/iftex/ifvtex.sty
+INPUT /Users/luiz/Library/Application Support/MiKTeX/texmfs/install/tex/latex/geometry/geometry.cfg
+INPUT /Users/luiz/Library/Application Support/MiKTeX/texmfs/install/tex/latex/geometry/geometry.cfg
+INPUT /Users/luiz/Library/Application Support/MiKTeX/texmfs/install/tex/latex/geometry/geometry.cfg
+INPUT /Users/luiz/Library/Application Support/MiKTeX/texmfs/install/tex/latex/enumitem/enumitem.sty
+INPUT /Users/luiz/Library/Application Support/MiKTeX/texmfs/install/tex/latex/enumitem/enumitem.sty
+INPUT /Users/luiz/Library/Application Support/MiKTeX/texmfs/install/tex/latex/footmisc/footmisc.sty
+INPUT /Users/luiz/Library/Application Support/MiKTeX/texmfs/install/tex/latex/footmisc/footmisc.sty
+INPUT /Users/luiz/Library/Application Support/MiKTeX/texmfs/install/tex/latex/setspace/setspace.sty
+INPUT /Users/luiz/Library/Application Support/MiKTeX/texmfs/install/tex/latex/setspace/setspace.sty
+INPUT /Users/luiz/Library/Application Support/MiKTeX/texmfs/install/tex/latex/abstract/abstract.sty
+INPUT /Users/luiz/Library/Application Support/MiKTeX/texmfs/install/tex/latex/abstract/abstract.sty
+INPUT /Users/luiz/Library/Application Support/MiKTeX/texmfs/install/tex/latex/preprint/authblk.sty
+INPUT /Users/luiz/Library/Application Support/MiKTeX/texmfs/install/tex/latex/preprint/authblk.sty
+INPUT /Users/luiz/Library/Application Support/MiKTeX/texmfs/install/tex/latex/titlesec/titlesec.sty
+INPUT /Users/luiz/Library/Application Support/MiKTeX/texmfs/install/tex/latex/titlesec/titlesec.sty
+INPUT /Users/luiz/Library/Application Support/MiKTeX/texmfs/install/tex/latex/lettrine/lettrine.sty
+INPUT /Users/luiz/Library/Application Support/MiKTeX/texmfs/install/tex/latex/lettrine/lettrine.sty
+INPUT /Library/Application Support/MiKTeX/texmfs/install/tex/latex/l3packages/xfp/xfp.sty
+INPUT /Library/Application Support/MiKTeX/texmfs/install/tex/latex/l3packages/xfp/xfp.sty
+INPUT /Users/luiz/Library/Application Support/MiKTeX/texmfs/install/tex/latex/lettrine/lettrine.cfg
+INPUT /Users/luiz/Library/Application Support/MiKTeX/texmfs/install/tex/latex/lettrine/lettrine.cfg
+INPUT /Users/luiz/Library/Application Support/MiKTeX/texmfs/install/tex/latex/lettrine/lettrine.cfg
+INPUT /Users/luiz/Library/Application Support/MiKTeX/texmfs/install/tex/latex/caption/caption.sty
+INPUT /Users/luiz/Library/Application Support/MiKTeX/texmfs/install/tex/latex/caption/caption.sty
+INPUT /Users/luiz/Library/Application Support/MiKTeX/texmfs/install/tex/latex/caption/caption3.sty
+INPUT /Users/luiz/Library/Application Support/MiKTeX/texmfs/install/tex/latex/caption/caption3.sty
+INPUT /Users/luiz/Library/Application Support/MiKTeX/texmfs/install/tex/latex/quoting/quoting.sty
+INPUT /Users/luiz/Library/Application Support/MiKTeX/texmfs/install/tex/latex/quoting/quoting.sty
+INPUT /Users/luiz/Library/Application Support/MiKTeX/texmfs/install/tex/latex/kvoptions/kvoptions.sty
+INPUT /Users/luiz/Library/Application Support/MiKTeX/texmfs/install/tex/latex/kvoptions/kvoptions.sty
+INPUT /Users/luiz/Library/Application Support/MiKTeX/texmfs/install/tex/generic/ltxcmds/ltxcmds.sty
+INPUT /Users/luiz/Library/Application Support/MiKTeX/texmfs/install/tex/generic/ltxcmds/ltxcmds.sty
+INPUT /Users/luiz/Library/Application Support/MiKTeX/texmfs/install/tex/latex/kvsetkeys/kvsetkeys.sty
+INPUT /Users/luiz/Library/Application Support/MiKTeX/texmfs/install/tex/latex/kvsetkeys/kvsetkeys.sty
+INPUT /Users/luiz/Library/Application Support/MiKTeX/texmfs/install/tex/latex/natbib/natbib.sty
+INPUT /Users/luiz/Library/Application Support/MiKTeX/texmfs/install/tex/latex/natbib/natbib.sty
+INPUT /Library/Application Support/MiKTeX/texmfs/install/tex/latex/url/url.sty
+INPUT /Library/Application Support/MiKTeX/texmfs/install/tex/latex/url/url.sty
+INPUT /Library/Application Support/MiKTeX/texmfs/install/tex/latex/hyperref/hyperref.sty
+INPUT /Library/Application Support/MiKTeX/texmfs/install/tex/latex/hyperref/hyperref.sty
+INPUT /Users/luiz/Library/Application Support/MiKTeX/texmfs/install/tex/generic/infwarerr/infwarerr.sty
+INPUT /Users/luiz/Library/Application Support/MiKTeX/texmfs/install/tex/generic/infwarerr/infwarerr.sty
+INPUT /Users/luiz/Library/Application Support/MiKTeX/texmfs/install/tex/generic/kvdefinekeys/kvdefinekeys.sty
+INPUT /Users/luiz/Library/Application Support/MiKTeX/texmfs/install/tex/generic/kvdefinekeys/kvdefinekeys.sty
+INPUT /Users/luiz/Library/Application Support/MiKTeX/texmfs/install/tex/generic/pdfescape/pdfescape.sty
+INPUT /Users/luiz/Library/Application Support/MiKTeX/texmfs/install/tex/generic/pdfescape/pdfescape.sty
+INPUT /Library/Application Support/MiKTeX/texmfs/install/tex/generic/pdftexcmds/pdftexcmds.sty
+INPUT /Library/Application Support/MiKTeX/texmfs/install/tex/generic/pdftexcmds/pdftexcmds.sty
+INPUT /Users/luiz/Library/Application Support/MiKTeX/texmfs/install/tex/latex/hycolor/hycolor.sty
+INPUT /Users/luiz/Library/Application Support/MiKTeX/texmfs/install/tex/latex/hycolor/hycolor.sty
+INPUT /Users/luiz/Library/Application Support/MiKTeX/texmfs/install/tex/latex/letltxmacro/letltxmacro.sty
+INPUT /Users/luiz/Library/Application Support/MiKTeX/texmfs/install/tex/latex/letltxmacro/letltxmacro.sty
+INPUT /Users/luiz/Library/Application Support/MiKTeX/texmfs/install/tex/latex/auxhook/auxhook.sty
+INPUT /Users/luiz/Library/Application Support/MiKTeX/texmfs/install/tex/latex/auxhook/auxhook.sty
+INPUT /Library/Application Support/MiKTeX/texmfs/install/tex/latex/hyperref/nameref.sty
+INPUT /Library/Application Support/MiKTeX/texmfs/install/tex/latex/hyperref/nameref.sty
+INPUT /Users/luiz/Library/Application Support/MiKTeX/texmfs/install/tex/latex/refcount/refcount.sty
+INPUT /Users/luiz/Library/Application Support/MiKTeX/texmfs/install/tex/latex/refcount/refcount.sty
+INPUT /Users/luiz/Library/Application Support/MiKTeX/texmfs/install/tex/generic/gettitlestring/gettitlestring.sty
+INPUT /Users/luiz/Library/Application Support/MiKTeX/texmfs/install/tex/generic/gettitlestring/gettitlestring.sty
+INPUT /Library/Application Support/MiKTeX/texmfs/install/tex/latex/hyperref/pd1enc.def
+INPUT /Library/Application Support/MiKTeX/texmfs/install/tex/latex/hyperref/pd1enc.def
+INPUT /Library/Application Support/MiKTeX/texmfs/install/tex/latex/hyperref/pd1enc.def
+INPUT /Users/luiz/Library/Application Support/MiKTeX/texmfs/install/tex/generic/intcalc/intcalc.sty
+INPUT /Users/luiz/Library/Application Support/MiKTeX/texmfs/install/tex/generic/intcalc/intcalc.sty
+INPUT /Library/Application Support/MiKTeX/texmfs/install/tex/latex/hyperref/puenc.def
+INPUT /Library/Application Support/MiKTeX/texmfs/install/tex/latex/hyperref/puenc.def
+INPUT /Library/Application Support/MiKTeX/texmfs/install/tex/latex/hyperref/puenc.def
+INPUT /Users/luiz/Library/Application Support/MiKTeX/texmfs/install/tex/generic/bitset/bitset.sty
+INPUT /Users/luiz/Library/Application Support/MiKTeX/texmfs/install/tex/generic/bitset/bitset.sty
+INPUT /Users/luiz/Library/Application Support/MiKTeX/texmfs/install/tex/generic/bigintcalc/bigintcalc.sty
+INPUT /Users/luiz/Library/Application Support/MiKTeX/texmfs/install/tex/generic/bigintcalc/bigintcalc.sty
+INPUT /Library/Application Support/MiKTeX/texmfs/install/tex/generic/atbegshi/atbegshi.sty
+INPUT /Library/Application Support/MiKTeX/texmfs/install/tex/latex/base/atbegshi-ltx.sty
+INPUT /Library/Application Support/MiKTeX/texmfs/install/tex/latex/base/atbegshi-ltx.sty
+INPUT /Library/Application Support/MiKTeX/texmfs/install/tex/latex/hyperref/hpdftex.def
+INPUT /Library/Application Support/MiKTeX/texmfs/install/tex/latex/hyperref/hpdftex.def
+INPUT /Library/Application Support/MiKTeX/texmfs/install/tex/latex/hyperref/hpdftex.def
+INPUT /Library/Application Support/MiKTeX/texmfs/install/tex/latex/atveryend/atveryend.sty
+INPUT /Library/Application Support/MiKTeX/texmfs/install/tex/latex/base/atveryend-ltx.sty
+INPUT /Library/Application Support/MiKTeX/texmfs/install/tex/latex/base/atveryend-ltx.sty
+INPUT /Users/luiz/Library/Application Support/MiKTeX/texmfs/install/tex/latex/rerunfilecheck/rerunfilecheck.sty
+INPUT /Users/luiz/Library/Application Support/MiKTeX/texmfs/install/tex/latex/rerunfilecheck/rerunfilecheck.sty
+INPUT /Users/luiz/Library/Application Support/MiKTeX/texmfs/install/tex/generic/uniquecounter/uniquecounter.sty
+INPUT /Users/luiz/Library/Application Support/MiKTeX/texmfs/install/tex/generic/uniquecounter/uniquecounter.sty
+INPUT /Library/Application Support/MiKTeX/texmfs/install/tex/latex/tools/bm.sty
+INPUT /Library/Application Support/MiKTeX/texmfs/install/tex/latex/tools/bm.sty
+INPUT /Users/luiz/Library/Application Support/MiKTeX/texmfs/install/tex/latex/booktabs/booktabs.sty
+INPUT /Users/luiz/Library/Application Support/MiKTeX/texmfs/install/tex/latex/booktabs/booktabs.sty
+INPUT /Users/luiz/Library/Application Support/MiKTeX/texmfs/install/tex/latex/cleveref/cleveref.sty
+INPUT /Users/luiz/Library/Application Support/MiKTeX/texmfs/install/tex/latex/cleveref/cleveref.sty
+INPUT /Users/luiz/Library/Application Support/MiKTeX/texmfs/install/tex/latex/commath/commath.sty
+INPUT /Users/luiz/Library/Application Support/MiKTeX/texmfs/install/tex/latex/commath/commath.sty
+INPUT /Users/luiz/Library/Application Support/MiKTeX/texmfs/install/tex/latex/float/float.sty
+INPUT /Users/luiz/Library/Application Support/MiKTeX/texmfs/install/tex/latex/float/float.sty
+INPUT /Users/luiz/Library/Application Support/MiKTeX/texmfs/install/tex/latex/gensymb/gensymb.sty
+INPUT /Users/luiz/Library/Application Support/MiKTeX/texmfs/install/tex/latex/gensymb/gensymb.sty
+INPUT /Library/Application Support/MiKTeX/texmfs/install/tex/latex/graphics/graphicx.sty
+INPUT /Library/Application Support/MiKTeX/texmfs/install/tex/latex/graphics/graphicx.sty
+INPUT /Library/Application Support/MiKTeX/texmfs/install/tex/latex/graphics/graphics.sty
+INPUT /Library/Application Support/MiKTeX/texmfs/install/tex/latex/graphics/graphics.sty
+INPUT /Library/Application Support/MiKTeX/texmfs/install/tex/latex/graphics/trig.sty
+INPUT /Library/Application Support/MiKTeX/texmfs/install/tex/latex/graphics/trig.sty
+INPUT /Library/Application Support/MiKTeX/texmfs/install/tex/latex/graphics-cfg/graphics.cfg
+INPUT /Library/Application Support/MiKTeX/texmfs/install/tex/latex/graphics-cfg/graphics.cfg
+INPUT /Library/Application Support/MiKTeX/texmfs/install/tex/latex/graphics-cfg/graphics.cfg
+INPUT /Users/luiz/Library/Application Support/MiKTeX/texmfs/install/tex/latex/mathtools/mathtools.sty
+INPUT /Users/luiz/Library/Application Support/MiKTeX/texmfs/install/tex/latex/mathtools/mathtools.sty
+INPUT /Library/Application Support/MiKTeX/texmfs/install/tex/latex/tools/calc.sty
+INPUT /Library/Application Support/MiKTeX/texmfs/install/tex/latex/tools/calc.sty
+INPUT /Users/luiz/Library/Application Support/MiKTeX/texmfs/install/tex/latex/mathtools/mhsetup.sty
+INPUT /Users/luiz/Library/Application Support/MiKTeX/texmfs/install/tex/latex/mathtools/mhsetup.sty
+INPUT /Library/Application Support/MiKTeX/texmfs/install/tex/latex/tools/multicol.sty
+INPUT /Library/Application Support/MiKTeX/texmfs/install/tex/latex/tools/multicol.sty
+INPUT /Users/luiz/Library/Application Support/MiKTeX/texmfs/install/tex/latex/multirow/multirow.sty
+INPUT /Users/luiz/Library/Application Support/MiKTeX/texmfs/install/tex/latex/multirow/multirow.sty
+INPUT /Library/Application Support/MiKTeX/texmfs/install/tex/latex/tools/longtable.sty
+INPUT /Library/Application Support/MiKTeX/texmfs/install/tex/latex/tools/longtable.sty
+INPUT /Library/Application Support/MiKTeX/texmfs/install/tex/latex/tools/tabularx.sty
+INPUT /Library/Application Support/MiKTeX/texmfs/install/tex/latex/tools/tabularx.sty
+INPUT /Library/Application Support/MiKTeX/texmfs/install/tex/latex/tools/array.sty
+INPUT /Library/Application Support/MiKTeX/texmfs/install/tex/latex/tools/array.sty
+INPUT /Users/luiz/Library/Application Support/MiKTeX/texmfs/install/tex/latex/placeins/placeins.sty
+INPUT /Users/luiz/Library/Application Support/MiKTeX/texmfs/install/tex/latex/placeins/placeins.sty
+INPUT /Users/luiz/Library/Application Support/MiKTeX/texmfs/install/tex/latex/siunitx/siunitx.sty
+INPUT /Users/luiz/Library/Application Support/MiKTeX/texmfs/install/tex/latex/siunitx/siunitx.sty
+INPUT /Users/luiz/Library/Application Support/MiKTeX/texmfs/install/tex/latex/translations/translations.sty
+INPUT /Users/luiz/Library/Application Support/MiKTeX/texmfs/install/tex/latex/translations/translations.sty
+INPUT /Users/luiz/Library/Application Support/MiKTeX/texmfs/install/tex/latex/caption/subcaption.sty
+INPUT /Users/luiz/Library/Application Support/MiKTeX/texmfs/install/tex/latex/caption/subcaption.sty
+INPUT /Library/Application Support/MiKTeX/texmfs/install/tex/latex/graphics/dvipsnam.def
+INPUT /Library/Application Support/MiKTeX/texmfs/install/tex/latex/graphics/dvipsnam.def
+INPUT /Library/Application Support/MiKTeX/texmfs/install/tex/latex/graphics/dvipsnam.def
+INPUT /Users/luiz/Library/Application Support/MiKTeX/texmfs/install/tex/latex/threeparttable/threeparttable.sty
+INPUT /Users/luiz/Library/Application Support/MiKTeX/texmfs/install/tex/latex/threeparttable/threeparttable.sty
+INPUT /Users/luiz/Library/Application Support/MiKTeX/texmfs/install/tex/latex/newtx/t1ntxtlf.fd
+INPUT /Users/luiz/Library/Application Support/MiKTeX/texmfs/install/tex/latex/newtx/t1ntxtlf.fd
+INPUT /Users/luiz/Library/Application Support/MiKTeX/texmfs/install/tex/latex/newtx/t1ntxtlf.fd
+INPUT /Users/luiz/Library/Application Support/MiKTeX/texmfs/install/fonts/tfm/public/newtx/ntx-Regular-tlf-t1.tfm
+INPUT ./main.aux
+INPUT ./main.aux
+INPUT main.aux
+OUTPUT main.aux
+INPUT /Users/luiz/Library/Application Support/MiKTeX/texmfs/install/tex/latex/newtx/omlntxmi.fd
+INPUT /Users/luiz/Library/Application Support/MiKTeX/texmfs/install/tex/latex/newtx/omlntxmi.fd
+INPUT /Users/luiz/Library/Application Support/MiKTeX/texmfs/install/tex/latex/newtx/omlntxmi.fd
+INPUT /Users/luiz/Library/Application Support/MiKTeX/texmfs/install/tex/latex/newtx/untxexa.fd
+INPUT /Users/luiz/Library/Application Support/MiKTeX/texmfs/install/tex/latex/newtx/untxexa.fd
+INPUT /Users/luiz/Library/Application Support/MiKTeX/texmfs/install/tex/latex/newtx/untxexa.fd
+INPUT /Users/luiz/Library/Application Support/MiKTeX/texmfs/install/tex/latex/newtx/lmsntxsy.fd
+INPUT /Users/luiz/Library/Application Support/MiKTeX/texmfs/install/tex/latex/newtx/lmsntxsy.fd
+INPUT /Users/luiz/Library/Application Support/MiKTeX/texmfs/install/tex/latex/newtx/lmsntxsy.fd
+INPUT /Users/luiz/Library/Application Support/MiKTeX/texmfs/install/tex/latex/newtx/lmxntxexx.fd
+INPUT /Users/luiz/Library/Application Support/MiKTeX/texmfs/install/tex/latex/newtx/lmxntxexx.fd
+INPUT /Users/luiz/Library/Application Support/MiKTeX/texmfs/install/tex/latex/newtx/lmxntxexx.fd
+INPUT /Users/luiz/Library/Application Support/MiKTeX/texmfs/install/tex/latex/microtype/mt-ptm.cfg
+INPUT /Users/luiz/Library/Application Support/MiKTeX/texmfs/install/tex/latex/microtype/mt-ptm.cfg
+INPUT /Users/luiz/Library/Application Support/MiKTeX/texmfs/install/tex/latex/microtype/mt-ptm.cfg
+INPUT /Library/Application Support/MiKTeX/texmfs/install/tex/context/base/mkii/supp-pdf.mkii
+INPUT /Library/Application Support/MiKTeX/texmfs/install/tex/context/base/mkii/supp-pdf.mkii
+INPUT /Library/Application Support/MiKTeX/texmfs/install/tex/context/base/mkii/supp-pdf.mkii
+INPUT /Library/Application Support/MiKTeX/texmfs/install/tex/latex/epstopdf-pkg/epstopdf-base.sty
+INPUT /Library/Application Support/MiKTeX/texmfs/install/tex/latex/epstopdf-pkg/epstopdf-base.sty
+INPUT /Library/Application Support/MiKTeX/texmfs/install/tex/latex/00miktex/epstopdf-sys.cfg
+INPUT /Library/Application Support/MiKTeX/texmfs/install/tex/latex/00miktex/epstopdf-sys.cfg
+INPUT /Library/Application Support/MiKTeX/texmfs/install/tex/latex/00miktex/epstopdf-sys.cfg
+INPUT /Users/luiz/Library/Application Support/MiKTeX/texmfs/install/tex/latex/caption/ltcaption.sty
+INPUT /Users/luiz/Library/Application Support/MiKTeX/texmfs/install/tex/latex/caption/ltcaption.sty
+INPUT ./main.out
+INPUT ./main.out
+INPUT main.out
+INPUT main.out
+OUTPUT main.pdf
+INPUT ./main.out
+INPUT ./main.out
+OUTPUT main.out
+INPUT /Library/Application Support/MiKTeX/texmfs/install/tex/latex/graphics/color.sty
+INPUT /Users/luiz/Library/Application Support/MiKTeX/texmfs/install/tex/latex/translations/dicts/translations-basic-dictionary-english.trsl
+INPUT /Users/luiz/Library/Application Support/MiKTeX/texmfs/install/tex/latex/translations/dicts/translations-basic-dictionary-english.trsl
+INPUT /Users/luiz/Library/Application Support/MiKTeX/texmfs/install/tex/latex/translations/dicts/translations-basic-dictionary-english.trsl
+INPUT /Users/luiz/Library/Application Support/MiKTeX/texmfs/install/fonts/tfm/public/newtx/ntx-Regular-tlf-t1.tfm
+INPUT /Users/luiz/Library/Application Support/MiKTeX/texmfs/install/fonts/tfm/public/newtx/ntx-Bold-tlf-t1.tfm
+INPUT /Users/luiz/Library/Application Support/MiKTeX/texmfs/install/tex/latex/newtx/t1ntxsupsalt.fd
+INPUT /Users/luiz/Library/Application Support/MiKTeX/texmfs/install/tex/latex/newtx/t1ntxsupsalt.fd
+INPUT /Users/luiz/Library/Application Support/MiKTeX/texmfs/install/tex/latex/newtx/t1ntxsupsalt.fd
+INPUT /Users/luiz/Library/Application Support/MiKTeX/texmfs/install/fonts/tfm/public/newtx/ntxsupsalt-Regular-t1.tfm
+INPUT /Users/luiz/Library/Application Support/MiKTeX/texmfs/install/tex/latex/newtx/ts1ntxsupsalt.fd
+INPUT /Users/luiz/Library/Application Support/MiKTeX/texmfs/install/tex/latex/newtx/ts1ntxsupsalt.fd
+INPUT /Users/luiz/Library/Application Support/MiKTeX/texmfs/install/tex/latex/newtx/ts1ntxsupsalt.fd
+INPUT /Users/luiz/Library/Application Support/MiKTeX/texmfs/install/fonts/tfm/public/newtx/ntxsupsalt-Regular-ts1.tfm
+INPUT /Users/luiz/Library/Application Support/MiKTeX/texmfs/install/fonts/tfm/public/newtx/ntx-Regular-tlf-t1.tfm
+INPUT /Users/luiz/Library/Application Support/MiKTeX/texmfs/install/fonts/tfm/public/newtx/ntxsupsalt-Regular-t1.tfm
+INPUT /Users/luiz/Library/Application Support/MiKTeX/texmfs/install/fonts/tfm/public/newtx/ntxsupsalt-Regular-ts1.tfm
+INPUT /Users/luiz/Library/Application Support/MiKTeX/texmfs/install/fonts/tfm/public/newtx/ntx-Italic-tlf-t1.tfm
+INPUT /Users/luiz/Library/Application Support/MiKTeX/texmfs/install/fonts/tfm/public/newtx/ntx-Bold-tlf-t1.tfm
+INPUT /Users/luiz/Library/Application Support/MiKTeX/texmfs/install/fonts/tfm/public/newtx/ntx-Regular-tlf-t1.tfm
+INPUT /Users/luiz/Library/Application Support/MiKTeX/texmfs/install/fonts/tfm/public/newtx/ntx-Bold-tlf-t1.tfm
+INPUT /Users/luiz/Library/Application Support/MiKTeX/texmfs/install/fonts/tfm/public/newtx/ntx-Regular-tlf-sc-t1.tfm
+INPUT /Users/luiz/Library/Application Support/MiKTeX/texmfs/install/fonts/tfm/public/newtx/ntx-Regular-tlf-t1.tfm
+INPUT /Users/luiz/Library/Application Support/MiKTeX/texmfs/install/fonts/tfm/public/newtx/ntx-Regular-tlf-t1.tfm
+INPUT /Users/luiz/Library/Application Support/MiKTeX/texmfs/install/tex/latex/newtx/ot1minntx.fd
+INPUT /Users/luiz/Library/Application Support/MiKTeX/texmfs/install/tex/latex/newtx/ot1minntx.fd
+INPUT /Users/luiz/Library/Application Support/MiKTeX/texmfs/install/tex/latex/newtx/ot1minntx.fd
+INPUT /Users/luiz/Library/Application Support/MiKTeX/texmfs/install/fonts/tfm/public/newtx/ntx-Regular-tlf-ot1.tfm
+INPUT /Users/luiz/Library/Application Support/MiKTeX/texmfs/install/fonts/tfm/public/newtx/ntx-Regular-tlf-ot1.tfm
+INPUT /Users/luiz/Library/Application Support/MiKTeX/texmfs/install/fonts/tfm/public/newtx/ntx-Regular-tlf-ot1.tfm
+INPUT /Users/luiz/Library/Application Support/MiKTeX/texmfs/install/fonts/tfm/public/newtx/ntxmi.tfm
+INPUT /Users/luiz/Library/Application Support/MiKTeX/texmfs/install/fonts/tfm/public/newtx/ntxmi7.tfm
+INPUT /Users/luiz/Library/Application Support/MiKTeX/texmfs/install/fonts/tfm/public/newtx/ntxmi5.tfm
+INPUT /Users/luiz/Library/Application Support/MiKTeX/texmfs/install/fonts/tfm/public/newtx/ntxsy.tfm
+INPUT /Users/luiz/Library/Application Support/MiKTeX/texmfs/install/fonts/tfm/public/newtx/ntxsy7.tfm
+INPUT /Users/luiz/Library/Application Support/MiKTeX/texmfs/install/fonts/tfm/public/newtx/ntxsy5.tfm
+INPUT /Users/luiz/Library/Application Support/MiKTeX/texmfs/install/fonts/tfm/public/newtx/ntxexx.tfm
+INPUT /Users/luiz/Library/Application Support/MiKTeX/texmfs/install/fonts/tfm/public/newtx/ntxexx.tfm
+INPUT /Users/luiz/Library/Application Support/MiKTeX/texmfs/install/fonts/tfm/public/newtx/ntxexx.tfm
+INPUT /Users/luiz/Library/Application Support/MiKTeX/texmfs/install/tex/latex/newtx/untxmia.fd
+INPUT /Users/luiz/Library/Application Support/MiKTeX/texmfs/install/tex/latex/newtx/untxmia.fd
+INPUT /Users/luiz/Library/Application Support/MiKTeX/texmfs/install/tex/latex/newtx/untxmia.fd
+INPUT /Users/luiz/Library/Application Support/MiKTeX/texmfs/install/fonts/tfm/public/newtx/ntxmia.tfm
+INPUT /Users/luiz/Library/Application Support/MiKTeX/texmfs/install/fonts/tfm/public/newtx/ntxmia.tfm
+INPUT /Users/luiz/Library/Application Support/MiKTeX/texmfs/install/fonts/tfm/public/newtx/ntxmia.tfm
+INPUT /Users/luiz/Library/Application Support/MiKTeX/texmfs/install/tex/latex/newtx/untxsym.fd
+INPUT /Users/luiz/Library/Application Support/MiKTeX/texmfs/install/tex/latex/newtx/untxsym.fd
+INPUT /Users/luiz/Library/Application Support/MiKTeX/texmfs/install/tex/latex/newtx/untxsym.fd
+INPUT /Users/luiz/Library/Application Support/MiKTeX/texmfs/install/fonts/tfm/public/newtx/ntxsym.tfm
+INPUT /Users/luiz/Library/Application Support/MiKTeX/texmfs/install/fonts/tfm/public/newtx/ntxsym.tfm
+INPUT /Users/luiz/Library/Application Support/MiKTeX/texmfs/install/fonts/tfm/public/newtx/ntxsym.tfm
+INPUT /Users/luiz/Library/Application Support/MiKTeX/texmfs/install/tex/latex/newtx/untxsyc.fd
+INPUT /Users/luiz/Library/Application Support/MiKTeX/texmfs/install/tex/latex/newtx/untxsyc.fd
+INPUT /Users/luiz/Library/Application Support/MiKTeX/texmfs/install/tex/latex/newtx/untxsyc.fd
+INPUT /Users/luiz/Library/Application Support/MiKTeX/texmfs/install/fonts/tfm/public/newtx/ntxsyc.tfm
+INPUT /Users/luiz/Library/Application Support/MiKTeX/texmfs/install/fonts/tfm/public/newtx/ntxsyc.tfm
+INPUT /Users/luiz/Library/Application Support/MiKTeX/texmfs/install/fonts/tfm/public/newtx/ntxsyc.tfm
+INPUT /Users/luiz/Library/Application Support/MiKTeX/texmfs/install/fonts/tfm/public/newtx/ntxexa.tfm
+INPUT /Users/luiz/Library/Application Support/MiKTeX/texmfs/install/fonts/tfm/public/newtx/ntxexa.tfm
+INPUT /Users/luiz/Library/Application Support/MiKTeX/texmfs/install/fonts/tfm/public/newtx/ntxexa.tfm
+INPUT /Users/luiz/Library/Application Support/MiKTeX/texmfs/install/fonts/tfm/public/newtx/ntx-Bold-tlf-ot1.tfm
+INPUT /Users/luiz/Library/Application Support/MiKTeX/texmfs/install/fonts/tfm/public/newtx/ntx-Bold-tlf-ot1.tfm
+INPUT /Users/luiz/Library/Application Support/MiKTeX/texmfs/install/fonts/tfm/public/newtx/ntx-Bold-tlf-ot1.tfm
+INPUT /Users/luiz/Library/Application Support/MiKTeX/texmfs/install/fonts/tfm/public/newtx/ntxbmi.tfm
+INPUT /Users/luiz/Library/Application Support/MiKTeX/texmfs/install/fonts/tfm/public/newtx/ntxbmi7.tfm
+INPUT /Users/luiz/Library/Application Support/MiKTeX/texmfs/install/fonts/tfm/public/newtx/ntxbmi5.tfm
+INPUT /Users/luiz/Library/Application Support/MiKTeX/texmfs/install/fonts/tfm/public/newtx/ntxbsy.tfm
+INPUT /Users/luiz/Library/Application Support/MiKTeX/texmfs/install/fonts/tfm/public/newtx/ntxbsy7.tfm
+INPUT /Users/luiz/Library/Application Support/MiKTeX/texmfs/install/fonts/tfm/public/newtx/ntxbsy5.tfm
+INPUT /Users/luiz/Library/Application Support/MiKTeX/texmfs/install/fonts/tfm/public/newtx/ntxbexx.tfm
+INPUT /Users/luiz/Library/Application Support/MiKTeX/texmfs/install/fonts/tfm/public/newtx/ntxbexx.tfm
+INPUT /Users/luiz/Library/Application Support/MiKTeX/texmfs/install/fonts/tfm/public/newtx/ntxbexx.tfm
+INPUT /Users/luiz/Library/Application Support/MiKTeX/texmfs/install/tex/latex/newtx/ts1ntxtlf.fd
+INPUT /Users/luiz/Library/Application Support/MiKTeX/texmfs/install/tex/latex/newtx/ts1ntxtlf.fd
+INPUT /Users/luiz/Library/Application Support/MiKTeX/texmfs/install/tex/latex/newtx/ts1ntxtlf.fd
+INPUT /Users/luiz/Library/Application Support/MiKTeX/texmfs/install/fonts/tfm/public/tex-gyre/ts1-qtmr.tfm
+INPUT /Users/luiz/Library/Application Support/MiKTeX/texmfs/install/fonts/tfm/public/tex-gyre/ts1-qtmr.tfm
+INPUT /Users/luiz/Library/Application Support/MiKTeX/texmfs/install/fonts/tfm/public/tex-gyre/ts1-qtmr.tfm
+INPUT /Users/luiz/Library/Application Support/MiKTeX/texmfs/install/fonts/tfm/public/newtx/ntx-Regular-tlf-t1.tfm
+INPUT /Users/luiz/Library/Application Support/MiKTeX/texmfs/install/fonts/tfm/public/newtx/ntx-Regular-tlf-t1.tfm
+INPUT /Users/luiz/Library/Application Support/MiKTeX/texmfs/data/fonts/map/pdftex/pdftex.map
+INPUT /Users/luiz/Library/Application Support/MiKTeX/texmfs/install/tex/latex/tex-gyre/t1qhv.fd
+INPUT /Users/luiz/Library/Application Support/MiKTeX/texmfs/install/tex/latex/tex-gyre/t1qhv.fd
+INPUT /Users/luiz/Library/Application Support/MiKTeX/texmfs/install/tex/latex/tex-gyre/t1qhv.fd
+INPUT /Users/luiz/Library/Application Support/MiKTeX/texmfs/install/fonts/tfm/public/tex-gyre/ec-qhvr.tfm
+INPUT /Users/luiz/Library/Application Support/MiKTeX/texmfs/install/fonts/tfm/public/tex-gyre/ec-qhvr.tfm
+INPUT /Users/luiz/Library/Application Support/MiKTeX/texmfs/install/fonts/tfm/public/tex-gyre/ec-qhvr.tfm
+INPUT /Users/luiz/Library/Application Support/MiKTeX/texmfs/install/fonts/tfm/public/newtx/ntxbmia.tfm
+INPUT /Users/luiz/Library/Application Support/MiKTeX/texmfs/install/fonts/tfm/public/newtx/ntxbmia.tfm
+INPUT /Users/luiz/Library/Application Support/MiKTeX/texmfs/install/fonts/tfm/public/newtx/ntxbmia.tfm
+INPUT /Users/luiz/Library/Application Support/MiKTeX/texmfs/install/fonts/tfm/public/newtx/ntxbsym.tfm
+INPUT /Users/luiz/Library/Application Support/MiKTeX/texmfs/install/fonts/tfm/public/newtx/ntxbsym.tfm
+INPUT /Users/luiz/Library/Application Support/MiKTeX/texmfs/install/fonts/tfm/public/newtx/ntxbsym.tfm
+INPUT /Users/luiz/Library/Application Support/MiKTeX/texmfs/install/fonts/tfm/public/newtx/ntxbsyc.tfm
+INPUT /Users/luiz/Library/Application Support/MiKTeX/texmfs/install/fonts/tfm/public/newtx/ntxbsyc.tfm
+INPUT /Users/luiz/Library/Application Support/MiKTeX/texmfs/install/fonts/tfm/public/newtx/ntxbsyc.tfm
+INPUT /Users/luiz/Library/Application Support/MiKTeX/texmfs/install/fonts/tfm/public/newtx/ntxbexa.tfm
+INPUT /Users/luiz/Library/Application Support/MiKTeX/texmfs/install/fonts/tfm/public/newtx/ntxbexa.tfm
+INPUT /Users/luiz/Library/Application Support/MiKTeX/texmfs/install/fonts/tfm/public/newtx/ntxbexa.tfm
+INPUT /Users/luiz/Library/Application Support/MiKTeX/texmfs/install/fonts/tfm/public/tex-gyre/ts1-qtmb.tfm
+INPUT /Users/luiz/Library/Application Support/MiKTeX/texmfs/install/fonts/tfm/public/tex-gyre/ts1-qtmb.tfm
+INPUT /Users/luiz/Library/Application Support/MiKTeX/texmfs/install/fonts/tfm/public/tex-gyre/ts1-qtmb.tfm
+INPUT /Users/luiz/Library/Application Support/MiKTeX/texmfs/install/fonts/vf/public/newtx/ntxexx.vf
+INPUT /Users/luiz/Library/Application Support/MiKTeX/texmfs/install/fonts/tfm/public/newtx/txexs.tfm
+INPUT /Users/luiz/Library/Application Support/MiKTeX/texmfs/install/fonts/tfm/public/newtx/txex-bar.tfm
+INPUT /Users/luiz/Library/Application Support/MiKTeX/texmfs/install/fonts/vf/public/newtx/ntxmi7.vf
+INPUT /Users/luiz/Library/Application Support/MiKTeX/texmfs/install/fonts/tfm/public/newtx/NewTXMI7.tfm
+INPUT /Users/luiz/Library/Application Support/MiKTeX/texmfs/install/fonts/tfm/public/newtx/stxscr.tfm
+INPUT /Users/luiz/Library/Application Support/MiKTeX/texmfs/install/fonts/vf/public/newtx/ntx-Regular-tlf-ot1.vf
+INPUT /Users/luiz/Library/Application Support/MiKTeX/texmfs/install/fonts/tfm/public/newtx/txmiaX.tfm
+INPUT /Users/luiz/Library/Application Support/MiKTeX/texmfs/install/fonts/tfm/public/newtx/ntx-Regular-tlf-ot1r.tfm
+INPUT /Users/luiz/Library/Application Support/MiKTeX/texmfs/install/fonts/vf/public/newtx/ntx-Regular-tlf-ot1.vf
+INPUT /Users/luiz/Library/Application Support/MiKTeX/texmfs/install/fonts/tfm/public/newtx/txmiaX.tfm
+INPUT /Users/luiz/Library/Application Support/MiKTeX/texmfs/install/fonts/tfm/public/newtx/ntx-Regular-tlf-ot1r.tfm
+INPUT /Users/luiz/Library/Application Support/MiKTeX/texmfs/install/fonts/vf/public/newtx/ntxmi.vf
+INPUT /Users/luiz/Library/Application Support/MiKTeX/texmfs/install/fonts/tfm/public/newtx/NewTXMI.tfm
+INPUT /Users/luiz/Library/Application Support/MiKTeX/texmfs/install/fonts/tfm/public/newtx/stxscr.tfm
+INPUT /Users/luiz/Library/Application Support/MiKTeX/texmfs/install/fonts/vf/public/newtx/ntxsy.vf
+INPUT /Users/luiz/Library/Application Support/MiKTeX/texmfs/install/fonts/tfm/public/newtx/txsys.tfm
+INPUT /Users/luiz/Library/Application Support/MiKTeX/texmfs/install/fonts/vf/public/newtx/ntxmia.vf
+INPUT /Users/luiz/Library/Application Support/MiKTeX/texmfs/install/fonts/tfm/public/newtx/txmiaX.tfm
+INPUT /Users/luiz/Library/Application Support/MiKTeX/texmfs/install/fonts/tfm/public/newtx/txmiaSTbb.tfm
+INPUT /Users/luiz/Library/Application Support/MiKTeX/texmfs/install/fonts/vf/public/newtx/ntxbmi.vf
+INPUT /Users/luiz/Library/Application Support/MiKTeX/texmfs/install/fonts/tfm/public/newtx/NewTXBMI.tfm
+INPUT /Users/luiz/Library/Application Support/MiKTeX/texmfs/install/fonts/vf/public/newtx/ntxsy7.vf
+INPUT /Users/luiz/Library/Application Support/MiKTeX/texmfs/install/fonts/tfm/public/newtx/txsys.tfm
+INPUT /Users/luiz/Library/Application Support/MiKTeX/texmfs/install/fonts/tfm/public/newtx/txex-bar.tfm
+INPUT /Users/luiz/Library/Application Support/MiKTeX/texmfs/install/fonts/vf/public/newtx/ntxbsy7.vf
+INPUT /Users/luiz/Library/Application Support/MiKTeX/texmfs/install/fonts/tfm/public/newtx/txbsys.tfm
+INPUT /Users/luiz/Library/Application Support/MiKTeX/texmfs/install/fonts/tfm/public/newtx/txbex-bar.tfm
+INPUT /Users/luiz/Library/Application Support/MiKTeX/texmfs/install/fonts/vf/public/newtx/ntxbmia.vf
+INPUT /Users/luiz/Library/Application Support/MiKTeX/texmfs/install/fonts/tfm/public/newtx/txbmiaX.tfm
+INPUT /Users/luiz/Library/Application Support/MiKTeX/texmfs/install/fonts/tfm/public/newtx/txbmiaSTbb.tfm
+INPUT /Users/luiz/Library/Application Support/MiKTeX/texmfs/install/fonts/vf/public/newtx/ntx-Regular-tlf-ot1.vf
+INPUT /Users/luiz/Library/Application Support/MiKTeX/texmfs/install/fonts/tfm/public/newtx/ntx-Regular-tlf-ot1r.tfm
+INPUT /Users/luiz/Library/Application Support/MiKTeX/texmfs/install/tex/latex/newtx/t1ntxtt.fd
+INPUT /Users/luiz/Library/Application Support/MiKTeX/texmfs/install/tex/latex/newtx/t1ntxtt.fd
+INPUT /Users/luiz/Library/Application Support/MiKTeX/texmfs/install/tex/latex/newtx/t1ntxtt.fd
+INPUT /Users/luiz/Library/Application Support/MiKTeX/texmfs/install/fonts/tfm/public/txfonts/t1xtt.tfm
+INPUT /Users/luiz/Library/Application Support/MiKTeX/texmfs/install/fonts/tfm/public/txfonts/t1xtt.tfm
+INPUT /Users/luiz/Library/Application Support/MiKTeX/texmfs/install/fonts/tfm/public/txfonts/t1xtt.tfm
+INPUT /Users/luiz/Library/Application Support/MiKTeX/texmfs/install/fonts/vf/public/newtx/ntxexa.vf
+INPUT /Users/luiz/Library/Application Support/MiKTeX/texmfs/install/fonts/tfm/public/newtx/txexas.tfm
+INPUT /Users/luiz/Library/Application Support/MiKTeX/texmfs/install/fonts/vf/public/newtx/ntxmi5.vf
+INPUT /Users/luiz/Library/Application Support/MiKTeX/texmfs/install/fonts/tfm/public/newtx/NewTXMI5.tfm
+INPUT /Users/luiz/Library/Application Support/MiKTeX/texmfs/install/fonts/tfm/public/newtx/stxscr.tfm
+INPUT /Users/luiz/Library/Application Support/MiKTeX/texmfs/install/fonts/vf/public/newtx/ntx-Bold-tlf-ot1.vf
+INPUT /Users/luiz/Library/Application Support/MiKTeX/texmfs/install/fonts/tfm/public/newtx/ntx-Bold-tlf-ot1r.tfm
+INPUT /Users/luiz/Library/Application Support/MiKTeX/texmfs/install/fonts/vf/public/newtx/ntxmia.vf
+INPUT /Users/luiz/Library/Application Support/MiKTeX/texmfs/install/fonts/tfm/public/newtx/txmiaSTbb.tfm
+INPUT ./figures/S0BeamRodModal_mode4.pdf
+INPUT ./figures/S0BeamRodModal_mode4.pdf
+INPUT ./figures/S0BeamRodModal_mode4.pdf
+INPUT ./figures/S0BeamRodModal_mode4.pdf
+INPUT ./figures/S0BeamRodModal_mode4.pdf
+INPUT ./figures/S0BeamRodModal_mode4.pdf
+INPUT /Users/luiz/Library/Application Support/MiKTeX/texmfs/install/fonts/tfm/public/newtx/ntx-Bold-tlf-t1.tfm
+INPUT ./figures/S0_mode4_Nastran.png
+INPUT ./figures/S0_mode4_Nastran.png
+INPUT ./figures/S0_mode4_Nastran.png
+INPUT ./figures/S0_mode4_Nastran.png
+INPUT ./figures/S0_mode4_Nastran.png
+INPUT ./figures/S0_mode4_Nastran.png
+INPUT ./figures/S0_mode4_Nastran.png
+INPUT ./figures/S0BeamRodModal_mode6.pdf
+INPUT ./figures/S0BeamRodModal_mode6.pdf
+INPUT ./figures/S0BeamRodModal_mode6.pdf
+INPUT ./figures/S0BeamRodModal_mode6.pdf
+INPUT ./figures/S0BeamRodModal_mode6.pdf
+INPUT ./figures/S0BeamRodModal_mode6.pdf
+INPUT ./figures/S0_mode6_Nastran.png
+INPUT ./figures/S0_mode6_Nastran.png
+INPUT ./figures/S0_mode6_Nastran.png
+INPUT ./figures/S0_mode6_Nastran.png
+INPUT ./figures/S0_mode6_Nastran.png
+INPUT ./figures/S0_mode6_Nastran.png
+INPUT ./figures/S0_mode6_Nastran.png
+INPUT /Users/luiz/Library/Application Support/MiKTeX/texmfs/install/fonts/vf/public/newtx/ntxsy5.vf
+INPUT /Users/luiz/Library/Application Support/MiKTeX/texmfs/install/fonts/tfm/public/newtx/txsys.tfm
+INPUT /Users/luiz/Library/Application Support/MiKTeX/texmfs/install/fonts/tfm/public/newtx/txex-bar.tfm
+INPUT ./figures/S0BeamRodPitchRange_tipOOP.pdf
+INPUT ./figures/S0BeamRodPitchRange_tipOOP.pdf
+INPUT ./figures/S0BeamRodPitchRange_tipOOP.pdf
+INPUT ./figures/S0BeamRodPitchRange_tipOOP.pdf
+INPUT ./figures/S0BeamRodPitchRange_tipOOP.pdf
+INPUT ./figures/S0BeamRodPitchRange_tipOOP.pdf
+INPUT ./figures/S0BeamRodPitchRange_tipTwist.pdf
+INPUT ./figures/S0BeamRodPitchRange_tipTwist.pdf
+INPUT ./figures/S0BeamRodPitchRange_tipTwist.pdf
+INPUT ./figures/S0BeamRodPitchRange_tipTwist.pdf
+INPUT ./figures/S0BeamRodPitchRange_tipTwist.pdf
+INPUT ./figures/S0BeamRodPitchRange_tipTwist.pdf
+INPUT ./figures/S10BeamRodSteadyPitchRange_tipOOP.pdf
+INPUT ./figures/S10BeamRodSteadyPitchRange_tipOOP.pdf
+INPUT ./figures/S10BeamRodSteadyPitchRange_tipOOP.pdf
+INPUT ./figures/S10BeamRodSteadyPitchRange_tipOOP.pdf
+INPUT ./figures/S10BeamRodSteadyPitchRange_tipOOP.pdf
+INPUT ./figures/S10BeamRodSteadyPitchRange_tipOOP.pdf
+INPUT ./figures/S20BeamRodSteadyPitchRange_tipOOP.pdf
+INPUT ./figures/S20BeamRodSteadyPitchRange_tipOOP.pdf
+INPUT ./figures/S20BeamRodSteadyPitchRange_tipOOP.pdf
+INPUT ./figures/S20BeamRodSteadyPitchRange_tipOOP.pdf
+INPUT ./figures/S20BeamRodSteadyPitchRange_tipOOP.pdf
+INPUT ./figures/S20BeamRodSteadyPitchRange_tipOOP.pdf
+INPUT ./figures/S10BeamRodSteadyPitchRange_eps.pdf
+INPUT ./figures/S10BeamRodSteadyPitchRange_eps.pdf
+INPUT ./figures/S10BeamRodSteadyPitchRange_eps.pdf
+INPUT ./figures/S10BeamRodSteadyPitchRange_eps.pdf
+INPUT ./figures/S10BeamRodSteadyPitchRange_eps.pdf
+INPUT ./figures/S10BeamRodSteadyPitchRange_eps.pdf
+INPUT ./figures/S20BeamRodSteadyPitchRange_eps.pdf
+INPUT ./figures/S20BeamRodSteadyPitchRange_eps.pdf
+INPUT ./figures/S20BeamRodSteadyPitchRange_eps.pdf
+INPUT ./figures/S20BeamRodSteadyPitchRange_eps.pdf
+INPUT ./figures/S20BeamRodSteadyPitchRange_eps.pdf
+INPUT ./figures/S20BeamRodSteadyPitchRange_eps.pdf
+INPUT ./figures/S10BeamRodSteadyPitchRange_tipAoA.pdf
+INPUT ./figures/S10BeamRodSteadyPitchRange_tipAoA.pdf
+INPUT ./figures/S10BeamRodSteadyPitchRange_tipAoA.pdf
+INPUT ./figures/S10BeamRodSteadyPitchRange_tipAoA.pdf
+INPUT ./figures/S10BeamRodSteadyPitchRange_tipAoA.pdf
+INPUT ./figures/S10BeamRodSteadyPitchRange_tipAoA.pdf
+INPUT ./figures/S20BeamRodSteadyPitchRange_tipAoA.pdf
+INPUT ./figures/S20BeamRodSteadyPitchRange_tipAoA.pdf
+INPUT ./figures/S20BeamRodSteadyPitchRange_tipAoA.pdf
+INPUT ./figures/S20BeamRodSteadyPitchRange_tipAoA.pdf
+INPUT ./figures/S20BeamRodSteadyPitchRange_tipAoA.pdf
+INPUT ./figures/S20BeamRodSteadyPitchRange_tipAoA.pdf
+INPUT ./figures/S0BeamRodFlutterPitchRange_Vgf.pdf
+INPUT ./figures/S0BeamRodFlutterPitchRange_Vgf.pdf
+INPUT ./figures/S0BeamRodFlutterPitchRange_Vgf.pdf
+INPUT ./figures/S0BeamRodFlutterPitchRange_Vgf.pdf
+INPUT ./figures/S0BeamRodFlutterPitchRange_Vgf.pdf
+INPUT ./figures/S0BeamRodFlutterPitchRange_Vgf.pdf
+INPUT /Users/luiz/Library/Application Support/MiKTeX/texmfs/install/fonts/tfm/public/newtx/ntx-Regular-tlf-ot1.tfm
+INPUT /Users/luiz/Library/Application Support/MiKTeX/texmfs/install/fonts/tfm/public/newtx/ntxmi.tfm
+INPUT /Users/luiz/Library/Application Support/MiKTeX/texmfs/install/fonts/tfm/public/newtx/ntxsy.tfm
+INPUT /Users/luiz/Library/Application Support/MiKTeX/texmfs/install/fonts/tfm/public/newtx/ntxexx.tfm
+INPUT /Users/luiz/Library/Application Support/MiKTeX/texmfs/install/fonts/tfm/public/tex-gyre/ec-qhvr.tfm
+INPUT /Users/luiz/Library/Application Support/MiKTeX/texmfs/install/fonts/tfm/public/newtx/ntxmia.tfm
+INPUT /Users/luiz/Library/Application Support/MiKTeX/texmfs/install/fonts/tfm/public/newtx/ntxsym.tfm
+INPUT /Users/luiz/Library/Application Support/MiKTeX/texmfs/install/fonts/tfm/public/newtx/ntxsyc.tfm
+INPUT /Users/luiz/Library/Application Support/MiKTeX/texmfs/install/fonts/tfm/public/newtx/ntxexa.tfm
+INPUT /Users/luiz/Library/Application Support/MiKTeX/texmfs/install/fonts/tfm/public/newtx/ntx-Bold-tlf-ot1.tfm
+INPUT /Users/luiz/Library/Application Support/MiKTeX/texmfs/install/fonts/tfm/public/newtx/ntxbmi.tfm
+INPUT /Users/luiz/Library/Application Support/MiKTeX/texmfs/install/fonts/tfm/public/newtx/ntxbsy.tfm
+INPUT /Users/luiz/Library/Application Support/MiKTeX/texmfs/install/fonts/tfm/public/newtx/ntxbexx.tfm
+INPUT /Users/luiz/Library/Application Support/MiKTeX/texmfs/install/fonts/tfm/public/tex-gyre/ts1-qtmr.tfm
+INPUT ./figures/S0BeamRodHumpFlutterRegion_flutterBoundaryPitch.pdf
+INPUT ./figures/S0BeamRodHumpFlutterRegion_flutterBoundaryPitch.pdf
+INPUT ./figures/S0BeamRodHumpFlutterRegion_flutterBoundaryPitch.pdf
+INPUT ./figures/S0BeamRodHumpFlutterRegion_flutterBoundaryPitch.pdf
+INPUT ./figures/S0BeamRodHumpFlutterRegion_flutterBoundaryPitch.pdf
+INPUT ./figures/S0BeamRodHumpFlutterRegion_flutterBoundaryPitch.pdf
+INPUT ./figures/S0BeamRodHumpFlutterRegion_flutterBoundaryDisp.pdf
+INPUT ./figures/S0BeamRodHumpFlutterRegion_flutterBoundaryDisp.pdf
+INPUT ./figures/S0BeamRodHumpFlutterRegion_flutterBoundaryDisp.pdf
+INPUT ./figures/S0BeamRodHumpFlutterRegion_flutterBoundaryDisp.pdf
+INPUT ./figures/S0BeamRodHumpFlutterRegion_flutterBoundaryDisp.pdf
+INPUT ./figures/S0BeamRodHumpFlutterRegion_flutterBoundaryDisp.pdf
+INPUT ./figures/S10BeamRodFlutterOnsetPitchRange_Uf_omegaf.pdf
+INPUT ./figures/S10BeamRodFlutterOnsetPitchRange_Uf_omegaf.pdf
+INPUT ./figures/S10BeamRodFlutterOnsetPitchRange_Uf_omegaf.pdf
+INPUT ./figures/S10BeamRodFlutterOnsetPitchRange_Uf_omegaf.pdf
+INPUT ./figures/S10BeamRodFlutterOnsetPitchRange_Uf_omegaf.pdf
+INPUT ./figures/S10BeamRodFlutterOnsetPitchRange_Uf_omegaf.pdf
+INPUT ./figures/S10BeamRodFlutterPitchRange_Vgf_LE.pdf
+INPUT ./figures/S10BeamRodFlutterPitchRange_Vgf_LE.pdf
+INPUT ./figures/S10BeamRodFlutterPitchRange_Vgf_LE.pdf
+INPUT ./figures/S10BeamRodFlutterPitchRange_Vgf_LE.pdf
+INPUT ./figures/S10BeamRodFlutterPitchRange_Vgf_LE.pdf
+INPUT ./figures/S10BeamRodFlutterPitchRange_Vgf_LE.pdf
+INPUT ./figures/S10BeamRodFlutterPitchRange_Vgf_TE.pdf
+INPUT ./figures/S10BeamRodFlutterPitchRange_Vgf_TE.pdf
+INPUT ./figures/S10BeamRodFlutterPitchRange_Vgf_TE.pdf
+INPUT ./figures/S10BeamRodFlutterPitchRange_Vgf_TE.pdf
+INPUT ./figures/S10BeamRodFlutterPitchRange_Vgf_TE.pdf
+INPUT ./figures/S10BeamRodFlutterPitchRange_Vgf_TE.pdf
+INPUT ./figures/S20BeamRodFlutterPitchRange_freq_TE.pdf
+INPUT ./figures/S20BeamRodFlutterPitchRange_freq_TE.pdf
+INPUT ./figures/S20BeamRodFlutterPitchRange_freq_TE.pdf
+INPUT ./figures/S20BeamRodFlutterPitchRange_freq_TE.pdf
+INPUT ./figures/S20BeamRodFlutterPitchRange_freq_TE.pdf
+INPUT ./figures/S20BeamRodFlutterPitchRange_freq_TE.pdf
+INPUT ./figures/S20BeamRodFlutterOnsetPitchRange_Uf_omegaf_vs_aoa.pdf
+INPUT ./figures/S20BeamRodFlutterOnsetPitchRange_Uf_omegaf_vs_aoa.pdf
+INPUT ./figures/S20BeamRodFlutterOnsetPitchRange_Uf_omegaf_vs_aoa.pdf
+INPUT ./figures/S20BeamRodFlutterOnsetPitchRange_Uf_omegaf_vs_aoa.pdf
+INPUT ./figures/S20BeamRodFlutterOnsetPitchRange_Uf_omegaf_vs_aoa.pdf
+INPUT ./figures/S20BeamRodFlutterOnsetPitchRange_Uf_omegaf_vs_aoa.pdf
+INPUT ./figures/S20BeamRodFlutterOnsetPitchRange_Uf_omegaf_vs_tipdisp.pdf
+INPUT ./figures/S20BeamRodFlutterOnsetPitchRange_Uf_omegaf_vs_tipdisp.pdf
+INPUT ./figures/S20BeamRodFlutterOnsetPitchRange_Uf_omegaf_vs_tipdisp.pdf
+INPUT ./figures/S20BeamRodFlutterOnsetPitchRange_Uf_omegaf_vs_tipdisp.pdf
+INPUT ./figures/S20BeamRodFlutterOnsetPitchRange_Uf_omegaf_vs_tipdisp.pdf
+INPUT ./figures/S20BeamRodFlutterOnsetPitchRange_Uf_omegaf_vs_tipdisp.pdf
+INPUT /Users/luiz/Library/Application Support/MiKTeX/texmfs/install/fonts/vf/public/newtx/ntxmi.vf
+INPUT /Users/luiz/Library/Application Support/MiKTeX/texmfs/install/fonts/tfm/public/newtx/NewTXMI.tfm
+INPUT /Users/luiz/Library/Application Support/MiKTeX/texmfs/install/fonts/tfm/public/newtx/stxscr.tfm
+INPUT /Users/luiz/Library/Application Support/MiKTeX/texmfs/install/fonts/vf/public/newtx/ntxmia.vf
+INPUT /Users/luiz/Library/Application Support/MiKTeX/texmfs/install/fonts/tfm/public/newtx/txmiaX.tfm
+INPUT /Users/luiz/Library/Application Support/MiKTeX/texmfs/install/fonts/tfm/public/newtx/txmiaSTbb.tfm
+INPUT /Users/luiz/Library/Application Support/MiKTeX/texmfs/install/fonts/vf/public/newtx/ntx-Regular-tlf-ot1.vf
+INPUT /Users/luiz/Library/Application Support/MiKTeX/texmfs/install/fonts/tfm/public/newtx/ntx-Regular-tlf-ot1r.tfm
+INPUT ./figures/S10InertiaRodMatchingAirspeedSweep_ID5209_VLM-def_Indicial_g10EpsTE.pdf
+INPUT ./figures/S10InertiaRodMatchingAirspeedSweep_ID5209_VLM-def_Indicial_g10EpsTE.pdf
+INPUT ./figures/S10InertiaRodMatchingAirspeedSweep_ID5209_VLM-def_Indicial_g10EpsTE.pdf
+INPUT ./figures/S10InertiaRodMatchingAirspeedSweep_ID5209_VLM-def_Indicial_g10EpsTE.pdf
+INPUT ./figures/S10InertiaRodMatchingAirspeedSweep_ID5209_VLM-def_Indicial_g10EpsTE.pdf
+INPUT ./figures/S10InertiaRodMatchingAirspeedSweep_ID5209_VLM-def_Indicial_g10EpsTE.pdf
+INPUT ./figures/S10InertiaRodMatchingAirspeedSweep_ID5209_VLM-def_Indicial_g10EpsTESpectrogram.pdf
+INPUT ./figures/S10InertiaRodMatchingAirspeedSweep_ID5209_VLM-def_Indicial_g10EpsTESpectrogram.pdf
+INPUT ./figures/S10InertiaRodMatchingAirspeedSweep_ID5209_VLM-def_Indicial_g10EpsTESpectrogram.pdf
+INPUT ./figures/S10InertiaRodMatchingAirspeedSweep_ID5209_VLM-def_Indicial_g10EpsTESpectrogram.pdf
+INPUT ./figures/S10InertiaRodMatchingAirspeedSweep_ID5209_VLM-def_Indicial_g10EpsTESpectrogram.pdf
+INPUT ./figures/S10InertiaRodMatchingAirspeedSweep_ID5209_VLM-def_Indicial_g10EpsTESpectrogram.pdf
+INPUT ./figures/ID5209_g10EpsTESpectrogram_exp.pdf
+INPUT ./figures/ID5209_g10EpsTESpectrogram_exp.pdf
+INPUT ./figures/ID5209_g10EpsTESpectrogram_exp.pdf
+INPUT ./figures/ID5209_g10EpsTESpectrogram_exp.pdf
+INPUT ./figures/ID5209_g10EpsTESpectrogram_exp.pdf
+INPUT ./figures/ID5209_g10EpsTESpectrogram_exp.pdf
+INPUT ./figures/S10BeamRodMatchingAirspeedSweep_ID5209_VLM-def_Indicial_U.pdf
+INPUT ./figures/S10BeamRodMatchingAirspeedSweep_ID5209_VLM-def_Indicial_U.pdf
+INPUT ./figures/S10BeamRodMatchingAirspeedSweep_ID5209_VLM-def_Indicial_U.pdf
+INPUT ./figures/S10BeamRodMatchingAirspeedSweep_ID5209_VLM-def_Indicial_U.pdf
+INPUT ./figures/S10BeamRodMatchingAirspeedSweep_ID5209_VLM-def_Indicial_U.pdf
+INPUT ./figures/S10BeamRodMatchingAirspeedSweep_ID5209_VLM-def_Indicial_U.pdf
+INPUT ./figures/S10BeamRodMatchingAirspeedSweep_ID5209_VLM-def_Indicial_tipOOP.pdf
+INPUT ./figures/S10BeamRodMatchingAirspeedSweep_ID5209_VLM-def_Indicial_tipOOP.pdf
+INPUT ./figures/S10BeamRodMatchingAirspeedSweep_ID5209_VLM-def_Indicial_tipOOP.pdf
+INPUT ./figures/S10BeamRodMatchingAirspeedSweep_ID5209_VLM-def_Indicial_tipOOP.pdf
+INPUT ./figures/S10BeamRodMatchingAirspeedSweep_ID5209_VLM-def_Indicial_tipOOP.pdf
+INPUT ./figures/S10BeamRodMatchingAirspeedSweep_ID5209_VLM-def_Indicial_tipOOP.pdf
+INPUT ./figures/S10BeamRodMatchingAirspeedSweep_ID5209_VLM-def_Indicial_tipAoA.pdf
+INPUT ./figures/S10BeamRodMatchingAirspeedSweep_ID5209_VLM-def_Indicial_tipAoA.pdf
+INPUT ./figures/S10BeamRodMatchingAirspeedSweep_ID5209_VLM-def_Indicial_tipAoA.pdf
+INPUT ./figures/S10BeamRodMatchingAirspeedSweep_ID5209_VLM-def_Indicial_tipAoA.pdf
+INPUT ./figures/S10BeamRodMatchingAirspeedSweep_ID5209_VLM-def_Indicial_tipAoA.pdf
+INPUT ./figures/S10BeamRodMatchingAirspeedSweep_ID5209_VLM-def_Indicial_tipAoA.pdf
+INPUT ./figures/S10BeamRodMatchingAirspeedSweep_ID5209_VLM-def_Indicial_g10EpsTE.pdf
+INPUT ./figures/S10BeamRodMatchingAirspeedSweep_ID5209_VLM-def_Indicial_g10EpsTE.pdf
+INPUT ./figures/S10BeamRodMatchingAirspeedSweep_ID5209_VLM-def_Indicial_g10EpsTE.pdf
+INPUT ./figures/S10BeamRodMatchingAirspeedSweep_ID5209_VLM-def_Indicial_g10EpsTE.pdf
+INPUT ./figures/S10BeamRodMatchingAirspeedSweep_ID5209_VLM-def_Indicial_g10EpsTE.pdf
+INPUT ./figures/S10BeamRodMatchingAirspeedSweep_ID5209_VLM-def_Indicial_g10EpsTE.pdf
+INPUT ./figures/S10BeamRodMatchingAirspeedSweep_ID5209_VLM-def_Indicial_rootEpsTE.pdf
+INPUT ./figures/S10BeamRodMatchingAirspeedSweep_ID5209_VLM-def_Indicial_rootEpsTE.pdf
+INPUT ./figures/S10BeamRodMatchingAirspeedSweep_ID5209_VLM-def_Indicial_rootEpsTE.pdf
+INPUT ./figures/S10BeamRodMatchingAirspeedSweep_ID5209_VLM-def_Indicial_rootEpsTE.pdf
+INPUT ./figures/S10BeamRodMatchingAirspeedSweep_ID5209_VLM-def_Indicial_rootEpsTE.pdf
+INPUT ./figures/S10BeamRodMatchingAirspeedSweep_ID5209_VLM-def_Indicial_rootEpsTE.pdf
+INPUT ./figures/S10BeamRodMatchingAirspeedSweep_ID5209_VLM-def_Indicial_g10EpsTEPSD.pdf
+INPUT ./figures/S10BeamRodMatchingAirspeedSweep_ID5209_VLM-def_Indicial_g10EpsTEPSD.pdf
+INPUT ./figures/S10BeamRodMatchingAirspeedSweep_ID5209_VLM-def_Indicial_g10EpsTEPSD.pdf
+INPUT ./figures/S10BeamRodMatchingAirspeedSweep_ID5209_VLM-def_Indicial_g10EpsTEPSD.pdf
+INPUT ./figures/S10BeamRodMatchingAirspeedSweep_ID5209_VLM-def_Indicial_g10EpsTEPSD.pdf
+INPUT ./figures/S10BeamRodMatchingAirspeedSweep_ID5209_VLM-def_Indicial_g10EpsTEPSD.pdf
+INPUT ./figures/S10BeamRodMatchingAirspeedSweep_ID5209_VLM-def_Indicial_g10EpsTESpectrogram.pdf
+INPUT ./figures/S10BeamRodMatchingAirspeedSweep_ID5209_VLM-def_Indicial_g10EpsTESpectrogram.pdf
+INPUT ./figures/S10BeamRodMatchingAirspeedSweep_ID5209_VLM-def_Indicial_g10EpsTESpectrogram.pdf
+INPUT ./figures/S10BeamRodMatchingAirspeedSweep_ID5209_VLM-def_Indicial_g10EpsTESpectrogram.pdf
+INPUT ./figures/S10BeamRodMatchingAirspeedSweep_ID5209_VLM-def_Indicial_g10EpsTESpectrogram.pdf
+INPUT ./figures/S10BeamRodMatchingAirspeedSweep_ID5209_VLM-def_Indicial_g10EpsTESpectrogram.pdf
+INPUT ./figures/ID5209_g10EpsTESpectrogram_exp.pdf
+INPUT ./figures/ID5209_g10EpsTESpectrogram_exp.pdf
+INPUT ./figures/ID5209_g10EpsTESpectrogram_exp.pdf
+INPUT ./figures/ID5209_g10EpsTESpectrogram_exp.pdf
+INPUT ./main.bbl
+INPUT ./main.bbl
+INPUT main.bbl
+INPUT /Users/luiz/Library/Application Support/MiKTeX/texmfs/install/fonts/tfm/public/newtx/ntx-Regular-tlf-t1.tfm
+INPUT /Users/luiz/Library/Application Support/MiKTeX/texmfs/install/fonts/tfm/public/newtx/ntx-Italic-tlf-t1.tfm
+INPUT ./figures/Pazy_models.png
+INPUT ./figures/Pazy_models.png
+INPUT ./figures/Pazy_models.png
+INPUT ./figures/Pazy_models.png
+INPUT ./figures/Pazy_models.png
+INPUT ./figures/Pazy_models.png
+INPUT ./figures/Pazy_models.png
+INPUT /Users/luiz/Library/Application Support/MiKTeX/texmfs/install/fonts/tfm/public/newtx/ntx-Bold-tlf-ot1.tfm
+INPUT /Users/luiz/Library/Application Support/MiKTeX/texmfs/install/fonts/tfm/public/newtx/ntx-Bold-tlf-ot1.tfm
+INPUT /Users/luiz/Library/Application Support/MiKTeX/texmfs/install/fonts/tfm/public/newtx/ntx-Bold-tlf-ot1.tfm
+INPUT /Users/luiz/Library/Application Support/MiKTeX/texmfs/install/fonts/tfm/public/newtx/ntxbmi.tfm
+INPUT /Users/luiz/Library/Application Support/MiKTeX/texmfs/install/fonts/tfm/public/newtx/ntxbmi.tfm
+INPUT /Users/luiz/Library/Application Support/MiKTeX/texmfs/install/fonts/tfm/public/newtx/ntxbmi7.tfm
+INPUT /Users/luiz/Library/Application Support/MiKTeX/texmfs/install/fonts/tfm/public/newtx/ntxbsy.tfm
+INPUT /Users/luiz/Library/Application Support/MiKTeX/texmfs/install/fonts/tfm/public/newtx/ntxbsy.tfm
+INPUT /Users/luiz/Library/Application Support/MiKTeX/texmfs/install/fonts/tfm/public/newtx/ntxbsy7.tfm
+INPUT /Users/luiz/Library/Application Support/MiKTeX/texmfs/install/fonts/tfm/public/newtx/ntxbexx.tfm
+INPUT /Users/luiz/Library/Application Support/MiKTeX/texmfs/install/fonts/tfm/public/newtx/ntxbexx.tfm
+INPUT /Users/luiz/Library/Application Support/MiKTeX/texmfs/install/fonts/tfm/public/newtx/ntxbexx.tfm
+INPUT /Users/luiz/Library/Application Support/MiKTeX/texmfs/install/fonts/tfm/public/newtx/ntxbmia.tfm
+INPUT /Users/luiz/Library/Application Support/MiKTeX/texmfs/install/fonts/tfm/public/newtx/ntxbmia.tfm
+INPUT /Users/luiz/Library/Application Support/MiKTeX/texmfs/install/fonts/tfm/public/newtx/ntxbmia.tfm
+INPUT /Users/luiz/Library/Application Support/MiKTeX/texmfs/install/fonts/tfm/public/newtx/ntxbsym.tfm
+INPUT /Users/luiz/Library/Application Support/MiKTeX/texmfs/install/fonts/tfm/public/newtx/ntxbsym.tfm
+INPUT /Users/luiz/Library/Application Support/MiKTeX/texmfs/install/fonts/tfm/public/newtx/ntxbsym.tfm
+INPUT /Users/luiz/Library/Application Support/MiKTeX/texmfs/install/fonts/tfm/public/newtx/ntxbsyc.tfm
+INPUT /Users/luiz/Library/Application Support/MiKTeX/texmfs/install/fonts/tfm/public/newtx/ntxbsyc.tfm
+INPUT /Users/luiz/Library/Application Support/MiKTeX/texmfs/install/fonts/tfm/public/newtx/ntxbsyc.tfm
+INPUT /Users/luiz/Library/Application Support/MiKTeX/texmfs/install/fonts/tfm/public/newtx/ntxbexa.tfm
+INPUT /Users/luiz/Library/Application Support/MiKTeX/texmfs/install/fonts/tfm/public/newtx/ntxbexa.tfm
+INPUT /Users/luiz/Library/Application Support/MiKTeX/texmfs/install/fonts/tfm/public/newtx/ntxbexa.tfm
+INPUT /Users/luiz/Library/Application Support/MiKTeX/texmfs/install/fonts/tfm/public/tex-gyre/ts1-qtmb.tfm
+INPUT /Users/luiz/Library/Application Support/MiKTeX/texmfs/install/fonts/tfm/public/tex-gyre/ts1-qtmb.tfm
+INPUT /Users/luiz/Library/Application Support/MiKTeX/texmfs/install/fonts/tfm/public/tex-gyre/ts1-qtmb.tfm
+INPUT /Users/luiz/Library/Application Support/MiKTeX/texmfs/install/fonts/tfm/public/newtx/ntx-Regular-tlf-ot1.tfm
+INPUT /Users/luiz/Library/Application Support/MiKTeX/texmfs/install/fonts/tfm/public/newtx/ntx-Regular-tlf-ot1.tfm
+INPUT /Users/luiz/Library/Application Support/MiKTeX/texmfs/install/fonts/tfm/public/newtx/ntx-Regular-tlf-ot1.tfm
+INPUT /Users/luiz/Library/Application Support/MiKTeX/texmfs/install/fonts/tfm/public/newtx/ntxmi.tfm
+INPUT /Users/luiz/Library/Application Support/MiKTeX/texmfs/install/fonts/tfm/public/newtx/ntxmi.tfm
+INPUT /Users/luiz/Library/Application Support/MiKTeX/texmfs/install/fonts/tfm/public/newtx/ntxmi7.tfm
+INPUT /Users/luiz/Library/Application Support/MiKTeX/texmfs/install/fonts/tfm/public/newtx/ntxsy.tfm
+INPUT /Users/luiz/Library/Application Support/MiKTeX/texmfs/install/fonts/tfm/public/newtx/ntxsy.tfm
+INPUT /Users/luiz/Library/Application Support/MiKTeX/texmfs/install/fonts/tfm/public/newtx/ntxsy7.tfm
+INPUT /Users/luiz/Library/Application Support/MiKTeX/texmfs/install/fonts/tfm/public/newtx/ntxexx.tfm
+INPUT /Users/luiz/Library/Application Support/MiKTeX/texmfs/install/fonts/tfm/public/newtx/ntxexx.tfm
+INPUT /Users/luiz/Library/Application Support/MiKTeX/texmfs/install/fonts/tfm/public/newtx/ntxexx.tfm
+INPUT /Users/luiz/Library/Application Support/MiKTeX/texmfs/install/fonts/tfm/public/tex-gyre/ec-qhvr.tfm
+INPUT /Users/luiz/Library/Application Support/MiKTeX/texmfs/install/fonts/tfm/public/tex-gyre/ec-qhvr.tfm
+INPUT /Users/luiz/Library/Application Support/MiKTeX/texmfs/install/fonts/tfm/public/tex-gyre/ec-qhvr.tfm
+INPUT /Users/luiz/Library/Application Support/MiKTeX/texmfs/install/fonts/tfm/public/newtx/ntxmia.tfm
+INPUT /Users/luiz/Library/Application Support/MiKTeX/texmfs/install/fonts/tfm/public/newtx/ntxmia.tfm
+INPUT /Users/luiz/Library/Application Support/MiKTeX/texmfs/install/fonts/tfm/public/newtx/ntxmia.tfm
+INPUT /Users/luiz/Library/Application Support/MiKTeX/texmfs/install/fonts/tfm/public/newtx/ntxsym.tfm
+INPUT /Users/luiz/Library/Application Support/MiKTeX/texmfs/install/fonts/tfm/public/newtx/ntxsym.tfm
+INPUT /Users/luiz/Library/Application Support/MiKTeX/texmfs/install/fonts/tfm/public/newtx/ntxsym.tfm
+INPUT /Users/luiz/Library/Application Support/MiKTeX/texmfs/install/fonts/tfm/public/newtx/ntxsyc.tfm
+INPUT /Users/luiz/Library/Application Support/MiKTeX/texmfs/install/fonts/tfm/public/newtx/ntxsyc.tfm
+INPUT /Users/luiz/Library/Application Support/MiKTeX/texmfs/install/fonts/tfm/public/newtx/ntxsyc.tfm
+INPUT /Users/luiz/Library/Application Support/MiKTeX/texmfs/install/fonts/tfm/public/newtx/ntxexa.tfm
+INPUT /Users/luiz/Library/Application Support/MiKTeX/texmfs/install/fonts/tfm/public/newtx/ntxexa.tfm
+INPUT /Users/luiz/Library/Application Support/MiKTeX/texmfs/install/fonts/tfm/public/newtx/ntxexa.tfm
+INPUT /Users/luiz/Library/Application Support/MiKTeX/texmfs/install/fonts/tfm/public/tex-gyre/ts1-qtmr.tfm
+INPUT /Users/luiz/Library/Application Support/MiKTeX/texmfs/install/fonts/tfm/public/tex-gyre/ts1-qtmr.tfm
+INPUT /Users/luiz/Library/Application Support/MiKTeX/texmfs/install/fonts/tfm/public/tex-gyre/ts1-qtmr.tfm
+INPUT /Users/luiz/Library/Application Support/MiKTeX/texmfs/install/fonts/tfm/public/newtx/ntx-Regular-tlf-t1.tfm
+INPUT /Users/luiz/Library/Application Support/MiKTeX/texmfs/install/fonts/tfm/public/newtx/ntx-Regular-tlf-t1.tfm
+INPUT /Users/luiz/Library/Application Support/MiKTeX/texmfs/install/fonts/vf/public/newtx/ntxbsy.vf
+INPUT /Users/luiz/Library/Application Support/MiKTeX/texmfs/install/fonts/tfm/public/newtx/txbsys.tfm
+INPUT /Users/luiz/Library/Application Support/MiKTeX/texmfs/install/fonts/tfm/public/newtx/txbex-bar.tfm
+INPUT /Users/luiz/Library/Application Support/MiKTeX/texmfs/install/fonts/vf/public/newtx/ntxbsy.vf
+INPUT /Users/luiz/Library/Application Support/MiKTeX/texmfs/install/fonts/tfm/public/newtx/txbsys.tfm
+INPUT /Users/luiz/Library/Application Support/MiKTeX/texmfs/install/fonts/tfm/public/newtx/txbex-bar.tfm
+INPUT /Users/luiz/Library/Application Support/MiKTeX/texmfs/install/fonts/vf/public/newtx/ntxbmi7.vf
+INPUT /Users/luiz/Library/Application Support/MiKTeX/texmfs/install/fonts/tfm/public/newtx/NewTXBMI7.tfm
+INPUT main.aux
+INPUT ./main.out
+INPUT ./main.out
+INPUT /Users/luiz/Library/Application Support/MiKTeX/texmfs/install/fonts/enc/dvips/newtx/ntx-ot1-tlf.enc
+INPUT /Users/luiz/Library/Application Support/MiKTeX/texmfs/install/fonts/enc/dvips/tex-gyre/q-ec.enc
+INPUT /Users/luiz/Library/Application Support/MiKTeX/texmfs/install/fonts/enc/dvips/newtx/ntx-ec-tlf-pc.enc
+INPUT /Users/luiz/Library/Application Support/MiKTeX/texmfs/install/fonts/enc/dvips/newtx/ntxsups_t1.enc
+INPUT /Users/luiz/Library/Application Support/MiKTeX/texmfs/install/fonts/enc/dvips/newtx/ntx-ec-tlf.enc
+INPUT /Users/luiz/Library/Application Support/MiKTeX/texmfs/install/fonts/enc/dvips/newtx/ntxsups-ts1.enc
+INPUT /Users/luiz/Library/Application Support/MiKTeX/texmfs/install/fonts/type1/public/newtx/NewTXBMI.pfb
+INPUT /Users/luiz/Library/Application Support/MiKTeX/texmfs/install/fonts/type1/public/newtx/NewTXBMI.pfb
+INPUT /Users/luiz/Library/Application Support/MiKTeX/texmfs/install/fonts/type1/public/newtx/NewTXBMI7.pfb
+INPUT /Users/luiz/Library/Application Support/MiKTeX/texmfs/install/fonts/type1/public/newtx/NewTXBMI7.pfb
+INPUT /Users/luiz/Library/Application Support/MiKTeX/texmfs/install/fonts/type1/public/newtx/NewTXMI.pfb
+INPUT /Users/luiz/Library/Application Support/MiKTeX/texmfs/install/fonts/type1/public/newtx/NewTXMI.pfb
+INPUT /Users/luiz/Library/Application Support/MiKTeX/texmfs/install/fonts/type1/public/newtx/NewTXMI5.pfb
+INPUT /Users/luiz/Library/Application Support/MiKTeX/texmfs/install/fonts/type1/public/newtx/NewTXMI5.pfb
+INPUT /Users/luiz/Library/Application Support/MiKTeX/texmfs/install/fonts/type1/public/newtx/NewTXMI7.pfb
+INPUT /Users/luiz/Library/Application Support/MiKTeX/texmfs/install/fonts/type1/public/newtx/NewTXMI7.pfb
+INPUT /Users/luiz/Library/Application Support/MiKTeX/texmfs/install/fonts/type1/public/newtx/ntxsupsalt-Regular.pfb
+INPUT /Users/luiz/Library/Application Support/MiKTeX/texmfs/install/fonts/type1/public/newtx/ntxsupsalt-Regular.pfb
+INPUT /Users/luiz/Library/Application Support/MiKTeX/texmfs/install/fonts/type1/public/tex-gyre/qhvr.pfb
+INPUT /Users/luiz/Library/Application Support/MiKTeX/texmfs/install/fonts/type1/public/tex-gyre/qhvr.pfb
+INPUT /Users/luiz/Library/Application Support/MiKTeX/texmfs/install/fonts/type1/public/txfonts/t1xtt.pfb
+INPUT /Users/luiz/Library/Application Support/MiKTeX/texmfs/install/fonts/type1/public/txfonts/t1xtt.pfb
+INPUT /Users/luiz/Library/Application Support/MiKTeX/texmfs/install/fonts/type1/public/newtx/txbmiaX.pfb
+INPUT /Users/luiz/Library/Application Support/MiKTeX/texmfs/install/fonts/type1/public/newtx/txbmiaX.pfb
+INPUT /Users/luiz/Library/Application Support/MiKTeX/texmfs/install/fonts/type1/public/newtx/txbsys.pfb
+INPUT /Users/luiz/Library/Application Support/MiKTeX/texmfs/install/fonts/type1/public/newtx/txbsys.pfb
+INPUT /Users/luiz/Library/Application Support/MiKTeX/texmfs/install/fonts/type1/public/newtx/txexas.pfb
+INPUT /Users/luiz/Library/Application Support/MiKTeX/texmfs/install/fonts/type1/public/newtx/txexas.pfb
+INPUT /Users/luiz/Library/Application Support/MiKTeX/texmfs/install/fonts/type1/public/newtx/txexs.pfb
+INPUT /Users/luiz/Library/Application Support/MiKTeX/texmfs/install/fonts/type1/public/newtx/txexs.pfb
+INPUT /Users/luiz/Library/Application Support/MiKTeX/texmfs/install/fonts/type1/public/newtx/txmiaX.pfb
+INPUT /Users/luiz/Library/Application Support/MiKTeX/texmfs/install/fonts/type1/public/newtx/txmiaX.pfb
+INPUT /Users/luiz/Library/Application Support/MiKTeX/texmfs/install/fonts/type1/public/newtx/txsym.pfb
+INPUT /Users/luiz/Library/Application Support/MiKTeX/texmfs/install/fonts/type1/public/newtx/txsym.pfb
+INPUT /Users/luiz/Library/Application Support/MiKTeX/texmfs/install/fonts/type1/public/newtx/txsys.pfb
+INPUT /Users/luiz/Library/Application Support/MiKTeX/texmfs/install/fonts/type1/public/newtx/txsys.pfb
+INPUT /Users/luiz/Library/Application Support/MiKTeX/texmfs/install/fonts/type1/public/newtx/ztmb.pfb
+INPUT /Users/luiz/Library/Application Support/MiKTeX/texmfs/install/fonts/type1/public/newtx/ztmb.pfb
+INPUT /Users/luiz/Library/Application Support/MiKTeX/texmfs/install/fonts/type1/public/newtx/ztmr.pfb
+INPUT /Users/luiz/Library/Application Support/MiKTeX/texmfs/install/fonts/type1/public/newtx/ztmr.pfb
+INPUT /Users/luiz/Library/Application Support/MiKTeX/texmfs/install/fonts/type1/public/newtx/ztmri.pfb
+INPUT /Users/luiz/Library/Application Support/MiKTeX/texmfs/install/fonts/type1/public/newtx/ztmri.pfb
