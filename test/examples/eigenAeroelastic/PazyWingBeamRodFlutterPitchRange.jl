@@ -10,13 +10,13 @@ URange = vcat(1e-3,1:1:120)
 aeroSolver = Indicial()
 
 # Airfoil section
-airfoil = deepcopy(FlatPlate)
+airfoil = deepcopy(NACA0018Pazy)
 
 # Mesh: :nominal or :refined
 mesh = :nominal
 
 # Number of elements in the wingtip rod
-nElementsWingtipRod = 12
+nElementsWingtipRod = 16
 
 # Fixed geometrical and discretization properties
 nElem,L,chord,referenceAxis,_ = geometrical_properties_Pazy(; mesh=mesh)
