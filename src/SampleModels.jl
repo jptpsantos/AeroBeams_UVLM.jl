@@ -1239,56 +1239,56 @@ Creates the TU Delft Pazy wing (`pazy_delft.bdf`)
 Returns the wing model, number of elements, total length, chord and normalized position of the reference axis (shear center)
 
 # Keyword Arguments
-- `aeroSolver::AeroSolver`: aerodynamic solver
-- `gustSolver::GustAeroSolver`: indicial gust loads solver
-- `derivationMethod::DerivationMethod`: method for aerodynamic derivatives
-- `updateAirfoilParameters::Bool`: flag to update airfoil parameters with airspeed
-- `upright::Bool`: flag to set the wing in the upright position
-- `airfoil::Airfoil`: airfoil section
+- `aeroSolver::AeroSolver`: aerodynamic solver (default: `Indicial()`)
+- `gustSolver::GustAeroSolver`: indicial gust loads solver (default: `_defaultGustAeroSolver(aeroSolver)`)
+- `derivationMethod::DerivationMethod`: method for aerodynamic derivatives (default: `AD()`)
+- `updateAirfoilParameters::Bool`: flag to update airfoil parameters with airspeed (default: `true`)
+- `upright::Bool`: flag to set the wing in the upright position (default: `true`)
+- `airfoil::Airfoil`: airfoil section (default: `deepcopy(NACA0018Pazy)`)
 - `pitchAngle::Real`: pitch angle at the root [rad]
-- `hasTipCorrection::Bool`: flag for aerodynamic tip correction
-- `altitude::Real`: altitude
+- `altitude::Real`: altitude (default: `0.0`)
 - `gravityVector::Real`: acceleration of gravity vector (resolved in the inertial basis I)
 - `airspeed::Union{Real,<:Function}`: airspeed
+- `hasTipCorrection::Bool`: flag for aerodynamic tip correction (default: `true`)
 - `tipLossType::Symbol`: tip loss function type, can be `:VLM_tan_fixed`, `:VLM_tan_equil`, `:VLM_sec` or `Symbol("FixedExponential-<τ>")` (see [`tip_loss_function_Pazy`](@ref))
-- `tipLossFunctionIsAirspeedDependent::Bool`: flag to update the tip loss function with the instantaneous airspeed along the problem
+- `tipLossFunctionIsAirspeedDependent::Bool`: flag to update the tip loss function with the instantaneous airspeed along the problem (default: `true`)
+- `tipLossPitchAngle::Real`: pitch angle at the root used to evaluate the tip loss function [rad] (default: `pitchAngle`). Useful when the angle of attack is set through `flightDirection` instead of `pitchAngle`
 - `mesh::Symbol`: beam mesh, can be `:nominal` (nodes at the root, at the ribs and at the tip of the spar) or `:refined` (approximately twice as many elements, with a node at the middle of each element of the nominal mesh)
 - `beamWingtipRod::Bool`: flag to model the wingtip rod as a beam attached to the tip of the wing (`true`), instead of lumping its inertia in the tip node (`false`, the conventional model). With `true`, the wing has the stiffness matrices of the Nastran model with the flexible tip rod and its inertia without the rod, and the model has two more beams, in this order: a rigid link, from the tip node of the wing to the attachment point of the rod, and the rod, connected to the end of the link (default: `false`)
 - `nElementsWingtipRod::Int`: number of elements of the wingtip rod beam (at least 4), as in `create_Pazy` (default: 12)
 - `wingtipRodData::Union{Nothing,NamedTuple}`: data of the wingtip rod modeled as a beam, in the format returned by `wingtip_rod_PazyDelft` (default: `nothing`). To recalibrate the rigid parts of the rod (`tied`), modify a copy of the default data with `merge`
-- `additionalBCs::Vector{BC}`: additional BCs (beyond the clamp)
-- `flightDirection::Vector{<:Real}`: flight direction vector, resolved in basis A
-- `tipLossPitchAngle::Real`: pitch angle at the root used to evaluate the tip loss function [rad] (default: `pitchAngle`). Useful when the angle of attack is set through `flightDirection` instead of `pitchAngle`
-- `gust::Union{Nothing,Gust}`: gust
 - `μWing::Union{Real,AbstractVector,AbstractMatrix{<:Real}}`: stiffness-proportional (Kelvin-Voigt) structural damping coefficients for the wing (default: `0`)
 - `μRod::Union{Real,AbstractVector,AbstractMatrix{<:Real}}`: stiffness-proportional (Kelvin-Voigt) structural damping coefficients for the wingtip rod (default: `0`)
 - `hasInducedDrag::Bool`: flag to include induced drag in the aerodynamic model (default: `true`)
+- `additionalBCs::Vector{BC}`: additional BCs (beyond the clamp)
+- `flightDirection::Vector{<:Real}`: flight direction vector, resolved in basis A
+- `gust::Union{Nothing,Gust}`: gust
 """
 function create_PazyDelft(;
     aeroSolver::AeroSolver=Indicial(),
     gustSolver::GustAeroSolver=_defaultGustAeroSolver(aeroSolver),
     derivationMethod::DerivationMethod=AD(),
     updateAirfoilParameters::Bool=true,
-    upright::Bool=false,
-    airfoil::Airfoil=deepcopy(NACA0018),
+    upright::Bool=true,
+    airfoil::Airfoil=deepcopy(NACA0018Pazy),
     pitchAngle::Real=0,
-    hasTipCorrection::Bool=true,
     altitude::Real=0,
     gravityVector::AbstractVector{<:Real}=[0,0,-standard_atmosphere(altitude).g],
     airspeed::Union{Real,<:Function}=0,
+    hasTipCorrection::Bool=true,
     tipLossType::Symbol=:VLM_tan_fixed,
     tipLossFunctionIsAirspeedDependent::Bool=false,
+    tipLossPitchAngle::Real=pitchAngle,
     mesh::Symbol=:nominal,
     beamWingtipRod::Bool=false,
     nElementsWingtipRod::Int=12,
     wingtipRodData::Union{Nothing,NamedTuple}=nothing,
-    additionalBCs::Vector{BC}=Vector{BC}(),
-    flightDirection::AbstractVector{<:Real}=a2,
-    tipLossPitchAngle::Real=pitchAngle,
-    gust::Union{Nothing,Gust}=nothing,
     μWing::Union{Real,AbstractVector,AbstractMatrix{<:Real}}=0,
     μRod::Union{Real,AbstractVector,AbstractMatrix{<:Real}}=0,
     hasInducedDrag::Bool=true,
+    additionalBCs::Vector{BC}=Vector{BC}(),
+    flightDirection::AbstractVector{<:Real}=a2,
+    gust::Union{Nothing,Gust}=nothing,
     )
 
     # Validate
@@ -1352,7 +1352,6 @@ function create_PazyDelft(;
         hasTipCorrection=hasTipCorrection,
         tipLossFunction=tipLossFunction,
         updateAirfoilParameters=updateAirfoilParameters,
-        Λ=0,
         tipLossFunctionIsAirspeedDependent=hasTipCorrection,
         updateTipLossWithAirspeed=tipLossFunctionIsAirspeedDependent,
         hasInducedDrag=hasInducedDrag,
