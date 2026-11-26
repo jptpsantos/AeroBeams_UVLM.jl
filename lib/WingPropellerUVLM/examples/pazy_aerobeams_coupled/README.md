@@ -26,22 +26,59 @@ spanwise CSV data, plots and convergence diagnostics in
 `aoa3deg/` for each prescribed incidence. See [STATIC_SPANWISE.md](STATIC_SPANWISE.md)
 for coefficient definitions, units, controls and validation.
 
+## Linear eigenanalysis
+
+`run_pazy_wing_uvlm_static.jl` can also calculate AeroBeams structural modes
+about its converged static aeroelastic shape. Set `analyze_structural_modes=true`
+and choose `number_of_structural_modes`; the runner writes
+`output/static_uvlm/fixed_load_structural_modes.csv`. Set `airspeed` and the
+other static inputs to the desired reference condition before running it. These
+modes hold the aerodynamic nodal loads fixed.
+
+For coupled eigenvalues at that one flight condition, set
+`analyze_coupled_modes=true` and choose `number_of_coupled_modes`. For a
+single-speed run, set `coupled_airspeeds=[airspeed]`. For a sweep, provide an
+increasing vector such as `coupled_airspeeds=[35.0,40.0,45.0]`; each speed is
+retrimmed with the same model and static controls. The runner writes one
+`coupled_frozen_wake_V....csv` per speed and
+`output/static_uvlm/coupled_frozen_wake_speed_sweep.csv`, plus
+`output/static_uvlm/coupled_frozen_wake_boundaries.csv`. Sign changes in
+continued modal growth rates are also printed as interpolated onset or
+restabilization brackets.
+
+This first coupled implementation finite-differences the discrete UVLM step
+around the settled reference and retains bound- and wake-circulation states.
+Wake circulation sheds and shifts downstream, but wake-panel geometry remains
+frozen at the reference shape; the trailing-edge attachment line follows the
+perturbed wing. AeroBeams' structural descriptor modes are projected into the
+same sampled system, with the existing Pazy kinematic and nodal-wrench transfers
+and the deformation-dependent moment arms.
+It is a local linear model at one converged condition, not a nonlinear limit-
+cycle analysis; determine a flutter boundary by repeating the analysis at
+multiple speeds and retrimming each reference. Check timestep, wake length,
+panel mesh and retained structural modes before relying on a boundary value.
+
+The structural-only helper is
+`PazyLinearStructuralModes.solve_pazy_structural_modes(reference)`; the coupled
+entry points are `PazyLinearAeroelastic.linearize_pazy_aeroelastic(reference)`
+and `PazyLinearAeroelastic.sweep_pazy_linear_flutter(airspeeds,reference_at_speed)`.
+
 ## S0 steady pitch-range comparison
 
 ```powershell
 julia +1.13 -t 8 --project=lib/WingPropellerUVLM/examples lib/WingPropellerUVLM/examples/pazy_aerobeams_coupled/run_pazy_s0_steady_pitch_range.jl
 ```
 
-The runner solves the upright S0 beam-rod model at 3°, 5°, and 7°, at
-0.001 m/s and at integer speeds from 1 to 60 m/s. Both methods use
-the nominal structure, a 12-element tip rod, gravity, and the Test 1 balance
-mass of 10 g at 40 mm aft of the trailing edge. AeroBeams uses its indicial
-strip model with exponential tip loss. The UVLM solution uses a symmetric
+The runner solves the updated upright S0 model at 3°, 5°, and 7°, at
+0.001 m/s and from 5 to 60 m/s in 5 m/s increments. Both methods use
+the refined structure with condensed tip-rod inertia, gravity, and the Test 1
+balance mass of 10 g at 40 mm aft of the trailing edge. AeroBeams uses its
+NACA0018 indicial strip model with the `VLM-def` spanwise load correction. UVLM uses a symmetric
 4 × 15 panel grid and a 40-row free wake, with incidence imposed through
 the freestream. Each airspeed starts with a fresh wake and can continue the
 structural equilibrium from the preceding airspeed.
 
-`output/s0_steady_pitch_range/steady_pitch_range.csv` records both solvers'
+`output/s0_inertia_rod_steady_pitch_range_vlm_def/steady_pitch_range.csv` records both solvers'
 wingtip response, UVLM convergence residuals, and elapsed time for each case.
 The two-panel PNG and PDF use solid lines for native AeroBeams, dashed lines
 for AeroBeams + UVLM, and diamonds for the [wind-tunnel reference data][s0-data].
@@ -50,9 +87,45 @@ for AeroBeams + UVLM, and diamonds for the [wind-tunnel reference data][s0-data]
 and trailing-edge displacement. The library includes those estimates at 5°
 and 7°. Add `--plot-only` to regenerate the figure from the CSV.
 
+Add `--beam-rod` to use the nominal S0 structure with an explicit 12-element
+rod and native flat-plate indicial aerodynamics. The beam-rod run includes
+every integer speed from 1 to 60 m/s and saves to `output/s0_steady_pitch_range_vlm_def/`.
+
+The native `VLM-def` correction interpolates the deformed-wing VLM
+normal-force profiles in `test/referenceData/sweptPazy/polyCoeffsDef_*.txt`
+by sweep, pitch and speed. Each benchmark verifies the applied factor at
+every wing-element midpoint. The lookup uses the 7° table at higher pitch.
+
+`output/s0_fig2_comparison/` overlays the current beam-rod UVLM run with
+the AeroBeams curves from the supplied S0 figure. The solid lines connect
+approximate points read from the image and saved in
+`figure2_aerobeams_samples.csv`. The numerical `VLM-def` reference from
+this checkout has a lower tip twist than the supplied figure.
+
+## S10 and S20 steady pitch-range comparison
+
+```powershell
+julia +1.13 -t 8 --project=lib/WingPropellerUVLM/examples lib/WingPropellerUVLM/examples/pazy_aerobeams_coupled/run_pazy_swept_steady_pitch_range.jl
+```
+
+The six-panel figure in `output/swept_steady_benchmark_vlm_def/` follows the swept-wing
+reference layout. It compares tip out-of-plane displacement, axial strain at
+the upper spar trailing edge near 40% span, and tip angle of attack. The run
+uses the current native TE tip-mass matrices for S10 and S20, VLM-def tip loss
+for the native reference, and the 0.4° S20 pitch offset from the S20 native
+script. Both solvers run at 0.001 m/s and from 10 to 70 m/s at 10 m/s intervals.
+The UVLM angle is the freestream incidence in the deformed tip chord-normal
+plane. Experimental markers come from the repository tip-displacement and
+tip-angle series. [S10 wind-tunnel data][s10-data] and [S20 wind-tunnel data][s20-data]
+document the test campaigns. The native scripts reference root strain data, so the
+40%-span strain panels show the two solver curves. `--plot-only` regenerates
+the figure from the paired results CSV.
+
 [s0-data]: ../../../../test/referenceData/Pazy
 [s0-avin]: https://doi.org/10.2514/1.J060621
 [s0-riso]: https://doi.org/10.2514/6.2023-0759
+[s10-data]: https://zenodo.org/records/16912763
+[s20-data]: https://zenodo.org/records/16354530
 
 The static iteration (`run_pazy_wing_uvlm_static`) accepts options that change only the path to the
 equilibrium, not the acceptance tests (wake window, unrelaxed load residual, geometry change):

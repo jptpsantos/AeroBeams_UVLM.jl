@@ -68,6 +68,30 @@ progress_frequency = 100             # UVLM wake steps; every static iteration p
 output_directory = joinpath(@__DIR__,"output","static_uvlm")
 save_convergence_plot = true
 
+# Optional fixed-load AeroBeams modes about the converged static state.
+# This is structural modal analysis, not coupled UVLM flutter analysis.
+analyze_structural_modes = false
+number_of_structural_modes = 20
+
+# Optional discrete UVLM/AeroBeams eigenanalysis at one or more static conditions.
+# Each requested speed is independently retrimmed; wake geometry is frozen per case.
+analyze_coupled_modes = false
+number_of_coupled_modes = 6
+coupled_airspeeds = [airspeed]   # supply an increasing vector for a retrimmed sweep
+
+static_run_options(speed) = (;mesh,sweepAngle,useAePW3Matrices,withWingtipRod,
+    rootTorsionCorr,beamWingtipRod,nElementsWingtipRod,sweptTipMassConfig,
+    sweptTipMassInertiaCorrection,airspeed=speed,density,angle_of_attack,
+    chordwise_panels,spanwise_panels,symmetric_wing,maximum_wake_rows,core_radius,
+    wake_shedding_fraction,aerodynamic_interaction,
+    maximum_aerodynamic_time=maximum_aerodynamic_time * airspeed / speed,
+    minimum_aerodynamic_time,aerodynamic_window_time,aerodynamic_force_tolerance,
+    aerodynamic_circulation_tolerance,maximum_static_iterations,static_relaxation,
+    geometry_tolerance,load_tolerance,consecutive_equilibrium_iterations,
+    newton_maximum_iterations,newton_absolute_tolerance,newton_relative_tolerance,
+    newton_display_iterations,progress_frequency,relaxation_mode,anderson_depth,
+    geometry_cap_chords,wake_reuse)
+
 # Standard static run
 # static_result = run_pazy_wing_uvlm_static(;
 #     mesh,sweepAngle,useAePW3Matrices,withWingtipRod,rootTorsionCorr,
@@ -83,18 +107,7 @@ save_convergence_plot = true
 #     relaxation_mode,anderson_depth,geometry_cap_chords,wake_reuse)
 
 # Static run with measured time and allocations    
-@time static_result = run_pazy_wing_uvlm_static(;
-    mesh,sweepAngle,useAePW3Matrices,withWingtipRod,rootTorsionCorr,
-    beamWingtipRod,nElementsWingtipRod,sweptTipMassConfig,
-    sweptTipMassInertiaCorrection,
-    airspeed,density,angle_of_attack,chordwise_panels,spanwise_panels,
-    symmetric_wing,maximum_wake_rows,core_radius,wake_shedding_fraction,
-    aerodynamic_interaction,maximum_aerodynamic_time,minimum_aerodynamic_time,
-    aerodynamic_window_time,aerodynamic_force_tolerance,aerodynamic_circulation_tolerance,
-    maximum_static_iterations,static_relaxation,geometry_tolerance,load_tolerance,
-    consecutive_equilibrium_iterations,newton_maximum_iterations,newton_absolute_tolerance,
-    newton_relative_tolerance,newton_display_iterations,progress_frequency,
-    relaxation_mode,anderson_depth,geometry_cap_chords,wake_reuse)
+@time static_result = run_pazy_wing_uvlm_static(;static_run_options(airspeed)...)
 
 # Static run with time profiling
 # using Profile
@@ -155,3 +168,49 @@ println("Tip IP [m]: ",static_result.tip_in_plane)
 println("Tip twist [deg]: ",static_result.tip_twist_degrees)
 println("Converged: ",static_result.converged,"; results in ",output_directory)
 static_result.converged || @warn static_result.termination_reason
+if analyze_structural_modes
+    include(joinpath(@__DIR__,"PazyLinearStructuralModes.jl"))
+    modal_analysis = PazyLinearStructuralModes.solve_pazy_structural_modes(
+        static_result;number_of_modes=number_of_structural_modes)
+    modes_path = PazyLinearStructuralModes.save_pazy_structural_modes(
+        joinpath(output_directory,"fixed_load_structural_modes.csv"),modal_analysis)
+    println("Fixed-load structural mode summary: ",modes_path)
+end
+if analyze_coupled_modes
+    include(joinpath(@__DIR__,"PazyLinearAeroelastic.jl"))
+    reference_at_speed = speed -> isapprox(speed,airspeed;rtol=1e-12,atol=1e-12) ?
+        static_result : run_pazy_wing_uvlm_static(;static_run_options(speed)...)
+    tag(speed) = replace(replace(string(round(speed;digits=3)),r"\.0$"=>""),"."=>"p")
+    if length(coupled_airspeeds) == 1
+        speed = only(coupled_airspeeds)
+        coupled_analysis = PazyLinearAeroelastic.linearize_pazy_aeroelastic(
+            reference_at_speed(speed);number_of_modes=number_of_coupled_modes)
+        modes_path = PazyLinearAeroelastic.save_pazy_coupled_modes(
+            joinpath(output_directory,"coupled_frozen_wake_V$(tag(speed)).csv"),coupled_analysis)
+        finite_growth_rates = filter(isfinite,coupled_analysis.growth_rates_per_s)
+        if !isempty(finite_growth_rates)
+            println("V=$speed m/s, maximum coupled frozen-wake growth rate [1/s]: ",
+                maximum(finite_growth_rates))
+        end
+        println("Coupled frozen-wake eigenvalue summary: ",modes_path)
+    else
+        coupled_sweep = PazyLinearAeroelastic.sweep_pazy_linear_flutter(
+            coupled_airspeeds,reference_at_speed;number_of_modes=number_of_coupled_modes)
+        for case in coupled_sweep.cases
+            PazyLinearAeroelastic.save_pazy_coupled_modes(
+                joinpath(output_directory,"coupled_frozen_wake_V$(tag(case.speed_mps)).csv"),
+                case.result)
+        end
+        sweep_path = PazyLinearAeroelastic.save_pazy_flutter_sweep(
+            joinpath(output_directory,"coupled_frozen_wake_speed_sweep.csv"),coupled_sweep)
+        boundary_path = PazyLinearAeroelastic.save_pazy_flutter_boundaries(
+            joinpath(output_directory,"coupled_frozen_wake_boundaries.csv"),coupled_sweep)
+        for boundary in coupled_sweep.boundaries
+            println("Mode $(boundary.mode) $(boundary.transition) bracket: ",
+                boundary.lower_speed_mps," to ",boundary.upper_speed_mps,
+                " m/s; interpolated crossing = ",boundary.estimate_mps," m/s")
+        end
+        println("Coupled frozen-wake speed sweep: ",sweep_path)
+        println("Coupled frozen-wake growth boundaries: ",boundary_path)
+    end
+end

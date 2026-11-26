@@ -1,0 +1,2 @@
+pitch_deg,airspeed_m_s,dynamic_pressure_pa,density_kg_m3,native_oop_pct,native_twist_deg,uvlm_oop_pct,uvlm_twist_deg,uvlm_converged,uvlm_static_iterations,uvlm_wake_steps,uvlm_geometry_residual,uvlm_load_residual,uvlm_wake_force_residual,uvlm_wake_circulation_residual,uvlm_seconds
+3.0,1.0,0.612487695953064,1.224975391906128,0.005458963254147345,0.0003700893695018216,0.005895390693900834,0.00038495077071742305,1.0,4.0,120.0,0.0,9.559121097922132e-6,4.68808591112032e-9,1.0657801095468176e-5,17.5749783

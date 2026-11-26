@@ -1,0 +1,14 @@
+ERROR: LoadError: UndefVarError: `pitch°` not defined in `Main`
+Suggestion: check for spelling errors or missing imports.
+Stacktrace:
+ [1] plot_s0_steady_pitch_range(outputDirectory::String)
+   @ Main C:\Users\Acer\Documents\João Tavares\Doutorado EESC\Models\AeroBeams_UVLM.jl\lib\WingPropellerUVLM\examples\pazy_aerobeams_coupled\run_pazy_s0_steady_pitch_range.jl:138
+ [2] top-level scope
+   @ C:\Users\Acer\Documents\João Tavares\Doutorado EESC\Models\AeroBeams_UVLM.jl\tmp\run_s0_steady_resume.jl:6
+ [3] include(mod::Module, _path::String)
+   @ Base .\Base.jl:309
+ [4] exec_options(opts::Base.JLOptions)
+   @ Base .\client.jl:344
+ [5] _start()
+   @ Base .\client.jl:577
+in expression starting at C:\Users\Acer\Documents\João Tavares\Doutorado EESC\Models\AeroBeams_UVLM.jl\tmp\run_s0_steady_resume.jl:6

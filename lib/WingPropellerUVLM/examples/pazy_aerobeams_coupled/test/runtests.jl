@@ -5,6 +5,9 @@ originalArgs = copy(ARGS)
 fullSuite = "--full" in ARGS
 testFiles = [
     "test_pazy_model_options.jl",
+    "test_pazy_linear_structural_modes.jl",
+    "test_pazy_linear_uvlm.jl",
+    "test_pazy_linear_aeroelastic.jl",
     "test_coupling.jl",
     "verify_pazy_coupling.jl",
     "test_visualization.jl",

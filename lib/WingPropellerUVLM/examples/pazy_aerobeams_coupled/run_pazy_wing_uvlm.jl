@@ -8,16 +8,16 @@ mesh = :refined                      # :nominal or :refined structural mesh
 sweepAngle = deg2rad(0.0)             # available data: 0, 10 or 20 degrees
 useAePW3Matrices = false               # original AePW3 data: straight, nominal only
 withWingtipRod = true                 # false: straight wing without the rod
-rootTorsionCorr = false                # corrected root stiffness: straight with rod
+rootTorsionCorr = false                # corrected root stiffness: straight with rod'
 beamWingtipRod = false                # explicit flexible rod: straight or 10 degrees
 nElementsWingtipRod = 12              # explicit rod mesh (S0 >= 6, S10 >= 4)
 sweptTipMassConfig = :baseline        # swept wing: :baseline, :LE or :TE
 sweptTipMassInertiaCorrection = false # lumped rod correction; disable for beam rod
 
 # Flight conditions
-airspeed = 65                       # m/s
+airspeed = 45                       # m/s
 density = 1.225                       # kg/m^3
-angle_of_attack = deg2rad(2.0)
+angle_of_attack = deg2rad(7.0)
 sideslip = deg2rad(0.0)               # use symmetric_wing=false for nonzero sideslip
 
 # Smooth startup: ramp from 5% to 100% airspeed, then hold before the tip pulse.

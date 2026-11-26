@@ -1,0 +1,547 @@
+S0 pitch 3 deg, airspeed 0.001 m/s
+STATIC Pazy / UVLM: U=0.001 m/s, dt=24.712600000000002 s, wake=40 rows
+Each trial holds the wing fixed while UVLM settles, then solves nonlinear static balance.
+Static iteration 1/100
+  Wake step 93/1500, t=2298.2718 s: r_force=4.28e-14, r_Gamma=9.92e-5
+  Tip OOP=-3.2e-6 m, twist=0.0 deg; r_geometry=Inf, r_load=0.0005918529566221554
+Static iteration 2/100
+  Wake step 9/1500, t=222.4134 s: r_force=1.81e-14, r_Gamma=4.19e-5
+  Tip OOP=-3.2e-6 m, twist=0.0 deg; r_geometry=0.0, r_load=2.1500407962508924e-8
+Static iteration 3/100
+  Wake step 9/1500, t=222.4134 s: r_force=7.67e-15, r_Gamma=1.78e-5
+  Tip OOP=-3.2e-6 m, twist=0.0 deg; r_geometry=0.0, r_load=9.109907572232755e-9
+Static aeroelastic equilibrium reached
+S0 pitch 3 deg, airspeed 1.0 m/s
+STATIC Pazy / UVLM: U=1.0 m/s, dt=0.0247126 s, wake=40 rows
+Each trial holds the wing fixed while UVLM settles, then solves nonlinear static balance.
+Static iteration 1/100
+  Wake step 93/1500, t=2.29827 s: r_force=4.28e-8, r_Gamma=9.92e-5
+  Tip OOP=3.24e-5 m, twist=0.00038 deg; r_geometry=Inf, r_load=7.792512766652715e-5
+Static iteration 2/100
+  Wake step 9/1500, t=0.22241 s: r_force=1.81e-8, r_Gamma=4.19e-5
+  Tip OOP=3.24e-5 m, twist=0.00038 deg; r_geometry=0.0, r_load=3.632738037813729e-5
+Static iteration 3/100
+  Wake step 9/1500, t=0.22241 s: r_force=7.67e-9, r_Gamma=1.78e-5
+  Tip OOP=3.24e-5 m, twist=0.00038 deg; r_geometry=0.0, r_load=1.3495448328682681e-5
+Static aeroelastic equilibrium reached
+S0 pitch 3 deg, airspeed 2.0 m/s
+STATIC Pazy / UVLM: U=2.0 m/s, dt=0.0123563 s, wake=40 rows
+Each trial holds the wing fixed while UVLM settles, then solves nonlinear static balance.
+Static iteration 1/100
+  Wake step 93/1500, t=1.14914 s: r_force=1.71e-7, r_Gamma=9.92e-5
+  Tip OOP=0.0001394 m, twist=0.00154 deg; r_geometry=Inf, r_load=0.00027879794136438706
+Static iteration 2/100
+  Wake step 9/1500, t=0.11121 s: r_force=7.24e-8, r_Gamma=4.19e-5
+  Tip OOP=0.0001394 m, twist=0.00154 deg; r_geometry=0.0, r_load=3.6331640731719365e-5
+Static iteration 3/100
+  Wake step 9/1500, t=0.11121 s: r_force=3.07e-8, r_Gamma=1.78e-5
+  Tip OOP=0.0001394 m, twist=0.00154 deg; r_geometry=0.0, r_load=1.3066028083821521e-5
+Static aeroelastic equilibrium reached
+S0 pitch 3 deg, airspeed 3.0 m/s
+STATIC Pazy / UVLM: U=3.0 m/s, dt=0.008237533333333333 s, wake=40 rows
+Each trial holds the wing fixed while UVLM settles, then solves nonlinear static balance.
+Static iteration 1/100
+  Wake step 93/1500, t=0.76609 s: r_force=3.85e-7, r_Gamma=9.92e-5
+  Tip OOP=0.0003178 m, twist=0.00346 deg; r_geometry=Inf, r_load=0.0004803847195392434
+Static iteration 2/100
+  Wake step 9/1500, t=0.07414 s: r_force=1.63e-7, r_Gamma=4.2e-5
+  Tip OOP=0.000318 m, twist=0.00346 deg; r_geometry=1.6008494809084006e-6, r_load=3.642398913342335e-5
+Static iteration 3/100
+  Wake step 9/1500, t=0.07414 s: r_force=6.92e-8, r_Gamma=1.78e-5
+  Tip OOP=0.000318 m, twist=0.00346 deg; r_geometry=0.0, r_load=1.3921750835247145e-5
+Static aeroelastic equilibrium reached
+S0 pitch 3 deg, airspeed 4.0 m/s
+STATIC Pazy / UVLM: U=4.0 m/s, dt=0.00617815 s, wake=40 rows
+Each trial holds the wing fixed while UVLM settles, then solves nonlinear static balance.
+Static iteration 1/100
+  Wake step 93/1500, t=0.57457 s: r_force=6.86e-7, r_Gamma=9.93e-5
+  Tip OOP=0.0005678 m, twist=0.00615 deg; r_geometry=Inf, r_load=0.0006824431997926877
+Static iteration 2/100
+  Wake step 9/1500, t=0.0556 s: r_force=2.9e-7, r_Gamma=4.21e-5
+  Tip OOP=0.0005682 m, twist=0.00615 deg; r_geometry=4.056801210791134e-6, r_load=3.6566310230030835e-5
+Static iteration 3/100
+  Wake step 9/1500, t=0.0556 s: r_force=1.23e-7, r_Gamma=1.78e-5
+  Tip OOP=0.0005682 m, twist=0.00615 deg; r_geometry=0.0, r_load=1.434102803192008e-5
+Static aeroelastic equilibrium reached
+S0 pitch 3 deg, airspeed 5.0 m/s
+STATIC Pazy / UVLM: U=5.0 m/s, dt=0.004942520000000001 s, wake=40 rows
+Each trial holds the wing fixed while UVLM settles, then solves nonlinear static balance.
+Static iteration 1/100
+  Wake step 93/1500, t=0.45965 s: r_force=1.07e-6, r_Gamma=9.93e-5
+  Tip OOP=0.0008897 m, twist=0.00961 deg; r_geometry=Inf, r_load=0.0008839157747986188
+Static iteration 2/100
+  Wake step 9/1500, t=0.04448 s: r_force=4.54e-7, r_Gamma=4.22e-5
+  Tip OOP=0.0008905 m, twist=0.00962 deg; r_geometry=8.228505882376093e-6, r_load=3.680421941459225e-5
+Static iteration 3/100
+  Wake step 9/1500, t=0.04448 s: r_force=1.94e-7, r_Gamma=1.79e-5
+  Tip OOP=0.0008905 m, twist=0.00962 deg; r_geometry=0.0, r_load=1.4606223308373468e-5
+Static aeroelastic equilibrium reached
+S0 pitch 3 deg, airspeed 6.0 m/s
+STATIC Pazy / UVLM: U=6.0 m/s, dt=0.004118766666666667 s, wake=40 rows
+Each trial holds the wing fixed while UVLM settles, then solves nonlinear static balance.
+Static iteration 1/100
+  Wake step 93/1500, t=0.38305 s: r_force=1.54e-6, r_Gamma=9.93e-5
+  Tip OOP=0.0012838 m, twist=0.01385 deg; r_geometry=Inf, r_load=0.0010848306737679784
+Static iteration 2/100
+  Wake step 9/1500, t=0.03707 s: r_force=6.54e-7, r_Gamma=4.24e-5
+  Tip OOP=0.0012852 m, twist=0.01387 deg; r_geometry=1.456940366487697e-5, r_load=3.716185496920599e-5
+Static iteration 3/100
+  Wake step 9/1500, t=0.03707 s: r_force=2.81e-7, r_Gamma=1.8e-5
+  Tip OOP=0.0012852 m, twist=0.01387 deg; r_geometry=0.0, r_load=1.4814783537251446e-5
+Static iteration 4/100
+  Wake step 9/1500, t=0.03707 s: r_force=1.19e-7, r_Gamma=7.68e-6
+  Tip OOP=0.0012853 m, twist=0.01387 deg; r_geometry=6.80198212946419e-7, r_load=4.2808153875771155e-6
+Static aeroelastic equilibrium reached
+S0 pitch 3 deg, airspeed 7.0 m/s
+STATIC Pazy / UVLM: U=7.0 m/s, dt=0.003530371428571429 s, wake=40 rows
+Each trial holds the wing fixed while UVLM settles, then solves nonlinear static balance.
+Static iteration 1/100
+  Wake step 93/1500, t=0.32832 s: r_force=2.1e-6, r_Gamma=9.94e-5
+  Tip OOP=0.0017506 m, twist=0.01887 deg; r_geometry=Inf, r_load=0.0012687689279276297
+Static iteration 2/100
+  Wake step 9/1500, t=0.03177 s: r_force=8.91e-7, r_Gamma=4.27e-5
+  Tip OOP=0.0017528 m, twist=0.01889 deg; r_geometry=2.3181357731402925e-5, r_load=3.7635569772924637e-5
+Static iteration 3/100
+  Wake step 9/1500, t=0.03177 s: r_force=3.86e-7, r_Gamma=1.82e-5
+  Tip OOP=0.0017528 m, twist=0.01889 deg; r_geometry=0.0, r_load=1.5006458052686669e-5
+Static iteration 4/100
+  Wake step 9/1500, t=0.03177 s: r_force=1.64e-7, r_Gamma=7.76e-6
+  Tip OOP=0.0017529 m, twist=0.0189 deg; r_geometry=9.71915113193929e-7, r_load=4.66428207017286e-6
+Static aeroelastic equilibrium reached
+S0 pitch 3 deg, airspeed 8.0 m/s
+STATIC Pazy / UVLM: U=8.0 m/s, dt=0.003089075 s, wake=40 rows
+Each trial holds the wing fixed while UVLM settles, then solves nonlinear static balance.
+Static iteration 1/100
+  Wake step 93/1500, t=0.28728 s: r_force=2.75e-6, r_Gamma=9.94e-5
+  Tip OOP=0.0022905 m, twist=0.02468 deg; r_geometry=Inf, r_load=0.0014679870948926563
+Static iteration 2/100
+  Wake step 9/1500, t=0.0278 s: r_force=1.17e-6, r_Gamma=4.31e-5
+  Tip OOP=0.0022939 m, twist=0.02471 deg; r_geometry=3.510338481976164e-5, r_load=3.8294412061172154e-5
+Static iteration 3/100
+  Wake step 9/1500, t=0.0278 s: r_force=5.1e-7, r_Gamma=1.84e-5
+  Tip OOP=0.002294 m, twist=0.02471 deg; r_geometry=8.599587262991014e-7, r_load=1.5270876934822465e-5
+Static iteration 4/100
+  Wake step 9/1500, t=0.0278 s: r_force=2.18e-7, r_Gamma=7.83e-6
+  Tip OOP=0.002294 m, twist=0.02471 deg; r_geometry=0.0, r_load=5.373876571945716e-6
+Static aeroelastic equilibrium reached
+S0 pitch 3 deg, airspeed 9.0 m/s
+STATIC Pazy / UVLM: U=9.0 m/s, dt=0.0027458444444444447 s, wake=40 rows
+Each trial holds the wing fixed while UVLM settles, then solves nonlinear static balance.
+Static iteration 1/100
+  Wake step 93/1499, t=0.25536 s: r_force=3.49e-6, r_Gamma=9.95e-5
+  Tip OOP=0.0029042 m, twist=0.03127 deg; r_geometry=Inf, r_load=0.0016658846850929208
+Static iteration 2/100
+  Wake step 9/1499, t=0.02471 s: r_force=1.48e-6, r_Gamma=4.38e-5
+  Tip OOP=0.0029092 m, twist=0.03132 deg; r_geometry=5.052009415845335e-5, r_load=3.914054508989004e-5
+Static iteration 3/100
+  Wake step 9/1499, t=0.02471 s: r_force=6.56e-7, r_Gamma=1.87e-5
+  Tip OOP=0.0029093 m, twist=0.03132 deg; r_geometry=1.1976593502022165e-6, r_load=1.5520054662198864e-5
+Static iteration 4/100
+  Wake step 9/1499, t=0.02471 s: r_force=2.8e-7, r_Gamma=7.99e-6
+  Tip OOP=0.0029094 m, twist=0.03132 deg; r_geometry=6.710535318167531e-7, r_load=6.1456990814974555e-6
+Static aeroelastic equilibrium reached
+S0 pitch 3 deg, airspeed 10.0 m/s
+STATIC Pazy / UVLM: U=10.0 m/s, dt=0.0024712600000000003 s, wake=40 rows
+Each trial holds the wing fixed while UVLM settles, then solves nonlinear static balance.
+Static iteration 1/100
+  Wake step 93/1500, t=0.22983 s: r_force=4.31e-6, r_Gamma=9.96e-5
+  Tip OOP=0.0035925 m, twist=0.03867 deg; r_geometry=Inf, r_load=0.0018629948125648977
+Static iteration 2/100
+  Wake step 9/1500, t=0.02224 s: r_force=1.83e-6, r_Gamma=4.5e-5
+  Tip OOP=0.0035993 m, twist=0.03874 deg; r_geometry=6.989739106898851e-5, r_load=4.019678085131065e-5
+Static iteration 3/100
+  Wake step 9/1500, t=0.02224 s: r_force=8.26e-7, r_Gamma=1.9e-5
+  Tip OOP=0.0035995 m, twist=0.03874 deg; r_geometry=1.6483378789017415e-6, r_load=1.5810716476264137e-5
+Static iteration 4/100
+  Wake step 9/1500, t=0.02224 s: r_force=3.53e-7, r_Gamma=8.16e-6
+  Tip OOP=0.0035996 m, twist=0.03874 deg; r_geometry=8.836989774505779e-7, r_load=7.2747489601465085e-6
+Static aeroelastic equilibrium reached
+S0 pitch 3 deg, airspeed 11.0 m/s
+STATIC Pazy / UVLM: U=11.0 m/s, dt=0.0022466 s, wake=40 rows
+Each trial holds the wing fixed while UVLM settles, then solves nonlinear static balance.
+Static iteration 1/100
+  Wake step 93/1500, t=0.20893 s: r_force=5.23e-6, r_Gamma=9.97e-5
+  Tip OOP=0.0043561 m, twist=0.04686 deg; r_geometry=Inf, r_load=0.0020588231309931937
+Static iteration 2/100
+  Wake step 9/1500, t=0.02022 s: r_force=2.22e-6, r_Gamma=4.68e-5
+  Tip OOP=0.0043653 m, twist=0.04696 deg; r_geometry=9.367259478401203e-5, r_load=4.479875947390503e-5
+Static iteration 3/100
+  Wake step 9/1500, t=0.02022 s: r_force=1.02e-6, r_Gamma=1.94e-5
+  Tip OOP=0.0043655 m, twist=0.04696 deg; r_geometry=2.246405447809133e-6, r_load=1.6151931751373226e-5
+Static iteration 4/100
+  Wake step 9/1500, t=0.02022 s: r_force=4.39e-7, r_Gamma=8.37e-6
+  Tip OOP=0.0043656 m, twist=0.04696 deg; r_geometry=1.158922376721452e-6, r_load=8.869233723024769e-6
+Static aeroelastic equilibrium reached
+S0 pitch 3 deg, airspeed 12.0 m/s
+STATIC Pazy / UVLM: U=12.0 m/s, dt=0.0020593833333333333 s, wake=40 rows
+Each trial holds the wing fixed while UVLM settles, then solves nonlinear static balance.
+Static iteration 1/100
+  Wake step 93/1500, t=0.19152 s: r_force=6.23e-6, r_Gamma=9.98e-5
+  Tip OOP=0.0051959 m, twist=0.05588 deg; r_geometry=Inf, r_load=0.00225312522093224
+Static iteration 2/100
+  Wake step 9/1500, t=0.01853 s: r_force=2.67e-6, r_Gamma=4.94e-5
+  Tip OOP=0.0052079 m, twist=0.056 deg; r_geometry=0.00012228382080107058, r_load=5.1272021394925273e-5
+Static iteration 3/100
+  Wake step 9/1500, t=0.01853 s: r_force=1.25e-6, r_Gamma=1.99e-5
+  Tip OOP=0.0052082 m, twist=0.056 deg; r_geometry=3.033775970016639e-6, r_load=1.6551467223776552e-5
+Static iteration 4/100
+  Wake step 9/1500, t=0.01853 s: r_force=5.38e-7, r_Gamma=8.62e-6
+  Tip OOP=0.0052083 m, twist=0.05601 deg; r_geometry=1.524576485552554e-6, r_load=1.115601061595583e-5
+Static aeroelastic equilibrium reached
+S0 pitch 3 deg, airspeed 13.0 m/s
+STATIC Pazy / UVLM: U=13.0 m/s, dt=0.001900969230769231 s, wake=40 rows
+Each trial holds the wing fixed while UVLM settles, then solves nonlinear static balance.
+Static iteration 1/100
+  Wake step 93/1500, t=0.17679 s: r_force=7.32e-6, r_Gamma=9.99e-5
+  Tip OOP=0.0061129 m, twist=0.06571 deg; r_geometry=Inf, r_load=0.002445586377662751
+Static iteration 2/100
+  Wake step 9/1500, t=0.01711 s: r_force=4.08e-6, r_Gamma=5.29e-5
+  Tip OOP=0.0061282 m, twist=0.06587 deg; r_geometry=0.00015615828210940638, r_load=5.886613861860853e-5
+Static iteration 3/100
+  Wake step 9/1500, t=0.01711 s: r_force=1.51e-6, r_Gamma=2.05e-5
+  Tip OOP=0.0061286 m, twist=0.06587 deg; r_geometry=4.060376741947898e-6, r_load=1.7015947117995514e-5
+Static iteration 4/100
+  Wake step 9/1500, t=0.01711 s: r_force=6.54e-7, r_Gamma=8.92e-6
+  Tip OOP=0.0061288 m, twist=0.06588 deg; r_geometry=2.025743793116286e-6, r_load=1.4481097036599163e-5
+Static aeroelastic equilibrium reached
+S0 pitch 3 deg, airspeed 14.0 m/s
+STATIC Pazy / UVLM: U=14.0 m/s, dt=0.0017651857142857144 s, wake=40 rows
+Each trial holds the wing fixed while UVLM settles, then solves nonlinear static balance.
+Static iteration 1/100
+  Wake step 93/1500, t=0.16416 s: r_force=8.51e-6, r_Gamma=0.0001
+  Tip OOP=0.0071082 m, twist=0.07638 deg; r_geometry=Inf, r_load=0.0026357889713083896
+Static iteration 2/100
+  Wake step 9/1500, t=0.01589 s: r_force=6.02e-6, r_Gamma=5.72e-5
+  Tip OOP=0.0071274 m, twist=0.07658 deg; r_geometry=0.00019570479112906018, r_load=6.764151943574032e-5
+Static iteration 3/100
+  Wake step 9/1500, t=0.01589 s: r_force=1.81e-6, r_Gamma=2.13e-5
+  Tip OOP=0.0071279 m, twist=0.07658 deg; r_geometry=5.384517458371519e-6, r_load=1.7550964929190864e-5
+Static iteration 4/100
+  Wake step 9/1500, t=0.01589 s: r_force=7.88e-7, r_Gamma=9.27e-6
+  Tip OOP=0.0071282 m, twist=0.07659 deg; r_geometry=2.7311390029337325e-6, r_load=1.9285925725409346e-5
+Static aeroelastic equilibrium reached
+S0 pitch 3 deg, airspeed 15.0 m/s
+STATIC Pazy / UVLM: U=15.0 m/s, dt=0.0016475066666666667 s, wake=40 rows
+Each trial holds the wing fixed while UVLM settles, then solves nonlinear static balance.
+Static iteration 1/100
+  Wake step 94/1500, t=0.15487 s: r_force=8.9e-6, r_Gamma=9.09e-5
+  Tip OOP=0.008183 m, twist=0.08789 deg; r_geometry=Inf, r_load=0.0028268923813661905
+Static iteration 2/100
+  Wake step 9/1500, t=0.01483 s: r_force=8.65e-6, r_Gamma=5.94e-5
+  Tip OOP=0.0082067 m, twist=0.08814 deg; r_geometry=0.00024167323890439323, r_load=7.561967907737496e-5
+Static iteration 3/100
+  Wake step 9/1500, t=0.01483 s: r_force=2.0e-6, r_Gamma=2.06e-5
+  Tip OOP=0.0082074 m, twist=0.08814 deg; r_geometry=6.860498604812289e-6, r_load=1.6862035333425685e-5
+Static iteration 4/100
+  Wake step 9/1500, t=0.01483 s: r_force=8.76e-7, r_Gamma=8.99e-6
+  Tip OOP=0.0082078 m, twist=0.08815 deg; r_geometry=3.6285483790265823e-6, r_load=2.609908255981528e-5
+Static aeroelastic equilibrium reached
+S0 pitch 3 deg, airspeed 16.0 m/s
+STATIC Pazy / UVLM: U=16.0 m/s, dt=0.0015445375 s, wake=40 rows
+Each trial holds the wing fixed while UVLM settles, then solves nonlinear static balance.
+Static iteration 1/100
+  Wake step 94/1500, t=0.14519 s: r_force=1.01e-5, r_Gamma=9.1e-5
+  Tip OOP=0.0093386 m, twist=0.10026 deg; r_geometry=Inf, r_load=0.003010524168456488
+Static iteration 2/100
+  Wake step 9/1500, t=0.0139 s: r_force=1.2e-5, r_Gamma=6.56e-5
+  Tip OOP=0.0093674 m, twist=0.10056 deg; r_geometry=0.00029368785245609, r_load=8.688308013338201e-5
+Static iteration 3/100
+  Wake step 9/1500, t=0.0139 s: r_force=2.38e-6, r_Gamma=2.17e-5
+  Tip OOP=0.0093683 m, twist=0.10057 deg; r_geometry=8.958234390262199e-6, r_load=1.7554761919508596e-5
+Static iteration 4/100
+  Wake step 9/1500, t=0.0139 s: r_force=1.05e-6, r_Gamma=9.41e-6
+  Tip OOP=0.0093687 m, twist=0.10057 deg; r_geometry=3.5454834410489646e-6, r_load=1.70807835982791e-5
+Static aeroelastic equilibrium reached
+S0 pitch 3 deg, airspeed 17.0 m/s
+STATIC Pazy / UVLM: U=17.0 m/s, dt=0.0014536823529411765 s, wake=40 rows
+Each trial holds the wing fixed while UVLM settles, then solves nonlinear static balance.
+Static iteration 1/100
+  Wake step 94/1500, t=0.13665 s: r_force=1.15e-5, r_Gamma=9.11e-5
+  Tip OOP=0.0105762 m, twist=0.1135 deg; r_geometry=Inf, r_load=0.003203782931319733
+Static iteration 2/100
+  Wake step 9/1500, t=0.01308 s: r_force=1.64e-5, r_Gamma=7.3e-5
+  Tip OOP=0.0106109 m, twist=0.11385 deg; r_geometry=0.0003541208532093309, r_load=9.988062888703182e-5
+Static iteration 3/100
+  Wake step 9/1500, t=0.01308 s: r_force=2.83e-6, r_Gamma=2.32e-5
+  Tip OOP=0.0106121 m, twist=0.11386 deg; r_geometry=1.1629610087165793e-5, r_load=1.835826923638787e-5
+Static iteration 4/100
+  Wake step 9/1500, t=0.01308 s: r_force=1.25e-6, r_Gamma=9.75e-6
+  Tip OOP=0.0106121 m, twist=0.11386 deg; r_geometry=0.0, r_load=2.5857630301254105e-5
+Static iteration 5/100
+  Wake step 9/1500, t=0.01308 s: r_force=5.54e-7, r_Gamma=4.28e-6
+  Tip OOP=0.0106121 m, twist=0.11386 deg; r_geometry=0.0, r_load=3.6884947765417974e-5
+Static aeroelastic equilibrium reached
+S0 pitch 3 deg, airspeed 18.0 m/s
+STATIC Pazy / UVLM: U=18.0 m/s, dt=0.0013729222222222223 s, wake=40 rows
+Each trial holds the wing fixed while UVLM settles, then solves nonlinear static balance.
+Static iteration 1/100
+  Wake step 94/1499, t=0.12905 s: r_force=1.29e-5, r_Gamma=9.12e-5
+  Tip OOP=0.011897 m, twist=0.12761 deg; r_geometry=Inf, r_load=0.003423712898784743
+Static iteration 2/100
+  Wake step 9/1499, t=0.01236 s: r_force=2.22e-5, r_Gamma=8.18e-5
+  Tip OOP=0.0119388 m, twist=0.12803 deg; r_geometry=0.00042637263801866064, r_load=0.00011543290322879323
+Static iteration 3/100
+  Wake step 9/1499, t=0.01236 s: r_force=3.35e-6, r_Gamma=2.5e-5
+  Tip OOP=0.0119403 m, twist=0.12805 deg; r_geometry=1.5092987010971083e-5, r_load=1.9326393453265222e-5
+Static iteration 4/100
+  Wake step 9/1499, t=0.01236 s: r_force=1.5e-6, r_Gamma=1.03e-5
+  Tip OOP=0.0119401 m, twist=0.12805 deg; r_geometry=1.1746165042296684e-6, r_load=3.9272407427974557e-5
+Static iteration 5/100
+  Wake step 9/1499, t=0.01236 s: r_force=6.6e-7, r_Gamma=4.63e-6
+  Tip OOP=0.0119404 m, twist=0.12805 deg; r_geometry=2.267873124076405e-6, r_load=2.3314135067182486e-5
+Static aeroelastic equilibrium reached
+S0 pitch 3 deg, airspeed 19.0 m/s
+STATIC Pazy / UVLM: U=19.0 m/s, dt=0.0013006631578947369 s, wake=40 rows
+Each trial holds the wing fixed while UVLM settles, then solves nonlinear static balance.
+Static iteration 1/100
+  Wake step 94/1500, t=0.12226 s: r_force=1.44e-5, r_Gamma=9.13e-5
+  Tip OOP=0.0133035 m, twist=0.14262 deg; r_geometry=Inf, r_load=0.0035968418951503223
+Static iteration 2/100
+  Wake step 9/1500, t=0.01171 s: r_force=2.91e-5, r_Gamma=9.07e-5
+  Tip OOP=0.0133526 m, twist=0.14312 deg; r_geometry=0.0005007764520966438, r_load=0.00013087350525660166
+Static iteration 3/100
+  Wake step 9/1500, t=0.01171 s: r_force=3.94e-6, r_Gamma=2.69e-5
+  Tip OOP=0.0133545 m, twist=0.14314 deg; r_geometry=1.9124875217114452e-5, r_load=2.029084782715998e-5
+Static iteration 4/100
+  Wake step 9/1500, t=0.01171 s: r_force=1.77e-6, r_Gamma=1.09e-5
+  Tip OOP=0.0133544 m, twist=0.14314 deg; r_geometry=7.441787431756455e-7, r_load=3.6029598037702676e-5
+Static iteration 5/100
+  Wake step 9/1500, t=0.01171 s: r_force=7.87e-7, r_Gamma=4.9e-6
+  Tip OOP=0.0133545 m, twist=0.14314 deg; r_geometry=1.6651484583872221e-6, r_load=2.8027600650591156e-5
+Static aeroelastic equilibrium reached
+S0 pitch 3 deg, airspeed 20.0 m/s
+STATIC Pazy / UVLM: U=20.0 m/s, dt=0.0012356300000000001 s, wake=40 rows
+Each trial holds the wing fixed while UVLM settles, then solves nonlinear static balance.
+Static iteration 1/100
+  Wake step 94/1500, t=0.11615 s: r_force=1.6e-5, r_Gamma=9.14e-5
+  Tip OOP=0.0147966 m, twist=0.15854 deg; r_geometry=Inf, r_load=0.003779613230562788
+Static iteration 2/100
+  Wake step 10/1500, t=0.01236 s: r_force=1.09e-5, r_Gamma=8.24e-5
+  Tip OOP=0.014854 m, twist=0.15913 deg; r_geometry=0.0005854870462027278, r_load=0.00015129347776965952
+Static iteration 3/100
+  Wake step 9/1500, t=0.01112 s: r_force=4.21e-6, r_Gamma=2.64e-5
+  Tip OOP=0.0148565 m, twist=0.15915 deg; r_geometry=2.465836074579693e-5, r_load=1.9230584786693286e-5
+Static iteration 4/100
+  Wake step 9/1500, t=0.01112 s: r_force=1.92e-6, r_Gamma=1.07e-5
+  Tip OOP=0.0148565 m, twist=0.15915 deg; r_geometry=0.0, r_load=3.279741614257298e-5
+Static iteration 5/100
+  Wake step 9/1500, t=0.01112 s: r_force=8.65e-7, r_Gamma=4.75e-6
+  Tip OOP=0.0148565 m, twist=0.15915 deg; r_geometry=0.0, r_load=2.8542587526453526e-5
+Static aeroelastic equilibrium reached
+S0 pitch 3 deg, airspeed 21.0 m/s
+STATIC Pazy / UVLM: U=21.0 m/s, dt=0.0011767904761904762 s, wake=40 rows
+Each trial holds the wing fixed while UVLM settles, then solves nonlinear static balance.
+Static iteration 1/100
+  Wake step 94/1500, t=0.11062 s: r_force=1.77e-5, r_Gamma=9.15e-5
+  Tip OOP=0.0163784 m, twist=0.17539 deg; r_geometry=Inf, r_load=0.003956318674061461
+Static iteration 2/100
+  Wake step 10/1500, t=0.01177 s: r_force=1.33e-5, r_Gamma=9.1e-5
+  Tip OOP=0.016445 m, twist=0.17607 deg; r_geometry=0.0006785889069765993, r_load=0.00017029579142211138
+Static iteration 3/100
+  Wake step 9/1500, t=0.01059 s: r_force=4.93e-6, r_Gamma=2.87e-5
+  Tip OOP=0.016448 m, twist=0.1761 deg; r_geometry=3.075776130419934e-5, r_load=2.028919266984494e-5
+Static iteration 4/100
+  Wake step 9/1500, t=0.01059 s: r_force=2.27e-6, r_Gamma=1.14e-5
+  Tip OOP=0.016448 m, twist=0.1761 deg; r_geometry=0.0, r_load=3.0340718835911976e-5
+Static iteration 5/100
+  Wake step 9/1500, t=0.01059 s: r_force=1.03e-6, r_Gamma=5.08e-6
+  Tip OOP=0.016448 m, twist=0.1761 deg; r_geometry=0.0, r_load=3.639252954614379e-5
+Static aeroelastic equilibrium reached
+S0 pitch 3 deg, airspeed 22.0 m/s
+STATIC Pazy / UVLM: U=22.0 m/s, dt=0.0011233 s, wake=40 rows
+Each trial holds the wing fixed while UVLM settles, then solves nonlinear static balance.
+Static iteration 1/100
+  Wake step 94/1500, t=0.10559 s: r_force=1.95e-5, r_Gamma=9.15e-5
+  Tip OOP=0.0180506 m, twist=0.19318 deg; r_geometry=Inf, r_load=0.004134746153497466
+Static iteration 2/100
+  Wake step 11/1500, t=0.01236 s: r_force=1.24e-5, r_Gamma=8.29e-5
+  Tip OOP=0.0181273 m, twist=0.19396 deg; r_geometry=0.0007820504962068933, r_load=0.00019418487832282031
+Static iteration 3/100
+  Wake step 9/1500, t=0.01011 s: r_force=5.25e-6, r_Gamma=2.85e-5
+  Tip OOP=0.0181311 m, twist=0.194 deg; r_geometry=3.880273624819558e-5, r_load=1.92338737870741e-5
+Static iteration 4/100
+  Wake step 9/1500, t=0.01011 s: r_force=2.46e-6, r_Gamma=1.11e-5
+  Tip OOP=0.0181311 m, twist=0.194 deg; r_geometry=0.0, r_load=2.7529794139862252e-5
+Static iteration 5/100
+  Wake step 9/1500, t=0.01011 s: r_force=1.12e-6, r_Gamma=5.0e-6
+  Tip OOP=0.0181311 m, twist=0.194 deg; r_geometry=5.023122421769046e-7, r_load=3.8518653973867064e-5
+Static aeroelastic equilibrium reached
+S0 pitch 3 deg, airspeed 23.0 m/s
+STATIC Pazy / UVLM: U=23.0 m/s, dt=0.0010744608695652175 s, wake=40 rows
+Each trial holds the wing fixed while UVLM settles, then solves nonlinear static balance.
+Static iteration 1/100
+  Wake step 94/1500, t=0.101 s: r_force=2.14e-5, r_Gamma=9.16e-5
+  Tip OOP=0.0198153 m, twist=0.21193 deg; r_geometry=Inf, r_load=0.004305231293284762
+Static iteration 2/100
+  Wake step 11/1500, t=0.01182 s: r_force=1.48e-5, r_Gamma=9.09e-5
+  Tip OOP=0.019903 m, twist=0.21282 deg; r_geometry=0.0008944053390933267, r_load=0.00021647801871361343
+Static iteration 3/100
+  Wake step 9/1500, t=0.00967 s: r_force=6.12e-6, r_Gamma=3.11e-5
+  Tip OOP=0.0199077 m, twist=0.21287 deg; r_geometry=4.760973979310319e-5, r_load=2.0334967111031353e-5
+Static iteration 4/100
+  Wake step 9/1500, t=0.00967 s: r_force=2.89e-6, r_Gamma=1.2e-5
+  Tip OOP=0.0199078 m, twist=0.21287 deg; r_geometry=8.889554454775948e-7, r_load=2.6257958822814334e-5
+Static iteration 5/100
+  Wake step 9/1500, t=0.00967 s: r_force=1.33e-6, r_Gamma=5.28e-6
+  Tip OOP=0.0199075 m, twist=0.21286 deg; r_geometry=3.3943727715155916e-6, r_load=5.177448419635232e-5
+Static aeroelastic equilibrium reached
+S0 pitch 3 deg, airspeed 24.0 m/s
+STATIC Pazy / UVLM: U=24.0 m/s, dt=0.0010296916666666666 s, wake=40 rows
+Each trial holds the wing fixed while UVLM settles, then solves nonlinear static balance.
+Static iteration 1/100
+  Wake step 94/1500, t=0.09679 s: r_force=2.34e-5, r_Gamma=9.16e-5
+  Tip OOP=0.0216744 m, twist=0.23165 deg; r_geometry=Inf, r_load=0.004480162698174261
+Static iteration 2/100
+  Wake step 11/1500, t=0.01133 s: r_force=1.76e-5, r_Gamma=9.97e-5
+  Tip OOP=0.0217743 m, twist=0.23267 deg; r_geometry=0.0010189860706106386, r_load=0.00024077076581035072
+Static iteration 3/100
+  Wake step 9/1500, t=0.00927 s: r_force=7.11e-6, r_Gamma=3.41e-5
+  Tip OOP=0.02178 m, twist=0.23273 deg; r_geometry=5.8113285701342966e-5, r_load=2.1540309445703915e-5
+Static iteration 4/100
+  Wake step 9/1500, t=0.00927 s: r_force=3.4e-6, r_Gamma=1.29e-5
+  Tip OOP=0.0217801 m, twist=0.23273 deg; r_geometry=1.5675869981303322e-6, r_load=2.538033852690858e-5
+Static iteration 5/100
+  Wake step 9/1500, t=0.00927 s: r_force=1.76e-6, r_Gamma=5.52e-6
+  Tip OOP=0.0217793 m, twist=0.23272 deg; r_geometry=7.916308267973074e-6, r_load=7.278140720760017e-5
+Static aeroelastic equilibrium reached
+S0 pitch 3 deg, airspeed 25.0 m/s
+STATIC Pazy / UVLM: U=25.0 m/s, dt=0.000988504 s, wake=40 rows
+Each trial holds the wing fixed while UVLM settles, then solves nonlinear static balance.
+Static iteration 1/100
+  Wake step 94/1500, t=0.09292 s: r_force=2.55e-5, r_Gamma=9.17e-5
+  Tip OOP=0.0236299 m, twist=0.25237 deg; r_geometry=Inf, r_load=0.004656243477963255
+Static iteration 2/100
+  Wake step 12/1500, t=0.01186 s: r_force=1.81e-5, r_Gamma=9.11e-5
+  Tip OOP=0.0237432 m, twist=0.25352 deg; r_geometry=0.0011559268055928952, r_load=0.00027397117982821625
+Static iteration 3/100
+  Wake step 9/1500, t=0.0089 s: r_force=7.54e-6, r_Gamma=3.43e-5
+  Tip OOP=0.0237502 m, twist=0.25359 deg; r_geometry=7.15465905195843e-5, r_load=2.0379000490661435e-5
+Static iteration 4/100
+  Wake step 9/1500, t=0.0089 s: r_force=3.68e-6, r_Gamma=1.28e-5
+  Tip OOP=0.0237504 m, twist=0.25359 deg; r_geometry=1.9068527073634049e-6, r_load=2.3141143028550555e-5
+Static iteration 5/100
+  Wake step 9/1500, t=0.0089 s: r_force=2.34e-6, r_Gamma=5.34e-6
+  Tip OOP=0.0237492 m, twist=0.25358 deg; r_geometry=1.240594723160261e-5, r_load=8.799273162326008e-5
+Static iteration 6/100
+  Wake step 9/1500, t=0.0089 s: r_force=2.35e-6, r_Gamma=4.82e-6
+  Tip OOP=0.0237513 m, twist=0.2536 deg; r_geometry=2.1382822825835268e-5, r_load=1.110209075339853e-5
+Static iteration 7/100
+  Wake step 9/1500, t=0.0089 s: r_force=5.62e-7, r_Gamma=1.33e-6
+  Tip OOP=0.023751 m, twist=0.2536 deg; r_geometry=2.768589793939718e-6, r_load=3.0053832921711693e-6
+Static iteration 8/100
+  Wake step 9/1500, t=0.0089 s: r_force=1.57e-7, r_Gamma=5.61e-7
+  Tip OOP=0.023751 m, twist=0.2536 deg; r_geometry=0.0, r_load=1.6990708544918482e-6
+Static aeroelastic equilibrium reached
+S0 pitch 3 deg, airspeed 26.0 m/s
+STATIC Pazy / UVLM: U=26.0 m/s, dt=0.0009504846153846155 s, wake=40 rows
+Each trial holds the wing fixed while UVLM settles, then solves nonlinear static balance.
+Static iteration 1/100
+  Wake step 94/1500, t=0.08935 s: r_force=2.76e-5, r_Gamma=9.17e-5
+  Tip OOP=0.0256864 m, twist=0.27413 deg; r_geometry=Inf, r_load=0.004758906372487446
+Static iteration 2/100
+  Wake step 12/1500, t=0.01141 s: r_force=2.11e-5, r_Gamma=9.79e-5
+  Tip OOP=0.0258123 m, twist=0.2754 deg; r_geometry=0.0012839498987329697, r_load=0.0003067439464493134
+Static iteration 3/100
+  Wake step 9/1500, t=0.00855 s: r_force=8.62e-6, r_Gamma=3.73e-5
+  Tip OOP=0.0258206 m, twist=0.27548 deg; r_geometry=8.469238744972649e-5, r_load=2.1385176075244472e-5
+Static iteration 4/100
+  Wake step 9/1500, t=0.00855 s: r_force=4.26e-6, r_Gamma=1.37e-5
+  Tip OOP=0.0258208 m, twist=0.27549 deg; r_geometry=2.260577593755975e-6, r_load=2.416109796480745e-5
+Static iteration 5/100
+  Wake step 9/1500, t=0.00855 s: r_force=2.93e-6, r_Gamma=5.62e-6
+  Tip OOP=0.0258193 m, twist=0.27547 deg; r_geometry=1.54645635926353e-5, r_load=9.754616423975831e-5
+Static iteration 6/100
+  Wake step 9/1500, t=0.00855 s: r_force=3.02e-6, r_Gamma=5.44e-6
+  Tip OOP=0.0258218 m, twist=0.2755 deg; r_geometry=2.545523812610951e-5, r_load=1.0236081028629847e-5
+Static iteration 7/100
+  Wake step 9/1500, t=0.00855 s: r_force=6.66e-7, r_Gamma=1.45e-6
+  Tip OOP=0.0258215 m, twist=0.2755 deg; r_geometry=3.028603213171533e-6, r_load=3.931248714866297e-6
+Static iteration 8/100
+  Wake step 9/1500, t=0.00855 s: r_force=1.86e-7, r_Gamma=6.13e-7
+  Tip OOP=0.0258215 m, twist=0.2755 deg; r_geometry=0.0, r_load=2.080082870936382e-6
+Static aeroelastic equilibrium reached
+S0 pitch 3 deg, airspeed 27.0 m/s
+STATIC Pazy / UVLM: U=27.0 m/s, dt=0.0009152814814814815 s, wake=40 rows
+Each trial holds the wing fixed while UVLM settles, then solves nonlinear static balance.
+Static iteration 1/100
+  Wake step 94/1500, t=0.08604 s: r_force=2.99e-5, r_Gamma=9.17e-5
+  Tip OOP=0.0278428 m, twist=0.2969 deg; r_geometry=Inf, r_load=0.004909671783320297
+Static iteration 2/100
+  Wake step 13/1500, t=0.0119 s: r_force=2.14e-5, r_Gamma=8.94e-5
+  Tip OOP=0.0279838 m, twist=0.29832 deg; r_geometry=0.001437677507836546, r_load=0.0003464633351387644
+Static iteration 3/100
+  Wake step 9/1500, t=0.00824 s: r_force=1.05e-5, r_Gamma=3.78e-5
+  Tip OOP=0.0279938 m, twist=0.29843 deg; r_geometry=0.0001022429744810109, r_load=2.0057019525446274e-5
+Static iteration 4/100
+  Wake step 9/1500, t=0.00824 s: r_force=4.59e-6, r_Gamma=1.37e-5
+  Tip OOP=0.027994 m, twist=0.29843 deg; r_geometry=2.51835369559696e-6, r_load=2.2347006695015e-5
+Static iteration 5/100
+  Wake step 9/1500, t=0.00824 s: r_force=3.83e-6, r_Gamma=5.38e-6
+  Tip OOP=0.0279919 m, twist=0.2984 deg; r_geometry=2.164230910715187e-5, r_load=0.00011455681402785107
+Static iteration 6/100
+  Wake step 9/1500, t=0.00824 s: r_force=4.06e-6, r_Gamma=6.02e-6
+  Tip OOP=0.027995 m, twist=0.29844 deg; r_geometry=3.110221742311018e-5, r_load=6.764775765591344e-6
+Static iteration 7/100
+  Wake step 9/1500, t=0.00824 s: r_force=7.36e-7, r_Gamma=1.5e-6
+  Tip OOP=0.0279947 m, twist=0.29844 deg; r_geometry=3.0202081219009843e-6, r_load=6.3418081477565605e-6
+Static iteration 8/100
+  Wake step 9/1500, t=0.00824 s: r_force=2.08e-7, r_Gamma=6.79e-7
+  Tip OOP=0.0279948 m, twist=0.29844 deg; r_geometry=8.470208761723656e-7, r_load=3.502392441711185e-6
+Static aeroelastic equilibrium reached
+S0 pitch 3 deg, airspeed 28.0 m/s
+STATIC Pazy / UVLM: U=28.0 m/s, dt=0.0008825928571428572 s, wake=40 rows
+Each trial holds the wing fixed while UVLM settles, then solves nonlinear static balance.
+Static iteration 1/100
+  Wake step 94/1500, t=0.08296 s: r_force=3.23e-5, r_Gamma=9.18e-5
+  Tip OOP=0.0301029 m, twist=0.32073 deg; r_geometry=Inf, r_load=0.005158520016140431
+Static iteration 2/100
+  Wake step 13/1500, t=0.01147 s: r_force=2.49e-5, r_Gamma=9.67e-5
+  Tip OOP=0.0302601 m, twist=0.32231 deg; r_geometry=0.0016029733980268428, r_load=0.00038948922590698363
+Static iteration 3/100
+  Wake step 9/1500, t=0.00794 s: r_force=1.35e-5, r_Gamma=4.15e-5
+  Tip OOP=0.030272 m, twist=0.32243 deg; r_geometry=0.0001211822648580244, r_load=2.1158044084139208e-5
+Static iteration 4/100
+  Wake step 9/1500, t=0.00794 s: r_force=5.34e-6, r_Gamma=1.48e-5
+  Tip OOP=0.0302723 m, twist=0.32244 deg; r_geometry=3.186354830835733e-6, r_load=2.2665911425929934e-5
+Static iteration 5/100
+  Wake step 9/1500, t=0.00794 s: r_force=6.06e-6, r_Gamma=5.28e-6
+  Tip OOP=0.0302687 m, twist=0.3224 deg; r_geometry=3.722389787014405e-5, r_load=0.00016504985260676455
+Static iteration 6/100
+  Wake step 9/1500, t=0.00794 s: r_force=6.56e-6, r_Gamma=7.94e-6
+  Tip OOP=0.0302733 m, twist=0.32245 deg; r_geometry=4.672298203461612e-5, r_load=3.1301791753187483e-6
+Static iteration 7/100
+  Wake step 9/1500, t=0.00794 s: r_force=8.21e-7, r_Gamma=1.77e-6
+  Tip OOP=0.030273 m, twist=0.32245 deg; r_geometry=2.526857291811222e-6, r_load=7.418204417717875e-6
+Static iteration 8/100
+  Wake step 9/1500, t=0.00794 s: r_force=2.69e-7, r_Gamma=8.05e-7
+  Tip OOP=0.0302731 m, twist=0.32245 deg; r_geometry=8.643816485645949e-7, r_load=4.921471353712505e-6
+Static aeroelastic equilibrium reached
+S0 pitch 3 deg, airspeed 29.0 m/s
+STATIC Pazy / UVLM: U=29.0 m/s, dt=0.0008521586206896553 s, wake=40 rows
+Each trial holds the wing fixed while UVLM settles, then solves nonlinear static balance.
+Static iteration 1/100
+  Wake step 94/1500, t=0.0801 s: r_force=3.48e-5, r_Gamma=9.18e-5
+  Tip OOP=0.0324695 m, twist=0.34564 deg; r_geometry=Inf, r_load=0.005423439703075111
+Static iteration 2/100
+  Wake step 14/1500, t=0.01193 s: r_force=2.5e-5, r_Gamma=8.83e-5
+  Tip OOP=0.032644 m, twist=0.34739 deg; r_geometry=0.0017799288531606917, r_load=0.00043643445104070053
+Static iteration 3/100
+  Wake step 9/1500, t=0.00767 s: r_force=1.74e-5, r_Gamma=4.25e-5
+  Tip OOP=0.0326581 m, twist=0.34753 deg; r_geometry=0.00014425615670868208, r_load=1.96440216456786e-5
+Static iteration 4/100
+  Wake step 9/1500, t=0.00767 s: r_force=5.76e-6, r_Gamma=1.48e-5
+  Tip OOP=0.0326585 m, twist=0.34753 deg; r_geometry=3.373855205181223e-6, r_load=2.1069269816149252e-5
+Static iteration 5/100
+  Wake step 9/1500, t=0.00767 s: r_force=8.77e-6, r_Gamma=4.68e-6
+  Tip OOP=0.0326531 m, twist=0.34747 deg; r_geometry=5.4741831284000664e-5, r_load=0.00021173371570034702
+Static iteration 6/100
+  Wake step 9/1500, t=0.00767 s: r_force=9.65e-6, r_Gamma=9.87e-6
+  Tip OOP=0.0326594 m, twist=0.34755 deg; r_geometry=6.420084067856046e-5, r_load=2.576168948173343e-6
+Static iteration 7/100
+  Wake step 9/1500, t=0.00767 s: r_force=1.01e-6, r_Gamma=1.93e-6
+  Tip OOP=0.0326591 m, twist=0.34754 deg; r_geometry=2.927922687625189e-6, r_load=9.075825420502668e-6
+Static iteration 8/100
+  Wake step 9/1500, t=0.00767 s: r_force=3.17e-7, r_Gamma=8.89e-7
+  Tip OOP=0.0326592 m, twist=0.34754 deg; r_geometry=1.0082510458299696e-6, r_load=6.403809285182139e-6
+Static aeroelastic equilibrium reached
+S0 pitch 3 deg, airspeed 30.0 m/s

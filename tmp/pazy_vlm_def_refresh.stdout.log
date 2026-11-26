@@ -1,0 +1,18 @@
+S0 beam-rod model: checked VLM-def loads at 3 degrees
+S0 beam-rod model: checked VLM-def loads at 5 degrees
+S0 beam-rod model: checked VLM-def loads at 7 degrees
+S0 beam with tip-rod inertia: checked VLM-def loads at 3 degrees
+S0 beam with tip-rod inertia: checked VLM-def loads at 5 degrees
+S0 beam with tip-rod inertia: checked VLM-def loads at 7 degrees
+S10: checked VLM-def loads at 0 degrees
+S10: checked VLM-def loads at 1 degrees
+S10: checked VLM-def loads at 3 degrees
+S10: checked VLM-def loads at 5 degrees
+S10: checked VLM-def loads at 7 degrees
+S10: checked VLM-def loads at 10 degrees
+S20: checked VLM-def loads at 0 degrees
+S20: checked VLM-def loads at 1 degrees
+S20: checked VLM-def loads at 3 degrees
+S20: checked VLM-def loads at 5 degrees
+S20: checked VLM-def loads at 7 degrees
+S20: checked VLM-def loads at 10 degrees
