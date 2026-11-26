@@ -40,7 +40,7 @@ freqs,_ = filter_tracked_modes(rads2Hz.(freqs); fmin=eps(), maxTracks=nModes)
 
 ## Plots
 # Set paths
-relPath = "/test/outputs/figures/sweptPazyModal"
+relPath = "/test/outputs/figures/eigenStructural/sweptPazyModal"
 absPath = string(pwd(),relPath)
 mkpath(absPath)
 

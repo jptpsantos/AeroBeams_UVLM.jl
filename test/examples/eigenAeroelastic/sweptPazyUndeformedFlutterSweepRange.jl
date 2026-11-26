@@ -9,20 +9,11 @@ URange = collect(0:1:100)
 # Root pitch angle [rad]
 θ = deg2rad(0)
 
-# Tip mass configuration (select between :baseline, :TE or :LE)
-sweptTipMassConfig = :TE
-
-# Flag for tip correction
-hasTipCorrection = true
-
-# Tip correction function type
-tipLossType = "VLM-def"
+# Tip mass configuration for each sweep angle
+tipMassConfigs = [:baseline, :TE, :TE]
 
 # Aerodynamic solver
 aeroSolver = Indicial()
-
-# Airfoil section
-airfoil = deepcopy(FlatPlate)
 
 # Flag for upright position
 upright = false
@@ -55,7 +46,7 @@ for (i,Λ) in enumerate(ΛRange)
         # Display progress
         println("Solving for Λ = $(round(Int,rad2deg(Λ))) deg, U = $U m/s")
         # Model
-        model,_ = create_Pazy(aeroSolver=aeroSolver,airfoil=airfoil,upright=upright,hasTipCorrection=hasTipCorrection,tipLossType=tipLossType,sweepAngle=Λ,pitchAngle=θ,airspeed=U,gravityVector=[0,0,-g],sweptTipMassConfig=sweptTipMassConfig)
+        model,_ = create_Pazy(aeroSolver=aeroSolver,upright=upright,sweepAngle=Λ,pitchAngle=θ,airspeed=U,gravityVector=[0,0,-g],tipMassConfig=tipMassConfigs[i])
         # Create and solve problem
         problem = create_EigenProblem(model=model,eigenmethod=eigenmethod,nev=nev,x0=x0)
         solve!(problem)
@@ -82,7 +73,7 @@ undef_freq_Lambda30_NastranTechnion = readdlm(pkgdir(AeroBeams)*"/test/reference
 
 ## Plots
 # Set paths
-relPath = "/test/outputs/figures/sweptPazyUndeformedFlutterSweepRange"
+relPath = "/test/outputs/figures/eigenAeroelastic/sweptPazyUndeformedFlutterSweepRange"
 absPath = string(pwd(),relPath)
 mkpath(absPath)
 
@@ -93,6 +84,7 @@ fs = 15
 lfs = 8
 lw = 2
 ms = 4
+msw = 0
 gr()
 
 # V-g-f

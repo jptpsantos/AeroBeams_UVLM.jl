@@ -82,7 +82,7 @@ flutterSpeedVsDispRef = readdlm(pkgdir(AeroBeams,"test","referenceData","SMW", "
 
 ## Plots
 # Set paths
-relPath = "/test/outputs/figures/SMWFlutterTipDispRange"
+relPath = "/test/outputs/figures/eigenAeroelastic/SMWFlutterTipDispRange"
 absPath = string(pwd(),relPath)
 mkpath(absPath)
 

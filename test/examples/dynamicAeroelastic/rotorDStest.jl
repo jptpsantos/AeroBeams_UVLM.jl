@@ -31,7 +31,7 @@ aeroSolver = BLo()
 updateAirfoilParameters = true
 
 # Aerodynamic surface
-surf = create_AeroSurface(ppSolver=aeroSolver,airfoil=airfoil,c=2*b,normSparPos=0.25,updateAirfoilParameters=updateAirfoilParameters)
+surf = create_AeroSurface(ppSolver=aeroSolver,airfoil=airfoil,c=2*b,referenceAxis=0.25,updateAirfoilParameters=updateAirfoilParameters)
 
 # Wing
 L = 10*2b
@@ -90,7 +90,7 @@ cdRef = readdlm(pkgdir(AeroBeams)*"/test/referenceData/NASAframes/"*string(frame
 
 ## Plots
 # Set paths for saving figures
-relPath = "/test/outputs/figures/rotorDStest"
+relPath = "/test/outputs/figures/dynamicAeroelastic/rotorDStest"
 absPath = string(pwd(),relPath)
 mkpath(absPath)
 

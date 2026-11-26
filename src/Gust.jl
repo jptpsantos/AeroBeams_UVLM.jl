@@ -267,7 +267,7 @@ Creates a continuous 1D gust
 - `initialTime::Real`: time when the gust begins
 - `duration::Real`: duration of the gust
 - `generationDuration::Real`: duration of the gust considered for its generation
-- `components::Vector{Int}`: components of gust velocity to consider
+- `components::Vector{Int}`: components of gust velocity to consider, along the inertial axes (1: lateral, î₁, PSD Φv; 2: longitudinal, î₂, flight direction, PSD Φu; 3: vertical, î₃, PSD Φw)
 - `L::Real`: turbulence length scale [m]
 - `ωmin::Real`: minimum frequency of the PSD [rad/s]
 - `ωmax::Real`: maximum frequency of the PSD [rad/s]
@@ -343,22 +343,25 @@ function create_Continuous1DGust(;
             Φu = @. σ^2*2*L/π * 1 / ( 1+(1.339*L*Ω)^2 )^(5/6)
             Φv = Φw = @. σ^2*L/π * ( (1+8/3*(1.339*L*Ω)^2) / (1+(1.339*L*Ω)^2)^(11/6) )
         elseif spectrum == :Dryden
-            Φu = @. σ^2*2*L/π * 1 / (1+(L*Ω)^2)^2
+            Φu = @. σ^2*2*L/π * 1 / (1+(L*Ω)^2)
             Φv = Φw = @. σ^2*L/π * ( (1+3*(L*Ω)^2) / (1+(L*Ω)^2)^2 )
         end
-        sqrt2dΩΦu = sqrt.(2*dΩ*Φu)
-        sqrt2dΩΦv = sqrt.(2*dΩ*Φv)
-        sqrt2dΩΦw = sqrt.(2*dΩ*Φw)
+        # Amplitudes (the Ω=0 term, if present, is given half weight in variance, as it represents only half of a frequency bin)
+        ampWeight = ones(length(ω))
+        ωmin == 0 && (ampWeight[1] = 1/sqrt(2))
+        sqrt2dΩΦu = ampWeight .* sqrt.(2*dΩ*Φu)
+        sqrt2dΩΦv = ampWeight .* sqrt.(2*dΩ*Φv)
+        sqrt2dΩΦw = ampWeight .* sqrt.(2*dΩ*Φw)
         # Random phase vectors
         ψu = 2π*rand(length(ω))
         ψv = 2π*rand(length(ω))
         ψw = 2π*rand(length(ω))
-        # Gust velocity components as functions of time
+        # Gust velocity components (along the inertial axes î₁, î₂, î₃) as functions of time. The flight direction is î₂, so that the longitudinal component (PSD Φu) is the second one and the lateral component (PSD Φv) is the first one
         U = 1 in components ? 
-            t -> sum( sqrt2dΩΦu .* cos.(ω*t.+ψu) ) :
+            t -> sum( sqrt2dΩΦv .* cos.(ω*t.+ψu) ) :
             t -> 0
         V = 2 in components ?
-            t -> sum( sqrt2dΩΦv .* cos.(ω*t.+ψv) ) :
+            t -> sum( sqrt2dΩΦu .* cos.(ω*t.+ψv) ) .+ convectiveVelocity :
             t -> 0
         W = 3 in components ?
             t -> sum( sqrt2dΩΦw .* cos.(ω*t.+ψw) ) :
@@ -367,7 +370,7 @@ function create_Continuous1DGust(;
         if plotPSD
             Δt = π/ωmax
             time = collect(0:Δt:generationDuration-Δt)
-            f,_,UPSD = get_FFT_and_PSD(time,U.(time))
+            f,_,UPSD = get_FFT_and_PSD(time,V.(time) .- convectiveVelocity)
             f,_,WPSD = get_FFT_and_PSD(time,W.(time))
             plt = plot(xscale=:log10,yscale=:log10,xlims=[L*Ω[2],L*Ω[end]],xticks=[1e0,1e1,1e2,1e3,1e4,1e5,1e6],xlabel="Normalized spatial frequency (\$\\Omega L\$)",ylabel="Normalized PSD",tickfont=font(10),guidefont=font(16),legendfontsize=12)
             scatter!(L*Ω,Φu/(σ^2*2*L/π),c=:green,ms=5,msw=0,label="Definition - \$\\Phi_u\$")
@@ -387,11 +390,12 @@ function create_Continuous1DGust(;
         itpV = LinearInterpolations.Interpolate(time, Vwn)
         itpW = LinearInterpolations.Interpolate(time, Wwn)
         # Gust velocity components as functions of time
+        # (the generator returns the longitudinal (Φu), lateral (Φv) and vertical (Φw) components: the flight direction is î₂, so the first inertial component is the lateral one and the second is the longitudinal one)
         U = 1 in components ?
-            t -> itpU(t) :
+            t -> itpV(t) :
             t -> 0
         V = 2 in components ?
-            t -> itpV(t) .+ convectiveVelocity :
+            t -> itpU(t) .+ convectiveVelocity :
             t -> 0
         W = 3 in components ?
             t -> itpW(t) :
@@ -506,11 +510,11 @@ function create_DiscreteSpaceGust(;
     # Normalized width coordinate (ranges from -1/2 to 1/2 for -width/2 <= x[1] <= width/2)
     w(x) = (x[1]-c0[1])/gustWidth
 
-    # Normalized length coordinate (ranges from 0 to 1 for 0 <= x[2] <= length)
-    l(x) = (x[2]-c0[2])/gustLength
-
     # Gust front longitudinal coordinate as a function of time
     c(t) = c0[2] + convectiveVelocity*t
+
+    # Normalized length coordinate (ranges from 0 to 1 for c(t) <= x[2] <= c(t) + length)
+    l(x,t) = (x[2]-c(t))/gustLength
 
     # Flag function for a position vector being inside the gust at a given time
     isInside(x,t) = -gustWidth/2 <= (x[1]-c0[1]) <= gustWidth/2 && 0 <= x[2]-c(t) <= gustLength
@@ -519,12 +523,13 @@ function create_DiscreteSpaceGust(;
     I2g(x) = RT * x
     
     # Set vertical velocity function according to gust type
+    # (the DARPA gust has maximum velocity at the wing tips, w = ±1/2, and minimum (opposite sign) at the center, w = 0)
     W = if type == :SharpEdged
-        x -> verticalVelocity
+        (x,t) -> verticalVelocity
     elseif type == :OneMinusCosine
-        x -> 1/2*verticalVelocity*(1-cos(2π*l(x)))
+        (x,t) -> 1/2*verticalVelocity*(1-cos(2π*l(x,t)))
     elseif type == :DARPA
-        x -> 1/2*verticalVelocity*cos(2π*w(x))*(1-cos(2π*l(x)))
+        (x,t) -> -1/2*verticalVelocity*cos(2π*w(x))*(1-cos(2π*l(x,t)))
     end
 
     # Flag for being defined over time
@@ -534,7 +539,7 @@ function create_DiscreteSpaceGust(;
     UGustInertial(x,t) = begin
         xg = I2g(x)
         isInside(xg,t) ? 
-        (RT * @SVector [0.0, convectiveVelocity, W(xg)]) : 
+        (RT * @SVector [0.0, convectiveVelocity, W(xg,t)]) : 
         z3
     end
 
@@ -610,8 +615,9 @@ function create_Continuous1DSpaceGust(;
     # Second (longitudinal) component of the above
     I2g2 = x -> I2g(x)[2]
 
-    # Non-dimensional spatial frequency vector
-    LΩ = 2π*L/gustLength * LinRange(0,div(N-1,2),N)
+    # Non-dimensional spatial frequency vector at the DFT frequencies Ωₖ = 2πk/ℓ, mirrored (Ω_{N-k} = Ωₖ) so that the spectrum is Hermitian and the generated signals are real
+    k = 0:N-1
+    LΩ = 2π*L/gustLength * min.(k, N .- k)
 
     # 1D gust PSDs
     if spectrum == :vK
@@ -619,7 +625,7 @@ function create_Continuous1DSpaceGust(;
         Φv = @. σ^2*L/π * ( (1+8/3*(1.339*LΩ)^2) / (1+(1.339*LΩ)^2)^(11/6) )
         Φw = Φv
     elseif spectrum == :Dryden
-        Φu = @. σ^2*2*L/π * 1 / (1+(LΩ)^2)^2
+        Φu = @. σ^2*2*L/π * 1 / (1+(LΩ)^2)
         Φv = @. σ^2*L/π * ( (1+3*(LΩ)^2) / (1+(LΩ)^2)^2 )
         Φw = Φv
     end
@@ -655,9 +661,9 @@ function create_Continuous1DSpaceGust(;
     itpV = LinearInterpolations.Interpolate(X, vg)
     itpW = LinearInterpolations.Interpolate(X, wg)
 
-    # Gust velocity components as functions of spatial coordinate
-    U = x -> itpU(I2g2(x))
-    V = x -> itpV(I2g2(x))
+    # Gust velocity components (along the inertial axes î₁, î₂, î₃) as functions of spatial coordinate. The flight direction is î₂, so the first inertial component is the lateral one (Φv) and the second is the longitudinal one (Φu)
+    U = x -> itpV(I2g2(x))
+    V = x -> itpU(I2g2(x))
     W = x -> itpW(I2g2(x))
 
     # Plot PSD, if applicable
@@ -668,7 +674,7 @@ function create_Continuous1DSpaceGust(;
         plt = plot(xscale=:log10,yscale=:log10,xlims=[LΩ[2],Inf],xticks=[1e0,1e1,1e2,1e3,1e4,1e5,1e6],xlabel="Normalized spatial frequency (\$\\Omega L\$)",ylabel="Normalized PSD",tickfont=font(10),guidefont=font(16),legendfontsize=12,legend=:bottomleft)
         plot!(Ω2*L,yPSD/(σ^2*L/π),lw=2,label="Generated")
         plot!(Ω2*L,yPSDSmoothed/(σ^2*L/π),lw=2,label="Generated - smoothed")
-        plot!(LΩ,Φw/(σ^2*L/π),lw=2,label="Definition")
+        plot!(LΩ[1:div(N,2)+1],Φw[1:div(N,2)+1]/(σ^2*L/π),lw=2,label="Definition")
         display(plt)
     end
 
@@ -679,7 +685,7 @@ function create_Continuous1DSpaceGust(;
     UGustInertial(x,t) = begin
         xg2 = I2g2(x)
         isInside(xg2) ?
-        (RT * @SVector [itpU(xg2), itpV(xg2), itpW(xg2)]) :
+        (RT * @SVector [itpV(xg2), itpU(xg2), itpW(xg2)]) :
         z3
     end
 
@@ -905,10 +911,10 @@ function stochastic_gust_velocity_from_white_noise(spectrum::Symbol,t::AbstractV
     N = length(t)
     # Time step
     Δt = t[2] - t[1]
-    # Maximum detectable frequency (Nyquist frequency) [Hz]
-    fmax = 1/(2*Δt)
-    # Frequency vector [Hz]
-    f = LinRange(0,fmax,N)
+    # DFT frequency vector [Hz] (positive and negative frequencies, so that the spectrum is Hermitian and the generated signals are real)
+    fDFT = FFTW.fftfreq(N,1/Δt)
+    # Non-negative frequencies [Hz] (returned)
+    f = collect(0:div(N,2))/(N*Δt)
 
     # Transfer function and power spectra
     # --------------------------------------------------------------------------
@@ -916,8 +922,8 @@ function stochastic_gust_velocity_from_white_noise(spectrum::Symbol,t::AbstractV
         a = 1.339
         T = a*L/URef
         C = σ * sqrt(T/(a*π))
-        Gu = @. C * (sqrt(2)/(1+1*im*f*T)^(5/6))
-        Gvw = @. C * ((1+2*sqrt(2/3)*1*im*f*T)/(1+1*im*f*T)^(11/6))
+        Gu = @. C * (sqrt(2)/(1+im*2π*fDFT*T)^(5/6))
+        Gvw = @. C * ((1+2*sqrt(2/3)*im*2π*fDFT*T)/(1+im*2π*fDFT*T)^(11/6))
     end
     Φu = @. abs(Gu)^2
     Φv = Φw = @. abs(Gvw)^2
@@ -946,7 +952,7 @@ function stochastic_gust_velocity_from_white_noise(spectrum::Symbol,t::AbstractV
     V = V*σ/rms(V)
     W = W*σ/rms(W)
 
-    return U,V,W,f,Φu,Φv,Φw
+    return U,V,W,f,Φu[1:div(N,2)+1],Φv[1:div(N,2)+1],Φw[1:div(N,2)+1]
 
 end
 export stochastic_gust_velocity_from_white_noise

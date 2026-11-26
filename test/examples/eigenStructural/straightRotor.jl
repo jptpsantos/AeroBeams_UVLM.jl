@@ -67,7 +67,7 @@ expFreqs = [5.2374e+00   7.4239e+00   1.1018e+01   1.5820e+01;
 
 ## Plots
 # Set paths
-relPath = "/test/outputs/figures/straightRotor"
+relPath = "/test/outputs/figures/eigenStructural/straightRotor"
 absPath = string(pwd(),relPath)
 mkpath(absPath)
 

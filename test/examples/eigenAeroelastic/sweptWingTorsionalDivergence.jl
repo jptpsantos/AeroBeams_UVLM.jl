@@ -23,13 +23,13 @@ atmosphere = standard_atmosphere(altitude)
 # Aerodynamic surface
 airfoil = deepcopy(FlatPlate)
 c = 0.2
-normSparPos = 1/2
+referenceAxis = 1/2
 normCGPos = 1/2
-a = 2*normSparPos - 1
+a = 2*referenceAxis - 1
 d = 2*normCGPos - 1
-e = c * (normSparPos - 1/4)
+e = c * (referenceAxis - 1/4)
 e2 = -(d-a)*c/2
-surf = create_AeroSurface(ppSolver=aeroSolver,airfoil=airfoil,c=c,normSparPos=normSparPos,Λ=Λ,updateAirfoilParameters=false,smallAngles=true)
+surf = create_AeroSurface(ppSolver=aeroSolver,airfoil=airfoil,c=c,referenceAxis=referenceAxis,Λ=Λ,updateAirfoilParameters=false,smallAngles=true)
 
 # Wing
 L = 1
@@ -85,7 +85,7 @@ println("UDRef = $(round(UDRef,digits=2)), UD = $(round(UD,digits=2)), ϵrel = $
 
 ## Plots
 # Set paths
-relPath = "/test/outputs/figures/sweptWingTorsionalDivergence"
+relPath = "/test/outputs/figures/eigenAeroelastic/sweptWingTorsionalDivergence"
 absPath = string(pwd(),relPath)
 mkpath(absPath)
 

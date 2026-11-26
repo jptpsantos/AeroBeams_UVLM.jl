@@ -135,7 +135,7 @@ TRef = readdlm(pkgdir(AeroBeams)*"/test/referenceData/Helios/trim_thrust.txt")
 
 ## Plots
 # Set paths
-relPath = "/test/outputs/figures/heliosTrim"
+relPath = "/test/outputs/figures/trimAeroelastic/heliosTrim"
 absPath = string(pwd(),relPath)
 mkpath(absPath)
 

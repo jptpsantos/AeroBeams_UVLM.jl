@@ -89,7 +89,7 @@ dampVsSpeedRootAoA5 = readdlm(pkgdir(AeroBeams,"test","referenceData","SMW", "V-
 
 ## Plots
 # Set paths
-relPath = "/test/outputs/figures/SMWFlutterPitchRange"
+relPath = "/test/outputs/figures/eigenAeroelastic/SMWFlutterPitchRange"
 absPath = string(pwd(),relPath)
 mkpath(absPath)
 

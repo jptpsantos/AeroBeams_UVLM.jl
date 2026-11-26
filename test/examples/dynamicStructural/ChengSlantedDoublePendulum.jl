@@ -90,7 +90,7 @@ end
 
 ## Plots
 # Set paths
-relPath = "/test/outputs/figures/ChengSlantedDoublePendulum"
+relPath = "/test/outputs/figures/dynamicStructural/ChengSlantedDoublePendulum"
 absPath = string(pwd(),relPath)
 mkpath(absPath)
 

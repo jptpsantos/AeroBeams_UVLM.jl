@@ -9,9 +9,6 @@ aeroSolver = Indicial()
 # Airfoil section
 airfoil = deepcopy(FlatPlate)
 
-# Flag for upright position
-upright = true
-
 # Root pitch angle [rad]
 θ = deg2rad(7)
 
@@ -22,7 +19,7 @@ mesh = :refined
 nElementsWingtipRod = 12
 
 # Initialize model
-PazyWingBeamRodFlutter,nElem,L,chord,normSparPos = create_Pazy(aeroSolver=aeroSolver,beamWingtipRod=true,nElementsWingtipRod=nElementsWingtipRod,airfoil=airfoil,upright=upright,pitchAngle=θ,mesh=mesh)
+PazyWingBeamRodFlutter,nElem,L,chord,referenceAxis = create_Pazy(aeroSolver=aeroSolver,beamWingtipRod=true,nElementsWingtipRod=nElementsWingtipRod,airfoil=airfoil,pitchAngle=θ,mesh=mesh)
 
 # Number of modes to track
 nModes = 5
@@ -74,7 +71,7 @@ end
 
 ## Plots
 # Set paths
-relPath = "/test/outputs/figures/PazyWingBeamRodFlutter"
+relPath = "/test/outputs/figures/eigenAeroelastic/PazyWingBeamRodFlutter"
 absPath = string(pwd(),relPath)
 mkpath(absPath)
 

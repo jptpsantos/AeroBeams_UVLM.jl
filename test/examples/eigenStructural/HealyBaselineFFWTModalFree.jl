@@ -57,7 +57,7 @@ print(table)
 
 ## Plots
 # Set paths
-relPath = "/test/outputs/figures/HealyBaselineFFWTModalFree"
+relPath = "/test/outputs/figures/eigenStructural/HealyBaselineFFWTModalFree"
 absPath = string(pwd(),relPath)
 mkpath(absPath)
 

@@ -92,7 +92,7 @@ theta_aoa_75 = readdlm(pkgdir(AeroBeams)*"/test/referenceData/HealyBaselineFFWTs
 
 ## Plots
 # Set paths
-relPath = "/test/outputs/figures/HealyBaselineFFWTsteadyAoARangeURangeCoast"
+relPath = "/test/outputs/figures/steadyAeroelastic/HealyBaselineFFWTsteadyAoARangeURangeCoast"
 absPath = string(pwd(),relPath)
 mkpath(absPath)
 

@@ -76,7 +76,7 @@ println("Relative error on root bending moment = $(round(ϵM2root, digits=2)) %"
 
 ## Plots
 # Set paths
-relPath = "/test/outputs/figures/drivenSpringedHingedBeam"
+relPath = "/test/outputs/figures/staticStructural/drivenSpringedHingedBeam"
 absPath = string(pwd(),relPath)
 mkpath(absPath)
 

@@ -7,7 +7,7 @@ using AeroBeams
 α = deg2rad(0)
 
 # Aerodynamic surface (for better visualization only, no aerodynamics involved)
-surf = create_AeroSurface(airfoil=deepcopy(NACA0018),c=0.1,normSparPos=0.5)
+surf = create_AeroSurface(airfoil=deepcopy(NACA0018),c=0.1,referenceAxis=0.5)
 
 # Gravity
 g = standard_atmosphere(0).g
@@ -84,7 +84,7 @@ println("Hinge moment: $(round(hingeMoment,digits=2)) N.m")
 
 ## Plots
 # Set paths
-relPath = "/test/outputs/figures/clampedFlaredHingedBeam"
+relPath = "/test/outputs/figures/staticStructural/clampedFlaredHingedBeam"
 absPath = string(pwd(),relPath)
 mkpath(absPath)
 

@@ -14,7 +14,7 @@ L = 1
 nElem = 20
 hingeNode = Int(0.25*nElem) + 1
 chord = 0.1
-normSparPos = 0.5
+referenceAxis = 0.5
 thickness = 1e-3
 
 # Sectional stiffness properties
@@ -27,7 +27,7 @@ EA, GJ, EIy, EIz = 1e7, 10, 10, 3000
 # Airfoil and aerodynamic surface
 airfoil = deepcopy(FlatPlate)
 update_all_airfoil_parameters!(airfoil,U/standard_atmosphere(0).a)
-surf = create_AeroSurface(airfoil=airfoil,c=chord,normSparPos=normSparPos,hasTipCorrection=false)
+surf = create_AeroSurface(airfoil=airfoil,c=chord,referenceAxis=referenceAxis,hasTipCorrection=false)
 
 # Wing beam
 beam = create_Beam(name="wing",length=L,nElements=nElem,S=[isotropic_stiffness_matrix(EA=EA,GJ=GJ,EIy=EIy,EIz=EIz)],I=[inertia_matrix(ρA=ρA,ρIy=ρIy,ρIz=ρIz)],p0=transform_to_WM([0;0;θ],from=:E321),surface=surf,hingedNodes=[hingeNode],hingedNodesDoF=[trues(3)])
@@ -90,7 +90,7 @@ println("Coast angle = $(round(ϕHinge,sigdigits=4)) deg")
 
 ## Plots
 # Set paths
-relPath = "/test/outputs/figures/FlatPlateFFWTsteadyCoastLeft"
+relPath = "/test/outputs/figures/steadyAeroelastic/FlatPlateFFWTsteadyCoastLeft"
 absPath = string(pwd(),relPath)
 mkpath(absPath)
 

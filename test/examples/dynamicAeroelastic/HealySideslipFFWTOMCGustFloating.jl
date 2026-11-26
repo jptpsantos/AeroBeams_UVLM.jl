@@ -84,7 +84,7 @@ tip_ct = [aeroVars[i][nElem].aeroCoefficients.ct for i in eachindex(t)]
 
 ## Plots
 # Set paths
-relPath = "/test/outputs/figures/HealySideslipFFWTOMCGustFloating"
+relPath = "/test/outputs/figures/dynamicAeroelastic/HealySideslipFFWTOMCGustFloating"
 absPath = string(pwd(),relPath)
 mkpath(absPath)
 

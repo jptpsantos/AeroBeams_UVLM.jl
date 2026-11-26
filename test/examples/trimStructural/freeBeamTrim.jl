@@ -43,7 +43,7 @@ println("Trim force relative error: $(round(100ϵ_rel, digits=4)) %")
 
 ## Plots
 # Set paths
-relPath = "/test/outputs/figures/freeBeamTrim"
+relPath = "/test/outputs/figures/trimStructural/freeBeamTrim"
 absPath = string(pwd(),relPath)
 mkpath(absPath)
 

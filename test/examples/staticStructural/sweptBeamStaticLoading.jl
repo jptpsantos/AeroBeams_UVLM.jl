@@ -46,7 +46,7 @@ end
 
 ## Plots
 # Set paths
-relPath = "/test/outputs/figures/sweptBeamStaticLoading"
+relPath = "/test/outputs/figures/staticStructural/sweptBeamStaticLoading"
 absPath = string(pwd(),relPath)
 mkpath(absPath)
 

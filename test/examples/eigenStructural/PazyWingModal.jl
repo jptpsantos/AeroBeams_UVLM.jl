@@ -3,9 +3,6 @@ using AeroBeams
 # Mesh: :nominal or :refined
 mesh = :refined
 
-# Flag to apply torsional correction at the root element stiffness matrix
-rootTorsionCorr = true
-
 # Number of modes to track
 nModes = 10
 
@@ -26,7 +23,7 @@ eigensols = Array{EigenSolution}(undef,length(g))
 # Loop position configurations
 for (i,(upright,g)) in enumerate(zip(uprights,g))
     # Model
-    model,_ = create_Pazy(aeroSolver=QuasiSteady(),mesh=mesh,upright=upright,gravityVector=[0,0,-g],rootTorsionCorr=rootTorsionCorr)
+    model,_ = create_Pazy(aeroSolver=QuasiSteady(),mesh=mesh,upright=upright,gravityVector=[0,0,-g])
     # Create and solve problem
     problem[i] = create_EigenProblem(model=model,eigenmethod=eigenmethod,nev=nev)
     solve!(problem[i])
@@ -84,7 +81,7 @@ print(table)
 
 ## Plots
 # Set paths
-relPath = "/test/outputs/figures/PazyWingModal"
+relPath = "/test/outputs/figures/eigenStructural/PazyWingModal"
 absPath = string(pwd(),relPath)
 mkpath(absPath)
 

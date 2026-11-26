@@ -1,0 +1,4 @@
+# dev/Pazy/S20/BeamRod/S20PazyBeamRodFlutterOnsetPitchRange.jl [sec]: AF=script, FWL=default, TLMODE=sec, XS=false, WS=1.0, WN=false (87.4 s)
+S20 LE: flutter speed error [m/s] at θ [deg]: 0:+1.4 3:+2.8 5:+0.9 7:+0.3 8.5:-0.0 10:-0.2 | mean +0.87 | frequency error [Hz]: 0:-0.1 3:+0.6 5:+0.3 7:+0.3 8.5:+0.3 10:+0.7
+S20 TE: flutter speed error [m/s] at θ [deg]: 3:-5.7 5:-5.4 7:-5.9 10:-4.2 | mean -5.30 | frequency error [Hz]: 3:-0.5 5:-0.6 7:-0.4 10:-0.4
+mean absolute error of the flutter speeds: 2.69 m/s

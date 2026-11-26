@@ -6,9 +6,6 @@ meshes = [:nominal, :refined]
 # Number of elements of the wingtip rod beam
 nElementsWingtipRod = 16
 
-# Flag to apply torsional correction at the root element stiffness matrix
-rootTorsionCorr = true
-
 # Number of modes to track
 nModes = 15
 
@@ -25,7 +22,7 @@ nElemWing = Vector{Int}(undef,length(meshes))
 # Loop meshes (in-vacuo wing, with the wingtip rod modeled as a beam)
 for (i,mesh) in enumerate(meshes)
     # Model
-    models[i],nElemWing[i],_ = create_Pazy(aeroSolver=QuasiSteady(),mesh=mesh,beamWingtipRod=true,nElementsWingtipRod=nElementsWingtipRod,gravityVector=zeros(3),rootTorsionCorr=rootTorsionCorr)
+    models[i],nElemWing[i],_ = create_Pazy(aeroSolver=QuasiSteady(),mesh=mesh,beamWingtipRod=true,nElementsWingtipRod=nElementsWingtipRod,gravityVector=zeros(3))
     # Create and solve problem
     problem[i] = create_EigenProblem(model=models[i],eigenmethod=eigenmethod,nev=nev)
     solve!(problem[i])
@@ -40,7 +37,7 @@ freqs = [[rads2Hz.(imag(λ)) for λ in eigensols[i].λ if imag(λ) > 0][1:nModes
 modeShapes = [eigensols[i].modeShapes[2:2:2*nModes] for i in eachindex(eigensols)]
 
 # Chord of the wing and normalized position of the reference axis
-_,_,chord,normSparPos = geometrical_properties_Pazy()
+_,_,chord,referenceAxis,_ = geometrical_properties_Pazy()
 
 # Classify the modes by their dominant displacement component, in the order of frequency. Wing modes: axial (A), in-plane bending (IP), out-of-plane bending (OOP) or torsion (T), the latter with the rotation weighted by half of the chord. Rod modes (R): those in which the energy of the wing (the same displacement components, summed over its elements) is less than a fraction `rodModeRatio` of that of the rod (summed over its elements), as the rod follows the motion of the tip of the wing in the wing modes, but with a larger energy
 rodModeRatio = 0.07
@@ -88,7 +85,7 @@ function beam_mode_vector(modeShape,wingElements,rodElements)
     for e in wingElements
         u = modeShape.state[e].midpoint.u
         p = modeShape.state[e].midpoint.p
-        for η in (normSparPos*chord, (normSparPos-1)*chord) # position of the leading and trailing edges along a2, from the reference axis
+        for η in (referenceAxis*chord, (referenceAxis-1)*chord) # position of the leading and trailing edges along a2, from the reference axis
             append!(v, u + cross(p,[0,η,0]))
         end
     end
@@ -108,7 +105,7 @@ function nastran_mode_vector(mode,midpoints,wingElements,rodElements)
         append!(v, toBasisA([interpolate_data(midpoints[e][1],wing[:,2],wing[:,c]) for c in columns]))
     end
     for e in rodElements
-        x = normSparPos*chord - midpoints[e][2] # chordwise position of the element, from the leading edge
+        x = referenceAxis*chord - midpoints[e][2] # chordwise position of the element, from the leading edge
         append!(v, toBasisA([interpolate_data(x,rod[:,2],rod[:,c]) for c in 3:5]))
     end
     return v
@@ -169,7 +166,7 @@ print(table)
 
 ## Plots
 # Set paths
-relPath = "/test/outputs/figures/PazyWingBeamRodModal"
+relPath = "/test/outputs/figures/eigenStructural/PazyWingBeamRodModal"
 absPath = string(pwd(),relPath)
 mkpath(absPath)
 

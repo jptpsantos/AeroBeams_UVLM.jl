@@ -46,7 +46,7 @@ end
 
 ## Plots
 # Set paths
-relPath = "/test/outputs/figures/tipSineLoadedCantileverIntegrationMethods"
+relPath = "/test/outputs/figures/dynamicStructural/tipSineLoadedCantileverIntegrationMethods"
 absPath = string(pwd(),relPath)
 mkpath(absPath)
 

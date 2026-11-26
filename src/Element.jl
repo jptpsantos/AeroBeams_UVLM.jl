@@ -59,6 +59,12 @@ end
 # - `I22`: sectional inertia matrix block 22
 # - `ηtilde`: skew-symmetric matrix of the sectional mass center position vector
 # - `μ`: sectional mass per unit length
+# - `μd`: sectional structural damping coefficients matrix (the total resultants are the elastic ones plus μd times their rates)
+# - `μd11`: sectional structural damping coefficients matrix block 11
+# - `μd12`: sectional structural damping coefficients matrix block 12
+# - `μd21`: sectional structural damping coefficients matrix block 21
+# - `μd22`: sectional structural damping coefficients matrix block 22
+# - `hasDamping`: flag for non-zero structural damping
 #
 struct ElementSectional
 
@@ -77,6 +83,13 @@ struct ElementSectional
 
     ηtilde::SMatrix{3,3,Float64,9}
     μ::Float64
+
+    μd::SMatrix{6,6,Float64,36}
+    μd11::SMatrix{3,3,Float64,9}
+    μd12::SMatrix{3,3,Float64,9}
+    μd21::SMatrix{3,3,Float64,9}
+    μd22::SMatrix{3,3,Float64,9}
+    hasDamping::Bool
 
 end
 
@@ -246,6 +259,7 @@ ElementAssemblyIndices{N}() where N = ElementAssemblyIndices{N}(
 # Fields (global indices of the Jacobian block mappings)
 # - `Fu1_p`: first node translational equilibrium equations and rotational displacements DOF
 # - `Fu1_F`: first node translational equilibrium equations and sectional forces DOF
+# - `Fu1_M`: first node translational equilibrium equations and sectional moments DOF (only with structural damping)
 # - `Fu1_V`: first node translational equilibrium equations and sectional velocities DOF
 # - `Fu1_Ω`: first node translational equilibrium equations and sectional angular velocities DOF
 # - `Fu1_χ`: first node translational equilibrium equations and aerodynamic DOF
@@ -266,6 +280,7 @@ ElementAssemblyIndices{N}() where N = ElementAssemblyIndices{N}(
 # - `FM1_M`: first node rotational compatibility equations and sectional moments DOF
 # - `Fu2_p`: second node translational equilibrium equations and rotational displacements DOF
 # - `Fu2_F`: second node translational equilibrium equations and sectional forces DOF
+# - `Fu2_M`: second node translational equilibrium equations and sectional moments DOF (only with structural damping)
 # - `Fu2_V`: second node translational equilibrium equations and sectional velocities DOF
 # - `Fu2_Ω`: second node translational equilibrium equations and sectional angular velocities DOF
 # - `Fu2_χ`: second node translational equilibrium equations and aerodynamic DOF
@@ -298,6 +313,7 @@ struct JacobianIndicesMaps{N3,Nδ3,NN}
 
     Fu1_p::SVector{9,Int}
     Fu1_F::SVector{9,Int}
+    Fu1_M::SVector{9,Int}
     Fu1_V::SVector{9,Int}
     Fu1_Ω::SVector{9,Int}
     Fu1_χ::SVector{N3,Int}
@@ -319,9 +335,14 @@ struct JacobianIndicesMaps{N3,Nδ3,NN}
     FM1_p::SVector{9,Int}
     FM1_F::SVector{9,Int}
     FM1_M::SVector{9,Int}
+    FM1_V::SVector{9,Int}
+    FM1_Ω::SVector{9,Int}
+    FM1_χ::SVector{N3,Int}
+    FM1_δ::SVector{Nδ3,Int}
 
     Fu2_p::SVector{9,Int}
     Fu2_F::SVector{9,Int}
+    Fu2_M::SVector{9,Int}
     Fu2_V::SVector{9,Int}
     Fu2_Ω::SVector{9,Int}
     Fu2_χ::SVector{N3,Int}
@@ -356,13 +377,13 @@ struct JacobianIndicesMaps{N3,Nδ3,NN}
     Fχ_Ω::SVector{N3,Int}
     Fχ_χ::SVector{NN,Int}
 
-    function JacobianIndicesMaps{N3,Nδ3,NN}(Fu1_p,Fu1_F,Fu1_V,Fu1_Ω,Fu1_χ,Fu1_δ,Fp1_p,Fp1_F,Fp1_M,Fp1_V,Fp1_Ω,Fp1_χ,Fp1_δ,FF1_u,FF1_p,FF1_F,FF1_M,FM1_p,FM1_F,FM1_M,Fu2_p,Fu2_F,Fu2_V,Fu2_Ω,Fu2_χ,Fu2_δ,Fp2_p,Fp2_F,Fp2_M,Fp2_V,Fp2_Ω,Fp2_χ,Fp2_δ,FF2_u,FF2_p,FF2_F,FF2_M,FM2_p,FM2_F,FM2_M,FV_u,FV_p,FV_V,FΩ_p,FΩ_Ω,Fχ_p,Fχ_V,Fχ_Ω,Fχ_χ) where {N3,Nδ3,NN}
+    function JacobianIndicesMaps{N3,Nδ3,NN}(Fu1_p,Fu1_F,Fu1_M,Fu1_V,Fu1_Ω,Fu1_χ,Fu1_δ,Fp1_p,Fp1_F,Fp1_M,Fp1_V,Fp1_Ω,Fp1_χ,Fp1_δ,FF1_u,FF1_p,FF1_F,FF1_M,FM1_p,FM1_F,FM1_M,FM1_V,FM1_Ω,FM1_χ,FM1_δ,Fu2_p,Fu2_F,Fu2_M,Fu2_V,Fu2_Ω,Fu2_χ,Fu2_δ,Fp2_p,Fp2_F,Fp2_M,Fp2_V,Fp2_Ω,Fp2_χ,Fp2_δ,FF2_u,FF2_p,FF2_F,FF2_M,FM2_p,FM2_F,FM2_M,FV_u,FV_p,FV_V,FΩ_p,FΩ_Ω,Fχ_p,Fχ_V,Fχ_Ω,Fχ_χ) where {N3,Nδ3,NN}
         new{N3,Nδ3,NN}(
-            Fu1_p,Fu1_F,Fu1_V,Fu1_Ω,Fu1_χ,Fu1_δ,
+            Fu1_p,Fu1_F,Fu1_M,Fu1_V,Fu1_Ω,Fu1_χ,Fu1_δ,
             Fp1_p,Fp1_F,Fp1_M,Fp1_V,Fp1_Ω,Fp1_χ,Fp1_δ,
             FF1_u,FF1_p,FF1_F,FF1_M,
-            FM1_p,FM1_F,FM1_M,
-            Fu2_p,Fu2_F,Fu2_V,Fu2_Ω,Fu2_χ,Fu2_δ,
+            FM1_p,FM1_F,FM1_M,FM1_V,FM1_Ω,FM1_χ,FM1_δ,
+            Fu2_p,Fu2_F,Fu2_M,Fu2_V,Fu2_Ω,Fu2_χ,Fu2_δ,
             Fp2_p,Fp2_F,Fp2_M,Fp2_V,Fp2_Ω,Fp2_χ,Fp2_δ,
             FF2_u,FF2_p,FF2_F,FF2_M,
             FM2_p,FM2_F,FM2_M,
@@ -375,11 +396,11 @@ struct JacobianIndicesMaps{N3,Nδ3,NN}
 end
 JacobianIndicesMaps{N,Nδ}() where {N,Nδ} = 
     JacobianIndicesMaps{3*N,3*Nδ,N*N}(
-        ntuple(_ -> zeros(SVector{9, Int}), 4)..., zeros(SVector{3*N, Int}), zeros(SVector{3*Nδ, Int}),
+        ntuple(_ -> zeros(SVector{9, Int}), 5)..., zeros(SVector{3*N, Int}), zeros(SVector{3*Nδ, Int}),
         ntuple(_ -> zeros(SVector{9, Int}), 5)..., zeros(SVector{3*N, Int}), zeros(SVector{3*Nδ, Int}),
         ntuple(_ -> zeros(SVector{9, Int}), 4)...,
-        ntuple(_ -> zeros(SVector{9, Int}), 3)...,
-        ntuple(_ -> zeros(SVector{9, Int}), 4)..., zeros(SVector{3*N, Int}), zeros(SVector{3*Nδ, Int}),
+        ntuple(_ -> zeros(SVector{9, Int}), 5)..., zeros(SVector{3*N, Int}), zeros(SVector{3*Nδ, Int}),
+        ntuple(_ -> zeros(SVector{9, Int}), 5)..., zeros(SVector{3*N, Int}), zeros(SVector{3*Nδ, Int}),
         ntuple(_ -> zeros(SVector{9, Int}), 5)..., zeros(SVector{3*N, Int}), zeros(SVector{3*Nδ, Int}),
         ntuple(_ -> zeros(SVector{9, Int}), 4)...,
         ntuple(_ -> zeros(SVector{9, Int}), 3)...,
@@ -394,15 +415,23 @@ JacobianIndicesMaps{N,Nδ}() where {N,Nδ} =
 # - `Fu1_pdot`: first node translational equilibrium equations and rotational displacements DOF
 # - `Fu1_Vdot`: first node translational equilibrium equations and sectional velocities DOF
 # - `Fu1_Ωdot`: first node translational equilibrium equations and sectional angular velocities DOF
+# - `Fu1_Fdot`: first node translational equilibrium equations and sectional forces DOF (only with structural damping)
+# - `Fu1_Mdot`: first node translational equilibrium equations and sectional moments DOF (only with structural damping)
 # - `Fp1_pdot`: first node rotational equilibrium equations and rotational displacements DOF
 # - `Fp1_Vdot`: first node rotational equilibrium equations and sectional velocities DOF
 # - `Fp1_Ωdot`: first node rotational equilibrium equations and sectional angular velocities DOF
+# - `Fp1_Fdot`: first node rotational equilibrium equations and sectional forces DOF (only with structural damping)
+# - `Fp1_Mdot`: first node rotational equilibrium equations and sectional moments DOF (only with structural damping)
 # - `Fu2_pdot`: second node translational equilibrium equations and rotational displacements DOF
 # - `Fu2_Vdot`: second node translational equilibrium equations and sectional velocities DOF
 # - `Fu2_Ωdot`: second node translational equilibrium equations and sectional angular velocities DOF
+# - `Fu2_Fdot`: second node translational equilibrium equations and sectional forces DOF (only with structural damping)
+# - `Fu2_Mdot`: second node translational equilibrium equations and sectional moments DOF (only with structural damping)
 # - `Fp2_pdot`: second node rotational equilibrium equations and rotational displacements DOF
 # - `Fp2_Vdot`: second node rotational equilibrium equations and sectional velocities DOF
 # - `Fp2_Ωdot`: second node rotational equilibrium equations and sectional angular velocities DOF
+# - `Fp2_Fdot`: second node rotational equilibrium equations and sectional forces DOF (only with structural damping)
+# - `Fp2_Mdot`: second node rotational equilibrium equations and sectional moments DOF (only with structural damping)
 # - `FV_udot`: midpoint linear velocity-displacement compatibility equations and translational displacements DOF
 # - `FΩ_pdot`: midpoint angular velocity-rotation compatibility equations and rotational displacements DOF
 # - `Fχ_Vdot`: aerodynamic equations and sectional velocities DOF
@@ -414,18 +443,32 @@ struct InertiaIndicesMaps{N3,NN}
     Fu1_pdot::SVector{9,Int}
     Fu1_Vdot::SVector{9,Int}
     Fu1_Ωdot::SVector{9,Int}
+    Fu1_Fdot::SVector{9,Int}
+    Fu1_Mdot::SVector{9,Int}
 
     Fp1_pdot::SVector{9,Int}
     Fp1_Vdot::SVector{9,Int}
     Fp1_Ωdot::SVector{9,Int}
+    Fp1_Fdot::SVector{9,Int}
+    Fp1_Mdot::SVector{9,Int}
 
     Fu2_pdot::SVector{9,Int}
     Fu2_Vdot::SVector{9,Int}
     Fu2_Ωdot::SVector{9,Int}
+    Fu2_Fdot::SVector{9,Int}
+    Fu2_Mdot::SVector{9,Int}
 
     Fp2_pdot::SVector{9,Int}
     Fp2_Vdot::SVector{9,Int}
     Fp2_Ωdot::SVector{9,Int}
+    Fp2_Fdot::SVector{9,Int}
+    Fp2_Mdot::SVector{9,Int}
+
+    FM1_pdot::SVector{9,Int}
+    FM1_Vdot::SVector{9,Int}
+    FM1_Ωdot::SVector{9,Int}
+    FM1_Fdot::SVector{9,Int}
+    FM1_Mdot::SVector{9,Int}
 
     FV_udot::SVector{9,Int}
     FΩ_pdot::SVector{9,Int}
@@ -434,12 +477,13 @@ struct InertiaIndicesMaps{N3,NN}
     Fχ_Ωdot::SVector{N3,Int}
     Fχ_χdot::SVector{NN,Int}
 
-    function InertiaIndicesMaps{N3,NN}(Fu1_pdot,Fu1_Vdot,Fu1_Ωdot,Fp1_pdot,Fp1_Vdot,Fp1_Ωdot,Fu2_pdot,Fu2_Vdot,Fu2_Ωdot,Fp2_pdot,Fp2_Vdot,Fp2_Ωdot,FV_udot,FΩ_pdot,Fχ_Vdot,Fχ_Ωdot,Fχ_χdot) where {N3,NN}
+    function InertiaIndicesMaps{N3,NN}(Fu1_pdot,Fu1_Vdot,Fu1_Ωdot,Fu1_Fdot,Fu1_Mdot,Fp1_pdot,Fp1_Vdot,Fp1_Ωdot,Fp1_Fdot,Fp1_Mdot,Fu2_pdot,Fu2_Vdot,Fu2_Ωdot,Fu2_Fdot,Fu2_Mdot,Fp2_pdot,Fp2_Vdot,Fp2_Ωdot,Fp2_Fdot,Fp2_Mdot,FM1_pdot,FM1_Vdot,FM1_Ωdot,FM1_Fdot,FM1_Mdot,FV_udot,FΩ_pdot,Fχ_Vdot,Fχ_Ωdot,Fχ_χdot) where {N3,NN}
         new{N3,NN}(
-            Fu1_pdot,Fu1_Vdot,Fu1_Ωdot,
-            Fp1_pdot,Fp1_Vdot,Fp1_Ωdot,
-            Fu2_pdot,Fu2_Vdot,Fu2_Ωdot,
-            Fp2_pdot,Fp2_Vdot,Fp2_Ωdot,
+            Fu1_pdot,Fu1_Vdot,Fu1_Ωdot,Fu1_Fdot,Fu1_Mdot,
+            Fp1_pdot,Fp1_Vdot,Fp1_Ωdot,Fp1_Fdot,Fp1_Mdot,
+            Fu2_pdot,Fu2_Vdot,Fu2_Ωdot,Fu2_Fdot,Fu2_Mdot,
+            Fp2_pdot,Fp2_Vdot,Fp2_Ωdot,Fp2_Fdot,Fp2_Mdot,
+            FM1_pdot,FM1_Vdot,FM1_Ωdot,FM1_Fdot,FM1_Mdot,
             FV_udot,FΩ_pdot,
             Fχ_Vdot,Fχ_Ωdot,Fχ_χdot
         )
@@ -448,10 +492,11 @@ struct InertiaIndicesMaps{N3,NN}
 end
 InertiaIndicesMaps{N}() where {N} = 
     InertiaIndicesMaps{3*N,N*N}(
-        ntuple(_ -> zeros(SVector{9, Int}), 3)...,
-        ntuple(_ -> zeros(SVector{9, Int}), 3)...,
-        ntuple(_ -> zeros(SVector{9, Int}), 3)...,
-        ntuple(_ -> zeros(SVector{9, Int}), 3)...,
+        ntuple(_ -> zeros(SVector{9, Int}), 5)...,
+        ntuple(_ -> zeros(SVector{9, Int}), 5)...,
+        ntuple(_ -> zeros(SVector{9, Int}), 5)...,
+        ntuple(_ -> zeros(SVector{9, Int}), 5)...,
+        ntuple(_ -> zeros(SVector{9, Int}), 5)...,
         ntuple(_ -> zeros(SVector{9, Int}), 2)...,
         zeros(SVector{3*N, Int}), zeros(SVector{3*N, Int}),
         zeros(SVector{N*N, Int})
@@ -462,14 +507,16 @@ InertiaIndicesMaps{N}() where {N} =
 # Fields
 # - `u`: displacements resolved in basis A
 # - `p`: rotation parameters resolved in basis A
-# - `F`: sectional forces resolved in basis B
-# - `M`: sectional moments resolved in basis B
+# - `F`: sectional (total) forces resolved in basis B
+# - `M`: sectional (total) moments resolved in basis B
 # - `V`: sectional velocities resolved in basis B
 # - `Ω`: sectional angular velocities resolved in basis B
 # - `γ`: force strains resolved in basis b
 # - `κ`: moment strains resolved in basis b
 # - `P`: linear momenta resolved in basis B
 # - `H`: angular momenta resolved in basis B
+# - `Fε`: sectional elastic forces resolved in basis B (the states, which equal the total forces without structural damping)
+# - `Mε`: sectional elastic moments resolved in basis B (the states, which equal the total moments without structural damping)
 # - `χ`: aerodynamic states
 #
 struct MidpointStates{N}
@@ -486,12 +533,16 @@ struct MidpointStates{N}
     P::MVector{3,Float64}
     H::MVector{3,Float64}
 
+    Fε::MVector{3,Float64}
+    Mε::MVector{3,Float64}
+
     χ::MVector{N,Float64}
 
 end
 MidpointStates{N}(surface) where {N} = MidpointStates{N}(
     ntuple(_ -> zeros(MVector{3,Float64}), 6)...,
     ntuple(_ -> zeros(MVector{3,Float64}), 4)...,
+    ntuple(_ -> zeros(MVector{3,Float64}), 2)...,
     initial_χ(N,surface),
 )
 MidpointStates(element,N::Int) = begin
@@ -499,12 +550,14 @@ MidpointStates(element,N::Int) = begin
     MidpointStates{N}(
         s.u, s.p, s.F, s.M, s.V, s.Ω,
         s.γ, s.κ, s.P, s.H,
+        s.Fε, s.Mε,
         initial_χ(N,element.aero.surface)
     )
 end
 MidpointNaNStates(element,n::Float64) = MidpointStates{length(element.state.midpoint.χ)}(
     ntuple(_ -> fill(n, MVector{3,Float64}), 6)...,
     ntuple(_ -> fill(n, MVector{3,Float64}), 4)...,
+    ntuple(_ -> fill(n, MVector{3,Float64}), 2)...,
     fill(n, MVector{length(element.state.midpoint.χ)})
 )
 Base.copy(x::MidpointStates{N}) where {N} = copy_fields(x)
@@ -569,6 +622,8 @@ Base.copy(x::NodalStates) = copy_fields(x)
 # - `Ωdot`: sectional angular velocities time derivative
 # - `Pdot`: linear momenta time derivative
 # - `Hdot`: angular momenta time derivative
+# - `Fεdot`: sectional elastic forces time derivative
+# - `Mεdot`: sectional elastic moments time derivative
 # - `χdot`: aerodynamic states time derivative
 #
 struct StatesRates{N}
@@ -581,11 +636,15 @@ struct StatesRates{N}
     Pdot::MVector{3,Float64}
     Hdot::MVector{3,Float64}
 
+    Fεdot::MVector{3,Float64}
+    Mεdot::MVector{3,Float64}
+
     χdot::MVector{N,Float64}
     
 end
 StatesRates{N}() where {N} = StatesRates{N}(
     ntuple(_ -> zeros(MVector{3,Float64}), 4)...,
+    ntuple(_ -> zeros(MVector{3,Float64}), 2)...,
     ntuple(_ -> zeros(MVector{3,Float64}), 2)...,
     zeros(MVector{N,Float64}),
 )
@@ -594,11 +653,13 @@ StatesRates(element,N::Int) = begin
     StatesRates{N}(
         s.udot, s.pdot, s.Vdot, s.Ωdot,
         s.Pdot, s.Hdot,
+        s.Fεdot, s.Mεdot,
         zeros(MVector{N,Float64})
     )
 end
 StatesRatesNaN(element,n::Float64) = StatesRates{length(element.state.rates.χdot)}(
     ntuple(_ -> fill(n, MVector{3,Float64}), 4)...,
+    ntuple(_ -> fill(n, MVector{3,Float64}), 2)...,
     ntuple(_ -> fill(n, MVector{3,Float64}), 2)...,
     fill(n, MVector{length(element.state.rates.χdot)})
 )
@@ -612,6 +673,8 @@ Base.copy(x::StatesRates{N}) where {N} = copy_fields(x)
 # - `pdotEquiv`: equivalent rotation parameters time derivative at begin of time step
 # - `VdotEquiv`: equivalent sectional velocities time derivative at begin of time step
 # - `ΩdotEquiv`: equivalent sectional angular velocities time derivative at begin of time step
+# - `FεdotEquiv`: equivalent sectional elastic forces time derivative at begin of time step
+# - `MεdotEquiv`: equivalent sectional elastic moments time derivative at begin of time step
 # - `χdotEquiv`: equivalent aerodynamic states time derivative at begin of time step
 #
 mutable struct EquivStatesRates{N}
@@ -623,12 +686,16 @@ mutable struct EquivStatesRates{N}
     VdotEquiv::MVector{3,Float64}
     ΩdotEquiv::MVector{3,Float64}
 
+    FεdotEquiv::MVector{3,Float64}
+    MεdotEquiv::MVector{3,Float64}
+
     χdotEquiv::MVector{N,Float64}
 
 end
 EquivStatesRates{N}() where {N} = EquivStatesRates{N}(
     0.0,
     ntuple(_ -> zeros(MVector{3,Float64}), 4)...,
+    ntuple(_ -> zeros(MVector{3,Float64}), 2)...,
     zeros(MVector{N,Float64}),
 )
 
@@ -962,6 +1029,8 @@ Residuals{N}() where {N} =
 # - `F_u2_p`: ∂F_u2/∂p
 # - `F_u1_F`: ∂F_u1/∂F
 # - `F_u2_F`: ∂F_u2/∂F
+# - `F_u1_M`: ∂F_u1/∂M
+# - `F_u2_M`: ∂F_u2/∂M
 # - `F_u1_V`: ∂F_u1/∂V
 # - `F_u2_V`: ∂F_u2/∂V
 # - `F_u1_Ω`: ∂F_u1/∂Ω
@@ -1013,12 +1082,20 @@ Residuals{N}() where {N} =
 # - `F_u2_Vdot`: ∂F_u2/∂Vdot
 # - `F_u1_Ωdot`: ∂F_u1/∂Ωdot
 # - `F_u2_Ωdot`: ∂F_u2/∂Ωdot
+# - `F_u1_Fdot`: ∂F_u1/∂Fdot
+# - `F_u2_Fdot`: ∂F_u2/∂Fdot
+# - `F_u1_Mdot`: ∂F_u1/∂Mdot
+# - `F_u2_Mdot`: ∂F_u2/∂Mdot
 # - `F_p1_pdot`: ∂F_p1/∂pdot
 # - `F_p2_pdot`: ∂F_p2/∂pdot
 # - `F_p1_Vdot`: ∂F_p1/∂Vdot
 # - `F_p2_Vdot`: ∂F_p2/∂Vdot
 # - `F_p1_Ωdot`: ∂F_p1/∂Ωdot
 # - `F_p2_Ωdot`: ∂F_p2/∂Ωdot
+# - `F_p1_Fdot`: ∂F_p1/∂Fdot
+# - `F_p2_Fdot`: ∂F_p2/∂Fdot
+# - `F_p1_Mdot`: ∂F_p1/∂Mdot
+# - `F_p2_Mdot`: ∂F_p2/∂Mdot
 # - `F_V_udot`: ∂F_V/∂udot
 # - `F_Ω_pdot`: ∂F_Ω/∂pdot
 # - `F_χ_Vdot`: ∂F_χ/∂Vdot
@@ -1031,6 +1108,8 @@ struct Jacobians{N,Nδ,N3,Nδ3,NN}
     F_u2_p::MMatrix{3,3,Float64,9}
     F_u1_F::MMatrix{3,3,Float64,9}
     F_u2_F::MMatrix{3,3,Float64,9}
+    F_u1_M::MMatrix{3,3,Float64,9}
+    F_u2_M::MMatrix{3,3,Float64,9}
     F_u1_V::MMatrix{3,3,Float64,9}
     F_u2_V::MMatrix{3,3,Float64,9}
     F_u1_Ω::MMatrix{3,3,Float64,9}
@@ -1076,7 +1155,7 @@ struct Jacobians{N,Nδ,N3,Nδ3,NN}
     F_V_V::MMatrix{3,3,Float64,9}
 
     F_Ω_p::MMatrix{3,3,Float64,9}
-    F_Ω_Ω::SMatrix{3,3,Float64,9}
+    F_Ω_Ω::MMatrix{3,3,Float64,9}
 
     F_χ_p::MMatrix{N,3,Float64,N3}
     F_χ_V::MMatrix{N,3,Float64,N3}
@@ -1089,6 +1168,10 @@ struct Jacobians{N,Nδ,N3,Nδ3,NN}
     F_u2_Vdot::MMatrix{3,3,Float64,9}
     F_u1_Ωdot::MMatrix{3,3,Float64,9}
     F_u2_Ωdot::MMatrix{3,3,Float64,9}
+    F_u1_Fdot::MMatrix{3,3,Float64,9}
+    F_u2_Fdot::MMatrix{3,3,Float64,9}
+    F_u1_Mdot::MMatrix{3,3,Float64,9}
+    F_u2_Mdot::MMatrix{3,3,Float64,9}
 
     F_p1_pdot::MMatrix{3,3,Float64,9}
     F_p2_pdot::MMatrix{3,3,Float64,9}
@@ -1096,6 +1179,10 @@ struct Jacobians{N,Nδ,N3,Nδ3,NN}
     F_p2_Vdot::MMatrix{3,3,Float64,9}
     F_p1_Ωdot::MMatrix{3,3,Float64,9}
     F_p2_Ωdot::MMatrix{3,3,Float64,9}
+    F_p1_Fdot::MMatrix{3,3,Float64,9}
+    F_p2_Fdot::MMatrix{3,3,Float64,9}
+    F_p1_Mdot::MMatrix{3,3,Float64,9}
+    F_p2_Mdot::MMatrix{3,3,Float64,9}
 
     F_V_udot::SMatrix{3,3,Float64,9}
 
@@ -1105,17 +1192,17 @@ struct Jacobians{N,Nδ,N3,Nδ3,NN}
     F_χ_Ωdot::MMatrix{N,3,Float64,N3}
     F_χ_χdot::SMatrix{N,N,Float64,NN}
 
-    function Jacobians{N,Nδ,N3,Nδ3,NN}(F_u1_p,F_u2_p,F_u1_F,F_u2_F,F_u1_V,F_u2_V,F_u1_Ω,F_u2_Ω,F_u1_χ,F_u2_χ,F_u1_δ,F_u2_δ,F_p1_p,F_p2_p,F_p1_F,F_p2_F,F_p1_M,F_p2_M,F_p1_V,F_p2_V,F_p1_Ω,F_p2_Ω,F_p1_χ,F_p2_χ,F_p1_δ,F_p2_δ,F_F1_u,F_F2_u,F_F1_p,F_F2_p,F_F1_F,F_F2_F,F_F1_M,F_F2_M,F_M1_p,F_M2_p,F_M1_F,F_M2_F,F_M1_M,F_M2_M,F_V_u,F_V_p,F_V_V,F_Ω_p,F_Ω_Ω,F_χ_p,F_χ_V,F_χ_Ω,F_χ_χ,F_u1_pdot,F_u2_pdot,F_u1_Vdot,F_u2_Vdot,F_u1_Ωdot,F_u2_Ωdot,F_p1_pdot,F_p2_pdot,F_p1_Vdot,F_p2_Vdot,F_p1_Ωdot,F_p2_Ωdot,F_V_udot,F_Ω_pdot,F_χ_Vdot,F_χ_Ωdot,F_χ_χdot) where {N,Nδ,N3,Nδ3,NN}
+    function Jacobians{N,Nδ,N3,Nδ3,NN}(F_u1_p,F_u2_p,F_u1_F,F_u2_F,F_u1_M,F_u2_M,F_u1_V,F_u2_V,F_u1_Ω,F_u2_Ω,F_u1_χ,F_u2_χ,F_u1_δ,F_u2_δ,F_p1_p,F_p2_p,F_p1_F,F_p2_F,F_p1_M,F_p2_M,F_p1_V,F_p2_V,F_p1_Ω,F_p2_Ω,F_p1_χ,F_p2_χ,F_p1_δ,F_p2_δ,F_F1_u,F_F2_u,F_F1_p,F_F2_p,F_F1_F,F_F2_F,F_F1_M,F_F2_M,F_M1_p,F_M2_p,F_M1_F,F_M2_F,F_M1_M,F_M2_M,F_V_u,F_V_p,F_V_V,F_Ω_p,F_Ω_Ω,F_χ_p,F_χ_V,F_χ_Ω,F_χ_χ,F_u1_pdot,F_u2_pdot,F_u1_Vdot,F_u2_Vdot,F_u1_Ωdot,F_u2_Ωdot,F_u1_Fdot,F_u2_Fdot,F_u1_Mdot,F_u2_Mdot,F_p1_pdot,F_p2_pdot,F_p1_Vdot,F_p2_Vdot,F_p1_Ωdot,F_p2_Ωdot,F_p1_Fdot,F_p2_Fdot,F_p1_Mdot,F_p2_Mdot,F_V_udot,F_Ω_pdot,F_χ_Vdot,F_χ_Ωdot,F_χ_χdot) where {N,Nδ,N3,Nδ3,NN}
         new{N,Nδ,N3,Nδ3,NN}(
-            F_u1_p, F_u2_p, F_u1_F, F_u2_F, F_u1_V, F_u2_V, F_u1_Ω, F_u2_Ω, F_u1_χ, F_u2_χ, F_u1_δ, F_u2_δ,
+            F_u1_p, F_u2_p, F_u1_F, F_u2_F, F_u1_M, F_u2_M, F_u1_V, F_u2_V, F_u1_Ω, F_u2_Ω, F_u1_χ, F_u2_χ, F_u1_δ, F_u2_δ,
             F_p1_p, F_p2_p, F_p1_F, F_p2_F, F_p1_M, F_p2_M, F_p1_V, F_p2_V, F_p1_Ω, F_p2_Ω, F_p1_χ, F_p2_χ, F_p1_δ, F_p2_δ,
             F_F1_u, F_F2_u, F_F1_p, F_F2_p, F_F1_F, F_F2_F, F_F1_M, F_F2_M,
             F_M1_p, F_M2_p, F_M1_F, F_M2_F, F_M1_M, F_M2_M,
             F_V_u, F_V_p, F_V_V,
             F_Ω_p, F_Ω_Ω,
             F_χ_p, F_χ_V, F_χ_Ω, F_χ_χ,
-            F_u1_pdot, F_u2_pdot, F_u1_Vdot, F_u2_Vdot, F_u1_Ωdot, F_u2_Ωdot,
-            F_p1_pdot, F_p2_pdot, F_p1_Vdot, F_p2_Vdot, F_p1_Ωdot, F_p2_Ωdot,
+            F_u1_pdot, F_u2_pdot, F_u1_Vdot, F_u2_Vdot, F_u1_Ωdot, F_u2_Ωdot, F_u1_Fdot, F_u2_Fdot, F_u1_Mdot, F_u2_Mdot,
+            F_p1_pdot, F_p2_pdot, F_p1_Vdot, F_p2_Vdot, F_p1_Ωdot, F_p2_Ωdot, F_p1_Fdot, F_p2_Fdot, F_p1_Mdot, F_p2_Mdot,
             F_V_udot,
             F_Ω_pdot,
             F_χ_Vdot, F_χ_Ωdot, F_χ_χdot
@@ -1125,15 +1212,15 @@ struct Jacobians{N,Nδ,N3,Nδ3,NN}
 end
 Jacobians{N,Nδ}(surface,geometry) where {N,Nδ} =
     Jacobians{N,Nδ,3*N,3*Nδ,N*N}(
-        ntuple(_ -> zeros(MMatrix{3,3,Float64,9}), 8)..., ntuple(_ -> zeros(MMatrix{3,N,Float64,3*N}), 2)..., ntuple(_ -> zeros(MMatrix{3,Nδ,Float64,3*Nδ}), 2)...,
+        ntuple(_ -> zeros(MMatrix{3,3,Float64,9}), 10)..., ntuple(_ -> zeros(MMatrix{3,N,Float64,3*N}), 2)..., ntuple(_ -> zeros(MMatrix{3,Nδ,Float64,3*Nδ}), 2)...,
         ntuple(_ -> zeros(MMatrix{3,3,Float64,9}), 10)..., ntuple(_ -> zeros(MMatrix{3,N,Float64,3*N}), 2)..., ntuple(_ -> zeros(MMatrix{3,Nδ,Float64,3*Nδ}), 2)...,
         SMatrix{3,3,Float64,9}(I), SMatrix{3,3,Float64,9}(-I), ntuple(_ -> zeros(MMatrix{3,3,Float64,9}), 6)...,
         ntuple(_ -> zeros(MMatrix{3,3,Float64,9}), 6)...,
         ntuple(_ -> zeros(MMatrix{3,3,Float64,9}), 3)...,
-        zeros(MMatrix{3,3,Float64,9}), SMatrix{3,3,Float64,9}(I),
+        zeros(MMatrix{3,3,Float64,9}), zeros(MMatrix{3,3,Float64,9}),
         ntuple(_ -> zeros(MMatrix{N,3,Float64,3*N}), 3)..., initial_F_χ_χ(N,surface),
-        ntuple(_ -> zeros(MMatrix{3,3,Float64,9}), 6)...,
-        ntuple(_ -> zeros(MMatrix{3,3,Float64,9}), 6)...,
+        ntuple(_ -> zeros(MMatrix{3,3,Float64,9}), 10)...,
+        ntuple(_ -> zeros(MMatrix{3,3,Float64,9}), 10)...,
         SMatrix{3,3,Float64,9}(-I),
         zeros(MMatrix{3,3,Float64,9}),
         initial_F_χ_Vdot(N,surface), initial_F_χ_Ωdot(N,surface,geometry), SMatrix{N,N,Float64,N*N}(I),
@@ -1318,7 +1405,7 @@ end
 ## PRIVATE API
 # ------------------------------------------------------------------------------
 # Element constructor
-function Element(nElementsCreated,beamLength,kBeam,beamR0,beamS,beamI,normalizedNodalPositions,hingedNodes,hingedNodesDoF,surface)
+function Element(nElementsCreated,beamLength,kBeam,beamR0,beamS,beamI,beamμ,normalizedNodalPositions,hingedNodes,hingedNodesDoF,surface)
 
     # ID on beam (local)
     localID = nElementsCreated + 1
@@ -1330,7 +1417,7 @@ function Element(nElementsCreated,beamLength,kBeam,beamR0,beamS,beamI,normalized
     geometry = element_geometry(nodesLocalIDs,beamLength,kBeam,beamR0,normalizedNodalPositions,hingedNodes,hingedNodesDoF)
 
     # Get element sectional data
-    sectional = element_sectional(beamS,beamI,localID)
+    sectional = element_sectional(beamS,beamI,beamμ,localID)
 
     # Get aerodynamic properties and associated sizes and types
     aero,N,Nc,Ni,Nn,Nf,Ng,Nδ,S1,S2,S3,F = element_aero_properties(surface,geometry)
@@ -1435,7 +1522,7 @@ end
 
 
 # Element sectional properties
-function element_sectional(beamS,beamI,localID)
+function element_sectional(beamS,beamI,beamμ,localID)
 
     # Sectional compliance (force-strain) matrix and submatrices
     C = length(beamS) == 1 ?
@@ -1461,8 +1548,18 @@ function element_sectional(beamS,beamI,localID)
              I21/μ :
              Z3
 
+    # Sectional structural damping coefficients matrix and submatrices
+    μd = length(beamμ) == 1 ?
+         beamμ[1] :
+         beamμ[localID]
+    μd11 = μd[1:3,1:3]
+    μd12 = μd[1:3,4:6]
+    μd21 = μd[4:6,1:3]
+    μd22 = μd[4:6,4:6]
+    hasDamping = !iszero(μd)
+
     # Create element sectional data
-    sectional = ElementSectional(C,I,C11,C12,C21,C22,I11,I12,I21,I22,ηtilde,μ)             
+    sectional = ElementSectional(C,I,C11,C12,C21,C22,I11,I12,I21,I22,ηtilde,μ,μd,μd11,μd12,μd21,μd22,hasDamping)             
 
     return sectional
 
@@ -1507,7 +1604,7 @@ end
 function add_point_inertia_to_element!(element,pointInertia)
 
     @unpack Δℓ = element.geometry
-    @unpack I,C,C11,C12,C21,C22 = element.sectional
+    @unpack I,C,C11,C12,C21,C22,μd,μd11,μd12,μd21,μd22,hasDamping = element.sectional
     @unpack mass,η,inertiaMatrix = pointInertia
 
     # Add to sectional inertia matrix 
@@ -1527,7 +1624,7 @@ function add_point_inertia_to_element!(element,pointInertia)
              Z3
 
     # Update element sectional data
-    setfield!(element, :sectional, ElementSectional(C,I,C11,C12,C21,C22,I11,I12,I21,I22,ηtilde,μ))
+    setfield!(element, :sectional, ElementSectional(C,I,C11,C12,C21,C22,I11,I12,I21,I22,ηtilde,μ,μd,μd11,μd12,μd21,μd22,hasDamping))
 
 end
 

@@ -44,7 +44,7 @@ p3_tip = [states[i][nElem].nodal.p2[3] for i in eachindex(t)]
 
 ## Plots
 # Set paths
-relPath = "/test/outputs/figures/flyingSpaghetti3D"
+relPath = "/test/outputs/figures/dynamicStructural/flyingSpaghetti3D"
 absPath = string(pwd(),relPath)
 mkpath(absPath)
 

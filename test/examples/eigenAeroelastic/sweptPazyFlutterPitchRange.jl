@@ -7,7 +7,7 @@ using AeroBeams
 nElem,L,_ = geometrical_properties_Pazy(Λ=Λ)
 
 # Tip mass configuration (select between :baseline, :TE or :LE)
-sweptTipMassConfig = :TE
+tipMassConfig = :TE
 
 # Root pitch angle range [rad]
 θRange = deg2rad.([0,1,3,5,7,10])
@@ -15,23 +15,11 @@ sweptTipMassConfig = :TE
 # Airspeed range [m/s]
 URange = collect(0:0.5:100)
 
-# Flag for tip correction
-hasTipCorrection = true
-
-# Tip correction function type
-tipLossType = "VLM-def"
-
 # Flag for ad hoc correction of torsional inertia of wingtip rod
-sweptTipMassInertiaCorrection = true
+tipRodInertiaCorrection = true
 
 # Aerodynamic solver
 aeroSolver = Indicial()
-
-# Airfoil section
-airfoil = deepcopy(FlatPlate)
-
-# Flag for upright position
-upright = true
 
 # Number of modes to track
 nModes = 3
@@ -55,7 +43,7 @@ for (i,θ) in enumerate(θRange)
         # Display progress
         println("Solving for θ = $(round(Int,rad2deg(θ))) deg, U = $U m/s")
         # Model
-        sweptPazyFlutterPitchRange,_ = create_Pazy(aeroSolver=aeroSolver,airfoil=airfoil,upright=upright,hasTipCorrection=hasTipCorrection,tipLossType=tipLossType,sweepAngle=Λ,pitchAngle=θ,airspeed=U,sweptTipMassConfig=sweptTipMassConfig,sweptTipMassInertiaCorrection=sweptTipMassInertiaCorrection)
+        sweptPazyFlutterPitchRange,_ = create_Pazy(aeroSolver=aeroSolver,sweepAngle=Λ,pitchAngle=θ,airspeed=U,tipMassConfig=tipMassConfig,tipRodInertiaCorrection=tipRodInertiaCorrection)
         # Create and solve problem
         problem = create_EigenProblem(model=sweptPazyFlutterPitchRange,eigenmethod=eigenmethod,nev=nev,x0=x0)
         solve!(problem)
@@ -82,12 +70,11 @@ freqs_aoa10_ref = readdlm(pkgdir(AeroBeams)*"/test/referenceData/sweptPazyS20/ae
 
 ## Plots
 # Set paths
-relPath = "/test/outputs/figures/sweptPazyFlutterPitchRange"
+relPath = "/test/outputs/figures/eigenAeroelastic/sweptPazyFlutterPitchRange"
 absPath = string(pwd(),relPath)
 mkpath(absPath)
 
 # Plot configurations
-tipLossStr = ifelse(hasTipCorrection, tipLossType, "none")
 modeColors = cgrad(:rainbow, nModes, categorical=true)
 ts = 10
 fs = 16
@@ -130,8 +117,8 @@ plt_Vgf = plot(plt_Vf,plt_Vg, layout=(2,1))
 display(plt_Vf)
 display(plt_Vg)
 display(plt_Vgf)
-savefig(plt_Vf,string(absPath,"/sweptPazyFlutterPitchRange_freq_",tipLossStr,"_Lambda",string(round(Int,rad2deg(Λ))),".pdf"))
-savefig(plt_Vg,string(absPath,"/sweptPazyFlutterPitchRange_damp_",tipLossStr,"_Lambda",string(round(Int,rad2deg(Λ))),".pdf"))
-savefig(plt_Vgf,string(absPath,"/sweptPazyFlutterPitchRange_Vgf_",tipLossStr,"_Lambda",string(round(Int,rad2deg(Λ))),".pdf"))
+savefig(plt_Vf,string(absPath,"/sweptPazyFlutterPitchRange_freq_Lambda",string(round(Int,rad2deg(Λ))),".pdf"))
+savefig(plt_Vg,string(absPath,"/sweptPazyFlutterPitchRange_damp_Lambda",string(round(Int,rad2deg(Λ))),".pdf"))
+savefig(plt_Vgf,string(absPath,"/sweptPazyFlutterPitchRange_Vgf_Lambda",string(round(Int,rad2deg(Λ))),".pdf"))
 
 println("Finished sweptPazyFlutterPitchRange.jl")

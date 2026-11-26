@@ -70,7 +70,7 @@ rootAoA = rad2deg.([(aeroVars[i][11].unsteadyKin.αₑ+aeroVars[i][12].unsteadyK
 
 ## Plots
 # Set paths
-relPath = "/test/outputs/figures/BWBcheckedPitchManeuver"
+relPath = "/test/outputs/figures/dynamicAeroelastic/BWBcheckedPitchManeuver"
 absPath = string(pwd(),relPath)
 mkpath(absPath)
 

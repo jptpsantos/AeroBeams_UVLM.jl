@@ -15,18 +15,15 @@ aeroSolver = Inflow()
 # Airfoil section
 airfoil = deepcopy(FlatPlate)
 
-# Flag for upright position
-upright = true
-
 # Fixed geometrical and discretization properties
-nElem,L,chord,normSparPos = geometrical_properties_Pazy()
+nElem,L,chord,referenceAxis = geometrical_properties_Pazy()
 
 # Tip mass
 tipMass = 0.0
-ηtipMass = [0; -chord*(1-normSparPos)-0.0; 0]
+ηtipMass = [0; -chord*(1-referenceAxis)-0.0; 0]
 
 # Initialize model
-PazyWingFlutterAndDivergence,_ = create_Pazy(aeroSolver=aeroSolver,airfoil=airfoil,upright=upright,pitchAngle=θ,gravityVector=[0,0,-g],tipMasses=[tipMass],ηtipMasses=[ηtipMass],tipMassesInertias=[zeros(3,3)])
+PazyWingFlutterAndDivergence,_ = create_Pazy(aeroSolver=aeroSolver,airfoil=airfoil,pitchAngle=θ,gravityVector=[0,0,-g],tipMasses=[tipMass],ηtipMasses=[ηtipMass],tipMassesInertias=[zeros(3,3)])
 
 # Number of modes to track
 nModes = 5
@@ -54,7 +51,7 @@ for (i,U) in enumerate(URange)
     # Tip OOP displacement at midchord
     states = problem.loadstepHistory.states
     tipTwist = twist_angle(states[end][nElem].nodal.p2_b, outputUnit=:deg)
-    tip_OOP[i] = -(states[end][nElem].nodal.u2[1] - chord*(1/2-normSparPos)*sind(tipTwist))/L*100
+    tip_OOP[i] = -(states[end][nElem].nodal.u2[1] - chord*(1/2-referenceAxis)*sind(tipTwist))/L*100
     # Eigensolution
     eigensols[i] = problem.eigensolution
     # Set initial guess solution for next iteration
@@ -87,7 +84,7 @@ end
 
 ## Plots
 # Set paths
-relPath = "/test/outputs/figures/PazyWingFlutterAndDivergence"
+relPath = "/test/outputs/figures/eigenAeroelastic/PazyWingFlutterAndDivergence"
 absPath = string(pwd(),relPath)
 mkpath(absPath)
 

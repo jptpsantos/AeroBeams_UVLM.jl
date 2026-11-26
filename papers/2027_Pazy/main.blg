@@ -1,0 +1,54 @@
+This is BibTeX, Version 0.99d
+Capacity: max_strings=200000, hash_size=200000, hash_prime=170003
+The top-level auxiliary file: main.aux
+Reallocating 'name_of_file' (item size: 1) to 9 items.
+The style file: new-aiaa.bst
+Reallocating 'name_of_file' (item size: 1) to 11 items.
+Database file #1: references.bib
+Warning--entry type for "revivoS10data" isn't style-file defined
+--line 315 of file references.bib
+Warning--entry type for "revivoS20data" isn't style-file defined
+--line 323 of file references.bib
+Reallocating 'wiz_functions' (item size: 4) to 6000 items.
+You've used 17 entries,
+            3319 wiz_defined-function locations,
+            799 strings with 8822 characters,
+and the built_in function-call counts, 10957 in all, are:
+= -- 818
+> -- 381
+< -- 46
++ -- 157
+- -- 117
+* -- 902
+:= -- 1461
+add.period$ -- 47
+call.type$ -- 17
+change.case$ -- 68
+chr.to.int$ -- 18
+cite$ -- 17
+duplicate$ -- 934
+empty$ -- 859
+format.name$ -- 179
+if$ -- 2253
+int.to.chr$ -- 2
+int.to.str$ -- 18
+missing$ -- 167
+newline$ -- 76
+num.names$ -- 51
+pop$ -- 316
+preamble$ -- 1
+purify$ -- 68
+quote$ -- 0
+skip$ -- 377
+stack$ -- 0
+substring$ -- 581
+swap$ -- 608
+text.length$ -- 34
+text.prefix$ -- 0
+top$ -- 0
+type$ -- 98
+warning$ -- 0
+while$ -- 67
+width$ -- 0
+write$ -- 219
+(There were 2 warnings)

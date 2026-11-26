@@ -4,8 +4,8 @@
 # Fields
 # - `b`: semichord length of the element
 # - `c`: chord length of the element
-# - `normSparPos`: normalized spar position of the element
-# - `aₕ`: normalized spar position in the range [-1,1]
+# - `referenceAxis`: normalized reference axis position of the element
+# - `aₕ`: normalized reference axis position in the range [-1,1]
 # - `Λ`: sweep angle of the element
 # - `φ`: twist angle of the element
 # - `cosΛ`: cosine of the sweep angle
@@ -21,7 +21,7 @@ struct AeroGeometry
 
     b::Float64
     c::Float64
-    normSparPos::Float64
+    referenceAxis::Float64
     aₕ::Float64
     Λ::Float64
     φ::Float64
@@ -111,14 +111,14 @@ Base.copy(x::FlowParameters{T}) where {T} = copy_fields(x)
 
 # SteadyKinematics composite type
 # Fields
-# - `U`: wind velocity vector at spar position, resolved in basis W
+# - `U`: wind velocity vector at reference axis, resolved in basis W
 # - `Uₛ`: spanwise component of U
 # - `Uₜ`: tangential component of U
 # - `Uₙ`: normal component of U
 # - `Uᵢ`: in-plane component of U
 # - `UₙMid`: normal wind velocity component at the airfoil's 1/2-chord
 # - `UₙTQC`: normal wind velocity component at the airfoil's 3/4-chord
-# - `UGust`: gust velocity vector at spar position, resolved in basis W
+# - `UGust`: gust velocity vector at reference axis, resolved in basis W
 # - `UₜGust`: tangential component of UGust
 # - `UₙGust`: normal component of UGust
 # - `Ωₐ`: spanwise angular velocity component
@@ -167,7 +167,7 @@ Base.copy(x::SteadyKinematics{T}) where {T} = copy_fields(x)
 
 # UnsteadyKinematics composite type
 # Fields
-# - `Udot`: wind acceleration vector at spar position, resolved in basis W
+# - `Udot`: wind acceleration vector at reference axis, resolved in basis W
 # - `Uᵢdot`: in-plane component of Udot
 # - `UₙdotMid`: normal wind acceleration component at the airfoil's 1/2-chord
 # - `UₙdotTQC`: = normal wind acceleration component at the airfoil's 3/4-chord
@@ -204,7 +204,7 @@ Base.copy(x::UnsteadyKinematics{T}) where {T} = copy_fields(x)
 # AeroCoefficients composite type
 # Fields
 # - `cn`: normal force coefficient
-# - `cm`: pitching moment coefficient about spar position
+# - `cm`: pitching moment coefficient about reference axis
 # - `ct`: tangential force coefficient
 # - `cnC`: circulatory component of cn
 # - `cmC`: circulatory component of cm
@@ -212,6 +212,7 @@ Base.copy(x::UnsteadyKinematics{T}) where {T} = copy_fields(x)
 # - `cnNC`: non-circulatory component of cn
 # - `cmNC`: non-circulatory component of cm
 # - `ctNC`: non-circulatory component of ct
+# - `ctLI`: lift-induced (drag) component of ct
 # - `cnI`: inertial component of cn
 # - `cmI`: inertial component of cm
 # - `cnP`: potential flow component of cn
@@ -236,6 +237,8 @@ mutable struct AeroCoefficients{T<:Real}
     cmNC::T
     ctNC::T
 
+    ctLI::T
+
     cnI::T
     cmI::T
 
@@ -254,6 +257,7 @@ AeroCoefficients{T}() where {T<:Real} = AeroCoefficients{T}(
     ntuple(_ -> zero(T), 3)...,
     ntuple(_ -> zero(T), 3)...,
     ntuple(_ -> zero(T), 3)...,
+    ntuple(_ -> zero(T), 1)...,
     ntuple(_ -> zero(T), 2)...,
     ntuple(_ -> zero(T), 1)...,
     ntuple(_ -> zero(T), 3)...,
@@ -263,6 +267,7 @@ AeroCoefficientsNaN() = AeroCoefficients{Float64}(
     ntuple(_ -> NaN, 3)...,
     ntuple(_ -> NaN, 3)...,
     ntuple(_ -> NaN, 3)...,
+    ntuple(_ -> NaN, 1)...,
     ntuple(_ -> NaN, 2)...,
     ntuple(_ -> NaN, 1)...,
     ntuple(_ -> NaN, 3)...,
@@ -673,6 +678,7 @@ AeroStateMatrices{T,N,Nc,Ni,Nn,Nf,Ng}() where {T<:Real,N,Nc,Ni,Nn,Nf,Ng} =
 # - `attachedVars`: attached-flow aerodynamic variables
 # - `bliVars`: BLi model aerodynamic variables
 # - `bloVars`: BLo model aerodynamic variables
+# - `airfoilState`: airfoil parameters, updated with the (possibly Dual) Mach number
 # - `loadsResultants`: aerodynamic loads resultants
 # - `stateMatrices`: aerodynamic state matrices
 # - `statesBuffer`: buffer array for the input states
@@ -684,6 +690,7 @@ mutable struct AeroStateCache{T<:Real,N,Nc,Ni,Nn,Nf,Ng,Nδ,NN,L,P}
     attachedVars::AttachedAeroVariables{T}
     bliVars::BLiAeroVariables{T}
     bloVars::BLoAeroVariables{T}
+    airfoilState::AirfoilState{T}
     loadsResultants::AeroLoadsResultants{T}
     stateMatrices::AeroStateMatrices{T,N,Nc,Ni,Nn,Nf,Ng,NN}
 
@@ -697,6 +704,7 @@ AeroStateCache{T,N,Nc,Ni,Nn,Nf,Ng,Nδ}() where {T,N,Nc,Ni,Nn,Nf,Ng,Nδ} =
         AttachedAeroVariables{T}(),
         BLiAeroVariables{T}(),
         BLoAeroVariables{T}(),
+        AirfoilState{T}(),
         AeroLoadsResultants{T}(),
         AeroStateMatrices{T,N,Nc,Ni,Nn,Nf,Ng}(),
         zeros(MVector{9+N+Nδ,T}),
@@ -827,7 +835,8 @@ AeroMatricesDerivatives{N,Nc,Ni,Nn,Nf,Ng}() where {N,Nc,Ni,Nn,Nf,Ng} =
 # - `stateRanges`: ranges of element-dependent aerodynamic states (flap and gust)
 # - `loadsDistribution`: aerodynamic loads distribution properties
 # - `stateCache`: aerodynamic state cache
-# - `stateCacheDiff`: pre-allocated aerodynamic state cache for Jacobian calculations
+# - `stateCacheDiff`: pre-allocated aerodynamic state cache for Jacobian calculations w.r.t. the states
+# - `stateCacheDiffRates`: same, for the Jacobian calculations w.r.t. the states' rates (kept apart since its number type differs, and a shared cache would be rebuilt at every call)
 # - `matricesDerivatives`: aerodynamic matrices' derivatives
 #
 @with_kw mutable struct AeroProperties{N,Nc,Ni,Nn,Nf,Ng,Nδ,NN,N3,Nc3,Ni3,Nn3,Nf3,Ng3,NcN,NiN,NnN,NfN,NgN,NN3,NNN,L,P,S1,S2,S3,F}
@@ -849,6 +858,7 @@ AeroMatricesDerivatives{N,Nc,Ni,Nn,Nf,Ng}() where {N,Nc,Ni,Nn,Nf,Ng} =
     
     # State cache for Jacobian calculations
     stateCacheDiff::Union{Nothing,AeroStateCache}
+    stateCacheDiffRates::Union{Nothing,AeroStateCache}
 
     # Aerodynamic matrices' derivatives
     matricesDerivatives::Union{Nothing,AeroMatricesDerivatives{N,Nc,Ni,Nn,Nf,Ng,N3,Nc3,Ni3,Nn3,Nf3,Ng3,NcN,NiN,NnN,NfN,NgN,NN,NN3,NNN}}
@@ -912,6 +922,7 @@ function AeroProperties(surface,R0,x1,x1_norm,x1_n1_norm,x1_n2_norm)
     # Initalize state caches
     stateCache = AeroStateCache{Float64,N,Nc,Ni,Nn,Nf,Ng,Nδ}()
     stateCacheDiff = nothing
+    stateCacheDiffRates = nothing
 
     # Initialize matrices derivatives
     matricesDerivatives = isnothing(surface) ?
@@ -925,6 +936,7 @@ function AeroProperties(surface,R0,x1,x1_norm,x1_n1_norm,x1_n2_norm)
         loadsDistribution=loadsDistribution,
         stateCache=stateCache,
         stateCacheDiff=stateCacheDiff,
+        stateCacheDiffRates=stateCacheDiffRates,
         matricesDerivatives=matricesDerivatives,
         ), N, Nc, Ni, Nn, Nf, Ng, Nδ, S1, S2, S3, F
 
@@ -956,6 +968,7 @@ function AeroProperties(element,N,Nδ,withGust)
     # Initalize state caches
     stateCache = AeroStateCache{Float64,N,Nc,Ni,Nn,Nf,Ng,Nδ}()
     stateCacheDiff = nothing
+    stateCacheDiffRates = nothing
 
     # Initialize matrices derivatives
     matricesDerivatives = isnothing(surface) ?
@@ -970,6 +983,7 @@ function AeroProperties(element,N,Nδ,withGust)
         stateRanges=stateRanges,
         stateCache=stateCache,
         stateCacheDiff=stateCacheDiff,
+        stateCacheDiffRates=stateCacheDiffRates,
         matricesDerivatives=matricesDerivatives,
     ), Nc, Ni, Nn, Nf, Ng, Nδ, S1, S2, S3, F
 
@@ -984,10 +998,10 @@ function get_aero_geometric_properties(surface,R0,x1,x1_norm)
         surface.geometry.c : 
         surface.geometry.c(x1)
     b = c/2
-    normSparPos = surface.geometry.normSparPos isa Float64 ? 
-                  surface.geometry.normSparPos : 
-                  surface.geometry.normSparPos(x1)
-    aₕ = 2*normSparPos - 1
+    referenceAxis = surface.geometry.referenceAxis isa Float64 ? 
+                    surface.geometry.referenceAxis : 
+                    surface.geometry.referenceAxis(x1)
+    aₕ = 2*referenceAxis - 1
     Λ = surface.geometry.Λ isa Float64 ? 
         surface.geometry.Λ : 
         surface.geometry.Λ(x1)
@@ -1008,11 +1022,11 @@ function get_aero_geometric_properties(surface,R0,x1,x1_norm)
 
     # Set Theodorsen's flap constants, if applicable
     Th = isFlapped && surface.solvers.flapSolver isa ThinAirfoilTheory ?
-         theodorsen_flap_constants(normSparPos,surface.geometry.normFlapPos) : 
+         theodorsen_flap_constants(referenceAxis,surface.geometry.normFlapPos) : 
          nothing
 
     # Set geometry data 
-    geometry = AeroGeometry(b,c,normSparPos,aₕ,Λ,φ,cosΛ,cosΛ^2,c/cosΛ,Rw⁺,Rw⁺T,RwR0,isFlapped,Th)
+    geometry = AeroGeometry(b,c,referenceAxis,aₕ,Λ,φ,cosΛ,cosΛ^2,c/cosΛ,Rw⁺,Rw⁺T,RwR0,isFlapped,Th)
 
     return geometry
 
@@ -1020,10 +1034,10 @@ end
 
 
 # Computes Theodorsen's flap constants
-function theodorsen_flap_constants(normSparPos,normFlapPos)
+function theodorsen_flap_constants(referenceAxis,normFlapPos)
 
-    # Semichord-normalized spar position after midchord
-    a = 2*normSparPos-1
+    # Semichord-normalized reference axis position after midchord
+    a = 2*referenceAxis-1
 
     # Semichord-normalized flap hinge position after midchord
     d = 2*normFlapPos-1
@@ -1232,7 +1246,7 @@ function initial_F_χ_Ωdot(N,surface,geometry)
         return F_χ_Ωdot
     end
 
-    @unpack c,normSparPos = geometry
+    @unpack c,referenceAxis = geometry
     @unpack airfoil = surface.geometry
     @unpack ppSolver = surface.solvers
     @unpack circulatoryPitchPlungeStatesRange = surface.stateRanges
@@ -1240,9 +1254,9 @@ function initial_F_χ_Ωdot(N,surface,geometry)
 
     # Calculate according to ppSolver
     if ppSolver isa IndicialSolver
-        F_χ_Ωdot[circulatoryPitchPlungeStatesRange[1:length(ppSolver.AC)],1] = c*(normSparPos-3/4)*cnα*ppSolver.AC
+        F_χ_Ωdot[circulatoryPitchPlungeStatesRange[1:length(ppSolver.AC)],1] = c*(referenceAxis-3/4)*cnα*ppSolver.AC
     elseif ppSolver isa Inflow
-        F_χ_Ωdot[circulatoryPitchPlungeStatesRange,1] = c*(normSparPos-3/4)*ppSolver.AₚInvcₚ  
+        F_χ_Ωdot[circulatoryPitchPlungeStatesRange,1] = c*(referenceAxis-3/4)*ppSolver.AₚInvcₚ  
     end
 
     return F_χ_Ωdot
@@ -1250,16 +1264,20 @@ function initial_F_χ_Ωdot(N,surface,geometry)
 end
 
 
-# Returns the state cache for the calculations of jacobians, creating a new AeroStateCache if necessary
-function get_diff_state_cache!(aero::AeroProperties{N,Nc,Ni,Nn,Nf,Ng,Nδ,NN,N3,Nc3,Ni3,Nn3,Nf3,Ng3,NcN,NiN,NnN,NfN,NgN,NN3,NNN,L,P,S1,S2,S3,F}, ::Type{T})::AeroStateCache{T,N,Nc,Ni,Nn,Nf,Ng,Nδ,NN,L,P} where {T<:Real,N,Nc,Ni,Nn,Nf,Ng,Nδ,NN,N3,Nc3,Ni3,Nn3,Nf3,Ng3,NcN,NiN,NnN,NfN,NgN,NN3,NNN,L,P,S1,S2,S3,F}
-    cacheDiff = aero.stateCacheDiff
+# Returns the state cache for the calculations of jacobians (w.r.t. the states, or the states' rates if slot is :rates), creating a new AeroStateCache if necessary
+function get_diff_state_cache!(aero::AeroProperties{N,Nc,Ni,Nn,Nf,Ng,Nδ,NN,N3,Nc3,Ni3,Nn3,Nf3,Ng3,NcN,NiN,NnN,NfN,NgN,NN3,NNN,L,P,S1,S2,S3,F}, ::Type{T}, slot::Symbol=:states)::AeroStateCache{T,N,Nc,Ni,Nn,Nf,Ng,Nδ,NN,L,P} where {T<:Real,N,Nc,Ni,Nn,Nf,Ng,Nδ,NN,N3,Nc3,Ni3,Nn3,Nf3,Ng3,NcN,NiN,NnN,NfN,NgN,NN3,NNN,L,P,S1,S2,S3,F}
+    cacheDiff = slot === :states ? 
+                aero.stateCacheDiff : 
+                aero.stateCacheDiffRates
     ppSolver = aero.surface.solvers.ppSolver
     if cacheDiff isa AeroStateCache{T,N,Nc,Ni,Nn,Nf,Ng,Nδ,NN,L,P}
         copy_aero_state!(cacheDiff, aero.stateCache, ppSolver)
         return cacheDiff
     else
         newCacheDiff = AeroStateCache{T,N,Nc,Ni,Nn,Nf,Ng,Nδ}()
-        aero.stateCacheDiff = newCacheDiff
+        slot === :states ? 
+                 (aero.stateCacheDiff = newCacheDiff) : 
+                 (aero.stateCacheDiffRates = newCacheDiff)
         return newCacheDiff
     end
 end

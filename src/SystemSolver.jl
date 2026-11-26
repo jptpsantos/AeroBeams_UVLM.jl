@@ -86,12 +86,15 @@ LinearSolverState() = LinearSolverState(false)
 # Fields
 # - `loadStepState::LoadSteppingState`: state of the load stepping procedure
 # - `state::LinearSolverState`: state of the linear solver
+# - `parallel::Bool`: flag to compute the elements' contributions to the system arrays in parallel (with the available threads)
 #
 @with_kw mutable struct LinearSolver
 
     loadStepState::LoadSteppingState = LoadSteppingState()
 
     state::LinearSolverState = LinearSolverState()
+
+    parallel::Bool = false
 
 end
 export LinearSolver
@@ -174,6 +177,7 @@ NRState() = NRState(0, 0.0, 0.0, 0.0, 0.0, false, false, false)
 # - `loadStepProps::LoadSteppingProperties`: properties of the load stepping procedure
 # - `loadStepState::LoadSteppingState`: state of the load stepping procedure
 # - `state::NRState`: state of the Newton-Raphson solver
+# - `parallel::Bool`: flag to compute the elements' contributions to the system arrays in parallel (with the available threads)
 #
 @with_kw mutable struct NewtonRaphson
 
@@ -185,6 +189,8 @@ NRState() = NRState(0, 0.0, 0.0, 0.0, 0.0, false, false, false)
     loadStepState::LoadSteppingState  = LoadSteppingState(loadStepProps)
 
     state::NRState = NRState()
+
+    parallel::Bool = false
 
 end
 
@@ -243,6 +249,7 @@ NLsolverState() = NLsolverState(0, 0.0, 0.0, false)
 # - `loadStepProps::LoadSteppingProperties`: properties of the load stepping procedure
 # - `loadStepState::LoadSteppingState`: state of the load stepping procedure
 # - `state::NLsolverState`: state of the nonlinear solver
+# - `parallel::Bool`: flag to compute the elements' contributions to the system arrays in parallel (with the available threads)
 #
 @with_kw mutable struct NLsolver
 
@@ -254,6 +261,8 @@ NLsolverState() = NLsolverState(0, 0.0, 0.0, false)
     loadStepState::LoadSteppingState = LoadSteppingState(loadStepProps)
 
     state::NLsolverState = NLsolverState()
+
+    parallel::Bool = false
 
 end
 export NLsolver
@@ -316,6 +325,7 @@ ArclengthSolverState(arcLength=0.0) = ArclengthSolverState(0, 0.0, arcLength, fa
 # - `loadStepProps::LoadSteppingProperties`: properties of the load stepping procedure (only initLoadFac, minLoadFac and trackLoadSteps are used)
 # - `loadStepState::LoadSteppingState`: state of the load stepping procedure (σ is the load factor, which is an unknown of the problem)
 # - `state::ArclengthSolverState`: state of the arclength solver
+# - `parallel::Bool`: flag to compute the elements' contributions to the system arrays in parallel (with the available threads)
 #
 @with_kw mutable struct ArclengthSolver
 
@@ -325,6 +335,8 @@ ArclengthSolverState(arcLength=0.0) = ArclengthSolverState(0, 0.0, arcLength, fa
     loadStepState::LoadSteppingState = LoadSteppingState(loadStepProps)
 
     state::ArclengthSolverState = ArclengthSolverState(props.initArcLength)
+
+    parallel::Bool = false
 
 end
 export ArclengthSolver
@@ -367,14 +379,16 @@ export create_TrimSolver
 
 
 """
-    create_LinearSolver()
+    create_LinearSolver(; kwargs...)
 
 Linear system solver constructor
 
+# Keyword arguments
+- `parallel::Bool`: flag to compute the elements' contributions to the system arrays in parallel (requires Julia to be started with multiple threads)
 """
-function create_LinearSolver()
+function create_LinearSolver(; parallel::Bool=false)
 
-    return LinearSolver()
+    return LinearSolver(parallel=parallel)
 
 end
 export create_LinearSolver
@@ -407,6 +421,7 @@ Newton-Raphson nonlinear system solver constructor
 - `aeroΔxErrorThreshold::Float64`: threshold ratio of aerodynamic/total Δx in order to allow the above flag
 - `trimSolverMethod::Symbol`: method for linear system solution in trim problems
 - `dampingTrim::Float64`: damping term for method = :LM
+- `parallel::Bool`: flag to compute the elements' contributions to the system arrays in parallel (requires Julia to be started with multiple threads)
 """
 function create_NewtonRaphson(;
     method::Symbol=:Newton, 
@@ -429,7 +444,8 @@ function create_NewtonRaphson(;
     aeroResRatioThreshold::Float64=0.0,
     aeroΔxErrorThreshold::Float64=0.0,
     trimSolverMethod::Symbol=:LM,
-    dampingTrim::Float64=1e-14
+    dampingTrim::Float64=1e-14,
+    parallel::Bool=false
     )
 
     # Validate inputs
@@ -491,6 +507,7 @@ function create_NewtonRaphson(;
         props=props,
         linearTrimSolver=linearTrimSolver,
         loadStepProps=loadStepProps,
+        parallel=parallel,
         )
 
 end
@@ -519,6 +536,7 @@ NLSolve.jl nonlinear system solver constructor.
 - `displayStatus::Bool`: flag to display convergence status
 - `trimSolverMethod::Symbol`: method for linear system solution in trim problems
 - `dampingTrim::Float64`: damping term for method = :LM
+- `parallel::Bool`: flag to compute the elements' contributions to the system arrays in parallel (requires Julia to be started with multiple threads)
 """
 function create_NLsolver(;
     method::Symbol=:newton,
@@ -536,7 +554,8 @@ function create_NLsolver(;
     trackLoadSteps::Bool=true,
     displayStatus::Bool=false,
     trimSolverMethod::Symbol=:LM,
-    dampingTrim::Float64=1e-14
+    dampingTrim::Float64=1e-14,
+    parallel::Bool=false
     )
 
     # Validate inputs
@@ -582,6 +601,7 @@ function create_NLsolver(;
         props=props,
         linearTrimSolver=linearTrimSolver,
         loadStepProps=loadStepProps,
+        parallel=parallel,
     )
 
 end
@@ -606,6 +626,7 @@ Arclength (Riks/Crisfield spherical) continuation solver constructor. Traces the
 - `minLoadFac::Float64`: minimum load factor (only used to size the load step history)
 - `trackLoadSteps::Bool`: flag to track the solution at each step
 - `displayStatus::Bool`: flag to display status
+- `parallel::Bool`: flag to compute the elements' contributions to the system arrays in parallel (requires Julia to be started with multiple threads)
 """
 function create_ArclengthSolver(;
     absTol::Float64=1e-8,
@@ -619,7 +640,8 @@ function create_ArclengthSolver(;
     initLoadFac::Real=0.0,
     minLoadFac::Float64=0.01,
     trackLoadSteps::Bool=true,
-    displayStatus::Bool=false
+    displayStatus::Bool=false,
+    parallel::Bool=false
     )
 
     # Validate inputs
@@ -657,6 +679,7 @@ function create_ArclengthSolver(;
     return ArclengthSolver(
         props=props,
         loadStepProps=loadStepProps,
+        parallel=parallel,
     )
 
 end
@@ -710,6 +733,47 @@ function factorize_jacobian!(problem, J; check::Bool=false)
     return luCache
 end
 
+# Returns an orthonormal basis (by columns) of the rigid-body translations of the assembly relative to basis A that are neutral, i.e., that lie in the null space of the Jacobian J, as is the case for a vehicle in free flight in steady analyses (the translations are not neutral if any nodal displacement is prescribed, if the assembly is attached to the ground through springs, if basis A rotates in a direction normal to them, or in dynamic analyses). The basis is empty if there are no neutral translations
+function neutral_translations(model, J)
+
+    @unpack elements,specialNodes = model.assemblyData
+
+    # Unit rigid-body translations along each direction of basis A, in the states array
+    rows, cols = Int[], Int[]
+    for element in elements
+        for i in 1:3
+            push!(rows, element.assemblyIndices.DOF_u[i]); push!(cols, i)
+        end
+    end
+    for specialNode in specialNodes
+        @unpack uIsPrescribed = specialNode.flags
+        @unpack DOF_uF = specialNode.assemblyData
+        for i in 1:3
+            uIsPrescribed[i] || (push!(rows, DOF_uF[i]); push!(cols, i))
+        end
+    end
+    T = sparse(rows, cols, 1.0, size(J,2), 3)
+
+    # Combinations of the translations whose image by the Jacobian vanishes (up to round-off)
+    nT = sqrt.(vec(sum(T, dims=1)))
+    F = svd(Matrix(J*T) ./ nT')
+    isNull = F.S .<= 1e3*eps()*opnorm(J,1)
+    any(isNull) || return zeros(size(J,2), 0)
+
+    return Matrix(T * (F.V[:,isNull] ./ nT))
+
+end
+
+# Solves the linear system J*Δx = r for a (square) Jacobian J. If J has neutral rigid-body translations N in its null space (see `neutral_translations`), as that of a vehicle in free flight in steady analyses, J is singular and the least-squares solution of J*Δx = r, with N'*Δx = 0, is obtained by sparse QR factorization. Otherwise, the LU factorization of J is used. Returns false if the solution is not finite
+function solve_jacobian_system!(Δx, luCache, J, r, N)
+    if isempty(N)
+        ldiv!(Δx, luCache, r)
+    else
+        Δx .= qr([J; sparse(N')]) \ [r; zeros(size(N,2))]
+    end
+    return all(isfinite, Δx)
+end
+
 # Solves the linear system of equations for regular (square Jacobian) problems
 function solve_regular_system!(problem)
 
@@ -722,14 +786,22 @@ function solve_regular_system!(problem)
     # LU factorize Jacobian
     luCache = factorize_jacobian!(problem, jacobian)
 
+    # Neutral rigid-body translations, for steady analyses
+    N = problem isa DynamicProblem ?
+        zeros(length(x), 0) :
+        neutral_translations(problem.model, jacobian)
+
     # Return false if the Jacobian is singular
-    issuccess(luCache) || begin
+    (issuccess(luCache) || !isempty(N)) || begin
         @warn "Jacobian is singular"
         return false
     end
 
     # Solve the linear system for the state increment Δx
-    ldiv!(Δx, luCache, residual)
+    solve_jacobian_system!(Δx, luCache, jacobian, residual, N) || begin
+        @warn "Jacobian is singular"
+        return false
+    end
     rmul!(Δx, -1)
 
     # Update states array
@@ -772,7 +844,7 @@ function trim_newton_step!(problem)
 
     # Solve underdetermined system using selected method
     if method == :LQ
-        solve_trim_LQ!(Δx,J,residual)
+        solve_trim_LQ!(Δx,J,residual,jacobian)
     elseif method == :LM
         solve_trim_LM!(Δx,J,residual,JtJ,Jtr,J_aug,r_aug,damping)
     elseif method == :SVD
@@ -787,10 +859,16 @@ function trim_newton_step!(problem)
 
 end
 
-# Solve for trim problem solution increment with LQ decomposition method
-function solve_trim_LQ!(Δx,J,residual)
+# Solve for trim problem solution increment with LQ decomposition method. If the Jacobian does not have full row rank (as that of a vehicle in free flight whose lateral equilibrium is satisfied by symmetry), the minimum-norm least-squares solution from a pivoted QR factorization is used instead
+function solve_trim_LQ!(Δx,J,residual,jacobian)
     F = lq!(J)
-    Δx .= -(F \ residual)
+    d = abs.(diag(F.L))
+    if minimum(d) > 1e-12*maximum(d)
+        Δx .= -(F \ residual)
+    else
+        copyto!(J, jacobian)
+        Δx .= -(qr!(J, ColumnNorm()) \ residual)
+    end
 end
 
 # Solve for trim problem solution increment with simplified (non-adaptive damping) Levenberg-Marquardt method
@@ -861,8 +939,8 @@ function solve_nonlinear_system!(problem)
     lss.σStep = maxLoadFacStep
     lss.convergedFinalSolution = false
 
-    # Pre-allocate known solution array
-    if isempty(lss.xKnown)
+    # Pre-allocate known solution array (the solver may come from a problem with a different number of states, e.g., a reference trim problem)
+    if length(lss.xKnown) != length(x)
         lss.xKnown = similar(x)
     end
 
@@ -977,8 +1055,11 @@ function solve_load_step!(problem,lss,systemSolver::NLsolver)
             Δx .= .-step  # NLsolve uses inverted sign convention
         else
             luCache = factorize_jacobian!(problem, J; check=false)
-            issuccess(luCache) || @warn "Jacobian is singular"
-            ldiv!(Δx, luCache, F)
+            N = problem isa DynamicProblem ?
+                zeros(length(Δx), 0) :
+                neutral_translations(problem.model, J)
+            (issuccess(luCache) || !isempty(N)) || @warn "Jacobian is singular"
+            solve_jacobian_system!(Δx, luCache, J, F, N)
             # rmul!(Δx, -1) # Not necessary: NLsolve uses inverted sign convention
         end
         s.ϵ_rel = norm(Δx) / max(norm(problem.systemArrays.x), eps())
@@ -1306,6 +1387,9 @@ get_skipAeroJacobianUpdate(systemSolver::NewtonRaphson) = systemSolver.state.ski
 get_skipJacobianUpdate(systemSolver) = false
 get_skipAeroJacobianUpdate(systemSolver) = false
 
+# Accessor function for the flag to compute the elements' contributions in parallel
+get_parallel(systemSolver) = systemSolver.parallel
+
 function build_jacobian_labels(problem)
     n = length(problem.systemArrays.x)
     @unpack elements,specialNodes = problem.model.assemblyData
@@ -1360,8 +1444,8 @@ function compare_jacobians(problem, Jan, labels; h0=1e-8, rtol=1e-4, atol=1e-4, 
     xs = problem.systemArrays.x
     x0 = copy(xs)
     n  = length(x0)
-    bad  = Tuple{Float64,Int,Int,Float64,Float64}[]           # (erro, i, k, Jan, Jfd)
-    blocks = Dict{Tuple{String,String},Float64}()             # erro máx por bloco
+    bad  = Tuple{Float64,Int,Int,Float64,Float64}[] # (error, i, k, Jan, Jfd)
+    blocks = Dict{Tuple{String,String},Float64}()   # max error per block
 
     for k in 1:n
         h = h0 * max(1.0, abs(x0[k]))
@@ -1380,17 +1464,17 @@ function compare_jacobians(problem, Jan, labels; h0=1e-8, rtol=1e-4, atol=1e-4, 
     end
 
     xs .= x0
-    f!(problem)                     # restaura caches em x0
+    f!(problem)                     # restore caches at x0
 
-    println("── Checagem da Jacobiana $tag: $(length(bad)) entradas fora da tolerância")
+    println("── Jacobian check $tag: $(length(bad)) entries outside tolerance")
     for (key, err) in sort(collect(blocks); by=last, rev=true)
-        println("   bloco F_", key[1], "_", key[2], "   erro máx = ", round(err, sigdigits=3))
+        println("   block F_", key[1], "_", key[2], "   max error = ", round(err, sigdigits=3))
     end
     sort!(bad; by=first, rev=true)
     for (err, i, k, a, d) in first(bad, ntop)
         println("   row=$i ($(labels.rowKind[i]), id=$(labels.rowOwner[i]))  ",
                 "col=$k ($(labels.colKind[k]), id=$(labels.colOwner[k]))  ",
-                "analítica=$(round(a,sigdigits=5))  FD=$(round(d,sigdigits=5))")
+                "analytical=$(round(a,sigdigits=5))  FD=$(round(d,sigdigits=5))")
     end
     return bad
 end

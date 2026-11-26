@@ -49,7 +49,7 @@ freqsOsc,dampsOsc,modeShapesOsc,_ = filter_tracked_modes(freqs,damps,modeShapes;
 
 ## Plots
 # Set paths
-relPath = "/test/outputs/figures/heliosWingFlutter"
+relPath = "/test/outputs/figures/eigenAeroelastic/heliosWingFlutter"
 absPath = string(pwd(),relPath)
 mkpath(absPath)
 

@@ -60,7 +60,7 @@ M2 = reduce(vcat,[state[e].nodal.M1[2],
 
 ## Plots
 # Set paths
-relPath = "/test/outputs/figures/drivenSpringedHingedBeam2"
+relPath = "/test/outputs/figures/staticStructural/drivenSpringedHingedBeam2"
 absPath = string(pwd(),relPath)
 mkpath(absPath)
 

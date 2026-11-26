@@ -32,7 +32,7 @@ states = sol.states
 
 ## Plots
 # Set paths
-relPath = "/test/outputs/figures/tipMomentCantileverDynamic"
+relPath = "/test/outputs/figures/dynamicStructural/tipMomentCantileverDynamic"
 absPath = string(pwd(),relPath)
 mkpath(absPath)
 

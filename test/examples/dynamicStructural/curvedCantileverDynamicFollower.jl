@@ -41,7 +41,7 @@ M3_root = [states[i][1].nodal.M1[3] for i in 1:length(t)]
 
 ## Plots
 # Set paths
-relPath = "/test/outputs/figures/curvedCantileverDynamicFollower"
+relPath = "/test/outputs/figures/dynamicStructural/curvedCantileverDynamicFollower"
 absPath = string(pwd(),relPath)
 mkpath(absPath)
 

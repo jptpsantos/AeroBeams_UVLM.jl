@@ -165,7 +165,7 @@ expFreqs4 = [95.4 87.5 83.7 78.8; 106.6 120.1 122.6 117.7; 132.7 147.3 166.2 162
 
 ## Plots
 # Set paths
-relPath = "/test/outputs/figures/sweptTipRotor"
+relPath = "/test/outputs/figures/eigenStructural/sweptTipRotor"
 absPath = string(pwd(),relPath)
 mkpath(absPath)
 

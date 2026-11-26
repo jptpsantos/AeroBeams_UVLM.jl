@@ -655,15 +655,18 @@ function solve_eigen!(problem::EigenProblem)
         nev = nevAvailable
     end
 
-    # Small shift for singular Jacobians
-    σ = converged ?
-        0.0 : 
-        1e-6*opnorm(jacobian,Inf)
-
-    # Set LU factorization of the shifted Jacobian, if applicable
-    luCache = (converged && !isnothing(luCache)) ?
-              luCache : 
-              lu(jacobian - σ*I)
+    # Shift: null if the Jacobian at the steady solution is regular. Otherwise (e.g., for a vehicle in free flight, whose rigid-body translations relative to basis A are neutral, i.e., null eigenvalues), a small one relative to the ratio of the norms of the Jacobian and inertia matrices, so that the shifted Jacobian is regular and well-conditioned (much smaller shifts give inaccurate eigenvalues, because the null eigenvalues of the translations and of the heading are defective)
+    regularJacobian = converged && !isnothing(luCache) && issuccess(luCache) && isempty(neutral_translations(problem.model,jacobian))
+    σ = 0.0
+    if !regularJacobian
+        σ = 1e-3*opnorm(jacobian,1)/opnorm(inertia,1)
+        luCache = lu(jacobian + σ*inertia; check=false)
+        # If the pencil is singular (e.g., rigid-body rotations without inertia), regularize the Jacobian instead
+        if !issuccess(luCache)
+            σ = 1e-6*opnorm(jacobian,Inf)
+            luCache = lu(jacobian - σ*I)
+        end
+    end
 
     # Solve eigenproblem to get eigenvectors and corresponding eigenvalues in ascending order of frequency
     λ, V = eigs_generalized(luCache,inertia; method=eigenmethod,nev=nev,which=:LM,σ=σ,sortby=x->abs(imag(x)),restarts=nevAvailable)
@@ -671,7 +674,7 @@ function solve_eigen!(problem::EigenProblem)
     # Re-solve with a small shift if the unshifted operator is ill-scaled (see `needs_shift`)
     if converged && eigenmethod != :fulldecomp
         σ2 = needs_shift(λ,σ)
-        if σ2 > 0
+        if σ2 > σ
             try
                 luShifted = lu(jacobian + σ2*inertia)
                 λ, V = eigs_generalized(luShifted,inertia; method=eigenmethod,nev=nev,which=:LM,σ=σ2,sortby=x->abs(imag(x)),restarts=nevAvailable)
@@ -826,12 +829,9 @@ function initialize_system_arrays_from_refTrimProblem(refTrimProblem,nEqs,nState
     residual = copy(refTrimProblem.systemArrays.residual)
     jacobian = copy(refTrimProblem.systemArrays.jacobian[1:nEqs,1:nEqs])
     inertia = copy(refTrimProblem.systemArrays.inertia)
-    local luCache
-    try
-        luCache = lu(jacobian)
-    catch
-        luCache = lu(jacobian - 1e-6*opnorm(jacobian,Inf)*I)
-    end
+    
+    # LU factorization of the Jacobian, which may be singular (e.g., for a vehicle in free flight, in which case the eigenproblem is solved with a shift)
+    luCache = lu(jacobian; check=false)
 
     return SystemArrays(x,Δx,residual,jacobian,inertia,luCache)
 
@@ -870,11 +870,11 @@ function initialize_default_system_arrays(systemSolver,forceScaling,nEqs,nStates
     # Loop over elements and assign initial states
     for element in elements
         @unpack DOF_u,DOF_p,DOF_F,DOF_M,DOF_V,DOF_Ω,DOF_χ = element.assemblyIndices
-        @unpack u,p,F,M,V,Ω,χ = element.state.midpoint
+        @unpack u,p,Fε,Mε,V,Ω,χ = element.state.midpoint
         x[DOF_u] .= u
         x[DOF_p] .= p
-        x[DOF_F] .= F/forceScaling
-        x[DOF_M] .= M/forceScaling
+        x[DOF_F] .= Fε/forceScaling
+        x[DOF_M] .= Mε/forceScaling
         x[DOF_V] .= V
         x[DOF_Ω] .= Ω
         x[DOF_χ] .= χ
@@ -925,16 +925,23 @@ function initialize_jacobian_sparsity_pattern(nEqs,nStates,elements,specialNodes
         # Unpack assembly indices
         @unpack eqs_Fu1,eqs_Fu2,eqs_Fp1,eqs_Fp2,eqs_FF1,eqs_FF2,eqs_FM1,eqs_FM2,eqs_FV,eqs_FΩ,eqs_Fχ,DOF_u,DOF_p,DOF_F,DOF_M,DOF_V,DOF_Ω,DOF_χ = element.assemblyIndices
         @unpack aero = element
+        @unpack hasDamping = element.sectional
         DOF_δ = !isnothing(aero.surface) && aero.geometry.isFlapped ? 
                 aero.surface.assemblyData.DOF_δ : 
                 Int[]
         # Set indices of node 1
         add_block!(eqs_Fu1, DOF_p); add_block!(eqs_Fu1, DOF_F); add_block!(eqs_Fu1, DOF_V); add_block!(eqs_Fu1, DOF_Ω); add_block!(eqs_Fu1, DOF_χ); add_block!(eqs_Fu1, DOF_δ)
+        hasDamping && add_block!(eqs_Fu1, DOF_M)
         add_block!(eqs_Fp1, DOF_p); add_block!(eqs_Fp1, DOF_F); add_block!(eqs_Fp1, DOF_M); add_block!(eqs_Fp1, DOF_V); add_block!(eqs_Fp1, DOF_Ω); add_block!(eqs_Fp1, DOF_χ); add_block!(eqs_Fp1, DOF_δ)
         add_block!(eqs_FF1, DOF_u); add_block!(eqs_FF1, DOF_p); add_block!(eqs_FF1, DOF_F); add_block!(eqs_FF1, DOF_M)
         add_block!(eqs_FM1, DOF_p); add_block!(eqs_FM1, DOF_F); add_block!(eqs_FM1, DOF_M)
+        # Set indices of the hinged DoFs of node 1 (their moment equilibrium equations are the node's compatibility equations), if applicable
+        if any(element.geometry.hingedNode1Mat)
+            add_block!(eqs_FM1, DOF_V); add_block!(eqs_FM1, DOF_Ω); add_block!(eqs_FM1, DOF_χ); add_block!(eqs_FM1, DOF_δ)
+        end
         # Set indices of node 2
         add_block!(eqs_Fu2, DOF_p); add_block!(eqs_Fu2, DOF_F); add_block!(eqs_Fu2, DOF_V); add_block!(eqs_Fu2, DOF_Ω); add_block!(eqs_Fu2, DOF_χ); add_block!(eqs_Fu2, DOF_δ)
+        hasDamping && add_block!(eqs_Fu2, DOF_M)
         add_block!(eqs_Fp2, DOF_p); add_block!(eqs_Fp2, DOF_F); add_block!(eqs_Fp2, DOF_M); add_block!(eqs_Fp2, DOF_V); add_block!(eqs_Fp2, DOF_Ω); add_block!(eqs_Fp2, DOF_χ); add_block!(eqs_Fp2, DOF_δ)
         add_block!(eqs_FF2, DOF_u); add_block!(eqs_FF2, DOF_p); add_block!(eqs_FF2, DOF_F); add_block!(eqs_FF2, DOF_M)
         add_block!(eqs_FM2, DOF_p); add_block!(eqs_FM2, DOF_F); add_block!(eqs_FM2, DOF_M)
@@ -1027,13 +1034,24 @@ function initialize_inertia_sparsity_pattern(nEqs,elements)
     # Loop over elements
     for element in elements
         # Unpack assembly indices
-        @unpack eqs_Fu1,eqs_Fu2,eqs_Fp1,eqs_Fp2,eqs_FV,eqs_FΩ,eqs_Fχ,DOF_u,DOF_p,DOF_V,DOF_Ω,DOF_χ = element.assemblyIndices
+        @unpack eqs_Fu1,eqs_Fu2,eqs_Fp1,eqs_Fp2,eqs_FM1,eqs_FV,eqs_FΩ,eqs_Fχ,DOF_u,DOF_p,DOF_F,DOF_M,DOF_V,DOF_Ω,DOF_χ = element.assemblyIndices
         # Set indices of node 1
         add_block!(eqs_Fu1, DOF_p); add_block!(eqs_Fu1, DOF_V); add_block!(eqs_Fu1, DOF_Ω);
         add_block!(eqs_Fp1, DOF_p); add_block!(eqs_Fp1, DOF_V); add_block!(eqs_Fp1, DOF_Ω);
         # Set indices of node 2
         add_block!(eqs_Fu2, DOF_p); add_block!(eqs_Fu2, DOF_V); add_block!(eqs_Fu2, DOF_Ω);
         add_block!(eqs_Fp2, DOF_p); add_block!(eqs_Fp2, DOF_V); add_block!(eqs_Fp2, DOF_Ω);
+        # Set indices of the structural damping terms (rates of the elastic forces), if applicable
+        if element.sectional.hasDamping
+            for eqs in (eqs_Fu1,eqs_Fp1,eqs_Fu2,eqs_Fp2)
+                add_block!(eqs, DOF_F); add_block!(eqs, DOF_M)
+            end
+        end
+        # Set indices of the hinged DoFs of node 1 (their moment equilibrium equations are the node's compatibility equations), if applicable
+        if any(element.geometry.hingedNode1Mat)
+            add_block!(eqs_FM1, DOF_p); add_block!(eqs_FM1, DOF_V); add_block!(eqs_FM1, DOF_Ω)
+            element.sectional.hasDamping && (add_block!(eqs_FM1, DOF_F); add_block!(eqs_FM1, DOF_M))
+        end
         # Set indices of the element midpoint
         add_block!(eqs_FV, DOF_u);
         add_block!(eqs_FΩ, DOF_p);
@@ -1164,14 +1182,20 @@ function set_jacobian_indices_maps!(jacobian,elements,specialNodes,hingeAxisCons
         # Get number of aerodynamic and trim flap states
         N = length(DOF_χ)
         Nδ = length(DOF_δ)
+        # Maps of the blocks that exist only with structural damping
+        hasDamping = element.sectional.hasDamping
+        bimDamping(rows, cols) = hasDamping ? bim(rows, cols) : zeros(SVector{9,Int})
+        # Maps of the hinged DoFs of node 1, which exist only if the element has a hinged node 1
+        hasHinge = any(element.geometry.hingedNode1Mat)
+        bimHinge(rows, cols) = hasHinge ? bim(rows, cols) : zeros(SVector{length(rows)*length(cols),Int})
         # Set Jacobian maps
         setfield!(element, :jacobianMaps, 
         JacobianIndicesMaps{3*N,3*Nδ,N*N}(
-            bim(eqs_Fu1,DOF_p), bim(eqs_Fu1,DOF_F), bim(eqs_Fu1,DOF_V), bim(eqs_Fu1,DOF_Ω), bim(eqs_Fu1,DOF_χ), bim(eqs_Fu1,DOF_δ),
+            bim(eqs_Fu1,DOF_p), bim(eqs_Fu1,DOF_F), bimDamping(eqs_Fu1,DOF_M), bim(eqs_Fu1,DOF_V), bim(eqs_Fu1,DOF_Ω), bim(eqs_Fu1,DOF_χ), bim(eqs_Fu1,DOF_δ),
             bim(eqs_Fp1,DOF_p), bim(eqs_Fp1,DOF_F), bim(eqs_Fp1,DOF_M), bim(eqs_Fp1,DOF_V), bim(eqs_Fp1,DOF_Ω), bim(eqs_Fp1,DOF_χ), bim(eqs_Fp1,DOF_δ),
             bim(eqs_FF1,DOF_u), bim(eqs_FF1,DOF_p), bim(eqs_FF1,DOF_F), bim(eqs_FF1,DOF_M),
-            bim(eqs_FM1,DOF_p), bim(eqs_FM1,DOF_F), bim(eqs_FM1,DOF_M),
-            bim(eqs_Fu2,DOF_p), bim(eqs_Fu2,DOF_F), bim(eqs_Fu2,DOF_V), bim(eqs_Fu2,DOF_Ω), bim(eqs_Fu2,DOF_χ), bim(eqs_Fu2,DOF_δ),
+            bim(eqs_FM1,DOF_p), bim(eqs_FM1,DOF_F), bim(eqs_FM1,DOF_M), bimHinge(eqs_FM1,DOF_V), bimHinge(eqs_FM1,DOF_Ω), bimHinge(eqs_FM1,DOF_χ), bimHinge(eqs_FM1,DOF_δ),
+            bim(eqs_Fu2,DOF_p), bim(eqs_Fu2,DOF_F), bimDamping(eqs_Fu2,DOF_M), bim(eqs_Fu2,DOF_V), bim(eqs_Fu2,DOF_Ω), bim(eqs_Fu2,DOF_χ), bim(eqs_Fu2,DOF_δ),
             bim(eqs_Fp2,DOF_p), bim(eqs_Fp2,DOF_F), bim(eqs_Fp2,DOF_M), bim(eqs_Fp2,DOF_V), bim(eqs_Fp2,DOF_Ω), bim(eqs_Fp2,DOF_χ), bim(eqs_Fp2,DOF_δ),
             bim(eqs_FF2,DOF_u), bim(eqs_FF2,DOF_p), bim(eqs_FF2,DOF_F), bim(eqs_FF2,DOF_M),
             bim(eqs_FM2,DOF_p), bim(eqs_FM2,DOF_F), bim(eqs_FM2,DOF_M),
@@ -1188,8 +1212,10 @@ function set_jacobian_indices_maps!(jacobian,elements,specialNodes,hingeAxisCons
         @unpack springs = specialNode
         @unpack connectedElementsGlobalIDs,doubleAttachmentSpringsData,eqs_Fu,eqs_Fp,DOF_uF,DOF_pM = specialNode.assemblyData
         # Initialize Jacobian maps for double attachment springs
-        mapsDoubleSpring_Fu = Vector{SVector{9,Int}}()
-        mapsDoubleSpring_Fp = Vector{SVector{9,Int}}()
+        mapsDoubleSpring_Fu_uF = Vector{SVector{9,Int}}()
+        mapsDoubleSpring_Fu_pM = Vector{SVector{9,Int}}()
+        mapsDoubleSpring_Fp_uF = Vector{SVector{9,Int}}()
+        mapsDoubleSpring_Fp_pM = Vector{SVector{9,Int}}()
         # Initialize counter for double attachment springs
         c = 0
         # Loop over special node's springs
@@ -1201,12 +1227,14 @@ function set_jacobian_indices_maps!(jacobian,elements,specialNodes,hingeAxisCons
                 # Unpack double attachment spring data for this spring
                 @unpack otherNodeDOF_uF,otherNodeDOF_pM = doubleAttachmentSpringsData[c]
                 # Set Jacobian indices maps for this double attachment spring
-                push!(mapsDoubleSpring_Fu, bim(eqs_Fu,otherNodeDOF_uF))
-                push!(mapsDoubleSpring_Fp, bim(eqs_Fp,otherNodeDOF_pM))
+                push!(mapsDoubleSpring_Fu_uF, bim(eqs_Fu,otherNodeDOF_uF))
+                push!(mapsDoubleSpring_Fu_pM, bim(eqs_Fu,otherNodeDOF_pM))
+                push!(mapsDoubleSpring_Fp_uF, bim(eqs_Fp,otherNodeDOF_uF))
+                push!(mapsDoubleSpring_Fp_pM, bim(eqs_Fp,otherNodeDOF_pM))
             end
         end
         # Set the Jacobian maps for the special node
-        setfield!(specialNode, :jacobianMaps, SpecialNodeJacobianIndicesMaps(bim(eqs_Fu,DOF_uF), bim(eqs_Fp,DOF_pM), mapsDoubleSpring_Fu, mapsDoubleSpring_Fp))
+        setfield!(specialNode, :jacobianMaps, SpecialNodeJacobianIndicesMaps(bim(eqs_Fu,DOF_uF), bim(eqs_Fu,DOF_pM), bim(eqs_Fp,DOF_uF), bim(eqs_Fp,DOF_pM), mapsDoubleSpring_Fu_uF, mapsDoubleSpring_Fu_pM, mapsDoubleSpring_Fp_uF, mapsDoubleSpring_Fp_pM))
     end
 
     # Loop over hinge axis constraints
@@ -1235,16 +1263,24 @@ function set_inertia_indices_maps!(inertia,elements,resetInertia)
     # Loop over elements and set inertia matrix maps
     for element in elements
         # Unpack
-        @unpack eqs_Fu1,eqs_Fu2,eqs_Fp1,eqs_Fp2,eqs_FV,eqs_Fχ,eqs_FΩ,DOF_u,DOF_p,DOF_V,DOF_Ω,DOF_χ = element.assemblyIndices
+        @unpack eqs_Fu1,eqs_Fu2,eqs_Fp1,eqs_Fp2,eqs_FM1,eqs_FV,eqs_Fχ,eqs_FΩ,DOF_u,DOF_p,DOF_F,DOF_M,DOF_V,DOF_Ω,DOF_χ = element.assemblyIndices
         # Get number of aerodynamic states
         N = length(DOF_χ)
+        # Maps of the blocks that exist only with structural damping
+        hasDamping = element.sectional.hasDamping
+        bimDamping(rows, cols) = hasDamping ? bim(rows, cols) : zeros(SVector{9,Int})
+        # Maps of the hinged DoFs of node 1, which exist only if the element has a hinged node 1
+        hasHinge = any(element.geometry.hingedNode1Mat)
+        bimHinge(rows, cols) = hasHinge ? bim(rows, cols) : zeros(SVector{9,Int})
+        bimHingeDamping(rows, cols) = hasHinge && hasDamping ? bim(rows, cols) : zeros(SVector{9,Int})
         # Set
         setfield!(element, :inertiaMaps, 
             InertiaIndicesMaps{3*N,N*N}(
-                bim(eqs_Fu1,DOF_p), bim(eqs_Fu1,DOF_V), bim(eqs_Fu1,DOF_Ω),
-                bim(eqs_Fp1,DOF_p), bim(eqs_Fp1,DOF_V), bim(eqs_Fp1,DOF_Ω),
-                bim(eqs_Fu2,DOF_p), bim(eqs_Fu2,DOF_V), bim(eqs_Fu2,DOF_Ω),
-                bim(eqs_Fp2,DOF_p), bim(eqs_Fp2,DOF_V), bim(eqs_Fp2,DOF_Ω),
+                bim(eqs_Fu1,DOF_p), bim(eqs_Fu1,DOF_V), bim(eqs_Fu1,DOF_Ω), bimDamping(eqs_Fu1,DOF_F), bimDamping(eqs_Fu1,DOF_M),
+                bim(eqs_Fp1,DOF_p), bim(eqs_Fp1,DOF_V), bim(eqs_Fp1,DOF_Ω), bimDamping(eqs_Fp1,DOF_F), bimDamping(eqs_Fp1,DOF_M),
+                bim(eqs_Fu2,DOF_p), bim(eqs_Fu2,DOF_V), bim(eqs_Fu2,DOF_Ω), bimDamping(eqs_Fu2,DOF_F), bimDamping(eqs_Fu2,DOF_M),
+                bim(eqs_Fp2,DOF_p), bim(eqs_Fp2,DOF_V), bim(eqs_Fp2,DOF_Ω), bimDamping(eqs_Fp2,DOF_F), bimDamping(eqs_Fp2,DOF_M),
+                bimHinge(eqs_FM1,DOF_p), bimHinge(eqs_FM1,DOF_V), bimHinge(eqs_FM1,DOF_Ω), bimHingeDamping(eqs_FM1,DOF_F), bimHingeDamping(eqs_FM1,DOF_M),
                 bim(eqs_FV,DOF_u),
                 bim(eqs_FΩ,DOF_p),
                 bim(eqs_Fχ,DOF_V), bim(eqs_Fχ,DOF_Ω), bim(eqs_Fχ,DOF_χ)
@@ -1275,6 +1311,7 @@ function precompute_motion_basis_A!(problem)
 
     # Resize rotation tensor history vector
     resize!(R_AVec, sizeOfTime)
+    R_AVec[1] = SMatrix{3,3}(R_A0)
 
     # Loop over time steps -- set rotation tensor array
     for i in 2:sizeOfTime
@@ -1283,8 +1320,8 @@ function precompute_motion_basis_A!(problem)
         # Current time step and time factor
         Δt = timeVector[i] - timeVector[i-1]
         α = 2 / Δt
-        # Skew-symmetric operator of the angular velocity vector
-        Ω = tilde(eval_motion(ω_A, t))
+        # Skew-symmetric operator of the angular velocity vector at the midpoint of the time step
+        Ω = tilde(eval_motion(ω_A, t - Δt/2))
         # Update rotation tensor from basis I to basis A, at the current time
         R_A .= (α*I3 - Ω) \ ((α*I3 + Ω) * R_A)
         # Set in rotation tensor history vector
@@ -1854,9 +1891,11 @@ function solve_initial_conditions!(problem)
         if isnothing(rates)
             @warn "The initial velocities could not be obtained from the specified rates (singular system) - the specified rates are used instead"
         else
-            for (element,udot,pdot) in zip(staticProblem.model.assemblyData.elements,rates...)
+            for (element,udot,pdot,Fεdot,Mεdot) in zip(staticProblem.model.assemblyData.elements,rates...)
                 element.state.rates.udot .= udot
                 element.state.rates.pdot .= pdot
+                element.state.rates.Fεdot .= Fεdot
+                element.state.rates.Mεdot .= Mεdot
             end
             update_equivalent_states_rates!(staticProblem)
             solve_initial_static_system!(staticProblem)
@@ -2039,9 +2078,9 @@ function solve_initial_static!(problem,BCs)
     # Update model with the BCs
     update_model_BCs!(problem.model; BCs=BCs)
 
-    # Null accelerations, as the static problem has no inertial loads (they could be left from a previous solution of the problem)
+    # Null accelerations and rates of the elastic forces, as the static problem has no inertial nor viscous loads (they could be left from a previous solution of the problem)
     for element in problem.model.assemblyData.elements
-        zero_arrays!(element.state.rates.Vdot,element.state.rates.Ωdot,element.state.rates.Pdot,element.state.rates.Hdot,element.state.rates.χdot)
+        zero_arrays!(element.state.rates.Vdot,element.state.rates.Ωdot,element.state.rates.Pdot,element.state.rates.Hdot,element.state.rates.Fεdot,element.state.rates.Mεdot,element.state.rates.χdot)
     end
 
     # Update system arrays with the new BCs
@@ -2068,11 +2107,11 @@ function solve_initial_static_system!(problem)
 end
 
 
-# Gets the rates of the midpoint displacements and rotation parameters of the elements of a solved static problem when the displacements prescribed by the BCs move in time at their rates (quasi-static response). The static solution is linear in the BCs' values, so its rates (time derivatives) are exactly obtained by a Newton step with the converged Jacobian and the BCs' values shifted by their rates. Returns nothing if the Jacobian is singular
+# Gets the rates of the midpoint displacements, rotation parameters and elastic forces of the elements of a solved static problem when the displacements prescribed by the BCs move in time at their rates (quasi-static response). The static solution is linear in the BCs' values, so its rates (time derivatives) are exactly obtained by a Newton step with the converged Jacobian and the BCs' values shifted by their rates. The rates of the elastic forces are thus consistent with the time derivatives of the compatibility equations. Returns nothing if the Jacobian is singular
 function quasi_static_rates(problem,t0,Δt)
 
     @unpack BCs = problem.model
-    @unpack elements = problem.model.assemblyData
+    @unpack elements,forceScaling = problem.model.assemblyData
     @unpack systemSolver,systemArrays = problem
 
     # Make sure that the Jacobian is fully updated
@@ -2112,11 +2151,13 @@ function quasi_static_rates(problem,t0,Δt)
     issuccess(luCache) || return nothing
     Δx = luCache \ (residual0 - residual1)
 
-    # Rates of the elements' midpoint displacements and rotation parameters
+    # Rates of the elements' midpoint displacements, rotation parameters and elastic forces
     udot = [SVector{3,Float64}(Δx[element.assemblyIndices.DOF_u]) for element in elements]
     pdot = [SVector{3,Float64}(Δx[element.assemblyIndices.DOF_p]) for element in elements]
+    Fεdot = [SVector{3,Float64}(Δx[element.assemblyIndices.DOF_F] * forceScaling) for element in elements]
+    Mεdot = [SVector{3,Float64}(Δx[element.assemblyIndices.DOF_M] * forceScaling) for element in elements]
 
-    return udot,pdot
+    return udot,pdot,Fεdot,Mεdot
 
 end
 
@@ -2158,7 +2199,7 @@ function initial_rates_startup!(problem)
             update_motion_basis_A!(problem; timeNow=t0+step*h, Δt=h)
             update_BCs_displacements!(model.BCs,t0,t0+step*h)
             # Update equivalent states' rates at the begin of the step
-            set_startup_rates!(elements,xHistory,step,isBDF2,h)
+            set_startup_rates!(elements,xHistory,step,isBDF2,h,model.assemblyData.forceScaling)
             update_equivalent_states_rates!(problem)
             # Solve the step
             solve_time_step!(problem)
@@ -2193,7 +2234,7 @@ function initial_rates_startup!(problem)
     # Cubic polynomial through the states at the end of steps 3 to 6 (the first steps are discarded because they have the transient): extrapolate to the initial time, and differentiate there, to get the states and their rates
     x .= 20*xHistory[4] - 45*xHistory[5] + 36*xHistory[6] - 10*xHistory[7]
     xdot = (-37/3*xHistory[4] + 63/2*xHistory[5] - 27*xHistory[6] + 47/6*xHistory[7]) / h
-    set_elements_rates_from_derivative!(elements,xdot)
+    set_elements_rates_from_derivative!(elements,xdot,model.assemblyData.forceScaling)
 
     # Update the states of the elements, hinge axis constraints and special nodes, at the initial time
     update_states!(model,x,σ,1,1.0,t0,Inf,true)
@@ -2219,21 +2260,23 @@ end
 
 
 # Sets the rates at the begin of a startup step, so that the equivalent rates (rates plus 2/Δt times the states) are those of backward Euler (null rates) or BDF2 (rates (x₁-x₂)/(2h), with x₁ and x₂ the states at the previous two steps)
-function set_startup_rates!(elements,xHistory,step,isBDF2,h)
+function set_startup_rates!(elements,xHistory,step,isBDF2,h,forceScaling)
 
     for element in elements
-        @unpack udot,pdot,Vdot,Ωdot,χdot = element.state.rates
+        @unpack udot,pdot,Vdot,Ωdot,Fεdot,Mεdot,χdot = element.state.rates
         if isBDF2
-            @unpack DOF_u,DOF_p,DOF_V,DOF_Ω,DOF_χ = element.assemblyIndices
+            @unpack DOF_u,DOF_p,DOF_F,DOF_M,DOF_V,DOF_Ω,DOF_χ = element.assemblyIndices
             x₁ = xHistory[step]
             x₂ = xHistory[step-1]
             udot .= (x₁[DOF_u] - x₂[DOF_u]) / 2h
             pdot .= (x₁[DOF_p] - x₂[DOF_p]) / 2h
             Vdot .= (x₁[DOF_V] - x₂[DOF_V]) / 2h
             Ωdot .= (x₁[DOF_Ω] - x₂[DOF_Ω]) / 2h
+            Fεdot .= (x₁[DOF_F] - x₂[DOF_F]) / 2h * forceScaling
+            Mεdot .= (x₁[DOF_M] - x₂[DOF_M]) / 2h * forceScaling
             χdot .= (x₁[DOF_χ] - x₂[DOF_χ]) / 2h
         else
-            zero_arrays!(udot,pdot,Vdot,Ωdot,χdot)
+            zero_arrays!(udot,pdot,Vdot,Ωdot,Fεdot,Mεdot,χdot)
         end
     end
 
@@ -2246,8 +2289,8 @@ function elements_rates_vector(elements)
     rates = Float64[]
 
     for element in elements
-        @unpack udot,pdot,Vdot,Ωdot,χdot = element.state.rates
-        append!(rates,udot,pdot,Vdot,Ωdot,χdot)
+        @unpack udot,pdot,Vdot,Ωdot,Fεdot,Mεdot,χdot = element.state.rates
+        append!(rates,udot,pdot,Vdot,Ωdot,Fεdot,Mεdot,χdot)
     end
 
     return rates
@@ -2261,9 +2304,9 @@ function set_elements_rates!(elements,rates)
     i = 0
 
     for element in elements
-        @unpack udot,pdot,Vdot,Ωdot,χdot = element.state.rates
+        @unpack udot,pdot,Vdot,Ωdot,Fεdot,Mεdot,χdot = element.state.rates
         # Set the rates of the states
-        for rate in (udot,pdot,Vdot,Ωdot,χdot)
+        for rate in (udot,pdot,Vdot,Ωdot,Fεdot,Mεdot,χdot)
             rate .= rates[i+1:i+length(rate)]
             i += length(rate)
         end
@@ -2274,17 +2317,19 @@ function set_elements_rates!(elements,rates)
 end
 
 
-# Sets the rates of the elements' states from the vector of the time derivative of the system's states
-function set_elements_rates_from_derivative!(elements,xdot)
+# Sets the rates of the elements' states from the vector of the time derivative of the system's states (in which the elastic forces are scaled by forceScaling)
+function set_elements_rates_from_derivative!(elements,xdot,forceScaling)
 
     for element in elements
-        @unpack udot,pdot,Vdot,Ωdot,χdot = element.state.rates
-        @unpack DOF_u,DOF_p,DOF_V,DOF_Ω,DOF_χ = element.assemblyIndices
+        @unpack udot,pdot,Vdot,Ωdot,Fεdot,Mεdot,χdot = element.state.rates
+        @unpack DOF_u,DOF_p,DOF_F,DOF_M,DOF_V,DOF_Ω,DOF_χ = element.assemblyIndices
         # Set the rates of the states
         udot .= xdot[DOF_u]
         pdot .= xdot[DOF_p]
         Vdot .= xdot[DOF_V]
         Ωdot .= xdot[DOF_Ω]
+        Fεdot .= xdot[DOF_F] * forceScaling
+        Mεdot .= xdot[DOF_M] * forceScaling
         χdot .= xdot[DOF_χ]
         # Set the rates of the momenta
         set_momenta_rates!(element)
@@ -2319,8 +2364,8 @@ function copy_initial_states!(problem,problemCopy)
     # Loop over elements
     for (element,elementCopy) in zip(problem.model.assemblyData.elements,modelCopy.assemblyData.elements)
         # Unpack
-        @unpack u,p,F,M,V,Ω,χ = element.state.midpoint
-        @unpack udot,pdot = element.state.rates
+        @unpack u,p,F,M,V,Ω,Fε,Mε,χ = element.state.midpoint
+        @unpack udot,pdot,Fεdot,Mεdot = element.state.rates
         @unpack DOF_u,DOF_p,DOF_F,DOF_M,DOF_V,DOF_Ω,DOF_χ = element.assemblyIndices
         DOF_uCopy = elementCopy.assemblyIndices.DOF_u
         DOF_pCopy = elementCopy.assemblyIndices.DOF_p
@@ -2332,16 +2377,21 @@ function copy_initial_states!(problem,problemCopy)
         # Set elemental states
         u .= x[DOF_u] .= xCopy[DOF_uCopy]
         p .= x[DOF_p] .= xCopy[DOF_pCopy]
-        F .= x[DOF_F] .= xCopy[DOF_FCopy]
-        M .= x[DOF_M] .= xCopy[DOF_MCopy]
+        Fε .= x[DOF_F] .= xCopy[DOF_FCopy]
+        Mε .= x[DOF_M] .= xCopy[DOF_MCopy]
         V .= x[DOF_V] .= xCopy[DOF_VCopy]
         Ω .= x[DOF_Ω] .= xCopy[DOF_ΩCopy]
         χ .= x[DOF_χ] .= xCopy[DOF_χCopy]
-        F .*= forceScaling
-        M .*= forceScaling
-        # Set elemental rates of the displacements and rotation parameters
+        Fε .*= forceScaling
+        Mε .*= forceScaling
+        # Total forces (elastic plus viscous)
+        F .= elementCopy.state.midpoint.F
+        M .= elementCopy.state.midpoint.M
+        # Set elemental rates of the displacements, rotation parameters and elastic forces
         udot .= elementCopy.state.rates.udot
         pdot .= elementCopy.state.rates.pdot
+        Fεdot .= elementCopy.state.rates.Fεdot
+        Mεdot .= elementCopy.state.rates.Mεdot
     end
 
     # Loop over special nodes
@@ -2533,8 +2583,8 @@ function update_motion_basis_A!(problem; timeNow=problem.time.state.timeNow, Δt
     # Time step factor
     α = 2 / Δt
 
-    # Skew-symmetric operator of the angular velocity vector
-    Ω = tilde(ω_A(timeNow))
+    # Skew-symmetric operator of the angular velocity vector at the midpoint of the time step
+    Ω = tilde(ω_A(timeNow - Δt/2))
 
     # Rotation tensor from basis I to basis A, at the current time, and its transpose
     R_A .= (α*I3 - Ω) \ ((α*I3 + Ω) * R_A)
@@ -2564,7 +2614,7 @@ function update_motion_basis_A!(problem,timeIndex)
     else
         # Rotation tensor from basis I to basis A, updated from the begin of the time step as in precompute_motion_basis_A!
         α = 2 / time_step(problem)
-        Ω = tilde(ω_A)
+        Ω = tilde(value_at_time(ω_AVec,timeIndex,stepFraction/2))
         R_A .= (α*I3 - Ω) \ ((α*I3 + Ω) * R_AVec[timeIndex-1])
     end
     R_AT .= R_A'

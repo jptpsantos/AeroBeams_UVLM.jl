@@ -41,7 +41,7 @@ println("Relative frequency errors: $(round.(100ϵ_rel, sigdigits=2)) %")
 
 ## Plots
 # Set paths
-relPath = "/test/outputs/figures/SMWModal"
+relPath = "/test/outputs/figures/eigenStructural/SMWModal"
 absPath = string(pwd(),relPath)
 mkpath(absPath)
 

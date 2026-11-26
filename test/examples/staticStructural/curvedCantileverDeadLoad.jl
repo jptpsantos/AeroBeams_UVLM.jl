@@ -47,7 +47,7 @@ println("Relative differences: u1 = $(round(100*ϵu1,digits=4)) %, u2 = $(round(
 
 ## Plots
 # Set paths
-relPath = "/test/outputs/figures/curvedCantileverDeadLoad"
+relPath = "/test/outputs/figures/staticStructural/curvedCantileverDeadLoad"
 absPath = string(pwd(),relPath)
 mkpath(absPath)
 

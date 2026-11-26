@@ -25,5 +25,6 @@ include("dynamicStructuralTests.jl")
 include("eigenStructuralTests.jl")
 include("staticStructuralTests.jl")
 include("trimStructuralTests.jl")
+include("numericTests.jl")
 
 println("Finished tests")

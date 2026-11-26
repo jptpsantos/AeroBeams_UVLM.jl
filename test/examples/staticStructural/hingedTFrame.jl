@@ -52,7 +52,7 @@ u3_beam2 = reduce(vcat,[hist.states[end][e].nodal.u1[3],
 
 ## Plots
 # Set paths
-relPath = "/test/outputs/figures/hingedTFrame"
+relPath = "/test/outputs/figures/staticStructural/hingedTFrame"
 absPath = string(pwd(),relPath)
 mkpath(absPath)
 

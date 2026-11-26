@@ -1,28 +1,22 @@
 using AeroBeams
 
 # Airspeed range [m/s]
-URange = vcat(1e-3,1:1:120)
+URange = vcat(0:1:120)
 
 # Aerodynamic solver
 aeroSolver = Indicial()
 
-# Airfoil section
-airfoil = deepcopy(FlatPlate)
-
-# Flag for upright position
-upright = true
-
 # Root pitch angle [rad]
-θ = deg2rad(7)
+θ = deg2rad(0)
 
 # Mesh: :nominal or :refined
-mesh = :refined
+mesh = :nominal
 
 # Flag to use old data matrices from AePW3
 useAePW3Matrices = false
 
 # Initialize model
-PazyWingFlutter,nElem,L,chord,normSparPos = create_Pazy(aeroSolver=aeroSolver,airfoil=airfoil,upright=upright,pitchAngle=θ,mesh=mesh,useAePW3Matrices=useAePW3Matrices)
+PazyWingFlutter,nElem,L,chord,referenceAxis = create_Pazy(aeroSolver=aeroSolver,pitchAngle=θ,mesh=mesh,useAePW3Matrices=useAePW3Matrices)
 
 # Undeformed nodal and midpoint positions
 wing = PazyWingFlutter.beams[1]
@@ -65,7 +59,7 @@ for (i,U) in enumerate(URange)
     # Tip OOP displacement at midchord
     states = problem[i].loadstepHistory.states
     tipTwist = twist_angle(states[end][nElem].nodal.p2_b, outputUnit=:deg)
-    tip_OOP[i] = -(states[end][nElem].nodal.u2[1] - chord*(1/2-normSparPos)*sind(tipTwist))/L*100
+    tip_OOP[i] = -(states[end][nElem].nodal.u2[1] - chord*(1/2-referenceAxis)*sind(tipTwist))/L*100
     # Displacements over span
     u1[i] = vcat([vcat(states[end][e].nodal.u1_b[1],states[end][e].nodal.u2_b[1]) for e in 1:nElem]...)
     u3[i] = vcat([vcat(states[end][e].nodal.u1_b[3],states[end][e].nodal.u2_b[3]) for e in 1:nElem]...)
@@ -79,7 +73,7 @@ freqs,damps,modeShapes,_ = mode_tracking(eigensols)
 rads2Hz!(freqs)
 
 # Get frequencies and dampings of oscillatory modes
-freqsOsc,dampsOsc,modeShapesOsc,_ = filter_tracked_modes(freqs,damps,modeShapes; fmin=1e-1, maxTracks=nModes)
+freqsOsc,dampsOsc,modeShapesOsc,_ = filter_tracked_modes(freqs,damps,modeShapes; fmin=1e-1, fmax=110, maxTracks=nModes, dropOutsideBounds = aeroSolver isa Inflow)
 
 # Flutter onset and offset speeds, frequencies, modes and tip OOP displacements
 flutterOnsetSpeeds,flutterOnsetFreqs,flutterOnsetModes,flutterOnsetDisp,flutterOffsetSpeeds,flutterOffsetFreqs,flutterOffsetModes,flutterOffsetDisp = find_flutter(URange,freqsOsc,dampsOsc,tip_OOP)
@@ -94,7 +88,7 @@ end
 
 ## Plots
 # Set paths
-relPath = "/test/outputs/figures/PazyWingFlutter"
+relPath = "/test/outputs/figures/eigenAeroelastic/PazyWingFlutter"
 absPath = string(pwd(),relPath)
 mkpath(absPath)
 

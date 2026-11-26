@@ -89,7 +89,7 @@ pretty_table(
 
 ## Plots
 # Set paths
-relPath = "/test/outputs/figures/SMWLinearFlutter"
+relPath = "/test/outputs/figures/eigenAeroelastic/SMWLinearFlutter"
 absPath = string(pwd(),relPath)
 mkpath(absPath)
 

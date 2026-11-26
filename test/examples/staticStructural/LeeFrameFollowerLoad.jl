@@ -41,7 +41,7 @@ u3Ref = readdlm(pkgdir(AeroBeams,"test","referenceData","LeeFrameFollowerLoad", 
 
 ## Plots
 # Set paths
-relPath = "/test/outputs/figures/LeeFrameFollowerLoad"
+relPath = "/test/outputs/figures/staticStructural/LeeFrameFollowerLoad"
 absPath = string(pwd(),relPath)
 mkpath(absPath)
 

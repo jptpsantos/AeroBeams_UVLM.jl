@@ -1420,139 +1420,142 @@ const AIRFOIL_DATABASES = Dict(
 # - cnα: normal force coefficient slope (not accounting for compressibility effects)
 # - x_ac: aerodynamic center location over chord (as fraction of chord length)
 #
-mutable struct AttachedFlowState
+mutable struct AttachedFlowState{T<:Real}
 
-    α₀N::Float64
-    ϵₙ::Float64
-    ϵₘ::Float64
-    η::Float64
-    cd₀::Float64
-    cm₀::Float64
-    cnα::Float64
-    x_ac::Float64
+    α₀N::T
+    ϵₙ::T
+    ϵₘ::T
+    η::T
+    cd₀::T
+    cm₀::T
+    cnα::T
+    x_ac::T
 
 end
-AttachedFlowState() = AttachedFlowState(ntuple(_ -> 0.0, fieldcount(AttachedFlowState))...)
+AttachedFlowState{T}() where T<:Real = AttachedFlowState{T}(ntuple(_ -> zero(T), fieldcount(AttachedFlowState{T}))...)
+AttachedFlowState() = AttachedFlowState{Float64}()
 
 # BLi state composite type
-mutable struct BLiState
+mutable struct BLiState{T<:Real}
 
-    α₀N::Float64
-    αds₀::Float64
-    αₛₛ::Float64
-    α1₀N::Float64
-    α1₀M::Float64
-    α1₀T::Float64
-    βσ1N::Float64
-    βσ1T::Float64
-    βσ2N::Float64
-    βS2Nlpr::Float64
-    βS2Tlpr::Float64
-    βS1Nu::Float64
-    βS1Mu::Float64
-    βS1Tu::Float64
-    βS1Nd::Float64
-    βS1Md::Float64
-    βS1Td::Float64
-    βS2Nu::Float64
-    βS2Mu::Float64
-    βS2Tu::Float64
-    βS2Nd::Float64
-    βS2Md::Float64
-    βS2Td::Float64
-    γLS::Float64
-    δα₀::Float64
-    δα₁::Float64
-    ϵₙ::Float64
-    ϵₘ::Float64
-    η::Float64
-    κ₀::Float64
-    κ₁::Float64
-    κ₂::Float64
-    κ₃::Float64
-    λ₁::Float64
-    λ₂::Float64
-    μv₂::Float64
-    ν₁::Float64
-    ν₂::Float64
-    ν₃::Float64
-    ν₄::Float64
-    ν₅::Float64
-    χu::Float64
-    χd::Float64
-    ξ::Float64
-    ζₐ::Float64
-    cd₀::Float64
-    cm₀::Float64
-    cnα::Float64
-    dt::Float64
-    dm::Float64
-    E₀::Float64
-    E₁::Float64
-    f₀N::Float64
-    f₀M::Float64
-    f₀T::Float64
-    fbN::Float64
-    fbM::Float64
-    fbT::Float64
-    gᵥ::Float64
-    gᵥ₂::Float64
-    K₀::Float64
-    K₁::Float64
-    K₂::Float64
-    r₀::Float64
-    S1N::Float64
-    S1M::Float64
-    S1T::Float64
-    S2N::Float64
-    S2M::Float64
-    S2T::Float64
-    Ta::Float64
-    Tf::Float64
-    Tg::Float64
-    Tv::Float64
-    Tv₂::Float64
-    Vn₁::Float64
-    Vn₂::Float64
-    Vn₃::Float64
-    Vm::Float64
-    Vt::Float64
-    ztd::Float64
-    ztu::Float64
-    zm::Float64
+    α₀N::T
+    αds₀::T
+    αₛₛ::T
+    α1₀N::T
+    α1₀M::T
+    α1₀T::T
+    βσ1N::T
+    βσ1T::T
+    βσ2N::T
+    βS2Nlpr::T
+    βS2Tlpr::T
+    βS1Nu::T
+    βS1Mu::T
+    βS1Tu::T
+    βS1Nd::T
+    βS1Md::T
+    βS1Td::T
+    βS2Nu::T
+    βS2Mu::T
+    βS2Tu::T
+    βS2Nd::T
+    βS2Md::T
+    βS2Td::T
+    γLS::T
+    δα₀::T
+    δα₁::T
+    ϵₙ::T
+    ϵₘ::T
+    η::T
+    κ₀::T
+    κ₁::T
+    κ₂::T
+    κ₃::T
+    λ₁::T
+    λ₂::T
+    μv₂::T
+    ν₁::T
+    ν₂::T
+    ν₃::T
+    ν₄::T
+    ν₅::T
+    χu::T
+    χd::T
+    ξ::T
+    ζₐ::T
+    cd₀::T
+    cm₀::T
+    cnα::T
+    dt::T
+    dm::T
+    E₀::T
+    E₁::T
+    f₀N::T
+    f₀M::T
+    f₀T::T
+    fbN::T
+    fbM::T
+    fbT::T
+    gᵥ::T
+    gᵥ₂::T
+    K₀::T
+    K₁::T
+    K₂::T
+    r₀::T
+    S1N::T
+    S1M::T
+    S1T::T
+    S2N::T
+    S2M::T
+    S2T::T
+    Ta::T
+    Tf::T
+    Tg::T
+    Tv::T
+    Tv₂::T
+    Vn₁::T
+    Vn₂::T
+    Vn₃::T
+    Vm::T
+    Vt::T
+    ztd::T
+    ztu::T
+    zm::T
 
 end
-BLiState() = BLiState(ntuple(_ -> 0.0, fieldcount(BLiState))...)
+BLiState{T}() where T<:Real = BLiState{T}(ntuple(_ -> zero(T), fieldcount(BLiState{T}))...)
+BLiState() = BLiState{Float64}()
 
 # BLo state composite type
-mutable struct BLoState
+mutable struct BLoState{T<:Real}
 
-    α₀N::Float64
-    α1₀::Float64
-    δα::Float64
-    ϵₙ::Float64
-    ϵₘ::Float64
-    η::Float64
-    cd₀::Float64
-    cm₀::Float64
-    cn₁::Float64
-    cnα::Float64
-    Df::Float64
-    E₀::Float64
-    f₀::Float64
-    fb::Float64
-    K₀::Float64
-    K₁::Float64
-    K₂::Float64
-    S1::Float64
-    S2::Float64
-    Tf₀::Float64
-    Tp::Float64
-    Tv₀::Float64
-    TvL::Float64
+    α₀N::T
+    α1₀::T
+    δα::T
+    ϵₙ::T
+    ϵₘ::T
+    η::T
+    cd₀::T
+    cm₀::T
+    cn₁::T
+    cnα::T
+    Df::T
+    E₀::T
+    f₀::T
+    fb::T
+    K₀::T
+    K₁::T
+    K₂::T
+    S1::T
+    S2::T
+    Tf₀::T
+    Tp::T
+    Tv₀::T
+    TvL::T
 
 end
-BLoState() = BLoState(ntuple(_ -> 0.0, fieldcount(BLoState))...)
+BLoState{T}() where T<:Real = BLoState{T}(ntuple(_ -> zero(T), fieldcount(BLoState{T}))...)
+BLoState() = BLoState{Float64}()
 
 # Airfoil state composite type
 # Fields
@@ -1560,18 +1563,19 @@ BLoState() = BLoState(ntuple(_ -> 0.0, fieldcount(BLoState))...)
 # - bli: BLi model state
 # - blo: BLo model state
 #
-mutable struct AirfoilState
+mutable struct AirfoilState{T<:Real}
 
-    attached::AttachedFlowState
-    bli::BLiState
-    blo::BLoState
+    attached::AttachedFlowState{T}
+    bli::BLiState{T}
+    blo::BLoState{T}
 
 end
-AirfoilState() = AirfoilState(
-        AttachedFlowState(),
-        BLiState(),
-        BLoState(),
+AirfoilState{T}() where T<:Real = AirfoilState{T}(
+        AttachedFlowState{T}(),
+        BLiState{T}(),
+        BLoState{T}(),
     )
+AirfoilState() = AirfoilState{Float64}()
 
 
 ## AIRFOIL CONSTRUCTION
@@ -1586,7 +1590,7 @@ AirfoilState() = AirfoilState(
 
     name::String
     database::AirfoilDatabase
-    state::AirfoilState = AirfoilState()
+    state::AirfoilState{Float64} = AirfoilState()
 
 end
 
@@ -1704,12 +1708,18 @@ export update_all_airfoil_parameters!
 ## MODIFIED DATABASE CONSTRUCTION
 # -----------------------------------------------------------------------------
 """
-    modified_database(name; attached,bli,blo,flap)
+    modified_database(name; attached,bli,blo,flap,newName)
 
 Creates a new airfoil database by modifying selected parameters of an existing
 one.
 
-Scalar values are automatically expanded to all Mach numbers.
+Scalar values are automatically expanded to all Mach numbers. The Mach numbers
+at which the modified parameters of a model (`attached`, `bli` or `blo`) are given
+can also be set, by including the entry `MaRng` (strictly increasing) in its
+named tuple. The new database is then tabulated at the union of the old and the
+given Mach numbers, so that the parameters that are not modified keep their
+original dependence on the Mach number, while the modified ones vary linearly
+between the given values (and are constant outside of their range).
 
 # Arguments
 - `name::String`: name of the airfoil whose database will be modified
@@ -1719,6 +1729,7 @@ Scalar values are automatically expanded to all Mach numbers.
 - `bli::NamedTuple`: named tuple of BLi parameters to modify
 - `blo::NamedTuple`: named tuple of BLo parameters to modify
 - `flap::NamedTuple`: named tuple of flap parameters to modify
+- `newName::Union{Nothing,String}`: name of the new database (defaults to the old name with the suffix `_MOD`)
 
 # Example
 --------
@@ -1735,20 +1746,31 @@ db = modified_database(
         75 => create_FlapParameters(0.30,-0.22,1.05),
     )
 )
+
+db = modified_database(
+    "NACA0018";
+    attached = (
+        MaRng = [0.1, 0.2, 0.3],
+        cd₀ = [0.012, 0.010, 0.009],
+        cnα = 5.5,
+    ),
+    newName = "NACA0018_Re_dependent"
+)
 """
-function modified_database(name; 
+function modified_database(name;
     attached=NamedTuple(),
     bli=NamedTuple(),
     blo=NamedTuple(),
-    flap=NamedTuple()
+    flap=NamedTuple(),
+    newName::Union{Nothing,String}=nothing
     )
 
     # Set the old database
     old = AIRFOIL_DATABASES[name]
 
-    # Crete a new database with modified parameters 
+    # Crete a new database with modified parameters
     return AirfoilDatabase(
-        "$(old.name)_MOD",
+        isnothing(newName) ? "$(old.name)_MOD" : newName,
         old.coordinates,
         _modify_database(old.attached, attached),
         _modify_database(old.bli, bli),
@@ -1766,24 +1788,44 @@ function _modify_database(db, changes)
     # Quick return if no changes
     isempty(changes) && return db
 
-    # Mach number vector length
-    N = length(db.MaRng)
+    # Mach numbers at which the modified values are given (those of the database, unless replaced)
+    MaRngMod = haskey(changes,:MaRng) ? collect(Float64,changes.MaRng) : db.MaRng
+    @assert length(MaRngMod) >= 2 && issorted(MaRngMod,lt=<=) "the Mach numbers (MaRng) must be at least two and strictly increasing"
 
-    # Work on a local copy because database structs are immutable
-    newData = db.data
+    # Mach numbers of the new database: the old and the given ones, so that the parameters that are not modified keep their dependence on the Mach number
+    MaRng = sort(union(db.MaRng,MaRngMod))
+    N = length(MaRng)
+
+    # Work on a local copy because database structs are immutable, interpolating the old data onto the new Mach numbers if they have changed
+    newData = N == length(db.MaRng) ?
+              db.data :
+              map(v -> SVector{N,Float64}(_interpolate_in_Ma(db.MaRng,v,Ma) for Ma in MaRng), db.data)
 
     # Loop over changes and update the database
     for (key,val) in pairs(changes)
+        key == :MaRng && continue
+        @assert val isa Number || length(val) == length(MaRngMod) "the number of values of $key must match the number of Mach numbers"
         values = val isa Number ?
-                 SVector{N}(fill(val,N)) :
-                 SVector{N}(val)
+                 SVector{N,Float64}(fill(val,N)) :
+                 SVector{N,Float64}(_interpolate_in_Ma(MaRngMod,val,Ma) for Ma in MaRng)
         newData = merge(newData, (; key => values))
     end
 
     # Return a new database with the modified data
-    return typeof(db)(db.MaRng,newData)
+    return Base.typename(typeof(db)).wrapper(SVector{N,Float64}(MaRng),newData)
 
 end
+
+# Linear interpolation of tabulated parameter values at a Mach number, clamped to the tabulated range
+function _interpolate_in_Ma(MaRng,v,Ma)
+
+    i,w = bracket_weight(MaRng,clamp(Ma,MaRng[1],MaRng[end]))
+
+    # Return the tabulated value at the last Mach number as is, to avoid round-off
+    return w == 1 ? v[i+1] : lerp(v,i,w)
+
+end
+
 
 # Modifier for flap database
 function _modify_database(db::FlapDatabase, changes::Tuple{Vararg{<:Pair}})
@@ -1797,6 +1839,75 @@ function _modify_database(db::FlapDatabase, changes::Tuple{Vararg{<:Pair}})
 end
 
 
+## MODIFIED AIRFOILS
+# -----------------------------------------------------------------------------
+# Low-Re NACA0018 airfoil database for the Pazy wing: the attached flow parameters (and their dynamic stall counterparts) are based on the low-Reynolds number wind tunnel data of Timmer (https://www.researchgate.net/profile/W-Timmer/publication/27342064_Two-Dimensional_Low-Reynolds_Number_Wind_Tunnel_Results_for_Airfoil_NACA_0018/links/02e7e5335604ba8294000000/Two-Dimensional-Low-Reynolds-Number-Wind-Tunnel-Results-for-Airfoil-NACA-0018.pdf?_sg%5B0%5D=started_experiment_milestone&origin=journalDetail). The Reynolds numbers of the experiments are mapped to Mach numbers considering the chord of the straight Pazy wing and ISA sea level conditions. The airfoil is intended for use with that wing at sea level (the parameters are clamped outside of the Mach number range 0.065-0.434, i.e. the corresponding airspeed range 22-148 m/s for the Pazy). All other parameters (e.g., the dynamic stall ones) are those of the NACA0018 matched to the University of Glasgow data.
+const NACA0018PazyDB = let
+
+    # Reynolds numbers of the experiments
+    ReRng = [0.15, 0.30, 0.50, 0.70, 1.00] * 1e6
+
+    # Equivalent Mach numbers (Re = ρUc/μ and Ma = U/a) for the chord of the straight Pazy wing (see chord_Pazy) at sea level
+    atm = standard_atmosphere(0)
+    c = 0.0988504
+    MaRng = ReRng * atm.μ / (atm.ρ * atm.a * c)
+
+    # Minimum drag coefficient (Table 1 of Timmer), taken as the zero-normal-force drag coefficient
+    cd₀ = [0.01542, 0.01173, 0.00942, 0.00882, 0.00766]
+
+    # Lift, drag and moment (about the quarter-chord) coefficients at α = 7° (digitized from Figs. 10a, 10b and 10c, ±0.005, ±0.001 and ±0.002). The lift and moment vanish at α = 0 (symmetric airfoil), and the secant slopes between 0° and 7° are used to account for the non-linearities caused by the laminar separation bubble.
+    α₇ = deg2rad(7)
+    cl₇ = [0.830, 0.761, 0.693, 0.691, 0.681]
+    cd₇ = [0.0217, 0.0178, 0.0132, 0.0123, 0.0142]
+    cm₇ = [0.0197, 0.0197, 0.0197, 0.0215, 0.0247]
+
+    # Normal and tangential force coefficients at 7° from the force rotation (cl = cn*cos(α) + ct*sin(α) and cd = cn*sin(α) - ct*cos(α)), which gives cn = cl*cos(α) + cd*sin(α)
+    cn₇ = cl₇ * cos(α₇) + cd₇ * sin(α₇)
+    cnα = cn₇ / α₇
+    cmα = cm₇ / α₇
+
+    # Tangential force correction factor. The tangential force of the model is ct = η*cn*tan(α) - cd₀/cos(α), so that the drag is cd = cd₀ + (1-η)*cn*sin(α) and η = 1 - (cd-cd₀)/(cn*sin(α)). The drag rise from the parasite value at α = 0 is thus attributed to the loss of leading-edge suction
+    η = 1 .- (cd₇ .- cd₀) ./ (cn₇ * sin(α₇))
+
+    # Aerodynamic center location (the moment about the quarter-chord is cm = cm₀ + cmα*α = cm₀ - (x_ac-1/4)*cnα*α), whose offset from the quarter-chord is also the parameter K₀ of the BL models
+    x_ac = 0.25 .- cmα ./ cnα
+
+    # The measured cnα in the experiment is practically incompressible (chord is 2.5 times that of the Pazy, so the airspeed is 2.5 times lower for the same Reynolds number), so the Prandtl-Glauert correction is still applied by update_parameters! on top of it
+    modified_database(
+        "NACA0018";
+        attached = (
+            MaRng = MaRng,
+            α₀N = 0.0,
+            η = η,
+            cd₀ = cd₀,
+            cm₀ = 0.0,
+            cnα = cnα,
+            x_ac = x_ac,
+        ),
+        bli = (
+            MaRng = MaRng,
+            α₀N = 0.0,
+            cd₀ = cd₀,
+            cm₀ = 0.0,
+            cnα = cnα,
+            K₀ = 0.25 .- x_ac,
+        ),
+        blo = (
+            MaRng = MaRng,
+            α₀N = 0.0,
+            η = η,
+            cd₀ = cd₀,
+            cm₀ = 0.0,
+            cnα = cnα,
+            K₀ = 0.25 .- x_ac,
+        ),
+        newName = "NACA0018Pazy"
+    )
+
+end
+AIRFOIL_DATABASES["NACA0018Pazy"] = NACA0018PazyDB
+
+
 ## AIRFOIL SAMPLES
 # ----------------------------------------------------------------------------
 FlatPlate         = create_Airfoil(name="FlatPlate")
@@ -1804,6 +1915,7 @@ NACA0002          = create_Airfoil(name="NACA0002")
 NACA0012          = create_Airfoil(name="NACA0012")
 NACA0015          = create_Airfoil(name="NACA0015")
 NACA0018          = create_Airfoil(name="NACA0018")
+NACA0018Pazy      = create_Airfoil(name="NACA0018Pazy")
 NACA23012A        = create_Airfoil(name="NACA23012A")
 VERTOL23010       = create_Airfoil(name="VERTOL23010")
 HeliosWingAirfoil = create_Airfoil(name="HeliosWingAirfoil")
@@ -1811,14 +1923,24 @@ HeliosPodAirfoil  = create_Airfoil(name="HeliosPodAirfoil")
 BWBAirfoil        = create_Airfoil(name="BWBAirfoil")
 cHALEairfoil      = create_Airfoil(name="cHALEairfoil")
 
-export FlatPlate, NACA0002, NACA0012, NACA0015, NACA0018,
-       NACA23012A, VERTOL23010, HeliosWingAirfoil, HeliosPodAirfoil, BWBAirfoil, cHALEairfoil
+export FlatPlate, NACA0002, NACA0012, NACA0015, NACA0018, NACA0018Pazy, NACA23012A, VERTOL23010, HeliosWingAirfoil, HeliosPodAirfoil, BWBAirfoil, cHALEairfoil
 
-##
+## HELPER FUNCTIONS
 # -----------------------------------------------------------------------------
-# Helper function to get the airfoil state based on the solver type
+# Helper functions to get the airfoil state based on the solver type
 airfoil_state(airfoil, ::AttachedSolver) = airfoil.state.attached
 airfoil_state(airfoil, ::BLi)            = airfoil.state.bli
 airfoil_state(airfoil, ::BLo)            = airfoil.state.blo
-get_airfoil_state_field(airfoil, solver, field) =
-    getproperty(airfoil_state(airfoil, solver), field)
+airfoil_state(state::AirfoilState, ::AttachedSolver) = state.attached
+airfoil_state(state::AirfoilState, ::BLi)            = state.bli
+airfoil_state(state::AirfoilState, ::BLo)            = state.blo
+get_airfoil_state_field(airfoil_or_state, solver, field) =
+    getproperty(airfoil_state(airfoil_or_state, solver), field)
+
+# Copies all fields of a (Float64) airfoil parameters state into another state, possibly of a different number type (e.g. Dual)
+function copy_state!(dst, src)
+    for name in fieldnames(typeof(src))
+        setfield!(dst, name, convert(fieldtype(typeof(dst), name), getfield(src, name)))
+    end
+    return dst
+end

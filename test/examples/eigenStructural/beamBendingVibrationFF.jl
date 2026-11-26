@@ -55,7 +55,7 @@ println("Relative frequency errors: $(round.(100ϵ_rel, sigdigits=2)) %")
 
 ## Plots
 # Set paths
-relPath = "/test/outputs/figures/beamBendingVibrationFF"
+relPath = "/test/outputs/figures/eigenStructural/beamBendingVibrationFF"
 absPath = string(pwd(),relPath)
 mkpath(absPath)
 

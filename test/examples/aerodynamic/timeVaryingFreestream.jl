@@ -20,10 +20,10 @@ aeroSolver = Indicial(circulatoryIndicialFunction=:Jose,incompressibleInertialLo
 
 # Wing surface
 chord = 0.1
-normSparPos = 1/4
+referenceAxis = 1/4
 airfoil = deepcopy(FlatPlate)
 update_all_airfoil_parameters!(airfoil,Ma)
-surf = create_AeroSurface(ppSolver=aeroSolver,airfoil=airfoil,c=chord,normSparPos=normSparPos,updateAirfoilParameters=false)
+surf = create_AeroSurface(ppSolver=aeroSolver,airfoil=airfoil,c=chord,referenceAxis=referenceAxis,updateAirfoilParameters=false)
 
 # Number of cycles to run for each case
 cycles = 10
@@ -115,7 +115,7 @@ cmCFD[4] = cmCFDLambda0_8
 
 ## Plots
 # Set paths
-relPath = "/test/outputs/figures/timeVaryingFreestream"
+relPath = "/test/outputs/figures/aerodynamic/timeVaryingFreestream"
 absPath = string(pwd(),relPath)
 mkpath(absPath)
 

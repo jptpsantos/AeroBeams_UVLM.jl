@@ -15,8 +15,8 @@ localHingeAxis = rotation_tensor_E321([-Γ, 0, 0]) * AeroBeams.a2
 # Aerodynamic surface (for better visualization only, no aerodynamics involved)
 airfoil = deepcopy(NACA0018)
 chord = 0.1
-normSparPos = 0.25
-surf = create_AeroSurface(airfoil=airfoil,c=chord,normSparPos=normSparPos)
+referenceAxis = 0.25
+surf = create_AeroSurface(airfoil=airfoil,c=chord,referenceAxis=referenceAxis)
 
 # Beam 
 L = 1
@@ -86,7 +86,7 @@ println("Hinge moment = $(round(hingeMoment,sigdigits=4))")
 
 ## Plots
 # Set paths
-relPath = "/test/outputs/figures/sweptBackFFWTWing"
+relPath = "/test/outputs/figures/staticStructural/sweptBackFFWTWing"
 absPath = string(pwd(),relPath)
 mkpath(absPath)
 

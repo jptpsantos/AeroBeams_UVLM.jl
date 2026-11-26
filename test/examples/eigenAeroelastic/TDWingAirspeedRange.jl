@@ -65,7 +65,7 @@ freqs_ref = readdlm(pkgdir(AeroBeams,"test","referenceData","TDWing", "freqs.txt
 
 ## Plots
 # Set paths
-relPath = "/test/outputs/figures/TDWingAirspeedRange"
+relPath = "/test/outputs/figures/eigenAeroelastic/TDWingAirspeedRange"
 absPath = string(pwd(),relPath)
 mkpath(absPath)
 

@@ -41,7 +41,7 @@ M2 = reduce(vcat,[hist.states[end][e].nodal.M1[2],
 
 ## Plots
 # Set paths
-relPath = "/test/outputs/figures/cantileverUnderSelfWeight"
+relPath = "/test/outputs/figures/staticStructural/cantileverUnderSelfWeight"
 absPath = string(pwd(),relPath)
 mkpath(absPath)
 

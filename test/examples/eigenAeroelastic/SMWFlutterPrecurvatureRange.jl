@@ -87,7 +87,7 @@ flutterSpeedVsTipLoadk2 = readdlm(pkgdir(AeroBeams,"test","referenceData","SMW",
 
 ## Plots
 # Set paths
-relPath = "/test/outputs/figures/SMWFlutterPrecurvatureRange"
+relPath = "/test/outputs/figures/eigenAeroelastic/SMWFlutterPrecurvatureRange"
 absPath = string(pwd(),relPath)
 mkpath(absPath)
 

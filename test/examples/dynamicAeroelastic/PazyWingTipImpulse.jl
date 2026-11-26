@@ -9,11 +9,8 @@ U = 70
 # Aerodynamic solver
 aeroSolver = Indicial()
 
-# Flag for upright position
-upright = true
-
 # Fixed geometrical properties
-nElem,L,chord,normSparPos,nodalPositions = geometrical_properties_Pazy()
+nElem,L,chord,referenceAxis,nodalPositions = geometrical_properties_Pazy()
 
 # Dummy beam for tip impulse
 dummyBeam = create_Beam(length=L,nElements=nElem,S=[isotropic_stiffness_matrix(∞=1)])
@@ -27,7 +24,7 @@ F = t -> ifelse.(t.<=t₀,0.0,ifelse.(t.<=t₀+τ/2,F₀*sin.(ω*(t.-(t₀+τ)))
 impulse = create_BC(name="impulse",beam=dummyBeam,node=nElem+1,conditions=Dict(:F1A=>t->F(t)))
 
 # Model
-PazyWingTipImpulse,_ = create_Pazy(aeroSolver=aeroSolver,upright=upright,pitchAngle=θ,airspeed=U,additionalBCs=[impulse])
+PazyWingTipImpulse,_ = create_Pazy(aeroSolver=aeroSolver,pitchAngle=θ,airspeed=U,additionalBCs=[impulse])
 
 # Time variables
 Δt = τ/250
@@ -62,7 +59,7 @@ tqSpan_ct = [aeroVars[i][12].aeroCoefficients.ct for i in eachindex(t)]
 
 ## Plots
 # Set paths
-relPath = "/test/outputs/figures/PazyWingTipImpulse"
+relPath = "/test/outputs/figures/dynamicAeroelastic/PazyWingTipImpulse"
 absPath = string(pwd(),relPath)
 mkpath(absPath)
 

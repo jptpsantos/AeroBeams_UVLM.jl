@@ -70,7 +70,7 @@ flutterSpeedVsTipLoadΨm02 = readdlm(pkgdir(AeroBeams,"test","referenceData","SM
 
 ## Plots
 # Set paths
-relPath = "/test/outputs/figures/SMWFlutterStructuralCouplingRange"
+relPath = "/test/outputs/figures/eigenAeroelastic/SMWFlutterStructuralCouplingRange"
 absPath = string(pwd(),relPath)
 mkpath(absPath)
 

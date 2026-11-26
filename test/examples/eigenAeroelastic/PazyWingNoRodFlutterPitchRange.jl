@@ -12,20 +12,11 @@ aeroSolver = Indicial()
 # Airfoil section
 airfoil = deepcopy(FlatPlate)
 
-# Flag for tip correction
-hasTipCorrection = true
-
-# Tip correction function type
-tipLossType = "Exponential"
-
-# Flag for upright position
-upright = true
-
 # Mesh: :nominal or :refined
 mesh = :refined
 
 # Fixed geometrical and discretization properties
-nElem,L,chord,normSparPos,_ = geometrical_properties_Pazy(; mesh=mesh)
+nElem,L,chord,referenceAxis,_ = geometrical_properties_Pazy(; mesh=mesh)
 
 # Number of modes to track
 nModes = 5
@@ -54,7 +45,7 @@ for (i,θ) in enumerate(θRange)
         # Display progress
         println("Solving for θ = $(round(θ, digits=2)) deg, U = $U m/s")
         # Model
-        PazyWingNoRodFlutterPitchRange,_ = create_Pazy(aeroSolver=aeroSolver,withWingtipRod=false,airfoil=airfoil,hasTipCorrection=hasTipCorrection,tipLossType=tipLossType,upright=upright,pitchAngle=deg2rad(θ),airspeed=U,mesh=mesh)
+        PazyWingNoRodFlutterPitchRange,_ = create_Pazy(aeroSolver=aeroSolver,withWingtipRod=false,airfoil=airfoil,pitchAngle=deg2rad(θ),airspeed=U,mesh=mesh)
         # Create and solve problem
         problem = create_EigenProblem(model=PazyWingNoRodFlutterPitchRange,eigenmethod=eigenmethod,nev=nev,x0=x0)
         solve!(problem)
@@ -74,7 +65,7 @@ end
 
 ## Plots
 # Set paths
-relPath = "/test/outputs/figures/PazyWingNoRodFlutterPitchRange"
+relPath = "/test/outputs/figures/eigenAeroelastic/PazyWingNoRodFlutterPitchRange"
 absPath = string(pwd(),relPath)
 mkpath(absPath)
 
@@ -90,26 +81,27 @@ gr()
 
 # Extract flutter onset and offset data for the hump mode
 humpMode = 3
-UfOn = Float64[]
-UfOff = Float64[]
+UfOn = fill(NaN,length(θRange))
+UfOff = fill(NaN,length(θRange))
 for i in eachindex(θRange)
     for m in eachindex(flutterOnsetModes[i])
         if flutterOnsetModes[i][m] == humpMode
-            push!(UfOn, flutterOnsetSpeeds[i][m])
+            UfOn[i] = flutterOnsetSpeeds[i][m]
             break
         end
     end
     for m in eachindex(flutterOffsetModes[i])
         if flutterOffsetModes[i][m] == humpMode
-            push!(UfOff, flutterOffsetSpeeds[i][m])
+            UfOff[i] = flutterOffsetSpeeds[i][m]
             break
         end
     end
 end
 
 # Flutter onset and offset speeds vs root pitch angle
+valid = .!isnan.(UfOn) .& .!isnan.(UfOff)
 plt1 = plot(xlabel="Airspeed [m/s]", ylabel="Root pitch angle [deg]", xlims=[30,125], ylims=[0,7.25], xticks=collect(30:10:125), yticks=collect(0:1:7), legend=:topright, tickfont=font(ts), guidefont=font(fs), legendfontsize=lfs)
-plot!(Shape(vcat(UfOn,reverse(UfOff)),vcat(θRange,reverse(θRange))), fillcolor = plot_color(:red, 0.25), lw=lw, label="Hump flutter region")
+plot!(Shape(vcat(UfOn[valid],reverse(UfOff[valid])),vcat(θRange[valid],reverse(θRange[valid]))), fillcolor = plot_color(:red, 0.25), lw=lw, label="Hump flutter region")
 display(plt1)
 savefig(string(absPath,"/PazyWingNoRodFlutterPitchRange_flutterBoundaryPitch.pdf"))
 

@@ -47,7 +47,7 @@ We now create the aerodynamic surface to be attached to the wing's beam, the att
 
 ````@example typicalSectionFlutterAndDivergence
 # Aerodynamic surface
-surf = create_AeroSurface(ppSolver=aeroSolver,airfoil=airfoil,c=c,normSparPos=(a+1)/2,updateAirfoilParameters=false)
+surf = create_AeroSurface(ppSolver=aeroSolver,airfoil=airfoil,c=c,referenceAxis=(a+1)/2,updateAirfoilParameters=false)
 nothing #hide
 
 # Rigid wing

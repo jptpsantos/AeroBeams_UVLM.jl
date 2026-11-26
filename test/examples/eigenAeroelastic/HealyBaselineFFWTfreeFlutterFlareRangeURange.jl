@@ -86,7 +86,7 @@ healy = [
 
 ## Plots
 # Set paths
-relPath = "/test/outputs/figures/HealyBaselineFFWTfreeFlutterFlareRangeURange"
+relPath = "/test/outputs/figures/eigenAeroelastic/HealyBaselineFFWTfreeFlutterFlareRangeURange"
 absPath = string(pwd(),relPath)
 mkpath(absPath)
 

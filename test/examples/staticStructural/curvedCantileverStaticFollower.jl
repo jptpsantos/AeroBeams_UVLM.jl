@@ -40,7 +40,7 @@ u3_ref = readdlm(pkgdir(AeroBeams,"test","referenceData","curvedCantileverStatic
 
 ## Plots
 # Set paths
-relPath = "/test/outputs/figures/curvedCantileverStaticFollower"
+relPath = "/test/outputs/figures/staticStructural/curvedCantileverStaticFollower"
 absPath = string(pwd(),relPath)
 mkpath(absPath)
 

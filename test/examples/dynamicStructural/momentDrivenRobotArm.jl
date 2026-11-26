@@ -35,7 +35,7 @@ u3_tip = [states[i][nElem].nodal.u2[3] for i in 1:length(t)]
 
 ## Plots
 # Set paths
-relPath = "/test/outputs/figures/momentDrivenRobotArm"
+relPath = "/test/outputs/figures/dynamicStructural/momentDrivenRobotArm"
 absPath = string(pwd(),relPath)
 mkpath(absPath)
 

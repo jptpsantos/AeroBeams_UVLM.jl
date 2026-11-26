@@ -155,7 +155,7 @@ airspeed = [norm(aeroVars[i][leftWingRootElem].steadyKin.U + aeroVars[i][rightWi
 
 ## Plots
 # Set paths
-relPath = "/test/outputs/figures/cHALECheckedPitchManeuver"
+relPath = "/test/outputs/figures/dynamicAeroelastic/cHALECheckedPitchManeuver"
 absPath = string(pwd(),relPath)
 mkpath(absPath)
 

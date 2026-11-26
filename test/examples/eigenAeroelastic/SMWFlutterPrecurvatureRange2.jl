@@ -78,7 +78,7 @@ end
 
 ## Plots
 # Set paths
-relPath = "/test/outputs/figures/SMWFlutterPrecurvatureRange2"
+relPath = "/test/outputs/figures/eigenAeroelastic/SMWFlutterPrecurvatureRange2"
 absPath = string(pwd(),relPath)
 mkpath(absPath)
 

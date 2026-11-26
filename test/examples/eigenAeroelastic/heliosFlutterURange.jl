@@ -18,11 +18,8 @@ payloadOnWing = false
 # Aerodynamic solver
 aeroSolver = Indicial()
 
-# Attachment spring stiffness
-μ = 1e-1
-
 # System solver for trim problem
-NR = create_NewtonRaphson(trimSolverMethod=:LQ,displayStatus=false)
+NR = create_NewtonRaphson(trimSolverMethod=:LQ,displayStatus=false,absTol=1e-6)
 
 # Number of modes to track
 nModes = 10
@@ -43,7 +40,7 @@ for (i,U) in enumerate(URange)
     # Display progress
     println("Solving for U = $U m/s")
     # Model for trim problem
-    heliosTrim,midSpanElem,_ = create_Helios(aeroSolver=aeroSolver,beamPods=beamPods,payloadOnWing=payloadOnWing,stiffnessFactor=λ,payloadPounds=P,airspeed=U,δIsTrimVariable=true,thrustIsTrimVariable=true,withAttachmentSprings=true,μ=μ)
+    heliosTrim,midSpanElem,_ = create_Helios(aeroSolver=aeroSolver,beamPods=beamPods,payloadOnWing=payloadOnWing,stiffnessFactor=λ,payloadPounds=P,airspeed=U,δIsTrimVariable=true,thrustIsTrimVariable=true)
     # Create and solve trim problem
     trimProblem = create_TrimProblem(model=heliosTrim,systemSolver=NR)
     solve!(trimProblem)
@@ -55,7 +52,7 @@ for (i,U) in enumerate(URange)
     trimδ[i] = trimSol.trimδ[1]
     println("Trim AoA = $(round(rad2deg(trimAoA[i]), digits=2)) deg, trim thrust = $(round(trimThrust[i], digits=2)) N, trim δ = $(round(rad2deg(trimδ[i]), digits=2)) deg")
     # Model for eigen problem
-    heliosEigen,_ = create_Helios(aeroSolver=aeroSolver,beamPods=beamPods,payloadOnWing=payloadOnWing,stiffnessFactor=λ,payloadPounds=P,airspeed=U,δ=trimδ[i],thrust=trimThrust[i],withAttachmentSprings=true,μ=μ)
+    heliosEigen,_ = create_Helios(aeroSolver=aeroSolver,beamPods=beamPods,payloadOnWing=payloadOnWing,stiffnessFactor=λ,payloadPounds=P,airspeed=U,δ=trimδ[i],thrust=trimThrust[i])
     # Set initial guess solution
     x0 = i==1 ? zeros(0) : eigenProblem[i-1].systemArrays.x
     # Create and solve eigen problem
@@ -75,27 +72,23 @@ freqsOsc,dampsOsc,modeShapesOsc,_ = filter_tracked_modes(freqs,damps,modeShapes;
 # Bending and torsional mode shapes at selected airspeed
 ind = findfirst(U -> U >= 15, URange)
 nElemWing = sum([eigenProblem[1].model.beams[i].discretization.nElements for i in 1:4])
-u2_modeShapes = [reduce(vcat,
-                 [modeShapesOsc[m,ind].state[e].nodal.u1[2],
-                  modeShapesOsc[m,ind].state[e].nodal.u2[2]] 
-                  for e in 1:nElemWing) for m in 1:nModes]
-u3_modeShapes = [reduce(vcat,
-                 [modeShapesOsc[m,ind].state[e].nodal.u1[3],
-                  modeShapesOsc[m,ind].state[e].nodal.u2[3]] 
-                  for e in 1:nElemWing) for m in 1:nModes]
-p1_modeShapes = [reduce(vcat,
-                 [modeShapesOsc[m,ind].state[e].nodal.p1[1],
-                  modeShapesOsc[m,ind].state[e].nodal.p2[1]] 
-                  for e in 1:nElemWing) for m in 1:nModes]
+# Nodal values along the wing of a mode shape (NaN if the mode is not oscillatory at the selected airspeed, as some flight dynamic modes)
+wing_modal_values(modeShape,val) = isnothing(modeShape) ?
+                                   fill(NaN,2*nElemWing) :
+                                   reduce(vcat, [val(modeShape.state[e].nodal) for e in 1:nElemWing])
+u2_modeShapes = [wing_modal_values(modeShapesOsc[m,ind], n -> [n.u1[2], n.u2[2]]) for m in 1:nModes]
+u3_modeShapes = [wing_modal_values(modeShapesOsc[m,ind], n -> [n.u1[3], n.u2[3]]) for m in 1:nModes]
+p1_modeShapes = [wing_modal_values(modeShapesOsc[m,ind], n -> [n.p1[1], n.p2[1]]) for m in 1:nModes]
 
 ## Plots
 # Set paths
-relPath = "/test/outputs/figures/heliosFlutterURange"
+relPath = "/test/outputs/figures/eigenAeroelastic/heliosFlutterURange"
 absPath = string(pwd(),relPath)
 mkpath(absPath)
 
 # Mode shapes at the last airspeed
-modesPlot = plot_mode_shapes(eigenProblem[end],modeShapes=modeShapesOsc[:,end],modeNumbers=collect(1:nModes),scale=5,view=(30,30),legendPos=(0.3,0.98),save=true,savePath=string(relPath,"/heliosFlutterURange_modeShapes.pdf"))
+modesEnd = findall(!isnothing, modeShapesOsc[:,end])
+modesPlot = plot_mode_shapes(eigenProblem[end],modeShapes=modeShapesOsc[modesEnd,end],modeNumbers=modesEnd,scale=5,view=(30,30),legendPos=(0.3,0.98),save=true,savePath=string(relPath,"/heliosFlutterURange_modeShapes.pdf"))
 display(modesPlot)
 
 # Plot configurations

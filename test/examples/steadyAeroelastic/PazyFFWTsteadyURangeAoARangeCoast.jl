@@ -16,7 +16,7 @@ URange = vcat(1e-3,1:1:80)
 systemSolver = create_NLsolver(method=:newton,linesearch=true)
 
 # Initialize model
-PazyFFWTsteadyURangeAoARangeCoast,nElem,L,_ = create_Pazy(hinged=true,hingeNode=hingeNode,flareAngle=flareAngle,pitchAngle=0)
+PazyFFWTsteadyURangeAoARangeCoast,nElem,L,_ = create_Pazy(upright=false,hinged=true,hingeNode=hingeNode,flareAngle=flareAngle,pitchAngle=0)
 
 # Undeformed positions and coordinates
 beam = PazyFFWTsteadyURangeAoARangeCoast.beams[1]
@@ -51,7 +51,7 @@ for (i,θ) in enumerate(θRange)
     for (j,U) in enumerate(URange)
         println("Solving for θ = $(round(rad2deg(θ),digits=1)) deg, U = $U m/s")
         # Update model
-        model,_ = create_Pazy(hinged=true,hingeNode=hingeNode,flareAngle=flareAngle,airspeed=U,pitchAngle=θ)
+        model,_ = create_Pazy(upright=false,hinged=true,hingeNode=hingeNode,flareAngle=flareAngle,airspeed=U,pitchAngle=θ)
         # Create and solve problem
         problem = create_SteadyProblem(model=model,systemSolver=systemSolver,x0=x0)
         solve!(problem)
@@ -85,7 +85,7 @@ end
 
 ## Plots
 # Set paths
-relPath = "/test/outputs/figures/PazyFFWTsteadyURangeAoARangeCoast"
+relPath = "/test/outputs/figures/steadyAeroelastic/PazyFFWTsteadyURangeAoARangeCoast"
 absPath = string(pwd(),relPath)
 mkpath(absPath)
 

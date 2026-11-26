@@ -24,11 +24,8 @@ payloadOnWing = false
 # Aerodynamic solver
 aeroSolver = Indicial()
 
-# Attachment spring stiffness
-μ = 1e-1
-
 # Trim system solver
-NR = create_NewtonRaphson(trimSolverMethod=:LQ,displayStatus=false)
+NR = create_NewtonRaphson(trimSolverMethod=:LQ,displayStatus=false,absTol=1e-6)
 
 # Number of modes to track
 nModes = 12
@@ -53,7 +50,7 @@ for (i,λ) in enumerate(λRange)
         # Display progress
         println("Solving for λ = $λ, payload = $P lb")
         # Model for trim problem
-        heliosTrim,midSpanElem,_ = create_Helios(aeroSolver=aeroSolver,wingAirfoil=wingAirfoil,beamPods=beamPods,stiffnessFactor=λ,payloadPounds=P,airspeed=U,δIsTrimVariable=true,thrustIsTrimVariable=true,reducedChord=reducedChord,payloadOnWing=payloadOnWing,withAttachmentSprings=true,μ=μ)
+        heliosTrim,midSpanElem,_ = create_Helios(aeroSolver=aeroSolver,wingAirfoil=wingAirfoil,beamPods=beamPods,stiffnessFactor=λ,payloadPounds=P,airspeed=U,δIsTrimVariable=true,thrustIsTrimVariable=true,reducedChord=reducedChord,payloadOnWing=payloadOnWing)
         # Create and solve trim problem
         trimProblem = create_TrimProblem(model=heliosTrim,systemSolver=NR,x0=x0)
         solve!(trimProblem)
@@ -65,7 +62,7 @@ for (i,λ) in enumerate(λRange)
         trimδ = trimSol.trimδ[1]
         println("Trim AoA = $(round(rad2deg(trimAoA), digits=2)) deg, trim thrust = $(round(trimThrust, digits=2)) N, trim δ = $(round(rad2deg(trimδ), digits=2)) deg")
         # Model for eigen problem
-        heliosEigen,_ = create_Helios(aeroSolver=aeroSolver,wingAirfoil=wingAirfoil,beamPods=beamPods,stiffnessFactor=λ,payloadPounds=P,airspeed=U,δ=trimδ,thrust=trimThrust,reducedChord=reducedChord,payloadOnWing=payloadOnWing,withAttachmentSprings=true,μ=μ)
+        heliosEigen,_ = create_Helios(aeroSolver=aeroSolver,wingAirfoil=wingAirfoil,beamPods=beamPods,stiffnessFactor=λ,payloadPounds=P,airspeed=U,δ=trimδ,thrust=trimThrust,reducedChord=reducedChord,payloadOnWing=payloadOnWing)
         # Create and solve eigen problem
         eigenProblem[i,j] = create_EigenProblem(model=heliosEigen,eigenmethod=eigenmethod,nev=nev,refTrimProblem=trimProblem)
         solve_eigen!(eigenProblem[i,j])
@@ -82,7 +79,7 @@ end
 
 ## Plots
 # Set paths
-relPath = "/test/outputs/figures/heliosFlutterPLambdaRange"
+relPath = "/test/outputs/figures/eigenAeroelastic/heliosFlutterPLambdaRange"
 absPath = string(pwd(),relPath)
 mkpath(absPath)
 

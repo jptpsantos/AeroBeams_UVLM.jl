@@ -28,11 +28,13 @@ end
 # Fields
 # - `S`: array of sectional stiffness matrices
 # - `I`: array of sectional inertia matrices
+# - `μ`: array of sectional structural damping coefficients matrices
 #
 struct BeamSectionalData
 
     S::Vector{SMatrix{6,6,Float64,36}}
     I::Vector{SMatrix{6,6,Float64,36}}
+    μ::Vector{SMatrix{6,6,Float64,36}}
 
 end
 
@@ -226,7 +228,7 @@ export Beam
 ## PUBLIC API
 # ------------------------------------------------------------------------------
 """
-    create_Beam(; kwargs...)
+    create_Beam(; kwargs...) -> beam::Beam
 
 Beam constructor
 
@@ -237,7 +239,8 @@ Beam constructor
 - `k::AbstractVector{<:Real}`: undeformed beam's curvature vector per unit length
 - `p0::AbstractVector{<:Real}`: Wiener-Milenkovic rotation parameters from basis A to basis b(0)
 - `S::AbstractVector{<:AbstractMatrix{<:Real}}`: array of sectional stiffness matrices
-- `I::AbstractVector{<:AbstractMatrix{<:Real}}`: array of sectional inertia matrices
+- `I::Union{Missing,AbstractVector{<:AbstractMatrix{<:Real}}}`: array of sectional inertia matrices
+- `μ::Union{Real,AbstractVector,AbstractMatrix{<:Real}}`: stiffness-proportional (Kelvin-Voigt) structural damping coefficients, with dimension of time, such that the sectional resultants are S*(strains) + μ*S*(strain rates). Either a scalar (μ times the identity), a vector with the 6 diagonal entries, a 6x6 matrix, or an array of 6x6 matrices, one for the entire beam, or one for each element (default: 0, no structural damping)
 - `nElements::Int`: number of elements for discretization
 - `normalizedNodalPositions::AbstractVector{<:Real}`: normalized nodal positions of beam elements
 - `hingedNodes::AbstractVector{Int}`: nodes with a hinge
@@ -253,6 +256,7 @@ function create_Beam(;
     p0::AbstractVector{<:Real}=zeros(3),
     S::AbstractVector{<:AbstractMatrix{<:Real}},
     I::Union{Missing,AbstractVector{<:AbstractMatrix{<:Real}}}=missing,
+    μ::Union{Real,AbstractVector,AbstractMatrix{<:Real}}=0,
     nElements::Int,
     normalizedNodalPositions::AbstractVector{<:Real}=Vector{Float64}(),
     hingedNodes::AbstractVector{Int}=Vector{Int}(),
@@ -261,7 +265,7 @@ function create_Beam(;
     )
 
     # Validate inputs and get beam fields
-    geometry,discretization,sectional,hinges,attachments = validate_and_set_beam(length,r,firstNodeOffset,k,p0,S,I,nElements,normalizedNodalPositions,hingedNodes,hingedNodesDoF,surface)
+    geometry,discretization,sectional,hinges,attachments = validate_and_set_beam(length,r,firstNodeOffset,k,p0,S,I,μ,nElements,normalizedNodalPositions,hingedNodes,hingedNodesDoF,surface)
 
     # Create beam elements
     elements = create_beam_elements(geometry,sectional,discretization,hinges,attachments)
@@ -442,20 +446,21 @@ export add_spring_to_beam!
 
 
 """
-    add_spring_to_beams!(; beams, spring, nodesLocalIDs, p, Δu0, Δp0, basis)
+    add_spring_to_beams!(; beams, spring, nodesLocalIDs, p, Δu0, Δp0, basis, locationFraction)
 
-Adds a doubly-attached spring to the beams
+Adds a doubly-attached spring to the beams, connecting any two nodes of them. The spring is located at a point of the segment between the nodes, to which they are connected by rigid arms. The deformations of the spring are those of the first node relative to the second (at the spring), measured in the spring's basis, which rotates with the nodes (with the mean rotation of the ends of the spring)
 
 # Keyword arguments
-- `beams::Vector{Beam}`: reference beams
+- `beams::Vector{Beam}`: reference beams (to which the first and second attachment nodes belong, which may be the same beam)
 - `spring::Spring`: doubly-attached spring
 - `nodesLocalIDs`: local IDs (on the respective beams) of the nodes to which the spring is attached
 - `Δu0::Real`: translational pre-deformation
 - `Δp0::Real`: rotational pre-deformation
-- `p::AbstractVector{<:Real}`: Euler 3-2-1 rotation parameters from basis b of the attachment node to the spring's basis s
-- `basis::Symbol`: basis in which the spring's attachment is defined, either :b or :A
+- `p::AbstractVector{<:Real}`: Euler 3-2-1 rotation parameters from basis b of the first attachment node to the spring's basis s
+- `basis::Symbol`: basis in which the spring's attachment is defined, either :b (of the first attachment node) or :A
+- `locationFraction::Real`: location of the spring along the segment from the first to the second attachment node, in the undeformed configuration, as a fraction of the segment's length (0 at the first node, 1 at the second)
 """
-function add_spring_to_beams!(; beams::Vector{Beam},spring::Spring,nodesLocalIDs::AbstractVector{Int},Δu0::Real=0,Δp0::Real=0,p::AbstractVector{<:Real}=zeros(3),basis::Symbol=:b)
+function add_spring_to_beams!(; beams::Vector{Beam},spring::Spring,nodesLocalIDs::AbstractVector{Int},Δu0::Real=0,Δp0::Real=0,p::AbstractVector{<:Real}=zeros(3),basis::Symbol=:b,locationFraction::Real=0.5)
 
     # Validate
     @assert length(beams) == 2 "spring must be attached to two beams"
@@ -465,13 +470,14 @@ function add_spring_to_beams!(; beams::Vector{Beam},spring::Spring,nodesLocalIDs
         @assert nodesLocalIDs[i] <= beams[i].discretization.nElements+1 "nodesLocalIDs out of range for beam $(i) with $(beams[i].discretization.nElements+1) nodes"
     end
     @assert length(p) == 3 "p must be a 3-element vector"
-    @assert beams[1] === beams[2] && length(unique(nodesLocalIDs)) == 2 && iszero(beams[1].geometry.k[2]) && iszero(beams[1].geometry.k[3]) "currently only supports attaching a spring to the same uncurved beam, at two different nodes"
+    @assert !(beams[1] === beams[2] && nodesLocalIDs[1] == nodesLocalIDs[2]) "spring must be attached to two different nodes"
     @assert basis == :b || basis == :A "basis must be either :b or :A"
+    @assert 0 <= locationFraction <= 1 "locationFraction must be between 0 and 1"
     Δu0 = Float64(Δu0)
     Δp0 = Float64(Δp0)
 
     # Update spring assembly data
-    update_spring_assembly_data!(beams,spring,nodesLocalIDs,Δu0,Δp0,p,basis)
+    update_spring_assembly_data!(beams,spring,nodesLocalIDs,Δu0,Δp0,p,basis,locationFraction)
 
     # Loop beams
     for i in 1:2
@@ -624,7 +630,7 @@ export remove_surface_from_beams!
 ## PRIVATE API
 # -----------------------------------------------------------------------------
 # Validates the beam inputs and outputs beam fields
-function validate_and_set_beam(ℓ,r,firstNodeOffset,k,p0,S,I,nElements,normalizedNodalPositions,hingedNodes,hingedNodesDoF,surface)
+function validate_and_set_beam(ℓ,r,firstNodeOffset,k,p0,S,I,μ,nElements,normalizedNodalPositions,hingedNodes,hingedNodesDoF,surface)
 
     # Beam creation pre-validation checks
     @assert ismissing(ℓ) != ismissing(r) "only one of either beam length or r must be specified"
@@ -636,7 +642,7 @@ function validate_and_set_beam(ℓ,r,firstNodeOffset,k,p0,S,I,nElements,normaliz
     discretization = validate_and_set_discretization(nElements,normalizedNodalPositions)
 
     # Validate and set sectional data
-    sectional = validate_and_set_sectional_data(S,I,nElements)
+    sectional = validate_and_set_sectional_data(S,I,μ,nElements)
 
     # Validate and set hinges data
     hinges = validate_and_set_hinges(hingedNodes,hingedNodesDoF,nElements)
@@ -714,7 +720,7 @@ end
 
 
 # Checks that sectional matrices are input as a single one for the whole beam or are input in a per element basis 
-function validate_and_set_sectional_data(S,I,nElements)
+function validate_and_set_sectional_data(S,I,μ,nElements)
 
     # Sectional stiffness matrix
     @assert (length(S)==1 || length(S)==nElements) "input either one stiffness matrix for the entire beam, or one for each element"
@@ -739,11 +745,35 @@ function validate_and_set_sectional_data(S,I,nElements)
     S = SMatrix{6,6,Float64,36}.(S)
     I = SMatrix{6,6,Float64,36}.(I)
 
+    # Sectional structural damping coefficients matrices
+    μ = damping_coefficients_matrices(μ)
+    @assert (length(μ)==1 || length(μ)==nElements) "input either one structural damping coefficients matrix for the entire beam, or one for each element"
+    for (Se,μe) in (length(S) == length(μ) ? zip(S,μ) : Iterators.product(S,μ))
+        # The dissipated power is non-negative if the symmetric part of μ*S is positive semi-definite
+        μS = μe * Se
+        @assert eigmin(Symmetric(Matrix(μS + μS')/2)) >= -1e-10 * opnorm(Matrix(μS)) "the symmetric part of μ*S must be positive semi-definite (non-negative dissipated power)"
+    end
+
     # Set sectional data
-    sectional = BeamSectionalData(S,I)
+    sectional = BeamSectionalData(S,I,μ)
 
     return sectional
 
+end
+
+
+# Gets the array of 6x6 structural damping coefficients matrices from the input: a scalar (multiple of the identity), a vector with the 6 diagonal entries, a 6x6 matrix, or an array of 6x6 matrices
+damping_coefficients_matrices(μ::Real) = [SMatrix{6,6,Float64,36}(μ*I6)]
+damping_coefficients_matrices(μ::AbstractMatrix{<:Real}) = (@assert size(μ) == (6,6) "structural damping coefficients matrices must be of size (6,6)"; [SMatrix{6,6,Float64,36}(μ)])
+function damping_coefficients_matrices(μ::AbstractVector)
+    if all(x -> x isa Real, μ)
+        @assert length(μ) == 6 "a vector of structural damping coefficients must have the 6 diagonal entries"
+        return [SMatrix{6,6,Float64,36}(Diagonal(μ))]
+    end
+    for μi in μ
+        @assert size(μi) == (6,6) "structural damping coefficients matrices must be of size (6,6)"
+    end
+    return [SMatrix{6,6,Float64,36}(μi) for μi in μ]
 end
 
 
@@ -802,7 +832,7 @@ function create_beam_elements(geometry,sectional,discretization,hinges,attachmen
 
     # Unpack beam data
     @unpack ℓ,k,R0 = geometry
-    @unpack S,I = sectional
+    @unpack S,I,μ = sectional
     @unpack nElements,normalizedNodalPositions = discretization
     @unpack hingedNodes,hingedNodesDoF = hinges
     @unpack surface = attachments
@@ -812,7 +842,7 @@ function create_beam_elements(geometry,sectional,discretization,hinges,attachmen
 
     # Loop to create elements
     for e in 1:nElements
-        push!(elements, Element(e-1,ℓ,k,R0,S,I,normalizedNodalPositions,hingedNodes,hingedNodesDoF,surface))
+        push!(elements, Element(e-1,ℓ,k,R0,S,I,μ,normalizedNodalPositions,hingedNodes,hingedNodesDoF,surface))
     end
 
     return elements

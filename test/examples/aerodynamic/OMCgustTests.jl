@@ -82,7 +82,7 @@ function OMCgustTestsCore(aeroSolver,gustSolver,testCase)
     airfoil = deepcopy(NACA0012)
     update_all_airfoil_parameters!(airfoil,Ma)
     derivationMethod = AD()
-    surf = create_AeroSurface(ppSolver=aeroSolver,gustSolver=gustSolver,derivationMethod=derivationMethod,airfoil=airfoil,c=2*b,normSparPos=1/4,updateAirfoilParameters=true)
+    surf = create_AeroSurface(ppSolver=aeroSolver,gustSolver=gustSolver,derivationMethod=derivationMethod,airfoil=airfoil,c=2*b,referenceAxis=1/4,updateAirfoilParameters=true)
 
     ## Wing beam
     L = 1
@@ -223,7 +223,7 @@ end
 
 ## Plots
 # Set paths
-absPath = string(pwd(),"/test/outputs/figures/OMCgustTests")
+absPath = string(pwd(),"/test/outputs/figures/aerodynamic/OMCgustTests")
 mkpath(absPath)
 
 # Plot configurations
@@ -243,7 +243,7 @@ for (i,aeroSolver) in enumerate(aeroSolvers)
         # Loop test cases
         for k in tests
             # Set paths
-            relPath = string("/test/outputs/figures/OMCgustTests/",aeroSolver.name,"_",string(gustSolver.indicialFunction),"_test",k)
+            relPath = string("/test/outputs/figures/aerodynamic/OMCgustTests/",aeroSolver.name,"_",string(gustSolver.indicialFunction),"_test",k)
             absPath = string(pwd(),relPath)
             mkpath(absPath)
             # Lift coefficient increment over time

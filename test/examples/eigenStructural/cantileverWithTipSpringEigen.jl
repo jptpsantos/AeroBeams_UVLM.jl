@@ -77,7 +77,7 @@ println("Relative frequency errors: $(round.(100ϵ_rel, sigdigits=2)) %")
 
 ## Plots
 # Set paths
-relPath = "/test/outputs/figures/cantileverWithTipSpringEigen"
+relPath = "/test/outputs/figures/eigenStructural/cantileverWithTipSpringEigen"
 absPath = string(pwd(),relPath)
 mkpath(absPath)
 

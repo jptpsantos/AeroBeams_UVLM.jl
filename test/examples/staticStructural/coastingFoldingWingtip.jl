@@ -3,8 +3,8 @@ using AeroBeams
 # Aerodynamic surface (for better visualization only, no aerodynamics involved)
 airfoil = deepcopy(NACA0018)
 chord = 0.1
-normSparPos = 0.25
-surf = create_AeroSurface(airfoil=airfoil,c=chord,normSparPos=normSparPos)
+referenceAxis = 0.25
+surf = create_AeroSurface(airfoil=airfoil,c=chord,referenceAxis=referenceAxis)
 
 # Beam 
 L = 1
@@ -88,7 +88,7 @@ println("Coast angle = $(round(ϕHinge,digits=1)) deg")
 
 ## Plots
 # Set paths
-relPath = "/test/outputs/figures/coastingFoldingWingtip"
+relPath = "/test/outputs/figures/staticStructural/coastingFoldingWingtip"
 absPath = string(pwd(),relPath)
 mkpath(absPath)
 

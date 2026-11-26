@@ -41,7 +41,7 @@ u3Ref = readdlm(pkgdir(AeroBeams,"test","referenceData","rightAngledFrame", "u3.
 
 ## Plots
 # Set paths
-relPath = "/test/outputs/figures/rightAngledFrame"
+relPath = "/test/outputs/figures/staticStructural/rightAngledFrame"
 absPath = string(pwd(),relPath)
 mkpath(absPath)
 

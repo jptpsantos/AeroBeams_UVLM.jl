@@ -32,7 +32,7 @@ update_all_airfoil_parameters!
 modified_database
 ```
 
-The following airfoils are predefined: `FlatPlate`, `NACA0002`, `NACA0012`, `NACA0015`, `NACA0018`, `NACA23012A`, `VERTOL23010`, `HeliosWingAirfoil`, `HeliosPodAirfoil`, `BWBAirfoil` and `cHALEairfoil`. Use `deepcopy` to get an independent copy before modifying one of them.
+The following airfoils are predefined: `FlatPlate`, `NACA0002`, `NACA0012`, `NACA0015`, `NACA0018`, `NACA0018Pazy`, `NACA23012A`, `VERTOL23010`, `HeliosWingAirfoil`, `HeliosPodAirfoil`, `BWBAirfoil` and `cHALEairfoil`. Use `deepcopy` to get an independent copy before modifying one of them. `NACA0018Pazy` is a `NACA0018` whose attached flow parameters (including those of the dynamic stall model) follow the low-Reynolds number wind tunnel data of Timmer (2008), with the Reynolds number mapped to the Mach number for the chord of the straight Pazy wing at sea level.
 
 ### Creating an aerodynamic surface
 ```@docs
@@ -126,6 +126,7 @@ get_sweptPazy_tip_inertias_from_baseline
 tip_loss_function_Pazy
 typical_section_data
 create_Pazy
+create_PazyDelft
 create_SMW
 create_TDWing
 create_Helios

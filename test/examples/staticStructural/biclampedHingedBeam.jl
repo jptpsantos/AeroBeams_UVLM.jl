@@ -67,7 +67,7 @@ println("Relative errors: u3Mid = $(round(100*ϵ_u3Mid, sigdigits=2)) %, p2Left 
 
 ## Plots
 # Set paths
-relPath = "/test/outputs/figures/biclampedHingedBeam"
+relPath = "/test/outputs/figures/staticStructural/biclampedHingedBeam"
 absPath = string(pwd(),relPath)
 mkpath(absPath)
 

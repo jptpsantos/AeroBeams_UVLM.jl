@@ -1,12 +1,12 @@
 using AeroBeams
 
 # Get wing properties
-nElem,L,chord,normSparPos = geometrical_properties_Pazy()
+nElem,L,chord,referenceAxis = geometrical_properties_Pazy()
 
 # Tip mass configurations and respective positions
 configurations = [1; 2; 3]
 tipMassRange = [0; 0.01; 0.01]
-tipMassPosRange = [0; chord*normSparPos; -chord*(1-normSparPos)]
+tipMassPosRange = [0; chord*referenceAxis; -chord*(1-referenceAxis)]
 
 # Airspeed range [m/s]
 URange = vcat(1e-2,0.5:0.5:100)
@@ -16,9 +16,6 @@ aeroSolver = Indicial()
 
 # Airfoil
 airfoil = deepcopy(FlatPlate)
-
-# Flag for upright position
-upright = true
 
 # Pitch angle [rad]
 θ = deg2rad(0)
@@ -44,7 +41,7 @@ for (i,c) in enumerate(configurations)
         # Display progress
         println("Solving for configuration $c, U = $U m/s")
         # Model
-        PazyWingFlutterTipMassRange,_ = create_Pazy(aeroSolver=aeroSolver,airfoil=airfoil,upright=upright,pitchAngle=θ,airspeed=U,tipMasses=[tipMassRange[i]],ηtipMasses=[[0,tipMassPosRange[i],0]],tipMassesInertias=[zeros(3,3)])
+        PazyWingFlutterTipMassRange,_ = create_Pazy(aeroSolver=aeroSolver,airfoil=airfoil,pitchAngle=θ,airspeed=U,tipMasses=[tipMassRange[i]],ηtipMasses=[[0,tipMassPosRange[i],0]],tipMassesInertias=[zeros(3,3)])
         # Create and solve problem
         problem = create_EigenProblem(model=PazyWingFlutterTipMassRange,eigenmethod=eigenmethod,nev=nev,x0=x0)
         solve!(problem)
@@ -61,7 +58,7 @@ end
 
 ## Plots
 # Set paths
-relPath = "/test/outputs/figures/PazyWingFlutterTipMassRange"
+relPath = "/test/outputs/figures/eigenAeroelastic/PazyWingFlutterTipMassRange"
 absPath = string(pwd(),relPath)
 mkpath(absPath)
 

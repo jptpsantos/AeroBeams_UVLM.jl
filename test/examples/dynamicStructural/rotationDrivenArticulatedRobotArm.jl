@@ -38,7 +38,7 @@ u3_hinge = [states[i][div(nElem,2)].nodal.u2[3] for i in 1:length(t)]
 
 ## Plots
 # Set paths
-relPath = "/test/outputs/figures/rotationDrivenArticulatedRobotArm"
+relPath = "/test/outputs/figures/dynamicStructural/rotationDrivenArticulatedRobotArm"
 absPath = string(pwd(),relPath)
 mkpath(absPath)
 

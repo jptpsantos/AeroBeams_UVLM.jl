@@ -10,6 +10,36 @@ show_debug() = true
     foreach_element(f, Base.tail(elementGroups))
 end
 
+# Calls f on the element with (flat) index i, finding its group
+@inline element_at(f::F, ::Tuple{}, i) where {F} = nothing
+@inline function element_at(f::F, elementGroups::Tuple, i) where {F}
+    group = first(elementGroups)
+    n = length(group)
+    i <= n ? f(group[i]) : element_at(f, Base.tail(elementGroups), i - n)
+    return nothing
+end
+
+# Calls f on every element, serially or, if parallel is true, with the available threads. The elements are taken one at a time by the workers (the cost per element varies, e.g., elements with aerodynamic surfaces are costlier), so f must only write to data owned by the element it is called on
+function foreach_element(f::F, elementGroups::Tuple, parallel::Bool) where {F}
+    nElements = sum(length, elementGroups)
+    nWorkers = min(Threads.nthreads(), nElements)
+    if !parallel || nWorkers < 2
+        foreach_element(f, elementGroups)
+        return nothing
+    end
+    nextElement = Threads.Atomic{Int}(1)
+    Threads.@sync for _ in 1:nWorkers
+        Threads.@spawn begin
+            i = Threads.atomic_add!(nextElement, 1)
+            while i <= nElements
+                element_at(f, elementGroups, i)
+                i = Threads.atomic_add!(nextElement, 1)
+            end
+        end
+    end
+    return nothing
+end
+
 # Assembles the residual vector of the system of equations
 function f!(problem)
 
@@ -23,8 +53,9 @@ function f!(problem)
     timeNow = time_now(problem)
     Δt = time_step(problem)
     isDynamicProblem = problem isa DynamicProblem
+    parallel = get_parallel(problem.systemSolver)
 
-    residual!(residual,model,beams,elementGroups,specialNodes,hingeAxisConstraints,x,σ,timeIndex,stepFraction,timeNow,Δt,isDynamicProblem)
+    residual!(residual,model,beams,elementGroups,specialNodes,hingeAxisConstraints,x,σ,timeIndex,stepFraction,timeNow,Δt,isDynamicProblem,parallel)
 
     return residual
 
@@ -42,8 +73,9 @@ function j!(problem)
     timeNow = time_now(problem)
     Δt = time_step(problem)
     isDynamicProblem = problem isa DynamicProblem
+    parallel = get_parallel(problem.systemSolver)
 
-    jacobian!(jacobian,model,elementGroups,specialNodes,hingeAxisConstraints,x,σ,skipAeroJacobianUpdate,timeNow,Δt,isDynamicProblem)
+    jacobian!(jacobian,model,elementGroups,specialNodes,hingeAxisConstraints,x,σ,skipAeroJacobianUpdate,timeNow,Δt,isDynamicProblem,parallel)
 
     return jacobian
 
@@ -58,10 +90,22 @@ function i!(problem)
     timeNow = time_now(problem)
     Δt = time_step(problem)
     isDynamicProblem = problem isa DynamicProblem
+    parallel = get_parallel(problem.systemSolver)
 
     # Loop over elements and set their contributions to the inertia matrix
-    foreach_element(elementGroups) do element
-        element_inertia!(inertia,model,element,timeNow,Δt,isDynamicProblem)
+    if parallel
+        # Compute the elements' contributions in parallel, and insert them (they share equations) serially
+        foreach_element(elementGroups, true) do element
+            element_inertia_resultants!(model,element,timeNow,Δt,isDynamicProblem)
+        end
+        foreach_element(elementGroups) do element
+            insert_element_inertias!(inertia,model,element)
+        end
+    else
+        foreach_element(elementGroups) do element
+            element_inertia_resultants!(model,element,timeNow,Δt,isDynamicProblem)
+            insert_element_inertias!(inertia,model,element)
+        end
     end
 
 end
@@ -81,19 +125,20 @@ function fj!(problem)
     timeNow = time_now(problem)
     Δt = time_step(problem)
     isDynamicProblem = problem isa DynamicProblem
+    parallel = get_parallel(problem.systemSolver)
 
     # Set residual vector
-    residual!(residual,model,beams,elementGroups,specialNodes,hingeAxisConstraints,x,σ,timeIndex,stepFraction,timeNow,Δt,isDynamicProblem)
+    residual!(residual,model,beams,elementGroups,specialNodes,hingeAxisConstraints,x,σ,timeIndex,stepFraction,timeNow,Δt,isDynamicProblem,parallel)
 
     # Set Jacobian matrix, if applicable
-    skipJacobianUpdate || jacobian!(jacobian,model,elementGroups,specialNodes,hingeAxisConstraints,x,σ,skipAeroJacobianUpdate,timeNow,Δt,isDynamicProblem)
+    skipJacobianUpdate || jacobian!(jacobian,model,elementGroups,specialNodes,hingeAxisConstraints,x,σ,skipAeroJacobianUpdate,timeNow,Δt,isDynamicProblem,parallel)
 
     return residual,jacobian
 
 end
 
 # Updates the residual vector of the system of equations
-function residual!(residual,model,beams,elementGroups,specialNodes,hingeAxisConstraints,x,σ,timeIndex,stepFraction,timeNow,Δt,isDynamicProblem)
+function residual!(residual,model,beams,elementGroups,specialNodes,hingeAxisConstraints,x,σ,timeIndex,stepFraction,timeNow,Δt,isDynamicProblem,parallel)
 
     # Set flap deflections and their rates
     for beam in beams
@@ -101,8 +146,19 @@ function residual!(residual,model,beams,elementGroups,specialNodes,hingeAxisCons
     end
 
     # Set contributions from the elements
-    foreach_element(elementGroups) do element
-        element_residual!(residual,model,element,x,σ,timeIndex,stepFraction,timeNow,Δt,isDynamicProblem)
+    if parallel
+        # Compute the elements' contributions in parallel, and insert them (they share equations) serially
+        foreach_element(elementGroups, true) do element
+            element_residual_resultants!(model,element,x,σ,timeIndex,stepFraction,timeNow,Δt,isDynamicProblem)
+        end
+        foreach_element(elementGroups) do element
+            insert_element_residual!(residual,model,element)
+        end
+    else
+        foreach_element(elementGroups) do element
+            element_residual_resultants!(model,element,x,σ,timeIndex,stepFraction,timeNow,Δt,isDynamicProblem)
+            insert_element_residual!(residual,model,element)
+        end
     end
 
     # Update states of all special nodes first (necessary for convergence with doubly-attached springs)
@@ -123,14 +179,25 @@ function residual!(residual,model,beams,elementGroups,specialNodes,hingeAxisCons
 end
 
 # Updates the Jacobian matrix of the system of equations
-function jacobian!(jacobian,model,elementGroups,specialNodes,hingeAxisConstraints,x,σ,skipAeroJacobianUpdate,timeNow,Δt,isDynamicProblem)
+function jacobian!(jacobian,model,elementGroups,specialNodes,hingeAxisConstraints,x,σ,skipAeroJacobianUpdate,timeNow,Δt,isDynamicProblem,parallel)
 
     # Reset Jacobians associated with spring loads and hinge axis constraints, and the trim flap deflections' columns
     reset_jacobians!(jacobian,model,specialNodes,hingeAxisConstraints)
 
     # Set contributions from the elements
-    foreach_element(elementGroups) do element
-        element_jacobian!(jacobian,model,element,timeNow,Δt,isDynamicProblem,skipAeroJacobianUpdate)
+    if parallel
+        # Compute the elements' contributions in parallel, and insert them serially (some entries are shared)
+        foreach_element(elementGroups, true) do element
+            element_jacobians!(model,element,timeNow,Δt,isDynamicProblem,skipAeroJacobianUpdate)
+        end
+        foreach_element(elementGroups) do element
+            insert_element_jacobians!(jacobian,model,element)
+        end
+    else
+        foreach_element(elementGroups) do element
+            element_jacobians!(model,element,timeNow,Δt,isDynamicProblem,skipAeroJacobianUpdate)
+            insert_element_jacobians!(jacobian,model,element)
+        end
     end
 
     # Set contributions from the special nodes
@@ -173,16 +240,14 @@ function flap_deflection!(beam,x,timeIndex,stepFraction)
 
 end
 
-# Computes the contributions from the current element to the residual array
-function element_residual!(residual,model,element,x,σ,timeIndex,stepFraction,timeNow,Δt,isDynamicProblem)
+# Computes the current element's resultants for the residual array (writes only to the element's own state, so it can be called in parallel for different elements)
+function element_residual_resultants!(model,element,x,σ,timeIndex,stepFraction,timeNow,Δt,isDynamicProblem)
 
-    @unpack invForceScaling = model.assemblyData
-    @unpack Δℓ,R0,R0T,hingedNode1Mat,notHingedNode1Mat,notHingedNode2Mat = element.geometry
-    @unpack eqs_Fu1,eqs_Fu2,eqs_Fp1,eqs_Fp2,eqs_FF1,eqs_FF2,eqs_FM1,eqs_FM2,eqs_FV,eqs_FΩ,eqs_Fχ,isSpecialNode1,isSpecialNode2,eqsNode1Set,eqsNode2Set = element.assemblyIndices
+    @unpack Δℓ,R0 = element.geometry
     @unpack u,p,F,M,V,Ω,γ,κ,P,H,χ = element.state.midpoint
     @unpack udot,pdot,Pdot,Hdot,χdot = element.state.rates
     @unpack v,ω = element.stateCache.kinematicsBasisb
-    @unpack RR0,RR0T,RdotR0,HT,HTinv = element.stateCache.rotationMatrices
+    @unpack R,RR0,RdotR0,HT,HTinv = element.stateCache.rotationMatrices
     @unpack f1,f2,m1,m2 = element.stateCache.loadsResultants
     @unpack A,B = element.aero.stateCache.stateMatrices
     @unpack F_u1,F_u2,F_p1,F_p2,F_F1,F_F2,F_M1,F_M2,F_V,F_Ω,F_χ = element.stateCache.residuals
@@ -206,13 +271,10 @@ function element_residual!(residual,model,element,x,σ,timeIndex,stepFraction,ti
     element_static_residual!(F_u1,F_u2,F_p1,F_p2,F_F1,F_F2,F_M1,F_M2,Δℓ,R0,u,p,F,M,γ,κ,RR0,HTinv,f1,f2,m1,m2)
 
     # Steady terms
-    element_steady_residual!(F_u1,F_u2,F_p1,F_p2,F_V,F_Ω,F_χ,Δℓ,u,V,Ω,P,H,χ,v,ω,RR0,RR0T,A,B)
+    element_steady_residual!(F_u1,F_u2,F_p1,F_p2,F_V,F_Ω,F_χ,Δℓ,u,V,Ω,P,H,χ,v,ω,RR0,A,B)
 
     # Transient dynamic terms
-    isDynamicProblem && element_transient_residual!(F_u1,F_u2,F_p1,F_p2,F_V,F_Ω,F_χ,Δℓ,R0T,P,H,udot,pdot,Pdot,Hdot,χdot,RR0,RdotR0,HT)
-
-    # Insert resultants into the residual array
-    insert_element_residual!(residual,F_u1,F_u2,F_p1,F_p2,F_F1,F_F2,F_M1,F_M2,F_V,F_Ω,F_χ,invForceScaling,eqs_Fu1,eqs_Fu2,eqs_Fp1,eqs_Fp2,eqs_FF1,eqs_FF2,eqs_FM1,eqs_FM2,eqs_FV,eqs_FΩ,eqs_Fχ,isSpecialNode1,isSpecialNode2,eqsNode1Set,eqsNode2Set,hingedNode1Mat,notHingedNode1Mat,notHingedNode2Mat)
+    isDynamicProblem && element_transient_residual!(F_u1,F_u2,F_p1,F_p2,F_V,F_Ω,F_χ,Δℓ,P,H,udot,pdot,Pdot,Hdot,χdot,RR0,RdotR0,HT)
 
     # @logmsg LogLevel(show_debug() ? 0 : -1) "ELEMENT $(element.assemblyData.globalID) RESIDUALS"
     # @logmsg LogLevel(show_debug() ? 0 : -1) "F_u1: $F_u1"
@@ -226,6 +288,20 @@ function element_residual!(residual,model,element,x,σ,timeIndex,stepFraction,ti
 
     return nothing
     
+end
+
+# Inserts the element's resultants into the residual array (serial, since elements share equations)
+function insert_element_residual!(residual,model,element)
+
+    @unpack invForceScaling = model.assemblyData
+    @unpack hingedNode1Mat,notHingedNode1Mat,notHingedNode2Mat = element.geometry
+    @unpack eqs_Fu1,eqs_Fu2,eqs_Fp1,eqs_Fp2,eqs_FF1,eqs_FF2,eqs_FM1,eqs_FM2,eqs_FV,eqs_FΩ,eqs_Fχ,isSpecialNode1,isSpecialNode2,eqsNode1Set,eqsNode2Set = element.assemblyIndices
+    @unpack F_u1,F_u2,F_p1,F_p2,F_F1,F_F2,F_M1,F_M2,F_V,F_Ω,F_χ = element.stateCache.residuals
+
+    insert_element_residual!(residual,F_u1,F_u2,F_p1,F_p2,F_F1,F_F2,F_M1,F_M2,F_V,F_Ω,F_χ,invForceScaling,eqs_Fu1,eqs_Fu2,eqs_Fp1,eqs_Fp2,eqs_FF1,eqs_FF2,eqs_FM1,eqs_FM2,eqs_FV,eqs_FΩ,eqs_Fχ,isSpecialNode1,isSpecialNode2,eqsNode1Set,eqsNode2Set,hingedNode1Mat,notHingedNode1Mat,notHingedNode2Mat)
+
+    return nothing
+
 end
 
 # Computes the generalized velocities of basis b at the element's midpoint, resolved in basis A
@@ -243,28 +319,30 @@ function element_velocities_basis_b!(model,element,σ)
 
 end
 
-# Sets the midpoint states (generalized displacements, forces, strains, velocities and aerodynamic) of the element
+# Sets the midpoint states (generalized displacements, elastic forces, strains, velocities and aerodynamic) of the element. The total forces are set equal to the elastic ones, and the contributions of the structural damping are added in element_states_rates!
 function element_states!(model,element,x)
 
     @unpack forceScaling = model.assemblyData
     @unpack DOF_u,DOF_p,DOF_F,DOF_M,DOF_V,DOF_Ω,DOF_χ = element.assemblyIndices
     @unpack C11,C12,C21,C22,I11,I12,I21,I22 = element.sectional
-    @unpack u,p,F,M,V,Ω,γ,κ,P,H,χ = element.state.midpoint
+    @unpack u,p,F,M,V,Ω,γ,κ,P,H,Fε,Mε,χ = element.state.midpoint
 
     # Actual midpoint states
     u .= x[DOF_u]
     p .= x[DOF_p]
-    F .= x[DOF_F] * forceScaling
-    M .= x[DOF_M] * forceScaling
+    Fε .= x[DOF_F] * forceScaling
+    Mε .= x[DOF_M] * forceScaling
     V .= x[DOF_V]
     Ω .= x[DOF_Ω]
     χ .= x[DOF_χ]
 
     # Complementary midpoint states
-    γ .= C11 * F + C12 * M
-    κ .= C21 * F + C22 * M
+    γ .= C11 * Fε + C12 * Mε
+    κ .= C21 * Fε + C22 * Mε
     P .= I11 * V + I12 * Ω
     H .= I21 * V + I22 * Ω
+    F .= Fε
+    M .= Mε
 
     # @logmsg LogLevel(show_debug() ? 0 : -1) "ELEMENT $(element.assemblyData.globalID) STATES"
     # @logmsg LogLevel(show_debug() ? 0 : -1) "u: $u"
@@ -277,13 +355,13 @@ function element_states!(model,element,x)
 
 end
 
-# Sets the states' rates of the element, ẋ = c x - ẋEquiv, where the coefficient c and the equivalent rates ẋEquiv are set by the time integration method at the begin of the time step
+# Sets the states' rates of the element, ẋ = c x - ẋEquiv, where the coefficient c and the equivalent rates ẋEquiv are set by the time integration method at the begin of the time step (with an infinite time step, the rates are kept), and adds the contributions of the structural damping to the total forces
 function element_states_rates!(element,Δt)
 
-    @unpack I11,I12,I21,I22 = element.sectional
-    @unpack u,p,V,Ω,χ = element.state.midpoint
-    @unpack udot,pdot,Vdot,Ωdot,Pdot,Hdot,χdot = element.state.rates
-    @unpack c,udotEquiv,pdotEquiv,VdotEquiv,ΩdotEquiv,χdotEquiv = element.stateCache.equivStatesRates
+    @unpack I11,I12,I21,I22,μd11,μd12,μd21,μd22,hasDamping = element.sectional
+    @unpack u,p,V,Ω,F,M,Fε,Mε,χ = element.state.midpoint
+    @unpack udot,pdot,Vdot,Ωdot,Pdot,Hdot,Fεdot,Mεdot,χdot = element.state.rates
+    @unpack c,udotEquiv,pdotEquiv,VdotEquiv,ΩdotEquiv,FεdotEquiv,MεdotEquiv,χdotEquiv = element.stateCache.equivStatesRates
     
     # Set rates for finite time step
     if isfinite(Δt)
@@ -291,9 +369,17 @@ function element_states_rates!(element,Δt)
         pdot .= c * p - pdotEquiv
         Vdot .= c * V - VdotEquiv
         Ωdot .= c * Ω - ΩdotEquiv
+        Fεdot .= c * Fε - FεdotEquiv
+        Mεdot .= c * Mε - MεdotEquiv
         χdot .= c * χ - χdotEquiv
         Pdot .= I11 * Vdot + I12 * Ωdot
         Hdot .= I21 * Vdot + I22 * Ωdot
+    end
+
+    # Total forces: elastic + viscous (Kelvin-Voigt structural damping)
+    if hasDamping
+        F .= Fε + μd11 * Fεdot + μd12 * Mεdot
+        M .= Mε + μd21 * Fεdot + μd22 * Mεdot
     end
 
 end
@@ -489,7 +575,7 @@ function element_static_residual!(F_u1,F_u2,F_p1,F_p2,F_F1,F_F2,F_M1,F_M2,Δℓ,
 end
 
 # Computes steady contributions to the residual array for the current element
-function element_steady_residual!(F_u1,F_u2,F_p1,F_p2,F_V,F_Ω,F_χ,Δℓ,u,V,Ω,P,H,χ,v,ω,RR0,RR0T,A,B)
+function element_steady_residual!(F_u1,F_u2,F_p1,F_p2,F_V,F_Ω,F_χ,Δℓ,u,V,Ω,P,H,χ,v,ω,RR0,A,B)
 
     # --- F_u --- #
     tmp = Δℓ/2 * cross(ω, RR0 * P)
@@ -505,7 +591,7 @@ function element_steady_residual!(F_u1,F_u2,F_p1,F_p2,F_V,F_Ω,F_χ,Δℓ,u,V,Ω
     F_V .= RR0 * V - v - cross(ω, u)
     
     # --- F_Ω --- #
-    F_Ω .= Ω - RR0T * ω
+    F_Ω .= RR0 * Ω - ω
 
     # --- F_χ --- #
     F_χ .= - (A * χ + B)
@@ -513,7 +599,7 @@ function element_steady_residual!(F_u1,F_u2,F_p1,F_p2,F_V,F_Ω,F_χ,Δℓ,u,V,Ω
 end
 
 # Computes transient contributions to the residual array for the current element
-function element_transient_residual!(F_u1,F_u2,F_p1,F_p2,F_V,F_Ω,F_χ,Δℓ,R0T,P,H,udot,pdot,Pdot,Hdot,χdot,RR0,RdotR0,HT)
+function element_transient_residual!(F_u1,F_u2,F_p1,F_p2,F_V,F_Ω,F_χ,Δℓ,P,H,udot,pdot,Pdot,Hdot,χdot,RR0,RdotR0,HT)
 
     # --- F_u --- #
     tmp = Δℓ/2 * (RdotR0 * P + RR0 * Pdot)
@@ -529,7 +615,7 @@ function element_transient_residual!(F_u1,F_u2,F_p1,F_p2,F_V,F_Ω,F_χ,Δℓ,R0T
     F_V .+= - udot
     
     # --- F_Ω --- #
-    F_Ω .+= - R0T * SVector(HT * pdot)
+    F_Ω .+= - SVector(HT' * pdot)
 
     # --- F_χ --- #
     F_χ .+= χdot
@@ -632,27 +718,23 @@ function reset_spring_loads_jacobians!(jacobian,specialNodes)
 
         # Unpack special node data
         @unpack springs = specialNode
-        @unpack doubleAttachmentSpringsData = specialNode.assemblyData
-        @unpack Fu_uF,Fp_pM,Fu_uFother,Fp_pMother = specialNode.jacobianMaps
+        @unpack Fu_uF,Fu_pM,Fp_uF,Fp_pM,Fu_uFother,Fu_pMother,Fp_uFother,Fp_pMother = specialNode.jacobianMaps
 
-        # Initialize counter for double-attached springs
-        c = 0
-        
-        # Loop special node's springs
-        for spring in springs
-            @unpack hasDoubleAttachment = spring.assemblyData
-            if hasDoubleAttachment
-                # Update counter
-                c += 1
-                # Reset Jacobians
-                set_block!(nzval, Fu_uF, Z3)
-                set_block!(nzval, Fp_pM, Z3)
-                set_block!(nzval, Fu_uFother[c], Z3)
-                set_block!(nzval, Fp_pMother[c], Z3)
-            else
-                set_block!(nzval, Fu_uF, Z3)
-                set_block!(nzval, Fp_pM, Z3)
-            end
+        # Skip nodes without springs
+        isempty(springs) && continue
+
+        # Reset Jacobians w.r.t. the node's own DOFs
+        set_block!(nzval, Fu_uF, Z3)
+        set_block!(nzval, Fu_pM, Z3)
+        set_block!(nzval, Fp_uF, Z3)
+        set_block!(nzval, Fp_pM, Z3)
+
+        # Reset Jacobians w.r.t. the DOFs of the other attachment nodes of double-attached springs
+        for c in eachindex(Fu_uFother)
+            set_block!(nzval, Fu_uFother[c], Z3)
+            set_block!(nzval, Fu_pMother[c], Z3)
+            set_block!(nzval, Fp_uFother[c], Z3)
+            set_block!(nzval, Fp_pMother[c], Z3)
         end
 
     end
@@ -673,25 +755,24 @@ function reset_trim_flap_deflections_jacobians!(jacobian,model)
 
 end
 
-# Computes the contributions from the current element to the Jacobian matrix
-function element_jacobian!(jacobian,model,element,timeNow,Δt,isDynamicProblem,skipAeroJacobianUpdate)
+# Computes the current element's contributions to the Jacobian matrix, and keeps them in its state cache (writes only to the element's own state, so it can be called in parallel for different elements)
+function element_jacobians!(model,element,timeNow,Δt,isDynamicProblem,skipAeroJacobianUpdate)
 
-    @unpack forceScaling,invForceScaling = model.assemblyData
-    @unpack jacobianMaps = element
-    @unpack Δℓ,R0,R0T,hingedNode1Mat,notHingedNode1Mat,notHingedNode2Mat = element.geometry
-    @unpack C11,C12,C21,C22,I11,I12,I21,I22 = element.sectional
+    @unpack Δℓ,R0 = element.geometry
+    @unpack C11,C12,C21,C22,I11,I12,I21,I22,μd11,μd12,μd21,μd22,hasDamping = element.sectional
     @unpack F,M,V,Ω,γ,κ,P,H,χ = element.state.midpoint
     @unpack pdot,Vdot,Ωdot,Pdot,Hdot,χdot = element.state.rates
     @unpack ω = element.stateCache.kinematicsBasisb
-    @unpack RR0,RdotR0,HT,HTinv,R_p1,R_p2,R_p3,RT_p1,RT_p2,RT_p3,HT_p1,HT_p2,HT_p3,HTinv_p1,HTinv_p2,HTinv_p3,Rdot_p1,Rdot_p2,Rdot_p3 = element.stateCache.rotationMatrices
+    @unpack R,RR0,RdotR0,HT,HTinv,R_p1,R_p2,R_p3,HT_p1,HT_p2,HT_p3,HTinv_p1,HTinv_p2,HTinv_p3,Rdot_p1,Rdot_p2,Rdot_p3 = element.stateCache.rotationMatrices
     @unpack f1_p,f2_p,m1_p,m2_p = element.stateCache.loadsJacobians
     @unpack f1χ_V,f2χ_V,f1χ_Ω,f2χ_Ω,m1χ_V,m2χ_V,m1χ_Ω,m2χ_Ω,f1χ_χ,f2χ_χ,m1χ_χ,m2χ_χ,f1χ_δ,f2χ_δ,m1χ_δ,m2χ_δ,f1χ_Vdot,f2χ_Vdot,f1χ_Ωdot,f2χ_Ωdot,m1χ_Vdot,m2χ_Vdot,m1χ_Ωdot,m2χ_Ωdot = element.stateCache.aeroLoadsJacobians
-    @unpack F_u1_p,F_u2_p,F_u1_F,F_u2_F,F_u1_V,F_u2_V,F_u1_Ω,F_u2_Ω,F_u1_χ,F_u2_χ,F_u1_δ,F_u2_δ,F_p1_p,F_p2_p,F_p1_F,F_p2_F,F_p1_M,F_p2_M,F_p1_V,F_p2_V,F_p1_Ω,F_p2_Ω,F_p1_χ,F_p2_χ,F_p1_δ,F_p2_δ,F_F1_u,F_F2_u,F_F1_p,F_F2_p,F_F1_F,F_F2_F,F_F1_M,F_F2_M,F_M1_p,F_M2_p,F_M1_F,F_M2_F,F_M1_M,F_M2_M,F_V_u,F_V_p,F_V_V,F_Ω_p,F_Ω_Ω,F_χ_p,F_χ_V,F_χ_Ω,F_χ_χ,F_χ_Vdot,F_χ_Ωdot = element.stateCache.jacobians
+    @unpack F_u1_p,F_u2_p,F_u1_F,F_u2_F,F_u1_M,F_u2_M,F_u1_V,F_u2_V,F_u1_Ω,F_u2_Ω,F_u1_χ,F_u2_χ,F_u1_δ,F_u2_δ,F_p1_p,F_p2_p,F_p1_F,F_p2_F,F_p1_M,F_p2_M,F_p1_V,F_p2_V,F_p1_Ω,F_p2_Ω,F_p1_χ,F_p2_χ,F_p1_δ,F_p2_δ,F_F1_u,F_F2_u,F_F1_p,F_F2_p,F_F1_F,F_F2_F,F_F1_M,F_F2_M,F_M1_p,F_M2_p,F_M1_F,F_M2_F,F_M1_M,F_M2_M,F_V_u,F_V_p,F_V_V,F_Ω_p,F_Ω_Ω,F_χ_p,F_χ_V,F_χ_Ω,F_χ_χ,F_χ_Vdot,F_χ_Ωdot = element.stateCache.jacobians
 
     # Derivatives of the rotation variables w.r.t. the rotation parameters
     element_rotation_derivatives!(element,isDynamicProblem)
 
     # Convert to static matrices for performance
+    R = SMatrix(R)
     RR0 = SMatrix(RR0)
 
     # Aerodynamic derivatives (contributions to Jacobian matrix)
@@ -707,13 +788,16 @@ function element_jacobian!(jacobian,model,element,timeNow,Δt,isDynamicProblem,s
     element_static_jacobians!(F_u1_p,F_u2_p,F_u1_F,F_u2_F,F_p1_p,F_p2_p,F_p1_F,F_p2_F,F_p1_M,F_p2_M,F_F1_u,F_F2_u,F_F1_p,F_F2_p,F_F1_F,F_F2_F,F_F1_M,F_F2_M,F_M1_p,F_M2_p,F_M1_F,F_M2_F,F_M1_M,F_M2_M,Δℓ,R0,C11,C12,C21,C22,F,M,γ,κ,RR0,HTinv,R_p1,R_p2,R_p3,HTinv_p1,HTinv_p2,HTinv_p3,f1_p,f2_p,m1_p,m2_p)
 
     # Steady-state terms
-    element_steady_jacobians!(F_u1_p,F_u2_p,F_u1_V,F_u2_V,F_u1_Ω,F_u2_Ω,F_u1_χ,F_u2_χ,F_u1_δ,F_u2_δ,F_p1_p,F_p2_p,F_p1_V,F_p2_V,F_p1_Ω,F_p2_Ω,F_p1_χ,F_p2_χ,F_p1_δ,F_p2_δ,F_V_u,F_V_p,F_V_V,F_Ω_p,F_Ω_Ω,Δℓ,I11,I12,I21,I22,R0,R0T,ω,V,P,H,RR0,R_p1,R_p2,R_p3,RT_p1,RT_p2,RT_p3,f1χ_V,f2χ_V,f1χ_Ω,f2χ_Ω,m1χ_V,m2χ_V,m1χ_Ω,m2χ_Ω,f1χ_χ,f2χ_χ,m1χ_χ,m2χ_χ,f1χ_δ,f2χ_δ,m1χ_δ,m2χ_δ)
+    element_steady_jacobians!(F_u1_p,F_u2_p,F_u1_V,F_u2_V,F_u1_Ω,F_u2_Ω,F_u1_χ,F_u2_χ,F_u1_δ,F_u2_δ,F_p1_p,F_p2_p,F_p1_V,F_p2_V,F_p1_Ω,F_p2_Ω,F_p1_χ,F_p2_χ,F_p1_δ,F_p2_δ,F_V_u,F_V_p,F_V_V,F_Ω_p,F_Ω_Ω,Δℓ,I11,I12,I21,I22,R0,ω,V,P,H,Ω,RR0,R_p1,R_p2,R_p3,f1χ_V,f2χ_V,f1χ_Ω,f2χ_Ω,m1χ_V,m2χ_V,m1χ_Ω,m2χ_Ω,f1χ_χ,f2χ_χ,m1χ_χ,m2χ_χ,f1χ_δ,f2χ_δ,m1χ_δ,m2χ_δ)
+
+    # Structural damping terms: in dynamic problems, the total forces depend on the elastic ones through their rates (the derivatives of the translational equilibrium equations w.r.t. the elastic moments exist only through these rates)
+    if hasDamping
+        zero_arrays!(F_u1_M,F_u2_M)
+        isDynamicProblem && element_damping_jacobians!(F_u1_F,F_u2_F,F_u1_M,F_u2_M,F_p1_F,F_p2_F,F_p1_M,F_p2_M,element.stateCache.equivStatesRates.c,Δℓ,μd11,μd12,μd21,μd22,γ,RR0)
+    end
 
     # Transient dynamic terms
-    isDynamicProblem && element_transient_jacobians!(F_u1_p,F_u2_p,F_u1_V,F_u2_V,F_u1_Ω,F_u2_Ω,F_p1_p,F_p2_p,F_p1_V,F_p2_V,F_p1_Ω,F_p2_Ω,F_V_u,F_Ω_p,F_χ_V,F_χ_Ω,F_χ_χ,F_χ_Vdot,F_χ_Ωdot,f1χ_Vdot,f2χ_Vdot,f1χ_Ωdot,f2χ_Ωdot,m1χ_Vdot,m2χ_Vdot,m1χ_Ωdot,m2χ_Ωdot,element.stateCache.equivStatesRates.c,Δℓ,I11,I12,I21,I22,R0,R0T,P,H,pdot,Pdot,Hdot,RR0,RdotR0,HT,R_p1,R_p2,R_p3,HT_p1,HT_p2,HT_p3,Rdot_p1,Rdot_p2,Rdot_p3)
-
-    # Insert element resultants into the Jacobian matrix
-    insert_element_jacobians!(jacobian,F_u1_p,F_u2_p,F_u1_F,F_u2_F,F_u1_V,F_u2_V,F_u1_Ω,F_u2_Ω,F_u1_χ,F_u2_χ,F_u1_δ,F_u2_δ,F_p1_p,F_p2_p,F_p1_F,F_p2_F,F_p1_M,F_p2_M,F_p1_V,F_p2_V,F_p1_Ω,F_p2_Ω,F_p1_χ,F_p2_χ,F_p1_δ,F_p2_δ,F_F1_u,F_F2_u,F_F1_p,F_F2_p,F_F1_F,F_F2_F,F_F1_M,F_F2_M,F_M1_p,F_M2_p,F_M1_F,F_M2_F,F_M1_M,F_M2_M,F_V_u,F_V_p,F_V_V,F_Ω_p,F_Ω_Ω,F_χ_p,F_χ_V,F_χ_Ω,F_χ_χ,forceScaling,invForceScaling,hingedNode1Mat,notHingedNode1Mat,notHingedNode2Mat,jacobianMaps)
+    isDynamicProblem && element_transient_jacobians!(F_u1_p,F_u2_p,F_u1_V,F_u2_V,F_u1_Ω,F_u2_Ω,F_p1_p,F_p2_p,F_p1_V,F_p2_V,F_p1_Ω,F_p2_Ω,F_V_u,F_Ω_p,F_χ_V,F_χ_Ω,F_χ_χ,F_χ_Vdot,F_χ_Ωdot,f1χ_Vdot,f2χ_Vdot,f1χ_Ωdot,f2χ_Ωdot,m1χ_Vdot,m2χ_Vdot,m1χ_Ωdot,m2χ_Ωdot,element.stateCache.equivStatesRates.c,Δℓ,I11,I12,I21,I22,R0,P,H,pdot,Pdot,Hdot,RR0,RdotR0,HT,R_p1,R_p2,R_p3,HT_p1,HT_p2,HT_p3,Rdot_p1,Rdot_p2,Rdot_p3)
 
     # @logmsg LogLevel(show_debug() ? 0 : -1) "ELEMENT $(element.assemblyData.globalID) JACOBIANS"
     # @logmsg LogLevel(show_debug() ? 0 : -1) "F_u1_p: $F_u1_p"
@@ -1163,7 +1247,7 @@ function element_static_jacobians!(F_u1_p,F_u2_p,F_u1_F,F_u2_F,F_p1_p,F_p2_p,F_p
 end
 
 # Computes steady-state contributions to the Jacobian matrix from the current element
-function element_steady_jacobians!(F_u1_p,F_u2_p,F_u1_V,F_u2_V,F_u1_Ω,F_u2_Ω,F_u1_χ,F_u2_χ,F_u1_δ,F_u2_δ,F_p1_p,F_p2_p,F_p1_V,F_p2_V,F_p1_Ω,F_p2_Ω,F_p1_χ,F_p2_χ,F_p1_δ,F_p2_δ,F_V_u,F_V_p,F_V_V,F_Ω_p,F_Ω_Ω,Δℓ,I11,I12,I21,I22,R0,R0T,ω,V,P,H,RR0,R_p1,R_p2,R_p3,RT_p1,RT_p2,RT_p3,f1χ_V,f2χ_V,f1χ_Ω,f2χ_Ω,m1χ_V,m2χ_V,m1χ_Ω,m2χ_Ω,f1χ_χ,f2χ_χ,m1χ_χ,m2χ_χ,f1χ_δ,f2χ_δ,m1χ_δ,m2χ_δ)
+function element_steady_jacobians!(F_u1_p,F_u2_p,F_u1_V,F_u2_V,F_u1_Ω,F_u2_Ω,F_u1_χ,F_u2_χ,F_u1_δ,F_u2_δ,F_p1_p,F_p2_p,F_p1_V,F_p2_V,F_p1_Ω,F_p2_Ω,F_p1_χ,F_p2_χ,F_p1_δ,F_p2_δ,F_V_u,F_V_p,F_V_V,F_Ω_p,F_Ω_Ω,Δℓ,I11,I12,I21,I22,R0,ω,V,P,H,Ω,RR0,R_p1,R_p2,R_p3,f1χ_V,f2χ_V,f1χ_Ω,f2χ_Ω,m1χ_V,m2χ_V,m1χ_Ω,m2χ_Ω,f1χ_χ,f2χ_χ,m1χ_χ,m2χ_χ,f1χ_δ,f2χ_δ,m1χ_δ,m2χ_δ)
 
     # Repeatedly used variables
     ω̃ = tilde(ω)
@@ -1221,14 +1305,46 @@ function element_steady_jacobians!(F_u1_p,F_u2_p,F_u1_V,F_u2_V,F_u1_Ω,F_u2_Ω,F
     
     # --- F_Ω --- #
     # F_Ω_p
-    F_Ω_p .= - R0T * mul3(RT_p1,RT_p2,RT_p3,ω)
-    # F_Ω_Ω (already set as constant)
-    # F_Ω_Ω .= I3
+    F_Ω_p .= mul3(R_p1,R_p2,R_p3,SVector(R0*Ω))
+    # F_Ω_Ω
+    F_Ω_Ω .= RR0
 
 end
 
+# Computes the structural damping contributions to the Jacobian matrix from the current element in dynamic problems: the total forces are F = Fε + μd11*Fεdot + μd12*Mεdot and M = Mε + μd21*Fεdot + μd22*Mεdot, with the rates of the elastic forces depending on these states through the coefficient c set by the time integration method
+function element_damping_jacobians!(F_u1_F,F_u2_F,F_u1_M,F_u2_M,F_p1_F,F_p2_F,F_p1_M,F_p2_M,c,Δℓ,μd11,μd12,μd21,μd22,γ,RR0)
+
+    # Repeatedly used variables
+    RR0 = SMatrix(RR0)
+    A = Δℓ/2 * RR0 * tilde(a1+γ)
+
+    # --- F_u --- #
+    # F_u_F
+    tmp = c * RR0 * μd11
+    F_u1_F .-= tmp
+    F_u2_F .+= tmp
+    # F_u_M
+    tmp = c * RR0 * μd12
+    F_u1_M .-= tmp
+    F_u2_M .+= tmp
+
+    # --- F_p --- #
+    # F_p_F
+    tmp1 = c * RR0 * μd21
+    tmp2 = c * A * μd11
+    F_p1_F .+= -tmp1 - tmp2
+    F_p2_F .+=  tmp1 - tmp2
+    # F_p_M
+    tmp1 = c * RR0 * μd22
+    tmp2 = c * A * μd12
+    F_p1_M .+= -tmp1 - tmp2
+    F_p2_M .+=  tmp1 - tmp2
+
+end
+
+
 # Computes transient dynamic contributions to the Jacobian matrix from the current element (c is the coefficient of the states in their rates, i.e., the derivative of the rates w.r.t. the states, set by the time integration method)
-function element_transient_jacobians!(F_u1_p,F_u2_p,F_u1_V,F_u2_V,F_u1_Ω,F_u2_Ω,F_p1_p,F_p2_p,F_p1_V,F_p2_V,F_p1_Ω,F_p2_Ω,F_V_u,F_Ω_p,F_χ_V,F_χ_Ω,F_χ_χ,F_χ_Vdot,F_χ_Ωdot,f1χ_Vdot,f2χ_Vdot,f1χ_Ωdot,f2χ_Ωdot,m1χ_Vdot,m2χ_Vdot,m1χ_Ωdot,m2χ_Ωdot,c,Δℓ,I11,I12,I21,I22,R0,R0T,P,H,pdot,Pdot,Hdot,RR0,RdotR0,HT,R_p1,R_p2,R_p3,HT_p1,HT_p2,HT_p3,Rdot_p1,Rdot_p2,Rdot_p3)
+function element_transient_jacobians!(F_u1_p,F_u2_p,F_u1_V,F_u2_V,F_u1_Ω,F_u2_Ω,F_p1_p,F_p2_p,F_p1_V,F_p2_V,F_p1_Ω,F_p2_Ω,F_V_u,F_Ω_p,F_χ_V,F_χ_Ω,F_χ_χ,F_χ_Vdot,F_χ_Ωdot,f1χ_Vdot,f2χ_Vdot,f1χ_Ωdot,f2χ_Ωdot,m1χ_Vdot,m2χ_Vdot,m1χ_Ωdot,m2χ_Ωdot,c,Δℓ,I11,I12,I21,I22,R0,P,H,pdot,Pdot,Hdot,RR0,RdotR0,HT,R_p1,R_p2,R_p3,HT_p1,HT_p2,HT_p3,Rdot_p1,Rdot_p2,Rdot_p3)
 
     # Repeatedly used variables
     RdotR0_plus_cRR0 = SMatrix(RdotR0 + c*RR0)
@@ -1269,7 +1385,7 @@ function element_transient_jacobians!(F_u1_p,F_u2_p,F_u1_V,F_u2_V,F_u1_Ω,F_u2_�
 
     # --- F_Ω --- #
     # F_Ω_p
-    F_Ω_p .+= -R0T * (mul3(HT_p1,HT_p2,HT_p3,pdot) + c*HT)
+    F_Ω_p .+= -mul3(HT_p1',HT_p2',HT_p3',pdot) - c*HT'
 
     # --- F_χ --- #
     # F_χ_V
@@ -1283,11 +1399,26 @@ function element_transient_jacobians!(F_u1_p,F_u2_p,F_u1_V,F_u2_V,F_u1_Ω,F_u2_�
 
 end
 
+# Inserts the element's contributions into the Jacobian matrix (serial, since entries of the trim flap deflections' columns are shared by the elements of a surface)
+function insert_element_jacobians!(jacobian,model,element)
+
+    @unpack forceScaling,invForceScaling = model.assemblyData
+    @unpack jacobianMaps = element
+    @unpack hingedNode1Mat,notHingedNode1Mat,notHingedNode2Mat = element.geometry
+    @unpack hasDamping = element.sectional
+    @unpack F_u1_p,F_u2_p,F_u1_F,F_u2_F,F_u1_M,F_u2_M,F_u1_V,F_u2_V,F_u1_Ω,F_u2_Ω,F_u1_χ,F_u2_χ,F_u1_δ,F_u2_δ,F_p1_p,F_p2_p,F_p1_F,F_p2_F,F_p1_M,F_p2_M,F_p1_V,F_p2_V,F_p1_Ω,F_p2_Ω,F_p1_χ,F_p2_χ,F_p1_δ,F_p2_δ,F_F1_u,F_F2_u,F_F1_p,F_F2_p,F_F1_F,F_F2_F,F_F1_M,F_F2_M,F_M1_p,F_M2_p,F_M1_F,F_M2_F,F_M1_M,F_M2_M,F_V_u,F_V_p,F_V_V,F_Ω_p,F_Ω_Ω,F_χ_p,F_χ_V,F_χ_Ω,F_χ_χ = element.stateCache.jacobians
+
+    insert_element_jacobians!(jacobian,hasDamping,F_u1_p,F_u2_p,F_u1_F,F_u2_F,F_u1_M,F_u2_M,F_u1_V,F_u2_V,F_u1_Ω,F_u2_Ω,F_u1_χ,F_u2_χ,F_u1_δ,F_u2_δ,F_p1_p,F_p2_p,F_p1_F,F_p2_F,F_p1_M,F_p2_M,F_p1_V,F_p2_V,F_p1_Ω,F_p2_Ω,F_p1_χ,F_p2_χ,F_p1_δ,F_p2_δ,F_F1_u,F_F2_u,F_F1_p,F_F2_p,F_F1_F,F_F2_F,F_F1_M,F_F2_M,F_M1_p,F_M2_p,F_M1_F,F_M2_F,F_M1_M,F_M2_M,F_V_u,F_V_p,F_V_V,F_Ω_p,F_Ω_Ω,F_χ_p,F_χ_V,F_χ_Ω,F_χ_χ,forceScaling,invForceScaling,hingedNode1Mat,notHingedNode1Mat,notHingedNode2Mat,jacobianMaps)
+
+    return nothing
+
+end
+
 # Inserts the element's Jacobian contributions into the global Jacobian matrix using precomputed maps for the indices
-function insert_element_jacobians!(jacobian,F_u1_p,F_u2_p,F_u1_F,F_u2_F,F_u1_V,F_u2_V,F_u1_Ω,F_u2_Ω,F_u1_χ,F_u2_χ,F_u1_δ,F_u2_δ,F_p1_p,F_p2_p,F_p1_F,F_p2_F,F_p1_M,F_p2_M,F_p1_V,F_p2_V,F_p1_Ω,F_p2_Ω,F_p1_χ,F_p2_χ,F_p1_δ,F_p2_δ,F_F1_u,F_F2_u,F_F1_p,F_F2_p,F_F1_F,F_F2_F,F_F1_M,F_F2_M,F_M1_p,F_M2_p,F_M1_F,F_M2_F,F_M1_M,F_M2_M,F_V_u,F_V_p,F_V_V,F_Ω_p,F_Ω_Ω,F_χ_p,F_χ_V,F_χ_Ω,F_χ_χ,forceScaling,invForceScaling,hingedNode1Mat,notHingedNode1Mat,notHingedNode2Mat,jacobianMaps)
+function insert_element_jacobians!(jacobian,hasDamping,F_u1_p,F_u2_p,F_u1_F,F_u2_F,F_u1_M,F_u2_M,F_u1_V,F_u2_V,F_u1_Ω,F_u2_Ω,F_u1_χ,F_u2_χ,F_u1_δ,F_u2_δ,F_p1_p,F_p2_p,F_p1_F,F_p2_F,F_p1_M,F_p2_M,F_p1_V,F_p2_V,F_p1_Ω,F_p2_Ω,F_p1_χ,F_p2_χ,F_p1_δ,F_p2_δ,F_F1_u,F_F2_u,F_F1_p,F_F2_p,F_F1_F,F_F2_F,F_F1_M,F_F2_M,F_M1_p,F_M2_p,F_M1_F,F_M2_F,F_M1_M,F_M2_M,F_V_u,F_V_p,F_V_V,F_Ω_p,F_Ω_Ω,F_χ_p,F_χ_V,F_χ_Ω,F_χ_χ,forceScaling,invForceScaling,hingedNode1Mat,notHingedNode1Mat,notHingedNode2Mat,jacobianMaps)
 
     # Unpack
-    @unpack Fu1_p,Fu1_F,Fu1_V,Fu1_Ω,Fu1_χ,Fu1_δ,Fp1_p,Fp1_F,Fp1_M,Fp1_V,Fp1_Ω,Fp1_χ,Fp1_δ,FF1_u,FF1_p,FF1_F,FF1_M,FM1_p,FM1_F,FM1_M,Fu2_p,Fu2_F,Fu2_V,Fu2_Ω,Fu2_χ,Fu2_δ,Fp2_p,Fp2_F,Fp2_M,Fp2_V,Fp2_Ω,Fp2_χ,Fp2_δ,FF2_u,FF2_p,FF2_F,FF2_M,FM2_p,FM2_F,FM2_M,FV_u,FV_p,FV_V,FΩ_p,FΩ_Ω,Fχ_p,Fχ_V,Fχ_Ω,Fχ_χ = jacobianMaps
+    @unpack Fu1_p,Fu1_F,Fu1_M,Fu1_V,Fu1_Ω,Fu1_χ,Fu1_δ,Fp1_p,Fp1_F,Fp1_M,Fp1_V,Fp1_Ω,Fp1_χ,Fp1_δ,FF1_u,FF1_p,FF1_F,FF1_M,FM1_p,FM1_F,FM1_M,FM1_V,FM1_Ω,FM1_χ,FM1_δ,Fu2_p,Fu2_F,Fu2_M,Fu2_V,Fu2_Ω,Fu2_χ,Fu2_δ,Fp2_p,Fp2_F,Fp2_M,Fp2_V,Fp2_Ω,Fp2_χ,Fp2_δ,FF2_u,FF2_p,FF2_F,FF2_M,FM2_p,FM2_F,FM2_M,FV_u,FV_p,FV_V,FΩ_p,FΩ_Ω,Fχ_p,Fχ_V,Fχ_Ω,Fχ_χ = jacobianMaps
     @unpack nzval = jacobian
 
     ## Node 1 - equilibrium
@@ -1295,6 +1426,7 @@ function insert_element_jacobians!(jacobian,F_u1_p,F_u2_p,F_u1_F,F_u2_F,F_u1_V,F
     # --- F_u1 --- #
     set_block!(nzval, Fu1_p, F_u1_p * invForceScaling)
     set_block!(nzval, Fu1_F, F_u1_F)
+    hasDamping && set_block!(nzval, Fu1_M, F_u1_M)
     set_block!(nzval, Fu1_V, F_u1_V * invForceScaling)
     set_block!(nzval, Fu1_Ω, F_u1_Ω * invForceScaling)
     set_block!(nzval, Fu1_χ, F_u1_χ * invForceScaling)
@@ -1305,8 +1437,8 @@ function insert_element_jacobians!(jacobian,F_u1_p,F_u2_p,F_u1_F,F_u2_F,F_u1_V,F
     set_block!(nzval, Fp1_M, notHingedNode1Mat * F_p1_M)
     set_block!(nzval, Fp1_V, notHingedNode1Mat * F_p1_V * invForceScaling)
     set_block!(nzval, Fp1_Ω, notHingedNode1Mat * F_p1_Ω * invForceScaling)
-    set_block!(nzval, Fp1_χ, F_p1_χ * invForceScaling)
-    add_block!(nzval, Fp1_δ, F_p1_δ * invForceScaling)
+    set_block!(nzval, Fp1_χ, notHingedNode1Mat * F_p1_χ * invForceScaling)
+    add_block!(nzval, Fp1_δ, notHingedNode1Mat * F_p1_δ * invForceScaling)
 
     ## Node 1 — compatibility
     # --------------------------------------------------------------------------
@@ -1319,12 +1451,20 @@ function insert_element_jacobians!(jacobian,F_u1_p,F_u2_p,F_u1_F,F_u2_F,F_u1_V,F
     set_block!(nzval, FM1_p, notHingedNode1Mat * F_M1_p + hingedNode1Mat * F_p1_p * invForceScaling)
     set_block!(nzval, FM1_F, notHingedNode1Mat * F_M1_F * forceScaling + hingedNode1Mat * F_p1_F)
     set_block!(nzval, FM1_M, notHingedNode1Mat * F_M1_M * forceScaling + hingedNode1Mat * F_p1_M)
+    # Derivatives of the hinged DoFs of node 1 (moment equilibrium) w.r.t. the velocities, aerodynamic states and trim flap deflections (only for elements with a hinged node 1)
+    if any(hingedNode1Mat)
+        set_block!(nzval, FM1_V, hingedNode1Mat * F_p1_V * invForceScaling)
+        set_block!(nzval, FM1_Ω, hingedNode1Mat * F_p1_Ω * invForceScaling)
+        set_block!(nzval, FM1_χ, hingedNode1Mat * F_p1_χ * invForceScaling)
+        add_block!(nzval, FM1_δ, hingedNode1Mat * F_p1_δ * invForceScaling)
+    end
 
     ## Node 2 — equilibrium
     # --------------------------------------------------------------------------
     # --- F_u2 --- #
     set_block!(nzval, Fu2_p, F_u2_p * invForceScaling)
     set_block!(nzval, Fu2_F, F_u2_F)
+    hasDamping && set_block!(nzval, Fu2_M, F_u2_M)
     set_block!(nzval, Fu2_V, F_u2_V * invForceScaling)
     set_block!(nzval, Fu2_Ω, F_u2_Ω * invForceScaling)
     set_block!(nzval, Fu2_χ, F_u2_χ * invForceScaling)
@@ -1367,17 +1507,15 @@ function insert_element_jacobians!(jacobian,F_u1_p,F_u2_p,F_u1_F,F_u2_F,F_u1_V,F
 
 end
 
-# Computes the contributions from the current element to the inertia matrix
-function element_inertia!(inertia,model,element,timeNow,Δt,isDynamicProblem)
+# Computes the current element's contributions to the inertia matrix, and keeps them in its state cache (writes only to the element's own state, so it can be called in parallel for different elements)
+function element_inertia_resultants!(model,element,timeNow,Δt,isDynamicProblem)
 
-    @unpack invForceScaling = model.assemblyData
-    @unpack inertiaMaps = element
-    @unpack Δℓ,R0,R0T = element.geometry
-    @unpack I11,I12,I21,I22 = element.sectional
-    @unpack P,H = element.state.midpoint
+    @unpack Δℓ,R0 = element.geometry
+    @unpack I11,I12,I21,I22,μd11,μd12,μd21,μd22,hasDamping = element.sectional
+    @unpack P,H,γ = element.state.midpoint
     @unpack RR0,HT,R_p1,R_p2,R_p3 = element.stateCache.rotationMatrices
     @unpack f1χ_Vdot,f2χ_Vdot,f1χ_Ωdot,f2χ_Ωdot,m1χ_Vdot,m2χ_Vdot,m1χ_Ωdot,m2χ_Ωdot = element.stateCache.aeroLoadsJacobians
-    @unpack F_u1_pdot,F_u2_pdot,F_u1_Vdot,F_u2_Vdot,F_u1_Ωdot,F_u2_Ωdot,F_p1_pdot,F_p2_pdot,F_p1_Vdot,F_p2_Vdot,F_p1_Ωdot,F_p2_Ωdot,F_V_udot,F_Ω_pdot,F_χ_Vdot,F_χ_Ωdot,F_χ_χdot = element.stateCache.jacobians
+    @unpack F_u1_pdot,F_u2_pdot,F_u1_Vdot,F_u2_Vdot,F_u1_Ωdot,F_u2_Ωdot,F_u1_Fdot,F_u2_Fdot,F_u1_Mdot,F_u2_Mdot,F_p1_pdot,F_p2_pdot,F_p1_Vdot,F_p2_Vdot,F_p1_Ωdot,F_p2_Ωdot,F_p1_Fdot,F_p2_Fdot,F_p1_Mdot,F_p2_Mdot,F_V_udot,F_Ω_pdot,F_χ_Vdot,F_χ_Ωdot,F_χ_χdot = element.stateCache.jacobians
 
     # Derivatives of the rotation variables w.r.t. the rotation parameters (time derivative of rotation tensor not required)
     element_rotation_derivatives!(element,false)
@@ -1385,11 +1523,11 @@ function element_inertia!(inertia,model,element,timeNow,Δt,isDynamicProblem)
     # Compute aerodynamic contributions
     aero_derivatives_states_rates!(model,element,timeNow,Δt,isDynamicProblem)
 
-    # Compute resultants
-    element_inertia_resultants!(F_u1_pdot,F_u2_pdot,F_u1_Vdot,F_u2_Vdot,F_u1_Ωdot,F_u2_Ωdot,F_p1_pdot,F_p2_pdot,F_p1_Vdot,F_p2_Vdot,F_p1_Ωdot,F_p2_Ωdot,F_V_udot,F_Ω_pdot,Δℓ,R0,R0T,I11,I12,I21,I22,P,H,RR0,HT,R_p1,R_p2,R_p3,f1χ_Vdot,f2χ_Vdot,f1χ_Ωdot,f2χ_Ωdot,m1χ_Vdot,m2χ_Vdot,m1χ_Ωdot,m2χ_Ωdot)
+    # Compute nominal resultants
+    element_inertia_resultants!(F_u1_pdot,F_u2_pdot,F_u1_Vdot,F_u2_Vdot,F_u1_Ωdot,F_u2_Ωdot,F_p1_pdot,F_p2_pdot,F_p1_Vdot,F_p2_Vdot,F_p1_Ωdot,F_p2_Ωdot,F_V_udot,F_Ω_pdot,Δℓ,R0,I11,I12,I21,I22,P,H,RR0,HT,R_p1,R_p2,R_p3,f1χ_Vdot,f2χ_Vdot,f1χ_Ωdot,f2χ_Ωdot,m1χ_Vdot,m2χ_Vdot,m1χ_Ωdot,m2χ_Ωdot)
 
-    # Insert resultants into the inertia matrix
-    insert_element_inertias!(inertia,F_u1_pdot,F_u2_pdot,F_u1_Vdot,F_u2_Vdot,F_u1_Ωdot,F_u2_Ωdot,F_p1_pdot,F_p2_pdot,F_p1_Vdot,F_p2_Vdot,F_p1_Ωdot,F_p2_Ωdot,F_V_udot,F_Ω_pdot,F_χ_Vdot,F_χ_Ωdot,F_χ_χdot,invForceScaling,inertiaMaps)
+    # Compute structural damping resultants, if applicable
+    hasDamping && element_damping_inertia_resultants!(F_u1_Fdot,F_u2_Fdot,F_u1_Mdot,F_u2_Mdot,F_p1_Fdot,F_p2_Fdot,F_p1_Mdot,F_p2_Mdot,Δℓ,μd11,μd12,μd21,μd22,γ,RR0)
 
     # @logmsg LogLevel(show_debug() ? 0 : -1) "ELEMENT $(element.assemblyData.globalID) INERTIAS"
     # @logmsg LogLevel(show_debug() ? 0 : -1) "F_u1_pdot: $F_u1_pdot"
@@ -1464,7 +1602,7 @@ function wrapper_aero_loads_and_matrices_from_states_rates!(rates,model,element,
     Ωdot = @view rates[4:6]
 
     # Set state cache for derivatives calculations
-    stateCacheDiff = get_diff_state_cache!(element.aero,eltype(rates))
+    stateCacheDiff = get_diff_state_cache!(element.aero,eltype(rates),:rates)
 
     # Unpack resultants and arrays
     @unpack f1χ,f2χ,m1χ,m2χ = stateCacheDiff.loadsResultants
@@ -1572,7 +1710,7 @@ end
 end
 
 # Computes the structural and aerodynamic contributions from the current element to the inertia matrix
-function element_inertia_resultants!(F_u1_pdot,F_u2_pdot,F_u1_Vdot,F_u2_Vdot,F_u1_Ωdot,F_u2_Ωdot,F_p1_pdot,F_p2_pdot,F_p1_Vdot,F_p2_Vdot,F_p1_Ωdot,F_p2_Ωdot,F_V_udot,F_Ω_pdot,Δℓ,R0,R0T,I11,I12,I21,I22,P,H,RR0,HT,R_p1,R_p2,R_p3,f1χ_Vdot,f2χ_Vdot,f1χ_Ωdot,f2χ_Ωdot,m1χ_Vdot,m2χ_Vdot,m1χ_Ωdot,m2χ_Ωdot)
+function element_inertia_resultants!(F_u1_pdot,F_u2_pdot,F_u1_Vdot,F_u2_Vdot,F_u1_Ωdot,F_u2_Ωdot,F_p1_pdot,F_p2_pdot,F_p1_Vdot,F_p2_Vdot,F_p1_Ωdot,F_p2_Ωdot,F_V_udot,F_Ω_pdot,Δℓ,R0,I11,I12,I21,I22,P,H,RR0,HT,R_p1,R_p2,R_p3,f1χ_Vdot,f2χ_Vdot,f1χ_Ωdot,f2χ_Ωdot,m1χ_Vdot,m2χ_Vdot,m1χ_Ωdot,m2χ_Ωdot)
 
     # --- F_u --- #
     # F_u_pdot
@@ -1608,15 +1746,75 @@ function element_inertia_resultants!(F_u1_pdot,F_u2_pdot,F_u1_Vdot,F_u2_Vdot,F_u
 
     # --- F_Ω --- #
     # F_Ω_pdot
-    F_Ω_pdot .= - SMatrix(R0T * HT)
+    F_Ω_pdot .= - SMatrix(HT')
+
+end
+
+# Computes the structural damping contributions from the current element to the inertia matrix, i.e., the derivatives of the equilibrium equations w.r.t. the rates of the elastic forces, through the total forces F = Fε + μd11*Fεdot + μd12*Mεdot and M = Mε + μd21*Fεdot + μd22*Mεdot
+function element_damping_inertia_resultants!(F_u1_Fdot,F_u2_Fdot,F_u1_Mdot,F_u2_Mdot,F_p1_Fdot,F_p2_Fdot,F_p1_Mdot,F_p2_Mdot,Δℓ,μd11,μd12,μd21,μd22,γ,RR0)
+
+    # Repeatedly used variables
+    RR0 = SMatrix(RR0)
+    A = Δℓ/2 * RR0 * tilde(a1+γ)
+
+    # --- F_u --- #
+    # F_u_Fdot
+    tmp = RR0 * μd11
+    F_u1_Fdot .= -tmp
+    F_u2_Fdot .=  tmp
+    # F_u_Mdot
+    tmp = RR0 * μd12
+    F_u1_Mdot .= -tmp
+    F_u2_Mdot .=  tmp
+
+    # --- F_p --- #
+    # F_p_Fdot
+    tmp1 = RR0 * μd21
+    tmp2 = A * μd11
+    F_p1_Fdot .= -tmp1 - tmp2
+    F_p2_Fdot .=  tmp1 - tmp2
+    # F_p_Mdot
+    tmp1 = RR0 * μd22
+    tmp2 = A * μd12
+    F_p1_Mdot .= -tmp1 - tmp2
+    F_p2_Mdot .=  tmp1 - tmp2
+
+end
+
+
+# Inserts the element's contributions into the inertia matrix (serial, since elements share equations)
+function insert_element_inertias!(inertia,model,element)
+
+    @unpack invForceScaling = model.assemblyData
+    @unpack inertiaMaps = element
+    @unpack hingedNode1Mat,notHingedNode1Mat = element.geometry
+    @unpack hasDamping = element.sectional
+    @unpack F_u1_pdot,F_u2_pdot,F_u1_Vdot,F_u2_Vdot,F_u1_Ωdot,F_u2_Ωdot,F_u1_Fdot,F_u2_Fdot,F_u1_Mdot,F_u2_Mdot,F_p1_pdot,F_p2_pdot,F_p1_Vdot,F_p2_Vdot,F_p1_Ωdot,F_p2_Ωdot,F_p1_Fdot,F_p2_Fdot,F_p1_Mdot,F_p2_Mdot,F_V_udot,F_Ω_pdot,F_χ_Vdot,F_χ_Ωdot,F_χ_χdot = element.stateCache.jacobians
+
+    insert_element_inertias!(inertia,hasDamping,F_u1_Fdot,F_u2_Fdot,F_u1_Mdot,F_u2_Mdot,F_p1_Fdot,F_p2_Fdot,F_p1_Mdot,F_p2_Mdot,F_u1_pdot,F_u2_pdot,F_u1_Vdot,F_u2_Vdot,F_u1_Ωdot,F_u2_Ωdot,F_p1_pdot,F_p2_pdot,F_p1_Vdot,F_p2_Vdot,F_p1_Ωdot,F_p2_Ωdot,F_V_udot,F_Ω_pdot,F_χ_Vdot,F_χ_Ωdot,F_χ_χdot,hingedNode1Mat,notHingedNode1Mat,invForceScaling,inertiaMaps)
+
+    return nothing
 
 end
 
 # Inserts the element's contributions to the inertia matrix into the global inertia matrix
-function insert_element_inertias!(inertia,F_u1_pdot,F_u2_pdot,F_u1_Vdot,F_u2_Vdot,F_u1_Ωdot,F_u2_Ωdot,F_p1_pdot,F_p2_pdot,F_p1_Vdot,F_p2_Vdot,F_p1_Ωdot,F_p2_Ωdot,F_V_udot,F_Ω_pdot,F_χ_Vdot,F_χ_Ωdot,F_χ_χdot,invForceScaling,inertiaMaps)
+function insert_element_inertias!(inertia,hasDamping,F_u1_Fdot,F_u2_Fdot,F_u1_Mdot,F_u2_Mdot,F_p1_Fdot,F_p2_Fdot,F_p1_Mdot,F_p2_Mdot,F_u1_pdot,F_u2_pdot,F_u1_Vdot,F_u2_Vdot,F_u1_Ωdot,F_u2_Ωdot,F_p1_pdot,F_p2_pdot,F_p1_Vdot,F_p2_Vdot,F_p1_Ωdot,F_p2_Ωdot,F_V_udot,F_Ω_pdot,F_χ_Vdot,F_χ_Ωdot,F_χ_χdot,hingedNode1Mat,notHingedNode1Mat,invForceScaling,inertiaMaps)
 
-    @unpack Fu1_pdot,Fu1_Vdot,Fu1_Ωdot,Fp1_pdot,Fp1_Vdot,Fp1_Ωdot,Fu2_pdot,Fu2_Vdot,Fu2_Ωdot,Fp2_pdot,Fp2_Vdot,Fp2_Ωdot,FV_udot,FΩ_pdot,Fχ_Vdot,Fχ_Ωdot,Fχ_χdot = inertiaMaps
+    @unpack Fu1_pdot,Fu1_Vdot,Fu1_Ωdot,Fu1_Fdot,Fu1_Mdot,Fp1_pdot,Fp1_Vdot,Fp1_Ωdot,Fp1_Fdot,Fp1_Mdot,Fu2_pdot,Fu2_Vdot,Fu2_Ωdot,Fu2_Fdot,Fu2_Mdot,Fp2_pdot,Fp2_Vdot,Fp2_Ωdot,Fp2_Fdot,Fp2_Mdot,FM1_pdot,FM1_Vdot,FM1_Ωdot,FM1_Fdot,FM1_Mdot,FV_udot,FΩ_pdot,Fχ_Vdot,Fχ_Ωdot,Fχ_χdot = inertiaMaps
     @unpack nzval = inertia
+
+    ## Structural damping (the force scaling factors of the equilibrium equations and of the elastic forces' states cancel out)
+    # --------------------------------------------------------------------------
+    if hasDamping
+        set_block!(nzval, Fu1_Fdot, F_u1_Fdot)
+        set_block!(nzval, Fu1_Mdot, F_u1_Mdot)
+        set_block!(nzval, Fp1_Fdot, notHingedNode1Mat * F_p1_Fdot)
+        set_block!(nzval, Fp1_Mdot, notHingedNode1Mat * F_p1_Mdot)
+        set_block!(nzval, Fu2_Fdot, F_u2_Fdot)
+        set_block!(nzval, Fu2_Mdot, F_u2_Mdot)
+        set_block!(nzval, Fp2_Fdot, F_p2_Fdot)
+        set_block!(nzval, Fp2_Mdot, F_p2_Mdot)
+    end
 
     ## Node 1
     # --------------------------------------------------------------------------
@@ -1625,9 +1823,19 @@ function insert_element_inertias!(inertia,F_u1_pdot,F_u2_pdot,F_u1_Vdot,F_u2_Vdo
     set_block!(nzval, Fu1_Vdot, F_u1_Vdot * invForceScaling)
     set_block!(nzval, Fu1_Ωdot, F_u1_Ωdot * invForceScaling)
     # --- F_p1 --- #
-    set_block!(nzval, Fp1_pdot, F_p1_pdot * invForceScaling)
-    set_block!(nzval, Fp1_Vdot, F_p1_Vdot * invForceScaling)
-    set_block!(nzval, Fp1_Ωdot, F_p1_Ωdot * invForceScaling)
+    set_block!(nzval, Fp1_pdot, notHingedNode1Mat * F_p1_pdot * invForceScaling)
+    set_block!(nzval, Fp1_Vdot, notHingedNode1Mat * F_p1_Vdot * invForceScaling)
+    set_block!(nzval, Fp1_Ωdot, notHingedNode1Mat * F_p1_Ωdot * invForceScaling)
+    # Derivatives of the hinged DoFs of node 1 (moment equilibrium) w.r.t. the rates of the states (only for elements with a hinged node 1)
+    if any(hingedNode1Mat)
+        set_block!(nzval, FM1_pdot, hingedNode1Mat * F_p1_pdot * invForceScaling)
+        set_block!(nzval, FM1_Vdot, hingedNode1Mat * F_p1_Vdot * invForceScaling)
+        set_block!(nzval, FM1_Ωdot, hingedNode1Mat * F_p1_Ωdot * invForceScaling)
+        if hasDamping
+            set_block!(nzval, FM1_Fdot, hingedNode1Mat * F_p1_Fdot)
+            set_block!(nzval, FM1_Mdot, hingedNode1Mat * F_p1_Mdot)
+        end
+    end
 
     ## Node 2
     # --------------------------------------------------------------------------
@@ -1781,33 +1989,46 @@ function spring_loads!(model,specialNode)
 
     # Loop springs
     for spring in springs
-        @unpack hasDoubleAttachment = spring.assemblyData
+        @unpack hasDoubleAttachment,arms = spring.assemblyData
         @unpack FsFun,MsFun = spring.assemblyConstitutive
         @unpack Δu,Δp,Fs,Ms = spring.state
-        # Generalized spring displacements, resolved in basis A
         if hasDoubleAttachment # Double attachment springs
             # Update counter
             c += 1
             # Unpack double attachment spring data for this spring
-            @unpack otherNodeSpecialID,uOtherNode,pOtherNode,otherNodeDOF_uF,otherNodeDOF_pM = doubleAttachmentSpringsData[c]
+            @unpack isFirstNode,otherNodeSpecialID,uOtherNode,pOtherNode = doubleAttachmentSpringsData[c]
             # Node of other attachment point
             otherNode = model.assemblyData.specialNodes[otherNodeSpecialID]
             # Other node's states
             uOtherNode .= otherNode.state.u
             pOtherNode .= otherNode.state.p
-            # Generalized spring displacements
-            Δu .= u - uOtherNode
-            Δp .= rotation_between_WM(pOtherNode,p)
+            # Generalized displacements of the spring's first and second attachment nodes
+            u1,p1,u2,p2 = isFirstNode ? 
+                          (SVector(u),SVector(p),SVector(uOtherNode),SVector(pOtherNode)) :
+                          (SVector(uOtherNode),SVector(pOtherNode),SVector(u),SVector(p))
+            # Spring deformations (of the first attachment relative to the second), rotation tensor and arms of the loads
+            Δuₛ,Δpₛ,Rm,a1,a2 = double_attachment_spring_kinematics(u1,p1,u2,p2,arms[1],arms[2])
+            Δu .= Δuₛ
+            Δp .= Δpₛ
+            # Spring loads on the attachment nodes, resolved in basis A
+            F1,M1,F2,M2 = double_attachment_spring_nodal_loads(FsFun(Δu),MsFun(Δp),Rm,a1,a2)
+            # Spring loads on the first attachment, at the spring, resolved in basis A
+            Fs .= F1
+            Ms .= M1 - cross(a1,F1)
+            # Add spring loads to nodal loads
+            F .+= isFirstNode ? F1 : F2
+            M .+= isFirstNode ? M1 : M2
         else # Single attachment springs
+            # Generalized spring displacements, resolved in basis A
             Δu .= u
             Δp .= scaled_rotation_parameters(p)
+            # Spring loads, resolved in basis A
+            Fs .= - FsFun(Δu)
+            Ms .= - MsFun(Δp)
+            # Add spring loads to nodal loads
+            F .+= Fs
+            M .+= Ms
         end
-        # Spring loads, resolved in basis A
-        Fs .= - FsFun(Δu)
-        Ms .= - MsFun(Δp)
-        # Add spring loads to nodal loads
-        F .+= Fs
-        M .+= Ms
     end
 
 end
@@ -1863,7 +2084,7 @@ function special_node_jacobian!(jacobian,model,specialNode,x,σ)
     @unpack invForceScaling = model.assemblyData
     @unpack BCs,springs,jacobianMaps = specialNode
     @unpack uIsPrescribed,pIsPrescribed,allBCflags,uNotPrescribedMat,pNotPrescribedMat = specialNode.flags
-    @unpack p,R,F_p,M_p = specialNode.state
+    @unpack u,p,R,F_p,M_p = specialNode.state
     @unpack ζonElements,doubleAttachmentSpringsData,eqs_Fu,eqs_Fp,eqs_FF,eqs_FM,DOF_uF,DOF_pM,DOF_T = specialNode.assemblyData
 
     # @logmsg LogLevel(show_debug() ? 0 : -1) "SPECIAL NODE $(specialNode.assemblyData.globalID) JACOBIANS"
@@ -1881,7 +2102,7 @@ function special_node_jacobian!(jacobian,model,specialNode,x,σ)
     # end
 
     # Add contributions from the springs attached to the current node
-    spring_loads_jacobians!(model,springs,jacobian,jacobianMaps,invForceScaling,doubleAttachmentSpringsData,p,uNotPrescribedMat,pNotPrescribedMat)
+    spring_loads_jacobians!(model,springs,jacobian,jacobianMaps,invForceScaling,doubleAttachmentSpringsData,u,p,uNotPrescribedMat,pNotPrescribedMat)
 
 end
 
@@ -2032,10 +2253,10 @@ function insert_special_node_jacobian!(jacobian,invForceScaling,F_p,M_p,R,ζonEl
 end
 
 # Adds the contributions of the spring loads to the Jacobian matrix
-function spring_loads_jacobians!(model,springs,jacobian,jacobianMaps,invForceScaling,doubleAttachmentSpringsData,p,uNotPrescribedMat,pNotPrescribedMat)
+function spring_loads_jacobians!(model,springs,jacobian,jacobianMaps,invForceScaling,doubleAttachmentSpringsData,u,p,uNotPrescribedMat,pNotPrescribedMat)
 
     # Unpack node data
-    @unpack Fu_uF,Fp_pM,Fu_uFother,Fp_pMother = jacobianMaps
+    @unpack Fu_uF,Fu_pM,Fp_uF,Fp_pM,Fu_uFother,Fu_pMother,Fp_uFother,Fp_pMother = jacobianMaps
     @unpack nzval = jacobian
 
     # Initialize counter for double attachment springs
@@ -2045,8 +2266,8 @@ function spring_loads_jacobians!(model,springs,jacobian,jacobianMaps,invForceSca
     for spring in springs
 
         # Unpack spring data
-        @unpack hasDoubleAttachment = spring.assemblyData
-        @unpack Fs_ΔuFun,Ms_ΔpFun = spring.assemblyConstitutive
+        @unpack hasDoubleAttachment,arms = spring.assemblyData
+        @unpack FsFun,MsFun,Fs_ΔuFun,Ms_ΔpFun = spring.assemblyConstitutive
         @unpack Δu,Δp = spring.state
 
         # Derivatives of spring loads w.r.t. deformations
@@ -2058,23 +2279,20 @@ function spring_loads_jacobians!(model,springs,jacobian,jacobianMaps,invForceSca
             # Update counter
             c += 1
             # Unpack double attachment spring data for this spring
-            @unpack otherNodeSpecialID,otherNodeDOF_uF,otherNodeDOF_pM,pOtherNode = doubleAttachmentSpringsData[c]
+            @unpack isFirstNode,otherNodeSpecialID,uOtherNode,pOtherNode = doubleAttachmentSpringsData[c]
             # Node of other attachment point
             otherNode = model.assemblyData.specialNodes[otherNodeSpecialID]
-            # Add translational spring Jacobians (for DOFs that are not prescribed): Δu = u - uOtherNode → ∂(-Fs)/∂u = Fs_Δu and ∂(-Fs)/∂uOtherNode = -Fs_Δu
-            add_block!(nzval, Fu_uF, Fs_Δu * invForceScaling * uNotPrescribedMat)
-            add_block!(nzval, Fu_uFother[c], - Fs_Δu * invForceScaling * otherNode.flags.uNotPrescribedMat)
-            # Derivative of spring rotation w.r.t rotation of each of its attachment nodes
-            if isapprox(p, pOtherNode; atol=1e-10)
-                Δp_p = I3
-                Δp_pOtherNode = -I3
-            else
-                Δp_p = SMatrix{3,3}(ForwardDiff.jacobian(x -> rotation_between_WM(pOtherNode,x), p))
-                Δp_pOtherNode = SMatrix{3,3}(ForwardDiff.jacobian(x -> rotation_between_WM(x,p), pOtherNode))
-            end
-            # Add rotational spring Jacobians (for DOFs that are not prescribed):  Δp = rotation_between_WM(p,pOtherNode) → ∂(-Ms)/∂p = ∂(-Ms)/∂Δp*∂Δp/∂p = Ms_Δp*Δp_p and ∂(-Ms)/∂pOtherNode = ∂(-Ms)/∂Δp*∂Δp/∂pOtherNode = Ms_Δp*Δp_pOtherNode
-            add_block!(nzval, Fp_pM, Ms_Δp * Δp_p * invForceScaling * pNotPrescribedMat)
-            add_block!(nzval, Fp_pMother[c], Ms_Δp * Δp_pOtherNode * invForceScaling * otherNode.flags.pNotPrescribedMat)
+            # Derivatives of the spring loads on the node w.r.t. the generalized displacements of the node (own) and of the other attachment node (other)
+            F_uOwn,F_pOwn,F_uOther,F_pOther,M_uOwn,M_pOwn,M_uOther,M_pOther = double_attachment_spring_loads_derivatives(isFirstNode,SVector(u),SVector(p),SVector(uOtherNode),SVector(pOtherNode),arms[1],arms[2],SVector(Δu),SVector(Δp),FsFun(Δu),MsFun(Δp),Fs_Δu,Ms_Δp)
+            # Add spring Jacobians (for DOFs that are not prescribed): the loads are subtracted in the equilibrium equations
+            add_block!(nzval, Fu_uF, - F_uOwn * invForceScaling * uNotPrescribedMat)
+            add_block!(nzval, Fu_pM, - F_pOwn * invForceScaling * pNotPrescribedMat)
+            add_block!(nzval, Fp_uF, - M_uOwn * invForceScaling * uNotPrescribedMat)
+            add_block!(nzval, Fp_pM, - M_pOwn * invForceScaling * pNotPrescribedMat)
+            add_block!(nzval, Fu_uFother[c], - F_uOther * invForceScaling * otherNode.flags.uNotPrescribedMat)
+            add_block!(nzval, Fu_pMother[c], - F_pOther * invForceScaling * otherNode.flags.pNotPrescribedMat)
+            add_block!(nzval, Fp_uFother[c], - M_uOther * invForceScaling * otherNode.flags.uNotPrescribedMat)
+            add_block!(nzval, Fp_pMother[c], - M_pOther * invForceScaling * otherNode.flags.pNotPrescribedMat)
         # Single attachment springs
         else
             # Add translational spring Jacobians (for DOFs that are not prescribed): Δu = u → ∂(-Fs)/∂u = Fs_Δu
@@ -2276,9 +2494,14 @@ function update_states!(model,x,σ,timeIndex,stepFraction,timeNow,Δt,isDynamicP
         # ----------------------------------------------------------------------
         special_node_states!(model,specialNode,x,σ)
 
+    end
+
+    # Loop over special nodes (after updating the states of all, which are needed by doubly-attached springs)
+    for specialNode in specialNodes
+
         ## Add contributions of attached springs to the special node's loads
         # ----------------------------------------------------------------------
-        spring_loads!(model,specialNode)
+        isempty(specialNode.springs) || spring_loads!(model,specialNode)
 
     end
 
@@ -2351,7 +2574,7 @@ function element_modal_states!(element,modalState,eigenvector,forceScaling)
     HTinv_p2S = element.stateCache.rotationMatrices.HTinv_p2
     HTinv_p3S = element.stateCache.rotationMatrices.HTinv_p3
 
-    # Midpoint states 
+    # Midpoint states (with structural damping, the modal forces and moments are the elastic ones, which define the modal strains)
     u .= eigenvector[DOF_u]
     p .= eigenvector[DOF_p]
     F .= eigenvector[DOF_F] * forceScaling

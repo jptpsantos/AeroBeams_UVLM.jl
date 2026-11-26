@@ -57,7 +57,7 @@ M2 = reduce(vcat,[hist.states[end][e].nodal.M1[2],
 
 ## Plots
 # Set paths
-relPath = "/test/outputs/figures/triangleLoadBeam"
+relPath = "/test/outputs/figures/staticStructural/triangleLoadBeam"
 absPath = string(pwd(),relPath)
 mkpath(absPath)
 

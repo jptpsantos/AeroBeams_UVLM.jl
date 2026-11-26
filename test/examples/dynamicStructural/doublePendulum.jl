@@ -39,7 +39,7 @@ u3_tip = [states[i][end].nodal.u2[3] for i in 1:length(t)]
 
 ## Plots
 # Set paths
-relPath = "/test/outputs/figures/doublePendulum"
+relPath = "/test/outputs/figures/dynamicStructural/doublePendulum"
 absPath = string(pwd(),relPath)
 mkpath(absPath)
 

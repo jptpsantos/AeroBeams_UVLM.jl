@@ -45,7 +45,7 @@ for (i,frame,airfoil,a₀,a₁,b,k,Ma,U) in zip(1:length(frames),frames,airfoil_
         # Update airfoil parameters
         update_Airfoil_params!(airfoil,Ma=Ma,U=U,b=b)
         # Aerodynamic surface
-        surf = create_AeroSurface(ppSolver=aeroSolver,airfoil=airfoil,c=2*b,normSparPos=0.25,updateAirfoilParameters=false)
+        surf = create_AeroSurface(ppSolver=aeroSolver,airfoil=airfoil,c=2*b,referenceAxis=0.25,updateAirfoilParameters=false)
         # Wing
         wing = create_Beam(name="wing",length=L,nElements=nElem,S=[isotropic_stiffness_matrix(∞=∞)],I=[inertia_matrix(ρA=ρA,ρIy=ρI,ρIz=ρI)],rotationParametrization="E321",p0=[0;0;a₀-a₁],aeroSurface=surf,pdot0_of_x1=x1->[pdot(0); 0.0; 0.0])
         # BCs

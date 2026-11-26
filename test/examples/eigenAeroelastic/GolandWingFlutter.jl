@@ -24,9 +24,9 @@ aeroSolver = Inflow()
 # Aerodynamic surface
 airfoil = deepcopy(FlatPlate)
 chord = feet2meters(6)
-normSparPos = 0.33
+referenceAxis = 0.33
 normCGPos = 0.43
-surf = create_AeroSurface(ppSolver=aeroSolver,airfoil=airfoil,c=chord,normSparPos=normSparPos,hasTipCorrection=true,tipLossDecayFactor=τ,updateAirfoilParameters=true)
+surf = create_AeroSurface(ppSolver=aeroSolver,airfoil=airfoil,c=chord,referenceAxis=referenceAxis,hasTipCorrection=true,tipLossDecayFactor=τ,updateAirfoilParameters=true)
 
 # Wing beam
 L = feet2meters(20)
@@ -36,7 +36,7 @@ GJ = 0.99e6
 ρIx = 8.64
 σ = 0.1
 ρIy,ρIz = σ*ρIx, (1-σ)*ρIx
-e2 = -(normCGPos-normSparPos)*chord
+e2 = -(normCGPos-referenceAxis)*chord
 nElem = 20
 beam = create_Beam(name="wingBeam",length=L,nElements=nElem,S=[isotropic_stiffness_matrix(GJ=GJ,EIy=EIy)],I=[inertia_matrix(ρA=ρA,ρIy=ρIy,ρIz=ρIz,e2=e2)],p0=transform_to_WM([0,0,θ],from=:E321),surface=surf)
 
@@ -111,7 +111,7 @@ pretty_table(
 
 ## Plots
 # Set paths
-relPath = "/test/outputs/figures/GolandWingFlutter"
+relPath = "/test/outputs/figures/eigenAeroelastic/GolandWingFlutter"
 absPath = string(pwd(),relPath)
 mkpath(absPath)
 

@@ -17,7 +17,7 @@ eigenmethod = :fulldecomp
 nev = 40
 
 # Geometric properties
-nElem,L,chord,normSparPos = geometrical_properties_Pazy()
+nElem,L,chord,referenceAxis = geometrical_properties_Pazy()
 
 # Initialize outputs
 eigensols = Array{EigenSolution}(undef,length(ΛRange),length(F3TipRange))
@@ -57,7 +57,7 @@ end
 
 ## Plots
 # Set paths
-relPath = "/test/outputs/figures/sweptPazyModalTipDispRange"
+relPath = "/test/outputs/figures/eigenStructural/sweptPazyModalTipDispRange"
 absPath = string(pwd(),relPath)
 mkpath(absPath)
 

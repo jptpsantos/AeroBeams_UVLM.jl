@@ -48,7 +48,7 @@ println("Relative difference in spring moment = $(round(100ϵMs,digits=4)) %")
 
 ## Plots
 # Set paths
-relPath = "/test/outputs/figures/twistDoublyAttachedSpringCantilever"
+relPath = "/test/outputs/figures/staticStructural/twistDoublyAttachedSpringCantilever"
 absPath = string(pwd(),relPath)
 mkpath(absPath)
 

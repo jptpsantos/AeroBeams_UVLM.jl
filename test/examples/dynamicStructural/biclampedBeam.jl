@@ -71,7 +71,7 @@ Vdot3_mid_analytic = -δ*ω^2*cos.(ω*t)*(sin(π/2)-π/4)
 
 ## Plots
 # Set paths
-relPath = "/test/outputs/figures/biclampedBeam"
+relPath = "/test/outputs/figures/dynamicStructural/biclampedBeam"
 absPath = string(pwd(),relPath)
 mkpath(absPath)
 

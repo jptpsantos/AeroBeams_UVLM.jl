@@ -10,9 +10,6 @@ U = 50
 aeroSolver = Indicial()
 gustSolver = IndicialGust(:Kussner)
 
-# Flag for upright position
-upright = true
-
 # Gust (defined such that it begins at time t0 and lasts for τ seconds)
 spectrum = :vK
 generationMethod = :whiteNoise
@@ -25,7 +22,7 @@ plotPSD = false
 gust = create_Continuous1DGust(spectrum=spectrum,generationMethod=generationMethod,initialTime=t0,duration=τ,generationDuration=generationDuration,Uref=U,σ=σ,p=pg,plotPSD=plotPSD)
 
 # Model
-PazyWingContinuous1DGust,nElem,L,_ = create_Pazy(aeroSolver=aeroSolver,gustSolver=gustSolver,upright=upright,pitchAngle=θ,airspeed=U,gust=gust)
+PazyWingContinuous1DGust,nElem,L,_ = create_Pazy(aeroSolver=aeroSolver,gustSolver=gustSolver,pitchAngle=θ,airspeed=U,gust=gust)
 
 # Time variables
 Δt = τ/500
@@ -55,7 +52,7 @@ tqSpan_ct = [aeroVars[i][12].aeroCoefficients.ct for i in eachindex(t)]
 
 ## Plots
 # Set paths
-relPath = "/test/outputs/figures/PazyWingContinuous1DGust"
+relPath = "/test/outputs/figures/dynamicAeroelastic/PazyWingContinuous1DGust"
 absPath = string(pwd(),relPath)
 mkpath(absPath)
 

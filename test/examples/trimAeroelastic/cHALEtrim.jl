@@ -25,7 +25,7 @@ nElemTailBoom = 5
 nElemHorzStabilizer = 4
 
 # Attachment spring stiffness
-μ = 1e-1
+kSprings = 1e-1
 
 # System solver 
 NR = create_NewtonRaphson(trimSolverMethod=:LQ,displayStatus=false)
@@ -45,7 +45,7 @@ trim_u3 = Array{Vector{Float64}}(undef,length(λRange),length(URange))
 # Sweep stiffness factor
 for (i,λ) in enumerate(λRange)
     # Model
-    cHALE,_ = create_cHALE(aeroSolver=aeroSolver,stiffnessFactor=λ,nElemWing=nElemWing,nElemTailBoom=nElemTailBoom,nElemHorzStabilizer=nElemHorzStabilizer,stabilizersAero=stabilizersAero,includeVS=includeVS,wingCd0=wingCd0,stabsCd0=stabsCd0,withAttachmentSprings=true,μ=μ)
+    cHALE,_ = create_cHALE(aeroSolver=aeroSolver,stiffnessFactor=λ,nElemWing=nElemWing,nElemTailBoom=nElemTailBoom,nElemHorzStabilizer=nElemHorzStabilizer,stabilizersAero=stabilizersAero,includeVS=includeVS,wingCd0=wingCd0,stabsCd0=stabsCd0,withAttachmentSprings=true,kSprings=kSprings)
     # Sweep airspeed
     for (j,U) in enumerate(URange)
         # Display progress
@@ -74,7 +74,7 @@ trimDispRef = readdlm(pkgdir(AeroBeams,"test","referenceData","cHALE", "trimDisp
 
 ## Plots
 # Set paths
-relPath = "/test/outputs/figures/cHALEtrim"
+relPath = "/test/outputs/figures/trimAeroelastic/cHALEtrim"
 absPath = string(pwd(),relPath)
 mkpath(absPath)
 

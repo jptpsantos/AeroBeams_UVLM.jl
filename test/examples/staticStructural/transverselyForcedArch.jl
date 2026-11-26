@@ -41,7 +41,7 @@ u3Ref = readdlm(pkgdir(AeroBeams,"test","referenceData","transverselyForcedArch"
 
 ## Plots
 # Set paths
-relPath = "/test/outputs/figures/transverselyForcedArch"
+relPath = "/test/outputs/figures/staticStructural/transverselyForcedArch"
 absPath = string(pwd(),relPath)
 mkpath(absPath)
 

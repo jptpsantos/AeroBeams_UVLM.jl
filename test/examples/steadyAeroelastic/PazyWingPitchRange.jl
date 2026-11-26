@@ -1,5 +1,6 @@
 # # Steady aeroelastic analysis of the Pazy wing
-# This example illustrates how to set up a steady aeroelastic analysis, using the Technion's Pazy wing benchmark. The sectional properties of the wing's spar and the aerodynamic tip loss function were defined by [Riso and Cesnik](https://doi.org/10.2514/6.2022-2313). The data is publicly available at [https://github.com/UM-A2SRL/AePW3-LDWG](https://github.com/UM-A2SRL/AePW3-LDWG).
+# This example illustrates how to set up a steady aeroelastic analysis, using the Technion's Pazy wing benchmark. The sectional properties of the wing are obtained from the condensed beam models given by [BeamROM](https://github.com/luizpancini/BeamROM) and the aerodynamic tip loss function is interpolated from the VLM solutions of [AeroBeams_UVLM](https://github.com/jptpsantos/AeroBeams_UVLM.jl).
+
 
 #md # ![](../assets/pazyWT.png)
 
@@ -15,24 +16,15 @@ using AeroBeams
 ## Aerodynamic solver
 aeroSolver = Indicial()
 
-## Airfoil section
-airfoil = deepcopy(NACA0018)
-
-## Flag for upright position
-upright = true
-
-## Mesh (defines number of elements)
+### Mesh (defines number of elements)
 mesh = :nominal
 
-## Flag to use AePW3 matrices for sectional stiffness
-useAePW3Matrices = false
-
 ## Fixed geometrical and discretization properties
-nElem,L,chord,normSparPos,nodalPositions = geometrical_properties_Pazy(; mesh=mesh, useAePW3Matrices=useAePW3Matrices)
+nElem,L,chord,referenceAxis,nodalPositions = geometrical_properties_Pazy(; mesh=mesh)
 
-## Tip mass (for test 1, 0.01 kg, 40 mm behind the trailing-edge)
+## Tip mass (for Avin et al.'s test 1, 0.01 kg, 40 mm behind the trailing-edge)
 tipMass = 0.01
-ηtipMass = [0; -chord*(1-normSparPos)-0.04; 0]
+ηtipMass = [0; -chord*(1-referenceAxis)-0.04; 0]
 
 ## Strain gauge coordinates (the spar cs is 60 x 2.25 mm)
 SGelem = 3          # element number where the strain gauge is located (see Fig. 12 of https://doi.org/10.2514/1.J060621: FBG^1_3 is @ 127 mm spanwise, but wing root is at 32 mm -> actual spanwise position is 127 - 32 = 95 mm which is at the midpoint of element 3)
@@ -63,7 +55,7 @@ for (i,θ) in enumerate(θRange)
         ## Display progress #src
         println("Solving for θ = $(round(rad2deg(θ))) deg, U = $U m/s") #src
         ## Update model
-        PazyWingPitchRange,_ = create_Pazy(aeroSolver=aeroSolver,airfoil=airfoil,upright=upright,pitchAngle=θ,airspeed=U,tipMasses=[tipMass],ηtipMasses=[ηtipMass],tipMassesInertias=[zeros(3,3)],mesh=mesh,useAePW3Matrices=useAePW3Matrices)
+        PazyWingPitchRange,_ = create_Pazy(aeroSolver=aeroSolver,pitchAngle=θ,airspeed=U,tipMasses=[tipMass],ηtipMasses=[ηtipMass],tipMassesInertias=[zeros(3,3)],mesh=mesh)
         ## Create and solve problem
         problem[i,j] = create_SteadyProblem(model=PazyWingPitchRange,x0=x0)
         solve!(problem[i,j])
@@ -192,12 +184,12 @@ tip_thetaVsU_rootPitch7_Exp = readdlm(pkgdir(AeroBeams)*"/test/referenceData/Paz
 
 ## Plots
 # Set paths
-relPath = "/test/outputs/figures/PazyWingPitchRange"
+relPath = "/test/outputs/figures/steadyAeroelastic/PazyWingPitchRange"
 absPath = string(pwd(),relPath)
 mkpath(absPath)
 
 # Deformed state of last problem
-deformationPlot = plot_steady_deformation(problem[end],view=(45,30),save=true,savePath="/test/outputs/figures/PazyWingPitchRange/PazyWingPitchRange_deformation.pdf")
+deformationPlot = plot_steady_deformation(problem[end],view=(45,30),save=true,savePath="/test/outputs/figures/steadyAeroelastic/PazyWingPitchRange/PazyWingPitchRange_deformation.pdf")
 display(deformationPlot)
 
 # Plot configurations

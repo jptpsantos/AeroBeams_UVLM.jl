@@ -137,7 +137,7 @@ fold_Healy_10Hz = readdlm(pkgdir(AeroBeams)*"/test/referenceData/HealyBaselineFF
 
 ## Plots
 # Set paths
-relPath = "/test/outputs/figures/HealyBaselineFFWTOMCGustFloating"
+relPath = "/test/outputs/figures/dynamicAeroelastic/HealyBaselineFFWTOMCGustFloating"
 absPath = string(pwd(),relPath)
 mkpath(absPath)
 

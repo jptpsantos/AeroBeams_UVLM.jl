@@ -43,7 +43,7 @@ println("Tip disp = $(u3_b[end])")
 
 ## Plots
 # Set paths
-relPath = "/test/outputs/figures/springedLFrame"
+relPath = "/test/outputs/figures/staticStructural/springedLFrame"
 absPath = string(pwd(),relPath)
 mkpath(absPath)
 

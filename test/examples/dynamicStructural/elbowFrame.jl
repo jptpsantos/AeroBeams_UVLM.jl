@@ -41,7 +41,7 @@ u3TipRef = readdlm(pkgdir(AeroBeams,"test","referenceData","elbowFrame", "u3_tip
 
 ## Plots
 # Set paths
-relPath = "/test/outputs/figures/elbowFrame"
+relPath = "/test/outputs/figures/dynamicStructural/elbowFrame"
 absPath = string(pwd(),relPath)
 mkpath(absPath)
 

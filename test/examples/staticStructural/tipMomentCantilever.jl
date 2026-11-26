@@ -47,7 +47,7 @@ tip_angle = [states[i][nElem].nodal.θ[2] for i in 1:length(σVec)]
 
 ## Plots
 # Set paths
-relPath = "/test/outputs/figures/tipMomentCantilever"
+relPath = "/test/outputs/figures/staticStructural/tipMomentCantilever"
 absPath = string(pwd(),relPath)
 mkpath(absPath)
 

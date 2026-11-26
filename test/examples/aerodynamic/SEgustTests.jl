@@ -37,7 +37,7 @@ function SEgustTestsCore(aeroSolver,gustSolver,testCase)
     airfoil = deepcopy(NACA0012)
     update_all_airfoil_parameters!(airfoil,Ma)
     derivationMethod = AD()
-    surf = create_AeroSurface(ppSolver=aeroSolver,gustSolver=gustSolver,derivationMethod=derivationMethod,airfoil=airfoil,c=2*b,normSparPos=1/4,updateAirfoilParameters=true)
+    surf = create_AeroSurface(ppSolver=aeroSolver,gustSolver=gustSolver,derivationMethod=derivationMethod,airfoil=airfoil,c=2*b,referenceAxis=1/4,updateAirfoilParameters=true)
 
     # Wing beam
     L = 1
@@ -126,7 +126,7 @@ for (i,aeroSolver) in enumerate(aeroSolvers)
         # Loop test cases
         for (k,testCase) in enumerate(tests)
             # Set paths
-            relPath = string("/test/outputs/figures/SEgustTests/SEgustTests_",aeroSolver.name,"_",string(gustSolver.indicialFunction),"_test",testCase)
+            relPath = string("/test/outputs/figures/aerodynamic/SEgustTests/SEgustTests_",aeroSolver.name,"_",string(gustSolver.indicialFunction),"_test",testCase)
             absPath = string(pwd(),relPath)
             mkpath(absPath)
             # Lift coefficient increment over time

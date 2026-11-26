@@ -9,12 +9,6 @@ URange = vcat(1e-3,1:1:100)
 # Sweep angle [rad]
 Λ = deg2rad(20)
 
-# Flag for tip correction
-hasTipCorrection = true
-
-# Tip correction function type
-tipLossType = "VLM-undef"
-
 # Aerodynamic solver
 aeroSolver = Indicial()
 
@@ -28,7 +22,7 @@ upright = false
 g = 0
 
 # Initialize model
-model,nElem,L,chord,normSparPos = create_Pazy(upright=upright)
+model,nElem,L,chord,referenceAxis = create_Pazy(upright=upright)
 
 # Undeformed nodal and midpoint positions
 wing = model.beams[1]
@@ -51,7 +45,7 @@ x3_def = Array{Vector{Float64}}(undef,length(θRange),length(URange))
 # Sweep pitch angle
 for (i,θ) in enumerate(θRange)
     # Model
-    model,_ = create_Pazy(aeroSolver=aeroSolver,airfoil=airfoil,upright=upright,sweepAngle=Λ,pitchAngle=θ,gravityVector=[0,0,-g],hasTipCorrection=hasTipCorrection,tipLossType=tipLossType)
+    model,_ = create_Pazy(aeroSolver=aeroSolver,airfoil=airfoil,upright=upright,sweepAngle=Λ,pitchAngle=θ,gravityVector=[0,0,-g])
     # Initialize guess solution
     x0 = zeros(0)
     # Sweep airspeed
@@ -90,12 +84,12 @@ dispΛ20θ7U70_Sharpy = readdlm(pkgdir(AeroBeams)*"/test/referenceData/sweptPazy
 
 ## Plots
 # Set paths
-relPath = "/test/outputs/figures/sweptPazySteadyPitchRange"
+relPath = "/test/outputs/figures/steadyAeroelastic/sweptPazySteadyPitchRange"
 absPath = string(pwd(),relPath)
 mkpath(absPath)
 
 # Deformed state of selected condition (AoA = 5 deg and U = 60 m/s)
-deformationPlot = plot_steady_deformation(problem[3,61],view=(30,15),plotDistLoads=false,save=true,savePath="/test/outputs/figures/sweptPazySteadyPitchRange/sweptPazySteadyPitchRange_deformation.pdf")
+deformationPlot = plot_steady_deformation(problem[3,61],view=(30,15),plotDistLoads=false,save=true,savePath="/test/outputs/figures/steadyAeroelastic/sweptPazySteadyPitchRange/sweptPazySteadyPitchRange_deformation.pdf")
 display(deformationPlot)
 
 # Plot configurations

@@ -129,10 +129,10 @@ sAirfoil = create_Airfoil(database=dbStabAirfoil,Ma=airspeed/atmosphere.a)
 #md nothing #hide
 
 # ### Wing aerodynamic surface
-# In AeroBeams, each beam can have an aerodynamic surface attached to it. The wing surface is defined by an airfoil, `wAirfoil`, the normalized position of the beam's reference line (spar) on the chord, `wNormSparPos`, the normalized position of the flap (aileron) hinge on the chord, `wNormFlapPos`, and the normalized endpoints of the flap (aileron) span over the beam's arclength, `wNormFlapSpan`. To create an aerodynamic surface, we use the function [`create_AeroSurface`](@ref create_AeroSurface).
+# In AeroBeams, each beam can have an aerodynamic surface attached to it. The wing surface is defined by an airfoil, `wAirfoil`, the normalized position of the beam's reference line (spar) on the chord, `wReferenceAxis`, the normalized position of the flap (aileron) hinge on the chord, `wNormFlapPos`, and the normalized endpoints of the flap (aileron) span over the beam's arclength, `wNormFlapSpan`. To create an aerodynamic surface, we use the function [`create_AeroSurface`](@ref create_AeroSurface).
 ## Wing surface
 wChord = 1
-wNormSparPos = 0.5
+wReferenceAxis = 0.5
 wNormFlapPos = wFlapSiteID/100
 wFlapSize = 0.25
 wLNormFlapSpan = [0, wFlapSize]
@@ -145,7 +145,7 @@ wingSurfLeft = create_AeroSurface(
             flapSolver=flapSolver,
             airfoil=wAirfoil,
             c=wChord,
-            normSparPos=wNormSparPos,
+            referenceAxis=wReferenceAxis,
             normFlapPos=wNormFlapPos,
             normFlapSpan=wLNormFlapSpan,
             δ = δAilIsInput ? δAil : nothing,
@@ -162,7 +162,7 @@ wingSurfRight = create_AeroSurface(
         flapSolver=flapSolver,
         airfoil=wAirfoil,
         c=wChord,
-        normSparPos=wNormSparPos,
+        referenceAxis=wReferenceAxis,
         normFlapPos=wNormFlapPos,
         normFlapSpan=wRNormFlapSpan,
         δ = δAilIsInput ? δAil : nothing,
@@ -264,7 +264,7 @@ tailBoom = create_Beam(
 # The horizontal stabilizer's aerodynamic surface is constructed similarly to the wing's, though it depends on whether the elevator deflecton is a trim variable or not (through the flags `δElevIsTrimVariable` and `δElevIsInput`).
 ## Horizontal stabilizer surface
 hChord = 0.5
-hNormSparPos = 0.5
+hReferenceAxis = 0.5
 hNormFlapPos = sFlapSiteID/100
 hNormFlapSpan = [0, 1]
 
@@ -276,7 +276,7 @@ hsSurf = stabilizersAero ?
             flapSolver=flapSolver,
             airfoil=sAirfoil,
             c=hChord,
-            normSparPos=hNormSparPos,
+            referenceAxis=hReferenceAxis,
             normFlapPos=hNormFlapPos,
             normFlapSpan=hNormFlapSpan,
             δ = δElevIsInput ? δElev : nothing,
@@ -309,7 +309,7 @@ horzStabilizer = create_Beam(
 # The construction of the vertical stabilizer is again similar to that of the wing and horizontal counterpart.
 ## Vertical stabilizer surface
 vChord = 0.5
-vNormSparPos = 0.5
+vReferenceAxis = 0.5
 vNormFlapPos = sFlapSiteID/100
 vNormFlapSpan = [0, 1]
 
@@ -321,7 +321,7 @@ vsSurf = stabilizersAero ?
                 flapSolver=flapSolver,
                 airfoil=sAirfoil,
                 c=vChord,
-                normSparPos=vNormSparPos,
+                referenceAxis=vReferenceAxis,
                 normFlapPos=vNormFlapPos,
                 normFlapSpan=vNormFlapSpan,
                 δ = δRuddIsInput ? δRudd : nothing,

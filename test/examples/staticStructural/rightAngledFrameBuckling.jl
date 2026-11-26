@@ -41,7 +41,7 @@ tip_u2 = [states[i][end].nodal.u2[2] for i in 1:length(σVec)]
 
 ## Plots
 # Set paths
-relPath = "/test/outputs/figures/rightAngledFrameBuckling"
+relPath = "/test/outputs/figures/staticStructural/rightAngledFrameBuckling"
 absPath = string(pwd(),relPath)
 mkpath(absPath)
 

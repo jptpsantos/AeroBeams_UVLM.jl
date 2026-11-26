@@ -1,0 +1,4 @@
+# dev/Pazy/S0/BeamRod/PazyWingBeamRodPitchRange.jl [n_sec]: AF=script, FWL=default, TLMODE=sec, XS=false, WS=1.0, WN=false (40.7 s)
+θ=3°: tip OOP rms 2.05 %L (mean relative error +21.9 %)
+θ=5°: tip OOP rms 2.13 %L (mean relative error +11.0 %) | twist rms 0.17 deg (mean relative error +3.9 %)
+θ=7°: tip OOP rms 2.81 %L (mean relative error +1.7 %) | twist rms 0.28 deg (mean relative error -17.0 %)

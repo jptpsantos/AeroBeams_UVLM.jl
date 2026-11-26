@@ -102,7 +102,7 @@ aoa_10_num = readdlm(pkgdir(AeroBeams)*"/test/referenceData/HealyLCOFFWTsteadyUR
 
 ## Plots
 # Set paths
-relPath = "/test/outputs/figures/HealyLCOFFWTsteadyURangeAoARangeCoast"
+relPath = "/test/outputs/figures/steadyAeroelastic/HealyLCOFFWTsteadyURangeAoARangeCoast"
 absPath = string(pwd(),relPath)
 mkpath(absPath)
 

@@ -54,7 +54,7 @@ V3 = [[states[i][e].midpoint.V[3] for e = 1:nElem] for i in 1:length(t)]
 ## Plots
 # Set paths
 plotName = string("rootExcitationBeam",frequencyMode)
-relPath = "/test/outputs/figures/$(plotName)"
+relPath = "/test/outputs/figures/dynamicStructural/$(plotName)"
 absPath = string(pwd(),relPath)
 mkpath(absPath)
 

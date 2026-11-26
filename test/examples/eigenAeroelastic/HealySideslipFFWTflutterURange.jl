@@ -59,7 +59,7 @@ freqsOsc,dampsOsc,_ = filter_tracked_modes(freqs,damps; fmin=Hz2rads(1e-2), maxT
 
 ## Plots
 # Set paths
-relPath = "/test/outputs/figures/HealySideslipFFWTflutterURange"
+relPath = "/test/outputs/figures/eigenAeroelastic/HealySideslipFFWTflutterURange"
 absPath = string(pwd(),relPath)
 mkpath(absPath)
 

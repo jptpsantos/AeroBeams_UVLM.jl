@@ -42,7 +42,7 @@ println("Tip disp = $(u3[end])")
 
 ## Plots
 # Set paths
-relPath = "/test/outputs/figures/cantileverWithTipSpring"
+relPath = "/test/outputs/figures/staticStructural/cantileverWithTipSpring"
 absPath = string(pwd(),relPath)
 mkpath(absPath)
 

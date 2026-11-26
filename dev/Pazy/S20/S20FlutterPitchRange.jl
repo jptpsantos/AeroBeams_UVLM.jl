@@ -1,0 +1,134 @@
+using AeroBeams
+
+# Sweep angle [rad]
+Λ = deg2rad(20)
+
+# Root pitch angle range [rad]
+θRange = deg2rad.([0,1,3,5,7,10])
+
+# Airspeed range [m/s]
+URange = vcat(0:1:100)
+
+# Tip mass configuration
+tipMassConfig = :TE
+
+# Mesh
+mesh = :refined
+
+# Flag to model the wingtip rod as a beam (true) or with its inertia only (false)
+beamWingtipRod = true
+
+# Number of elements of the wingtip rod beam (used only if beamWingtipRod is true)
+nElementsWingtipRod = 16
+
+# Aerodynamic solver
+aeroSolver = Indicial()
+
+# Geometric properties
+nElem,L,chord,referenceAxis,nodalPositions = geometrical_properties_Pazy(Λ=Λ,mesh=mesh)
+
+# Number of modes to track
+nModes = 5
+
+# Eigensolver method and minimum number of eigenvalues to be computed
+eigenmethod = :krylovkit
+nev = 65
+
+# Initialize outputs
+eigensols = Array{EigenSolution}(undef,length(θRange),length(URange))
+tipOOP = Array{Float64}(undef,length(θRange),length(URange))
+freqsOsc = Array{Matrix{Float64}}(undef,length(θRange))
+dampsOsc = Array{Matrix{Float64}}(undef,length(θRange))
+
+# Sweep pitch angle
+for (i,θ) in enumerate(θRange)
+    # Initialize guess solution
+    x0 = zeros(0)
+    # Sweep airspeed
+    for (j,U) in enumerate(URange)
+        # Display progress
+        println("Solving for θ = $(round(Int,rad2deg(θ))) deg, U = $U m/s")
+        # Model
+        model,_ = create_Pazy(aeroSolver=aeroSolver,mesh=mesh,sweepAngle=Λ,pitchAngle=θ,airspeed=U,tipMassConfig=tipMassConfig,beamWingtipRod=beamWingtipRod,nElementsWingtipRod=nElementsWingtipRod,tipRodInertiaCorrection=!beamWingtipRod)
+        # Create and solve problem
+        problem = create_EigenProblem(model=model,eigenmethod=eigenmethod,nev=nev,x0=x0)
+        solve!(problem)
+        # Eigensolution
+        eigensols[i,j] = problem.eigensolution
+        # Tip OOP deflection
+        tipOOP[i,j] = problem.loadstepHistory.states[end][nElem].nodal.u2_b[3]
+        # Set initial guess solution for next iteration
+        x0 = problem.systemArrays.x
+    end
+    # Apply mode tracking
+    freqs,damps,_ = mode_tracking(eigensols[i,:])
+    # Get frequencies and dampings of oscillatory modes
+    freqsOsc[i],dampsOsc[i],_ = filter_tracked_modes(freqs,damps; fmin=2π, maxTracks=nModes)
+end
+
+# Load reference data (experiments from Technion - https://doi.org/10.5281/zenodo.16354530)
+freqs_aoa0_ref = readdlm(pkgdir(AeroBeams)*"/test/referenceData/sweptPazyS20/aeroelastic_freqs_aoa0.txt")
+freqs_aoa1_ref = readdlm(pkgdir(AeroBeams)*"/test/referenceData/sweptPazyS20/aeroelastic_freqs_aoa1.txt")
+freqs_aoa3_ref = readdlm(pkgdir(AeroBeams)*"/test/referenceData/sweptPazyS20/aeroelastic_freqs_aoa3.txt")
+freqs_aoa5_ref = readdlm(pkgdir(AeroBeams)*"/test/referenceData/sweptPazyS20/aeroelastic_freqs_aoa5.txt")
+freqs_aoa7_ref = readdlm(pkgdir(AeroBeams)*"/test/referenceData/sweptPazyS20/aeroelastic_freqs_aoa7.txt")
+freqs_aoa10_ref = readdlm(pkgdir(AeroBeams)*"/test/referenceData/sweptPazyS20/aeroelastic_freqs_aoa10.txt")
+
+## Plots
+# Set paths
+relPath = "/dev/Pazy/S20/outputs/S20FlutterPitchRange"
+absPath = string(pwd(),relPath)
+mkpath(absPath)
+
+# Name of the wingtip rod model, for the outputs
+rodModel = beamWingtipRod ? "BeamRod" : "InertiaRod"
+
+# Plot configurations
+modeColors = cgrad(:rainbow, nModes, categorical=true)
+θColors = cgrad(:rainbow, length(θRange), categorical=true)
+ts = 10
+fs = 14
+lfs = 8
+lw = 2
+ms = 3
+msw = 0
+gr()
+
+# V-g-f
+plt_Vf = plot(ylabel="Frequency [Hz]", xlims=[0,101], ylims=[0,100], xticks=vcat(0:10:100), tickfont=font(ts), guidefont=font(fs), legendfontsize=lfs)
+plot!([NaN], [NaN], lw=lw, c=:black, label="AeroBeams")
+scatter!([NaN], [NaN], ms=ms, msw=msw, msc=:black, label="Exp.")
+for (i,θ) in enumerate(θRange)
+    for mode in 1:nModes
+        plot!(URange, rads2Hz.(freqsOsc[i][mode,:]), c=θColors[i], lw=lw, label=false)
+        if i==1 && mode <= size(freqs_aoa0_ref,1)-1
+            scatter!(freqs_aoa0_ref[1,:], freqs_aoa0_ref[mode+1,:], ms=ms, msw=msw, c=θColors[i], label=false)
+        elseif i==2 && mode <= size(freqs_aoa1_ref,1)-1
+            scatter!(freqs_aoa1_ref[1,:], freqs_aoa1_ref[mode+1,:], ms=ms, msw=msw, c=θColors[i], label=false)
+        elseif i==3 && mode <= size(freqs_aoa3_ref,1)-1
+            scatter!(freqs_aoa3_ref[1,:], freqs_aoa3_ref[mode+1,:], ms=ms, msw=msw, c=θColors[i], label=false)
+        elseif i==4 && mode <= size(freqs_aoa5_ref,1)-1
+            scatter!(freqs_aoa5_ref[1,:], freqs_aoa5_ref[mode+1,:], ms=ms, msw=msw, c=θColors[i], label=false)
+        elseif i==5 && mode <= size(freqs_aoa7_ref,1)-1
+            scatter!(freqs_aoa7_ref[1,:], freqs_aoa7_ref[mode+1,:], ms=ms, msw=msw, c=θColors[i], label=false)
+        elseif i==6 && mode <= size(freqs_aoa10_ref,1)-1
+            scatter!(freqs_aoa10_ref[1,:], freqs_aoa10_ref[mode+1,:], ms=ms, msw=msw, c=θColors[i], label=false)      
+        end
+    end
+end
+plt_Vg = plot(xlabel="Airspeed [m/s]", ylabel="Damping Ratio", xlims=[0,101], ylims=[-0.2,0.1], xticks=vcat(0:10:100), tickfont=font(ts), guidefont=font(fs), legend=:topleft)
+plot!(URange, zeros(length(URange)), c=:black, lw=lw, ls=:dash, label=false)
+for (i,θ) in enumerate(θRange)
+    for mode in 1:nModes
+        plot!(URange, dampsOsc[i][mode,:]./freqsOsc[i][mode,:], c=θColors[i], lw=lw, label=false)
+    end
+end
+plt_Vgf = plot(plt_Vf,plt_Vg, layout=(2,1))
+display(plt_Vf)
+display(plt_Vg)
+display(plt_Vgf)
+savefig(plt_Vf,string(absPath,"/S20$(rodModel)FlutterPitchRange_freq_",tipMassConfig,".pdf"))
+savefig(plt_Vg,string(absPath,"/S20$(rodModel)FlutterPitchRange_damp_",tipMassConfig,".pdf"))
+savefig(plt_Vgf,string(absPath,"/S20$(rodModel)FlutterPitchRange_Vgf_",tipMassConfig,".pdf"))
+
+println("Finished S20FlutterPitchRange.jl")

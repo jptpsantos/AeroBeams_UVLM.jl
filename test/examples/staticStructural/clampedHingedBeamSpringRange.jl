@@ -79,7 +79,7 @@ r_n3 = reduce(vcat,[beam.elements[e].assemblyData.r_n1[3],
 
 ## Plots
 # Set paths
-relPath = "/test/outputs/figures/clampedHingedBeamSpringRange"
+relPath = "/test/outputs/figures/staticStructural/clampedHingedBeamSpringRange"
 absPath = string(pwd(),relPath)
 mkpath(absPath)
 

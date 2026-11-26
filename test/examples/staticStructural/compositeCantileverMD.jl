@@ -243,7 +243,7 @@ u3_b3_th45_ref = readdlm(pkgdir(AeroBeams)*"/test/referenceData/compositeCantile
 
 ## Plots
 # Set paths
-relPath = "/test/outputs/figures/compositeCantileverMD"
+relPath = "/test/outputs/figures/staticStructural/compositeCantileverMD"
 absPath = string(pwd(),relPath)
 mkpath(absPath)
 

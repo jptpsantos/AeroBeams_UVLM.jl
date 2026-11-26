@@ -17,7 +17,7 @@ Ma = 0.4
 θ₀ = deg2rad(14.88)
 Δθ = deg2rad(3.41)
 chord = 0.16
-normSparPos = 1/4
+referenceAxis = 1/4
 U = Ma*atmosphere.a
 ω = k*U/(chord/2)
 T = 2π/ω
@@ -29,7 +29,7 @@ hdot = applyTransitionFunction ?
 update_all_airfoil_parameters!(airfoil,Ma)
 
 # Wing surface
-surf = create_AeroSurface(ppSolver=aeroSolver,airfoil=airfoil,c=chord,normSparPos=normSparPos,updateAirfoilParameters=false)
+surf = create_AeroSurface(ppSolver=aeroSolver,airfoil=airfoil,c=chord,referenceAxis=referenceAxis,updateAirfoilParameters=false)
 
 # Wing beam
 L = 1
@@ -73,7 +73,7 @@ cm_num = readdlm(pkgdir(AeroBeams)*"/test/referenceData/plungingAirfoil/cm_num.t
 
 ## Plots
 # Set paths
-relPath = "/test/outputs/figures/plungingAirfoilDSModelTest"
+relPath = "/test/outputs/figures/aerodynamic/plungingAirfoilDSModelTest"
 absPath = string(pwd(),relPath)
 mkpath(absPath)
 

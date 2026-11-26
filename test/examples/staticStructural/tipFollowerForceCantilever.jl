@@ -38,7 +38,7 @@ u3Ref = readdlm(pkgdir(AeroBeams,"test","referenceData","tipFollowerForceCantile
 
 ## Plots
 # Set paths
-relPath = "/test/outputs/figures/tipFollowerForceCantilever"
+relPath = "/test/outputs/figures/staticStructural/tipFollowerForceCantilever"
 absPath = string(pwd(),relPath)
 mkpath(absPath)
 
